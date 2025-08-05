@@ -8,28 +8,77 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// 안전한 날짜 변환 함수
+function safeDate(dateInput: Date | string | number): Date | null {
+  if (!dateInput) return null
+  
+  try {
+    let date: Date
+    
+    if (dateInput instanceof Date) {
+      date = dateInput
+    } else if (typeof dateInput === 'string') {
+      date = new Date(dateInput)
+    } else if (typeof dateInput === 'number') {
+      date = new Date(dateInput)
+    } else {
+      return null
+    }
+    
+    // Invalid Date 체크
+    if (isNaN(date.getTime())) {
+      return null
+    }
+    
+    return date
+  } catch {
+    return null
+  }
+}
+
 // 날짜 포맷팅 유틸리티
 export const formatDate = {
   // 기본 날짜 형식 (2024년 1월 1일)
-  standard: (date: Date) => format(date, 'yyyy년 M월 d일', { locale: ko }),
+  standard: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? format(date, 'yyyy년 M월 d일', { locale: ko }) : '날짜 정보 없음'
+  },
   
   // 짧은 날짜 형식 (2024.01.01)
-  short: (date: Date) => format(date, 'yyyy.MM.dd'),
+  short: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? format(date, 'yyyy.MM.dd') : '날짜 정보 없음'
+  },
   
   // 시간 포함 (2024년 1월 1일 오후 2:30)
-  withTime: (date: Date) => format(date, 'yyyy년 M월 d일 a h:mm', { locale: ko }),
+  withTime: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? format(date, 'yyyy년 M월 d일 a h:mm', { locale: ko }) : '날짜 정보 없음'
+  },
   
   // 상대 시간 (3시간 전)
-  relative: (date: Date) => formatDistanceToNow(date, { addSuffix: true, locale: ko }),
+  relative: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? formatDistanceToNow(date, { addSuffix: true, locale: ko }) : '날짜 정보 없음'
+  },
   
   // 시간만 (14:30)
-  timeOnly: (date: Date) => format(date, 'HH:mm'),
+  timeOnly: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? format(date, 'HH:mm') : '--:--'
+  },
   
   // 월/일만 (1/1)
-  monthDay: (date: Date) => format(date, 'M/d'),
+  monthDay: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? format(date, 'M/d') : '--/--'
+  },
   
   // ISO 문자열
-  iso: (date: Date) => date.toISOString(),
+  iso: (dateInput: Date | string | number) => {
+    const date = safeDate(dateInput)
+    return date ? date.toISOString() : ''
+  },
 }
 
 // 시간대별 시간 변환

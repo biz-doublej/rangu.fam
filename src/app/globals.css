@@ -74,4 +74,260 @@ body {
   outline: 2px solid rgba(0, 102, 204, 0.5);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* 영상 및 슬라이드 관련 스타일 */
+@layer components {
+  .video-container {
+    @apply relative w-full h-full overflow-hidden rounded-xl;
+  }
+  
+  .video-overlay {
+    @apply absolute inset-0 bg-glass-dark bg-opacity-20 transition-opacity duration-300 
+           opacity-0 hover:opacity-100 flex items-center justify-center;
+  }
+  
+  .video-play-indicator {
+    @apply w-16 h-16 bg-glass-white rounded-full flex items-center justify-center
+           shadow-glass backdrop-blur-sm;
+  }
+  
+  .slide-nav-button {
+    @apply glass-button opacity-90 hover:opacity-100 transition-all duration-300
+           hover:scale-110 hover:shadow-glass backdrop-blur-md
+           bg-glass-white border-2 border-glass hover:border-primary-400;
+  }
+  
+  .slide-nav-button:hover {
+    @apply bg-white shadow-xl transform scale-110;
+  }
+  
+  .slide-nav-button:active {
+    @apply scale-95;
+  }
+  
+  .slide-indicator {
+    @apply glass-card px-6 py-3 backdrop-blur-lg bg-opacity-95 shadow-2xl border border-glass
+           max-w-4xl mx-auto;
+  }
+  
+  .slide-indicator-item {
+    @apply w-9 h-9 rounded-full flex items-center justify-center text-base
+           transition-all duration-300 cursor-pointer hover:scale-105 
+           border-2 border-transparent;
+  }
+  
+  .slide-indicator-active {
+    @apply bg-primary-500 text-white shadow-xl border-primary-300 
+           transform scale-105;
+  }
+  
+  .slide-indicator-inactive {
+    @apply bg-glass-medium text-primary-600 opacity-70 hover:opacity-100
+           hover:bg-glass-light hover:border-primary-200;
+  }
+}
+
+/* 영상 부드러운 전환 효과 */
+video {
+  transition: all 0.4s ease;
+  border-radius: 16px;
+}
+
+video:hover {
+  transform: scale(1.01);
+  filter: brightness(1.05);
+}
+
+/* 슬라이드 호버 효과 */
+.slide-container {
+  transition: all 0.3s ease;
+}
+
+.slide-container:hover {
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.35);
+}
+
+/* 호버 시 커서 표시 */
+.slide-container:hover {
+  cursor: pointer;
+}
+
+/* 슬라이드 컨테이너 개선 */
+.glass-card {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* 카운트다운 타이머 스타일 */
+.countdown-urgent {
+  animation: pulse-red 1s infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% {
+    color: #ef4444;
+    transform: scale(1);
+  }
+  50% {
+    color: #dc2626;
+    transform: scale(1.05);
+  }
+}
+
+/* 프로그레스 바 스타일 */
+.progress-bar {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ef4444);
+  border-radius: 2px;
+}
+
+/* 반응형 슬라이드 높이 */
+@media (max-width: 768px) {
+  .slide-nav-button {
+    @apply p-2;
+  }
+  
+  .slide-indicator {
+    @apply px-4 py-2;
+  }
+  
+  .slide-indicator-item {
+    @apply w-7 h-7 text-sm;
+  }
+  
+  .countdown-timer {
+    @apply text-xs;
+  }
+}
+
+/* 와이드 스크린 대응 */
+@media (min-width: 1024px) {
+  .slide-indicator {
+    @apply px-8 py-4;
+  }
+}
+
+/* 미디어 플레이어 수직 볼륨 슬라이더 스타일 */
+.vertical-volume-slider {
+  writing-mode: bt-lr; /* IE */
+  -webkit-writing-mode: vertical-lr; /* WebKit */
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 4px;
+  height: 80px;
+  background: transparent;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.vertical-volume-slider::-webkit-slider-track {
+  width: 4px;
+  height: 80px;
+  background: #e5e7eb;
+  border-radius: 2px;
+}
+
+.vertical-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.vertical-volume-slider::-webkit-slider-thumb:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+}
+
+.vertical-volume-slider::-moz-range-track {
+  width: 4px;
+  height: 80px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  border: none;
+}
+
+.vertical-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 미디어 플레이어 프로그레스 바 */
+.media-progress-bar {
+  position: relative;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.media-progress-bar:hover .media-progress-thumb {
+  opacity: 1;
+}
+
+.media-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  border-radius: 2px;
+  transition: width 0.1s ease;
+}
+
+.media-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border: 2px solid white;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 볼륨 슬라이더 커스텀 스타일 */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 } 

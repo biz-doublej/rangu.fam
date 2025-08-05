@@ -267,8 +267,8 @@ export default function AboutPage() {
     {
       name: '정진규',
       emoji: '🪖',
-      role: '수호자',
-      description: '든든한 믿음직한 랑구팸의 보호자',
+      role: '수호자 (군 복무 중)',
+      description: '든든한 믿음직한 랑구팸의 보호자 (현재 군 복무 중)',
       specialty: '리더십 & 책임감',
       color: 'from-orange-400 to-orange-600'
     },
@@ -279,6 +279,22 @@ export default function AboutPage() {
       description: '게임과 엔터테인먼트의 전문가',
       specialty: '게임 & 재미',
       color: 'from-purple-400 to-purple-600'
+    },
+    {
+      name: '이승찬',
+      emoji: '🌟',
+      role: '임시 멤버',
+      description: '2025년 7월부터 합류한 새로운 에너지',
+      specialty: '신선한 아이디어',
+      color: 'from-yellow-400 to-yellow-600'
+    },
+    {
+      name: '윤희열',
+      emoji: '🔮',
+      role: '임시 멤버 (예정)',
+      description: '2025년 9월부터 합류 예정인 미래의 동료',
+      specialty: '새로운 가능성',
+      color: 'from-indigo-400 to-indigo-600'
     }
   ]
 
@@ -631,7 +647,7 @@ export default function AboutPage() {
           <h2 className="text-4xl font-bold text-primary-700 text-center mb-12">
             랑구팸 멤버들
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {members.map((member, index) => (
               <motion.div
                 key={member.name}

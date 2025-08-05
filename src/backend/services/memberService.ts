@@ -126,16 +126,16 @@ export class MemberService {
         personalPageUrl: '/members/minseok'
       },
       {
-        id: 'jinkyu',
+        id: 'jingyu',
         name: '정진규',
         role: '군 입대 중',
         description: '현재 군 복무 중이며, 전역 후 새로운 도전을 계획하고 있습니다.',
-        avatar: '/images/jinkyu.jpg',
-        email: 'jinkyu@rangu.fam',
+        avatar: '/images/jingyu.jpg',
+        email: 'jingyu@rangu.fam',
         status: 'active',
         location: '대한민국',
         joinDate: new Date('2020-01-01'),
-        personalPageUrl: '/members/jinkyu'
+        personalPageUrl: '/members/jingyu'
       },
       {
         id: 'hanul',

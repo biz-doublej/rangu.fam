@@ -26,7 +26,7 @@ const DEMO_EVENTS: CalendarEvent[] = [
     endDate: new Date('2024-02-15T22:00:00'),
     allDay: false,
     createdBy: 'jaewon',
-    attendees: ['jaewon', 'minseok', 'jinkyu', 'hanul'],
+    attendees: ['jaewon', 'minseok', 'jingyu', 'hanul'],
     location: '강남구 카페',
     color: 'bg-pink-500',
     isPrivate: false
@@ -78,7 +78,7 @@ const DEMO_EVENTS: CalendarEvent[] = [
     endDate: new Date('2024-03-10'),
     allDay: true,
     createdBy: 'jaewon',
-    attendees: ['jaewon', 'minseok', 'jinkyu', 'hanul'],
+    attendees: ['jaewon', 'minseok', 'jingyu', 'hanul'],
     location: '서울역 근처',
     color: 'bg-orange-500',
     isPrivate: false

@@ -48,16 +48,40 @@ async function loadMembers(): Promise<Member[]> {
       personalPageUrl: '/members/minseok'
     },
     {
-      id: 'jinkyu',
+      id: 'jingyu',
       name: '정진규',
       role: '군 입대 중',
       description: '현재 군 복무 중이며, 전역 후 새로운 도전을 계획하고 있습니다.',
-      avatar: '/images/jinkyu.jpg',
-      email: 'jinkyu@rangu.fam',
+      avatar: '/images/jingyu.jpg',
+      email: 'jingyu@rangu.fam',
       status: 'active',
       location: '대한민국',
       joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/jinkyu'
+      personalPageUrl: '/members/jingyu'
+    },
+    {
+      id: 'seungchan',
+      name: '이승찬',
+      role: '임시 멤버 (정진규 대체)',
+      description: '2025년 7월부터 임시로 합류한 새로운 멤버입니다.',
+      avatar: '/images/seungchan.jpg',
+      email: 'seungchan@rangu.fam',
+      status: 'active',
+      location: '대한민국',
+      joinDate: new Date('2025-07-21'),
+      personalPageUrl: '/members/seungchan'
+    },
+    {
+      id: 'heeyeol',
+      name: '윤희열',
+      role: '임시 멤버 (예정)',
+      description: '2025년 9월부터 임시로 합류 예정인 새로운 멤버입니다.',
+      avatar: '/images/heeyeol.jpg',
+      email: 'heeyeol@rangu.fam',
+      status: 'active',
+      location: '대한민국',
+      joinDate: new Date('2025-09-01'),
+      personalPageUrl: '/members/heeyeol'
     },
     {
       id: 'hanul',
@@ -78,7 +102,7 @@ async function loadMembers(): Promise<Member[]> {
 const DEMO_CREDENTIALS = {
   jaewon: 'password123',
   minseok: 'password123',
-  jinkyu: 'password123',
+  jingyu: 'password123',
   hanul: 'password123',
   guest: 'guest123'
 }

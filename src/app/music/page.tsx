@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Play, Pause, Music, Album, User, Search, Filter, Plus, 
@@ -63,6 +63,8 @@ export default function MusicPage() {
   const [repeatMode, setRepeatMode] = useState<'none' | 'one' | 'all'>('none')
   const [volume, setVolume] = useState(80)
   const [isMuted, setIsMuted] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   
   // UI 상태
   const [searchQuery, setSearchQuery] = useState('')
@@ -133,6 +135,14 @@ export default function MusicPage() {
   useEffect(() => {
     loadFilteredTracks()
   }, [searchQuery, selectedGenre, sortBy, selectedCategory])
+
+  // 트랙 변경 시 시간 초기화
+  useEffect(() => {
+    if (currentTrack) {
+      setCurrentTime(0)
+      setDuration(currentTrack.duration || 180) // 기본값 3분
+    }
+  }, [currentTrack])
 
   const loadInitialData = async () => {
     setIsLoading(true)
@@ -240,7 +250,7 @@ export default function MusicPage() {
     setIsPlaying(!isPlaying)
   }
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     let nextIndex
     if (isShuffled) {
       nextIndex = Math.floor(Math.random() * currentPlaylist.length)
@@ -249,13 +259,40 @@ export default function MusicPage() {
     }
     setCurrentTrackIndex(nextIndex)
     setCurrentTrack(currentPlaylist[nextIndex])
-  }
+  }, [isShuffled, currentTrackIndex, currentPlaylist])
 
   const handlePrev = () => {
     const prevIndex = currentTrackIndex === 0 ? currentPlaylist.length - 1 : currentTrackIndex - 1
     setCurrentTrackIndex(prevIndex)
     setCurrentTrack(currentPlaylist[prevIndex])
   }
+
+  // 재생 시간 업데이트 (handleNext 선언 후)
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (isPlaying && currentTrack) {
+      interval = setInterval(() => {
+        setCurrentTime(prev => {
+          const newTime = prev + 1
+          if (newTime >= duration && duration > 0) {
+            // 트랙 종료 처리
+            if (repeatMode === 'one') {
+              setCurrentTime(0)
+              return 0
+            } else if (repeatMode === 'all' || currentTrackIndex < currentPlaylist.length - 1) {
+              handleNext()
+              return 0
+            } else {
+              setIsPlaying(false)
+              return 0
+            }
+          }
+          return newTime
+        })
+      }, 1000)
+    }
+    return () => clearInterval(interval)
+  }, [isPlaying, currentTrack, duration, repeatMode, currentTrackIndex, currentPlaylist.length, handleNext])
 
   // 좋아요/싫어요 관리
   const handleLike = async (trackId: string, isLike: boolean) => {
@@ -398,88 +435,136 @@ export default function MusicPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-warm-50">
-      {/* 헤더 */}
-      <header className="glass-nav fixed top-0 left-0 right-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <motion.button
-              className="glass-button p-2"
-              onClick={() => router.push('/')}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <ArrowLeft className="w-5 h-5 text-primary-600" />
-            </motion.button>
-            <h1 className="text-xl font-bold text-gradient">🎵 Rangu.fam Radio</h1>
-            <Button 
-              variant="glass" 
-              size="sm"
-              onClick={() => setShowUploadModal(true)}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              업로드
-            </Button>
+    <div className="min-h-screen bg-white">
+      {/* SoundCloud 스타일 헤더 */}
+      <header className="bg-[#f50] shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            {/* 로고 */}
+            <div className="flex items-center space-x-4">
+              <motion.button
+                className="p-2 text-white hover:bg-orange-600 rounded-lg transition-colors"
+                onClick={() => router.push('/')}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </motion.button>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                  <Music className="w-5 h-5 text-[#f50]" />
+                </div>
+                <h1 className="text-xl font-bold text-white">Rangu.fam</h1>
+              </div>
+            </div>
+
+            {/* 검색바 */}
+            <div className="flex-1 max-w-xl mx-8">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="음악, 아티스트 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+            </div>
+
+            {/* 우측 버튼들 */}
+            <div className="flex items-center space-x-4">
+              <Button 
+                className="bg-white text-[#f50] hover:bg-gray-100 border-0 rounded-full px-6"
+                onClick={() => setShowUploadModal(true)}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                업로드
+              </Button>
+              {user && (
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-[#f50] font-bold">
+                  {user.username[0].toUpperCase()}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* 메인 콘텐츠 */}
-      <main className="pt-20 pb-32">
-        <div className="max-w-7xl mx-auto p-6">
-          {/* 헤로 섹션 */}
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <h1 className="text-4xl md:text-5xl font-bold text-gradient mb-4">
-              🎵 Rangu.fam Radio
-            </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              네 친구가 만든 음악과 좋아하는 곡들을 함께 나누는 공간입니다.
-              YouTube 링크로 음악을 공유하고, 플레이리스트를 만들어보세요.
-            </p>
-            
-            {/* 통계 정보 */}
-            <div className="flex justify-center space-x-8 mt-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary-600">{tracks.length}</div>
-                <div className="text-sm text-gray-500">총 트랙</div>
+      <main className="pt-0 pb-32">
+        {/* SoundCloud 스타일 Hero 섹션 */}
+        <div className="bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 relative overflow-hidden">
+          <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+          <div className="relative max-w-7xl mx-auto px-6 py-16">
+            <motion.div
+              className="text-center text-white"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <h1 className="text-5xl md:text-6xl font-bold mb-4">
+                Discover & Share
+              </h1>
+              <p className="text-xl mb-8 opacity-90">
+                네 친구가 만든 음악과 좋아하는 곡들을 함께 나누는 공간
+              </p>
+              
+              {/* 통계 카드 */}
+              <div className="flex justify-center space-x-8">
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 min-w-[100px]">
+                  <div className="text-3xl font-bold">{tracks.length}</div>
+                  <div className="text-sm opacity-80">트랙</div>
+                </div>
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 min-w-[100px]">
+                  <div className="text-3xl font-bold">{playlists.length}</div>
+                  <div className="text-sm opacity-80">플레이리스트</div>
+                </div>
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 min-w-[100px]">
+                  <div className="text-3xl font-bold">{tracks.reduce((sum, track) => sum + track.plays, 0)}</div>
+                  <div className="text-sm opacity-80">재생수</div>
+                </div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary-600">{playlists.length}</div>
-                <div className="text-sm text-gray-500">플레이리스트</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary-600">{tracks.reduce((sum, track) => sum + track.plays, 0)}</div>
-                <div className="text-sm text-gray-500">총 재생</div>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
+        </div>
 
-          {/* 검색 및 필터 */}
+        <div className="max-w-7xl mx-auto px-6 -mt-8 relative z-10">
+          {/* 네비게이션 탭 */}
           <motion.div
             className="mb-8"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="flex flex-col lg:flex-row gap-4 mb-6">
-              <div className="flex-1">
-                <Input
-                  placeholder="음악, 아티스트, 앨범, 태그 검색..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full"
-                />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2">
+              <div className="flex space-x-1 overflow-x-auto">
+                {categories.map((category) => (
+                  <motion.button
+                    key={category.id}
+                    className={`flex items-center space-x-2 px-6 py-3 rounded-xl whitespace-nowrap transition-all font-medium ${
+                      selectedCategory === category.id
+                        ? 'bg-[#f50] text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                    onClick={() => setSelectedCategory(category.id as any)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <category.icon className="w-4 h-4" />
+                    <span>{category.label}</span>
+                  </motion.button>
+                ))}
               </div>
-              <div className="flex space-x-2">
+            </div>
+
+            {/* 필터 및 정렬 */}
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center space-x-3">
                 <select
                   value={selectedGenre}
                   onChange={(e) => setSelectedGenre(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
                 >
                   {genres.map(genre => (
                     <option key={genre} value={genre}>
@@ -490,33 +575,17 @@ export default function MusicPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
                 >
                   <option value="recent">최신순</option>
                   <option value="popular">인기순</option>
                   <option value="alphabetical">가나다순</option>
                 </select>
               </div>
-            </div>
-
-            {/* 카테고리 탭 */}
-            <div className="flex space-x-2 overflow-x-auto">
-              {categories.map((category) => (
-                <motion.button
-                  key={category.id}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl whitespace-nowrap transition-colors ${
-                    selectedCategory === category.id
-                      ? 'bg-primary-500 text-white'
-                      : 'glass-button text-gray-600'
-                  }`}
-                  onClick={() => setSelectedCategory(category.id as any)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <category.icon className="w-4 h-4" />
-                  <span>{category.label}</span>
-                </motion.button>
-              ))}
+              
+              <div className="text-sm text-gray-500">
+                {tracks.length}개의 트랙
+              </div>
             </div>
           </motion.div>
 
@@ -531,328 +600,385 @@ export default function MusicPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  <h2 className="text-2xl font-bold text-primary-700 mb-4 flex items-center">
-                    <Clock className="w-6 h-6 mr-2" />
-                    최근 재생
-                  </h2>
-                  <div className="flex space-x-4 overflow-x-auto pb-4">
-                    {recentlyPlayed.slice(0, 5).map((track, index) => (
-                      <div
-                        key={track._id}
-                        className="flex-shrink-0 w-32 cursor-pointer"
-                        onClick={() => handlePlay(track)}
-                      >
-                        <div className="relative">
-                          <img
-                            src={track.coverImage}
-                            alt={track.title}
-                            className="w-32 h-32 rounded-lg object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
-                            <Play className="w-8 h-8 text-white opacity-0 hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                        <p className="text-sm font-medium mt-2 truncate">{track.title}</p>
-                        <p className="text-xs text-gray-500 truncate">{track.artist}</p>
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="p-6 border-b border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                          <Clock className="w-5 h-5 mr-2 text-[#f50]" />
+                          최근 재생
+                        </h2>
+                        <motion.button
+                          className="text-sm text-[#f50] hover:text-orange-600 font-medium"
+                          whileHover={{ scale: 1.02 }}
+                          onClick={() => setRecentlyPlayed([])}
+                        >
+                          모두 지우기
+                        </motion.button>
                       </div>
-                    ))}
+                    </div>
+                    <div className="p-4">
+                      <div className="flex space-x-4 overflow-x-auto pb-2">
+                        {recentlyPlayed.slice(0, 8).map((track, index) => (
+                          <motion.div
+                            key={track._id}
+                            className="flex-shrink-0 w-32 cursor-pointer group"
+                            onClick={() => handlePlay(track)}
+                            whileHover={{ scale: 1.02 }}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                          >
+                            <div className="relative">
+                              <img
+                                src={track.coverImage}
+                                alt={track.title}
+                                className="w-32 h-32 rounded-lg object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
+                                {currentTrack?._id === track._id && isPlaying ? (
+                                  <Pause className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                ) : (
+                                  <Play className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                                )}
+                              </div>
+                              {currentTrack?._id === track._id && (
+                                <div className="absolute bottom-2 right-2 w-3 h-3 bg-[#f50] rounded-full animate-pulse"></div>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium mt-2 truncate group-hover:text-[#f50] transition-colors">{track.title}</p>
+                            <p className="text-xs text-gray-500 truncate">{track.uploadedBy}</p>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* 트랙 목록 */}
+              {/* 트랙 목록 - SoundCloud 스타일 */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
               >
-                <h2 className="text-2xl font-bold text-primary-700 mb-6">음악 라이브러리</h2>
-                
-                <div className="space-y-3">
-                  {tracks.map((track, index) => (
-                    <motion.div
-                      key={track._id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + index * 0.05 }}
-                    >
-                      <Card 
-                        hover 
-                        className={`cursor-pointer transition-all ${
-                          currentTrack?._id === track._id ? 'ring-2 ring-primary-500 bg-primary-50' : ''
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Latest Tracks</h2>
+                    <p className="text-gray-600">발견하고 공유할 새로운 음악</p>
+                  </div>
+                  
+                  <div className="divide-y divide-gray-100">
+                    {tracks.map((track, index) => (
+                      <motion.div
+                        key={track._id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 + index * 0.05 }}
+                        className={`p-6 hover:bg-gray-50 transition-colors cursor-pointer ${
+                          currentTrack?._id === track._id ? 'bg-orange-50 border-l-4 border-[#f50]' : ''
                         }`}
                       >
-                        <CardContent className="p-4">
-                          <div className="flex items-center space-x-4">
-                            {/* 썸네일 및 재생 버튼 */}
-                            <div className="relative w-16 h-16 flex-shrink-0">
-                              <img
-                                src={track.coverImage}
-                                alt={track.title}
-                                className="w-16 h-16 rounded-lg object-cover"
-                              />
-                              <motion.button
-                                className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => handlePlay(track)}
-                              >
-                                {currentTrack?._id === track._id && isPlaying ? (
-                                  <Pause className="w-6 h-6 text-white" />
-                                ) : (
-                                  <Play className="w-6 h-6 text-white" />
-                                )}
-                              </motion.button>
-                            </div>
+                        <div className="flex items-center space-x-4">
+                          {/* 재생 버튼 */}
+                          <motion.button
+                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                              currentTrack?._id === track._id && isPlaying 
+                                ? 'bg-[#f50] text-white' 
+                                : 'bg-gray-100 text-gray-600 hover:bg-[#f50] hover:text-white'
+                            }`}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handlePlay(track)}
+                          >
+                            {currentTrack?._id === track._id && isPlaying ? (
+                              <Pause className="w-5 h-5" />
+                            ) : (
+                              <Play className="w-5 h-5 ml-0.5" />
+                            )}
+                          </motion.button>
 
-                            {/* 트랙 정보 */}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-gray-800 truncate">{track.title}</h4>
-                              <p className="text-sm text-gray-600 truncate">{track.artist}</p>
-                              {track.album && (
-                                <p className="text-xs text-gray-500 truncate">{track.album}</p>
-                              )}
-                              
-                              {/* 태그 */}
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {track.tags.slice(0, 3).map(tag => (
-                                  <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
+                          {/* 아티스트 아바타 */}
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                            {track.uploadedBy[0].toUpperCase()}
+                          </div>
 
-                            {/* 통계 */}
-                            <div className="text-right text-sm text-gray-500 flex-shrink-0">
-                              <div className="flex items-center space-x-3 mb-1">
-                                <span className="flex items-center">
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  {track.plays}
-                                </span>
-                                <span className="flex items-center">
-                                  <Heart className="w-3 h-3 mr-1" />
-                                  {track.likes}
-                                </span>
-                              </div>
-                              <p className="text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded-full">
-                                {track.genre}
-                              </p>
-                              <p className="text-xs mt-1">{Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}</p>
+                          {/* 트랙 정보 및 Waveform */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="text-sm text-gray-600">{track.uploadedBy}</span>
+                              <span className="text-gray-400">•</span>
+                              <span className="text-sm text-gray-500">{formatDate.relative(new Date(track.createdAt))}</span>
                             </div>
-
-                            {/* 액션 버튼들 */}
-                            <div className="flex flex-col space-y-2 flex-shrink-0">
-                              <div className="flex items-center space-x-1">
-                                <motion.button
-                                  className={`p-1 rounded transition-colors ${
-                                    userFavorites.includes(track._id) ? 'text-green-500' : 'text-gray-400 hover:text-green-500'
-                                  }`}
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleLike(track._id, true)}
-                                >
-                                  <ThumbsUp className="w-4 h-4" />
-                                </motion.button>
-                                <motion.button
-                                  className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors"
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleLike(track._id, false)}
-                                >
-                                  <ThumbsDown className="w-4 h-4" />
-                                </motion.button>
-                              </div>
-                              
-                              <div className="flex items-center space-x-1">
-                                <motion.button
-                                  className={`p-1 rounded transition-colors ${
-                                    userFavorites.includes(track._id) ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'
-                                  }`}
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleToggleFavorite(track._id)}
-                                >
-                                  <Star className="w-4 h-4" />
-                                </motion.button>
+                            
+                            <h4 className="font-semibold text-gray-900 mb-2 hover:text-[#f50] transition-colors">
+                              {track.title}
+                            </h4>
+                            
+                            {/* Waveform 시뮬레이션 */}
+                            <div 
+                              className="flex items-center space-x-1 mb-2 cursor-pointer group"
+                              onClick={(e) => {
+                                if (currentTrack?._id === track._id) {
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  const x = e.clientX - rect.left
+                                  const progressPercentage = (x / rect.width) * 100
+                                  const newTime = (progressPercentage / 100) * duration
+                                  setCurrentTime(Math.max(0, Math.min(duration, newTime)))
+                                }
+                              }}
+                            >
+                              {Array.from({ length: 50 }).map((_, i) => {
+                                const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0
+                                const barProgress = (i / 50) * 100
+                                const isActive = currentTrack?._id === track._id && barProgress <= progressPercentage
                                 
-                                <motion.button
-                                  className="p-1 rounded text-gray-400 hover:text-primary-500 transition-colors"
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleToggleComments(track._id)}
-                                >
-                                  <MessageCircle className="w-4 h-4" />
-                                </motion.button>
-                                
-                                {track.youtubeId && (
-                                  <motion.button
-                                    className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => window.open(`https://youtube.com/watch?v=${track.youtubeId}`, '_blank')}
-                                  >
-                                    <Youtube className="w-4 h-4" />
-                                  </motion.button>
-                                )}
-                              </div>
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`w-1 rounded-full transition-all duration-200 ${
+                                      isActive
+                                        ? 'bg-[#f50]' 
+                                        : currentTrack?._id === track._id
+                                        ? 'bg-orange-200 group-hover:bg-orange-300'
+                                        : 'bg-gray-300 group-hover:bg-gray-400'
+                                    }`}
+                                    style={{ 
+                                      height: `${Math.random() * 20 + 8}px`,
+                                      opacity: currentTrack?._id === track._id ? 1 : 0.7
+                                    }}
+                                  />
+                                )
+                              })}
+                            </div>
+
+                            {/* 태그 */}
+                            <div className="flex flex-wrap gap-1">
+                              {track.tags.slice(0, 3).map(tag => (
+                                <span key={tag} className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                                  #{tag}
+                                </span>
+                              ))}
                             </div>
                           </div>
-                          
-                          {/* 댓글 섹션 */}
-                          <AnimatePresence>
-                            {showComments === track._id && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="mt-4 pt-4 border-t border-gray-200"
+
+                          {/* 통계 및 액션 */}
+                          <div className="flex items-center space-x-6 text-sm text-gray-500">
+                            {/* 재생 시간 */}
+                            <span className="flex items-center">
+                              <Clock className="w-4 h-4 mr-1" />
+                              {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}
+                            </span>
+                            
+                            {/* 재생 수 */}
+                            <span className="flex items-center">
+                              <Eye className="w-4 h-4 mr-1" />
+                              {track.plays.toLocaleString()}
+                            </span>
+
+                            {/* 액션 버튼들 */}
+                            <div className="flex items-center space-x-3">
+                              <motion.button
+                                className={`flex items-center space-x-1 transition-colors ${
+                                  userFavorites.includes(track._id) ? 'text-[#f50]' : 'text-gray-400 hover:text-[#f50]'
+                                }`}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => handleLike(track._id, true)}
                               >
-                                <h5 className="font-medium text-gray-700 mb-3">댓글 ({comments[track._id]?.length || 0})</h5>
-                                
-                                {/* 새 댓글 작성 */}
-                                {user && (
-                                  <div className="flex space-x-2 mb-4">
-                                    <Input
+                                <Heart className={`w-4 h-4 ${userFavorites.includes(track._id) ? 'fill-current' : ''}`} />
+                                <span>{track.likes}</span>
+                              </motion.button>
+
+                              <motion.button
+                                className="text-gray-400 hover:text-[#f50] transition-colors"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => handleToggleComments(track._id)}
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </motion.button>
+
+                              <motion.button
+                                className="text-gray-400 hover:text-[#f50] transition-colors"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                              >
+                                <Share2 className="w-4 h-4" />
+                              </motion.button>
+
+                              {track.youtubeId && (
+                                <motion.button
+                                  className="text-gray-400 hover:text-red-500 transition-colors"
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => window.open(`https://youtube.com/watch?v=${track.youtubeId}`, '_blank')}
+                                >
+                                  <Youtube className="w-4 h-4" />
+                                </motion.button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                          
+                        {/* 댓글 섹션 */}
+                        <AnimatePresence>
+                          {showComments === track._id && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mt-4 pt-4 border-t border-gray-100"
+                            >
+                              <h5 className="font-medium text-gray-700 mb-3">댓글 ({comments[track._id]?.length || 0})</h5>
+                              
+                              {/* 새 댓글 작성 */}
+                              {user && (
+                                <div className="flex space-x-3 mb-4">
+                                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    {user.username[0].toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 flex space-x-2">
+                                    <input
+                                      type="text"
                                       placeholder="댓글을 입력하세요..."
                                       value={newComment}
                                       onChange={(e) => setNewComment(e.target.value)}
-                                      className="flex-1"
+                                      className="flex-1 px-3 py-2 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
                                     />
-                                    <Button 
-                                      size="sm"
+                                    <button
                                       onClick={() => handleAddComment(track._id)}
                                       disabled={!newComment.trim()}
+                                      className="px-4 py-2 bg-[#f50] text-white text-sm rounded-full hover:bg-orange-600 transition-colors disabled:opacity-50"
                                     >
                                       작성
-                                    </Button>
+                                    </button>
                                   </div>
-                                )}
-                                
-                                {/* 댓글 목록 */}
-                                <div className="space-y-3 max-h-40 overflow-y-auto">
-                                  {comments[track._id]?.map((comment) => (
-                                    <div key={comment._id} className="flex space-x-3">
-                                      <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                                        {comment.username[0].toUpperCase()}
-                                      </div>
-                                      <div className="flex-1">
-                                        <div className="flex items-center space-x-2">
-                                          <span className="text-sm font-medium text-gray-700">{comment.username}</span>
-                                          <span className="text-xs text-gray-500">{formatDate.relative(new Date(comment.createdAt))}</span>
-                                        </div>
-                                        <p className="text-sm text-gray-600 mt-1">{comment.content}</p>
-                                      </div>
-                                    </div>
-                                  ))}
                                 </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
+                              )}
+                              
+                              {/* 댓글 목록 */}
+                              <div className="space-y-3 max-h-40 overflow-y-auto">
+                                {comments[track._id]?.map((comment) => (
+                                  <div key={comment._id} className="flex space-x-3">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                                      {comment.username[0].toUpperCase()}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-sm font-medium text-gray-700">{comment.username}</span>
+                                        <span className="text-xs text-gray-500">{formatDate.relative(new Date(comment.createdAt))}</span>
+                                      </div>
+                                      <p className="text-sm text-gray-600 mt-1">{comment.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             </div>
 
             {/* 사이드바 */}
-            <div>
+            <div className="space-y-6">
               {/* 인기 차트 */}
               <motion.div
-                className="mb-8"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
               >
-                <h2 className="text-2xl font-bold text-primary-700 mb-4 flex items-center">
-                  <TrendingUp className="w-6 h-6 mr-2" />
-                  인기 차트
-                </h2>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {tracks
-                        .sort((a, b) => (b.likes + b.plays) - (a.likes + a.plays))
-                        .slice(0, 5)
-                        .map((track, index) => (
-                          <div
-                            key={track._id}
-                            className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg"
-                            onClick={() => handlePlay(track)}
-                          >
-                            <div className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                              {index + 1}
-                            </div>
-                            <div className="w-10 h-10">
-                              <img src={track.coverImage} alt="" className="w-10 h-10 rounded object-cover" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{track.title}</p>
-                              <p className="text-xs text-gray-500 truncate">{track.artist}</p>
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {track.likes + track.plays}
-                            </div>
+                <div className="p-6 border-b border-gray-100">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <TrendingUp className="w-5 h-5 mr-2 text-[#f50]" />
+                    Trending
+                  </h2>
+                </div>
+                <div className="p-4">
+                  <div className="space-y-3">
+                    {tracks
+                      .sort((a, b) => (b.likes + b.plays) - (a.likes + a.plays))
+                      .slice(0, 5)
+                      .map((track, index) => (
+                        <div
+                          key={track._id}
+                          className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                          onClick={() => handlePlay(track)}
+                        >
+                          <div className="w-6 h-6 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {index + 1}
                           </div>
-                        ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                          <div className="w-10 h-10">
+                            <img src={track.coverImage} alt="" className="w-10 h-10 rounded object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate hover:text-[#f50] transition-colors">{track.title}</p>
+                            <p className="text-xs text-gray-500 truncate">{track.uploadedBy}</p>
+                          </div>
+                          <div className="text-xs text-gray-400 flex items-center">
+                            <Heart className="w-3 h-3 mr-1" />
+                            {track.likes + track.plays}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               </motion.div>
 
-              {/* 플레이리스트 미리보기 */}
+              {/* 플레이리스트 */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7 }}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
               >
-                <h2 className="text-2xl font-bold text-primary-700 mb-4">추천 플레이리스트</h2>
-                
-                <div className="space-y-4">
-                  {playlists.slice(0, 3).map((playlist, index) => (
+                <div className="p-6 border-b border-gray-100">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <Album className="w-5 h-5 mr-2 text-[#f50]" />
+                    Playlists
+                  </h2>
+                </div>
+                <div className="p-4">
+                  <div className="space-y-4">
+                    {playlists.slice(0, 3).map((playlist, index) => (
+                      <motion.div
+                        key={playlist._id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.8 + index * 0.1 }}
+                        className="p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                      >
+                        <h4 className="font-semibold text-gray-800 mb-1 hover:text-[#f50] transition-colors">{playlist.name}</h4>
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">{playlist.description || '설명 없음'}</p>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{playlist.tracksIds.length}곡</span>
+                          <span className="flex items-center">
+                            <Heart className="w-3 h-3 mr-1" />
+                            {playlist.likes}
+                          </span>
+                        </div>
+                      </motion.div>
+                    ))}
+
+                    {/* 새 플레이리스트 생성 */}
                     <motion.div
-                      key={playlist._id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.8 + index * 0.1 }}
+                      transition={{ delay: 1.1 }}
                     >
-                      <Card hover className="cursor-pointer">
-                        <CardContent className="p-4">
-                          <h4 className="font-semibold text-gray-800 mb-1">{playlist.name}</h4>
-                          <p className="text-sm text-gray-600 mb-2">{playlist.description || '설명 없음'}</p>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span>{playlist.tracksIds.length}곡</span>
-                            <span className="flex items-center">
-                              <Heart className="w-3 h-3 mr-1" />
-                              {playlist.likes}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <button
+                        onClick={() => setShowCreatePlaylist(true)}
+                        className="w-full p-3 border-2 border-dashed border-gray-200 rounded-lg text-center hover:border-[#f50] hover:text-[#f50] transition-colors"
+                      >
+                        <Plus className="w-4 h-4 mx-auto mb-1" />
+                        <span className="text-sm">새 플레이리스트</span>
+                      </button>
                     </motion.div>
-                  ))}
-
-                  {/* 새 플레이리스트 생성 */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 1.1 }}
-                  >
-                    <Card variant="glass" className="cursor-pointer">
-                      <CardContent className="p-4 text-center">
-                        <Button 
-                          variant="ghost" 
-                          className="w-full"
-                          onClick={() => setShowCreatePlaylist(true)}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          새 플레이리스트
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -944,20 +1070,146 @@ export default function MusicPage() {
         )}
       </AnimatePresence>
 
-      {/* 하단 고정 플레이어 */}
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <AudioPlayer
-          track={currentTrack ? convertToLegacyTrack(currentTrack) : null}
-          playlist={currentPlaylist.map(convertToLegacyTrack)}
-          isPlaying={isPlaying}
-          onPlay={handlePlayPause}
-          onPause={handlePlayPause}
-          onNext={handleNext}
-          onPrev={handlePrev}
-          onSeek={() => {}}
-          className="m-4"
-        />
-      </div>
+      {/* SoundCloud 스타일 하단 플레이어 */}
+      {currentTrack && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg">
+          {/* 진행 바 */}
+          <div className="w-full h-1 bg-gray-200">
+            <div 
+              className="h-1 bg-[#f50] transition-all duration-300 cursor-pointer"
+              style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+              onClick={(e) => {
+                const rect = e.currentTarget.parentElement!.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const progressPercentage = (x / rect.width) * 100
+                const newTime = (progressPercentage / 100) * duration
+                setCurrentTime(Math.max(0, Math.min(duration, newTime)))
+              }}
+            ></div>
+          </div>
+          
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center space-x-4">
+              {/* 현재 트랙 정보 */}
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <img
+                  src={currentTrack.coverImage}
+                  alt={currentTrack.title}
+                  className="w-12 h-12 rounded object-cover flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-gray-900 truncate">{currentTrack.title}</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-sm text-gray-600 truncate">{currentTrack.uploadedBy}</p>
+                    <span className="text-xs text-gray-400">
+                      {Math.floor(currentTime / 60)}:{(currentTime % 60).toString().padStart(2, '0')} / {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 플레이어 컨트롤 */}
+              <div className="flex items-center space-x-4">
+                <motion.button
+                  className="p-2 text-gray-600 hover:text-[#f50] transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handlePrev}
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                  </svg>
+                </motion.button>
+
+                <motion.button
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                    isPlaying ? 'bg-[#f50] text-white' : 'bg-gray-100 text-gray-600 hover:bg-[#f50] hover:text-white'
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handlePlayPause}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-5 h-5" />
+                  ) : (
+                    <Play className="w-5 h-5 ml-0.5" />
+                  )}
+                </motion.button>
+
+                <motion.button
+                  className="p-2 text-gray-600 hover:text-[#f50] transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleNext}
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414zm6 0a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 10l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </motion.button>
+              </div>
+
+              {/* 추가 컨트롤 */}
+              <div className="flex items-center space-x-3">
+                <motion.button
+                  className={`p-2 rounded transition-colors ${
+                    isShuffled ? 'text-[#f50] bg-orange-50' : 'text-gray-600 hover:text-[#f50]'
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsShuffled(!isShuffled)}
+                  title="셔플"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </motion.button>
+
+                <motion.button
+                  className={`p-2 rounded transition-colors ${
+                    repeatMode !== 'none' ? 'text-[#f50] bg-orange-50' : 'text-gray-600 hover:text-[#f50]'
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setRepeatMode(prev => {
+                      if (prev === 'none') return 'all'
+                      if (prev === 'all') return 'one'
+                      return 'none'
+                    })
+                  }}
+                  title={repeatMode === 'none' ? '반복 없음' : repeatMode === 'all' ? '전체 반복' : '한 곡 반복'}
+                >
+                  <Repeat className="w-4 h-4" />
+                  {repeatMode === 'one' && (
+                    <span className="absolute -top-1 -right-1 text-xs">1</span>
+                  )}
+                </motion.button>
+
+                <motion.button
+                  className="p-1 text-gray-600 hover:text-[#f50] transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsMuted(!isMuted)}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </motion.button>
+                
+                <div className="w-20 h-1 bg-gray-200 rounded-full cursor-pointer"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const x = e.clientX - rect.left
+                    const newVolume = (x / rect.width) * 100
+                    setVolume(Math.max(0, Math.min(100, newVolume)))
+                  }}
+                >
+                  <div 
+                    className="h-1 bg-[#f50] rounded-full transition-all"
+                    style={{ width: `${isMuted ? 0 : volume}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

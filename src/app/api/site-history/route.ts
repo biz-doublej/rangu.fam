@@ -62,6 +62,16 @@ export async function GET(request: NextRequest) {
             importance: 4,
             isPublic: true,
             isAnniversary: true
+          },
+          {
+            title: '이승찬 임시멤버 합류',
+            description: '정진규의 군 입대로 인해 이승찬이 임시멤버로 합류했습니다.',
+            date: new Date('2025-07-21T00:00:00+09:00'),
+            type: 'member',
+            icon: '👋',
+            color: 'secondary',
+            importance: 4,
+            isPublic: true
           }
         ],
         milestones: [

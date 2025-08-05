@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import React from 'react'
@@ -13,7 +13,11 @@ export const metadata: Metadata = {
   description: '네 친구의 특별한 온라인 공간, Rangu.fam에 오신 것을 환영합니다.',
   keywords: ['rangu', 'fam', '친구', '음악', '위키', '달력'],
   authors: [{ name: 'Rangu.fam Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({

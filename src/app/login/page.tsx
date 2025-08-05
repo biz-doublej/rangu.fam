@@ -14,8 +14,38 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [rememberLogin, setRememberLogin] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
+
+  // 간단한 인코딩/디코딩 함수 (보안을 위한 기본적인 obfuscation)
+  const encodeCredentials = (username: string, password: string) => {
+    return btoa(JSON.stringify({ username, password }))
+  }
+
+  const decodeCredentials = (encoded: string) => {
+    try {
+      return JSON.parse(atob(encoded))
+    } catch {
+      return null
+    }
+  }
+
+  // 컴포넌트 마운트 시 저장된 로그인 정보 불러오기
+  React.useEffect(() => {
+    const savedLoginInfo = localStorage.getItem('rangu_saved_login')
+    if (savedLoginInfo) {
+      const decoded = decodeCredentials(savedLoginInfo)
+      if (decoded) {
+        setUsername(decoded.username)
+        setPassword(decoded.password)
+        setRememberLogin(true)
+      } else {
+        console.error('저장된 로그인 정보 로드 실패')
+        localStorage.removeItem('rangu_saved_login')
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,7 +55,17 @@ export default function LoginPage() {
 
     setIsLoading(true)
     const success = await login(username, password)
+    
     if (success) {
+      // 로그인 저장이 체크되어 있으면 로컬 스토리지에 저장
+      if (rememberLogin) {
+        const encoded = encodeCredentials(username, password)
+        localStorage.setItem('rangu_saved_login', encoded)
+      } else {
+        // 체크 해제 시 저장된 정보 삭제
+        localStorage.removeItem('rangu_saved_login')
+      }
+      
       router.push('/')
     }
     setIsLoading(false)
@@ -34,7 +74,7 @@ export default function LoginPage() {
   const demoAccounts = [
     { username: 'jaewon', name: '정재원', role: '멤버' },
     { username: 'minseok', name: '정민석', role: '멤버' },
-    { username: 'jinkyu', name: '정진규', role: '멤버' },
+    { username: 'jingyu', name: '정진규', role: '멤버' },
     { username: 'hanul', name: '강한울', role: '멤버' },
     { username: 'guest', name: '게스트', role: '비멤버' },
   ]
@@ -106,6 +146,35 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+
+                {/* 로그인 저장 체크박스 */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="rememberLogin"
+                      checked={rememberLogin}
+                      onChange={(e) => setRememberLogin(e.target.checked)}
+                      className="w-4 h-4 text-primary-600 bg-white border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
+                    />
+                    <label 
+                      htmlFor="rememberLogin" 
+                      className="text-sm text-gray-700 cursor-pointer select-none"
+                    >
+                      로그인 정보 저장
+                    </label>
+                  </div>
+                  {rememberLogin && (
+                    <motion.p 
+                      className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      💡 다음 방문 시 자동으로 로그인 정보가 입력됩니다. 공용 기기에서는 사용을 권장하지 않습니다.
+                    </motion.p>
+                  )}
+                </div>
               </CardContent>
 
               <CardFooter className="space-y-4">
@@ -150,6 +219,18 @@ export default function LoginPage() {
                       onClick={() => {
                         setUsername(account.username)
                         setPassword(account.username === 'guest' ? 'guest123' : 'password123')
+                        // 데모 계정 클릭 시 저장된 정보가 있다면 체크박스도 업데이트
+                        const savedLoginInfo = localStorage.getItem('rangu_saved_login')
+                        if (savedLoginInfo) {
+                          const decoded = decodeCredentials(savedLoginInfo)
+                          if (decoded) {
+                            setRememberLogin(decoded.username === account.username)
+                          } else {
+                            setRememberLogin(false)
+                          }
+                        } else {
+                          setRememberLogin(false)
+                        }
                       }}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}

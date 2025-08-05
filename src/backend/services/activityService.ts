@@ -19,8 +19,8 @@ export class ActivityService {
       currentActivity: '스위스 여행 중',
       sessionDuration: 28500
     },
-    jinkyu: {
-      memberId: 'jinkyu',
+    jingyu: {
+      memberId: 'jingyu',
       lastLogin: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3일 전
       lastSeen: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2일 전
       isOnline: false,

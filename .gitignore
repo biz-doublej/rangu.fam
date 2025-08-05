@@ -125,4 +125,7 @@ Thumbs.db
 .vercel
 
 # Turbo
-.turbo 
+.turbo
+
+# Large video files (over 100MB)
+public/videos/*.mp4 

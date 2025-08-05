@@ -16,18 +16,31 @@ import {
   LogIn,
   LogOut,
   Menu,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { MemberWithActivity } from '@/backend/types'
+import { MediaPlayer } from '@/components/ui/MediaPlayer'
 
-// 임시 이미지 데이터 (나중에 실제 이미지로 교체)
-const slideImages = [
-  '/images/slide1.jpg',
-  '/images/slide2.jpg', 
-  '/images/slide3.jpg',
-  '/images/slide4.jpg',
+// 슬라이드 콘텐츠 (이미지와 영상 혼합)
+const slideContent = [
+  { type: 'video', src: '/videos/intro-jaewon.mp4', title: '정재원 소개', poster: '/images/poster-jaewon.jpg' },
+  { type: 'image', src: '/images/slide1.jpg', title: '추억의 사진 1' },
+  { type: 'video', src: '/videos/intro-minseok.mp4', title: '정민석 소개', poster: '/images/poster-minseok.jpg' },
+  { type: 'image', src: '/images/slide2.jpg', title: '추억의 사진 2' },
+  { type: 'video', src: '/videos/intro-jingyu.mp4', title: '정진규 소개', poster: '/images/poster-jingyu.jpg' },
+  { type: 'image', src: '/images/slide3.jpg', title: '추억의 사진 3' },
+  { type: 'video', src: '/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg' },
+  { type: 'video', src: '/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg' },
+  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4' },
+  { type: 'video', src: '/videos/intro-heeyeol.mp4', title: '윤희열 소개', poster: '/images/poster-heeyeol.jpg' },
 ]
 
 export default function HomePage() {
@@ -37,14 +50,49 @@ export default function HomePage() {
     seoul: new Date(),
     vancouver: new Date(),
     switzerland: new Date(),
-  })
+  })  
+  const [isClient, setIsClient] = useState(false)
+  const [savedVolume, setSavedVolume] = useState(50)
+  const [videoVolume, setVideoVolume] = useState(50)
+  const [videoMuted, setVideoMuted] = useState(false)
   const [members, setMembers] = useState<MemberWithActivity[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
+  const [countdown, setCountdown] = useState(17) // 카운트다운 타이머
+  const [isSlideHovered, setIsSlideHovered] = useState(false) // 슬라이드 호버 상태
   const { user, logout, isLoggedIn } = useAuth()
   const router = useRouter()
 
+  // 모든 비디오 요소들의 볼륨 제어
+  const updateAllVideosVolume = (volume: number, muted: boolean) => {
+    const videos = document.querySelectorAll('video')
+    videos.forEach((video) => {
+      video.volume = volume / 100
+      video.muted = muted
+    })
+  }
+
+  // 클라이언트 사이드에서만 실행되도록 설정
+  useEffect(() => {
+    setIsClient(true)
+    // 저장된 볼륨 불러오기
+    const savedVol = localStorage.getItem('rangu_video_volume')
+    if (savedVol) {
+      const volume = parseInt(savedVol, 10)
+      setSavedVolume(volume)
+      setVideoVolume(volume)
+    }
+    
+    // 저장된 음소거 상태 불러오기
+    const savedMuted = localStorage.getItem('rangu_video_muted')
+    if (savedMuted) {
+      setVideoMuted(savedMuted === 'true')
+    }
+  }, [])
+
   // 시간 업데이트
   useEffect(() => {
+    if (!isClient) return
+
     const updateTimes = () => {
       const now = new Date()
       setTimes({
@@ -57,13 +105,28 @@ export default function HomePage() {
     updateTimes()
     const interval = setInterval(updateTimes, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isClient])
 
-  // 자동 슬라이드
+  // 슬라이드 변경 시 카운트다운 초기화
+  useEffect(() => {
+    const currentContent = slideContent[currentSlide]
+    const initialTime = currentContent?.type === 'video' ? 17 : 5 // 영상 17초, 이미지 5초
+    setCountdown(initialTime)
+  }, [currentSlide])
+
+  // 카운트다운 타이머
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slideImages.length)
-    }, 5000)
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          // 1초에서 다음 슬라이드로 전환
+          setCurrentSlide((current) => (current + 1) % slideContent.length)
+          return prev // 다음 슬라이드로 넘어가면서 카운트다운은 useEffect에서 리셋됨
+        }
+        return prev - 1
+      })
+    }, 1000)
+    
     return () => clearInterval(interval)
   }, [])
 
@@ -135,27 +198,36 @@ export default function HomePage() {
 
             {/* 세계 시간 */}
             <div className="hidden md:flex items-center space-x-6">
-              <div className="flex items-center space-x-2 text-sm">
-                <Clock className="w-4 h-4 text-primary-600" />
-                <span className="text-gray-700">서울</span>
-                <span className="font-mono text-primary-700">
-                  {format(times.seoul, 'HH:mm:ss')}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm">
-                <Clock className="w-4 h-4 text-primary-600" />
-                <span className="text-gray-700">밴쿠버</span>
-                <span className="font-mono text-primary-700">
-                  {format(times.vancouver, 'HH:mm:ss')}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm">
-                <Clock className="w-4 h-4 text-primary-600" />
-                <span className="text-gray-700">스위스</span>
-                <span className="font-mono text-primary-700">
-                  {format(times.switzerland, 'HH:mm:ss')}
-                </span>
-              </div>
+              {isClient ? (
+                <>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary-600" />
+                    <span className="text-gray-700">서울</span>
+                    <span className="font-mono text-primary-700">
+                      {format(times.seoul, 'HH:mm:ss')}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary-600" />
+                    <span className="text-gray-700">밴쿠버</span>
+                    <span className="font-mono text-primary-700">
+                      {format(times.vancouver, 'HH:mm:ss')}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary-600" />
+                    <span className="text-gray-700">스위스</span>
+                    <span className="font-mono text-primary-700">
+                      {format(times.switzerland, 'HH:mm:ss')}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center space-x-2 text-sm">
+                  <Clock className="w-4 h-4 text-primary-600" />
+                  <span className="text-gray-700">시간 로딩중...</span>
+                </div>
+              )}
             </div>
 
             {/* 사용자 정보 및 메뉴 */}
@@ -254,7 +326,7 @@ export default function HomePage() {
 
       {/* 메인 콘텐츠 */}
       <main className="md:ml-64 pt-20 min-h-screen">
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="max-w-6xl mx-auto p-6">
           {/* 환영 메시지 */}
           <motion.div 
             className="text-center mb-12"
@@ -271,46 +343,124 @@ export default function HomePage() {
             </p>
           </motion.div>
 
-          {/* 중앙 슬라이드 이미지 */}
+          {/* 중앙 슬라이드 (이미지 + 영상) - 와이드 직사각형 */}
           <motion.div 
-            className="glass-card relative h-96 md:h-[500px] overflow-hidden mb-12"
+            className="glass-card relative h-[400px] md:h-[500px] lg:h-[550px] w-full max-w-5xl mx-auto overflow-hidden mb-12 cursor-pointer"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
+            onMouseEnter={() => setIsSlideHovered(true)}
+            onMouseLeave={() => setIsSlideHovered(false)}
+            onClick={() => setIsSlideHovered(!isSlideHovered)}
+            style={{ aspectRatio: '16/9' }}
           >
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentSlide}
-                className="absolute inset-0 bg-gradient-to-br from-primary-100 to-warm-100 flex items-center justify-center"
+                className="absolute inset-0"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 1 }}
               >
-                <div className="text-center text-gray-500">
-                  <div className="w-24 h-24 bg-primary-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-                    <span className="text-3xl">📸</span>
+                {slideContent[currentSlide]?.type === 'video' ? (
+                  <video
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    loop
+                    playsInline
+                    muted={videoMuted}
+                    poster={slideContent[currentSlide].poster}
+                    onCanPlay={(e) => {
+                      // 영상이 로드되면 자동 재생 시도하고 볼륨 설정
+                      const video = e.target as HTMLVideoElement;
+                      video.volume = videoVolume / 100;
+                      video.muted = videoMuted;
+                      video.play().catch(console.log);
+                    }}
+                    onLoadedData={(e) => {
+                      // 비디오 데이터가 로드되면 볼륨 설정
+                      const video = e.target as HTMLVideoElement;
+                      video.volume = videoVolume / 100;
+                      video.muted = videoMuted;
+                    }}
+                  >
+                    <source src={slideContent[currentSlide].src} type="video/mp4" />
+                    <div className="w-full h-full bg-gradient-to-br from-primary-100 to-warm-100 flex items-center justify-center">
+                      <div className="text-center text-gray-500">
+                        <div className="w-24 h-24 bg-primary-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+                          <span className="text-3xl">🎬</span>
+                        </div>
+                        <p className="text-lg">{slideContent[currentSlide].title}</p>
+                        <p className="text-sm mt-2">브라우저가 비디오를 지원하지 않습니다</p>
+                      </div>
+                    </div>
+                  </video>
+                ) : slideContent[currentSlide]?.type === 'image' ? (
+                  <Image
+                    src={slideContent[currentSlide].src}
+                    alt={slideContent[currentSlide].title}
+                    fill
+                    className="object-cover object-top"
+                    onError={() => {
+                      // 이미지 로드 실패 시 플레이스홀더 표시
+                    }}
+                  />
+                ) : (
+                  // 플레이스홀더 (파일이 없을 때)
+                  <div className="w-full h-full bg-gradient-to-br from-primary-100 to-warm-100 flex items-center justify-center">
+                    <div className="text-center text-gray-500">
+                      <div className="w-24 h-24 bg-primary-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+                        <span className="text-3xl">
+                          {slideContent[currentSlide]?.type === 'video' ? '🎬' : '📸'}
+                        </span>
+                      </div>
+                      <p className="text-lg">{slideContent[currentSlide]?.title || `슬라이드 ${currentSlide + 1}`}</p>
+                      <p className="text-sm mt-2">
+                        {slideContent[currentSlide]?.type === 'video' 
+                          ? '멤버 소개 영상이 여기에 표시됩니다' 
+                          : '추억의 사진이 여기에 표시됩니다'}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-lg">슬라이드 {currentSlide + 1}</p>
-                  <p className="text-sm mt-2">추억의 사진들이 여기에 표시됩니다</p>
-                </div>
+                )}
+                
+
               </motion.div>
             </AnimatePresence>
 
-            {/* 슬라이드 인디케이터 */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-              {slideImages.map((_, index) => (
-                <button
-                  key={index}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    index === currentSlide 
-                      ? 'bg-primary-500 scale-125' 
-                      : 'bg-glass-medium hover:bg-primary-300'
-                  }`}
-                  onClick={() => setCurrentSlide(index)}
-                />
-              ))}
-            </div>
+            {/* 좌우 네비게이션 버튼 - 호버 시에만 표시 */}
+            <AnimatePresence>
+              {isSlideHovered && (
+                <>
+                  <motion.button
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 slide-nav-button z-15 p-3"
+                    onClick={() => setCurrentSlide(currentSlide === 0 ? slideContent.length - 1 : currentSlide - 1)}
+                    title="이전 슬라이드"
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -30 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <ChevronLeft className="w-6 h-6 text-primary-600" />
+                  </motion.button>
+                  
+                  <motion.button
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 slide-nav-button z-15 p-3"
+                    onClick={() => setCurrentSlide((currentSlide + 1) % slideContent.length)}
+                    title="다음 슬라이드"
+                    initial={{ opacity: 0, x: 30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 30 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <ChevronRight className="w-6 h-6 text-primary-600" />
+                  </motion.button>
+                </>
+              )}
+            </AnimatePresence>
+
+
           </motion.div>
 
                             {/* 멤버 소개 카드 */}
@@ -367,7 +517,9 @@ export default function HomePage() {
                             '정재원': '👨‍💻',
                             '정민석': '🏔️',
                             '정진규': '🪖',
-                            '강한울': '🎮'
+                            '강한울': '🎮',
+                            '이승찬': '🌟',
+                            '윤희열': '🔮'
                           }
                           return emojiMap[name] || '👤'
                         }
@@ -449,6 +601,102 @@ export default function HomePage() {
                   </motion.div>
         </div>
       </main>
+
+      {/* 우측 하단 비디오 볼륨 컨트롤 */}
+      {isClient && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg p-4 min-w-[280px]">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
+                  <Volume2 className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">메인 영상 볼륨</h3>
+                  <p className="text-xs text-gray-500">
+                    {slideContent[currentSlide]?.type === 'video' 
+                      ? slideContent[currentSlide].title 
+                      : '이미지 슬라이드'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-sm font-medium text-gray-600">
+                {videoMuted ? '음소거' : `${videoVolume}%`}
+              </div>
+            </div>
+
+            {/* 볼륨 슬라이더 */}
+            <div className="mb-3">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={videoMuted ? 0 : videoVolume}
+                onChange={(e) => {
+                  const volume = Number(e.target.value)
+                  setVideoVolume(volume)
+                  setSavedVolume(volume)
+                  if (volume > 0) setVideoMuted(false)
+                  updateAllVideosVolume(volume, volume === 0)
+                  localStorage.setItem('rangu_video_volume', volume.toString())
+                  localStorage.setItem('rangu_video_muted', (volume === 0).toString())
+                }}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: `linear-gradient(to right, #f97316 0%, #f97316 ${videoMuted ? 0 : videoVolume}%, #e5e7eb ${videoMuted ? 0 : videoVolume}%, #e5e7eb 100%)`
+                }}
+              />
+            </div>
+
+            {/* 컨트롤 버튼들 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                {/* 음소거 버튼 */}
+                <button
+                  onClick={() => {
+                    const newMuted = !videoMuted
+                    setVideoMuted(newMuted)
+                    updateAllVideosVolume(videoVolume, newMuted)
+                    localStorage.setItem('rangu_video_muted', newMuted.toString())
+                  }}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  {videoMuted ? (
+                    <VolumeX className="w-4 h-4 text-gray-600" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-gray-600" />
+                  )}
+                </button>
+
+                {/* 볼륨 프리셋 버튼들 */}
+                <div className="flex space-x-1">
+                  {[25, 50, 75, 100].map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => {
+                        setVideoVolume(preset)
+                        setSavedVolume(preset)
+                        setVideoMuted(false)
+                        updateAllVideosVolume(preset, false)
+                        localStorage.setItem('rangu_video_volume', preset.toString())
+                        localStorage.setItem('rangu_video_muted', 'false')
+                      }}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        videoVolume === preset && !videoMuted
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
