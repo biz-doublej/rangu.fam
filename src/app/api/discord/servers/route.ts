@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import DiscordService from '@/services/discordService'
+export const dynamic = 'force-dynamic'
 
 // GET /api/discord/servers - 서버 목록 조회
 export async function GET(request: NextRequest) {

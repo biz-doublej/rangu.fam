@@ -1,20 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import dbConnect from '@/lib/mongodb'
 import { WikiUser } from '@/models/Wiki'
+export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect()
+    try {
+      await dbConnect()
+    } catch (dbError) {
+      console.error('데이터베이스 연결 오류:', dbError)
+      return NextResponse.json(
+        { success: false, error: '데이터베이스 연결에 실패했습니다.' },
+        { status: 500 }
+      )
+    }
     
-    const { username, password } = await request.json()
+    let body;
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('JSON 파싱 오류:', parseError)
+      return NextResponse.json(
+        { success: false, error: '잘못된 요청 형식입니다.' },
+        { status: 400 }
+      )
+    }
+    
+    const { username, password } = body
     
     if (!username || !password) {
       return NextResponse.json(
-        { success: false, error: '사용자명과 비밀번호를 입력해주세요.' },
+        { success: false, error: '아이디와 비밀번호를 입력해주세요.' },
         { status: 400 }
       )
     }

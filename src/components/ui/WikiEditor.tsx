@@ -7,11 +7,15 @@ import {
   Image, Code, Quote, List, ListOrdered, 
   Heading1, Heading2, Heading3, Eye, EyeOff,
   Save, Undo, Redo, HelpCircle, Palette,
-  Plus, Minus, Hash, Type, Link2
+  Plus, Minus, Hash, Type, Link2, FileText, 
+  User, Users, Bookmark, Layout, AlignLeft, AlignCenter, AlignRight,
+  Table, TableProperties, Columns, Menu, ChevronDown, ChevronRight,
+  Superscript, Subscript, CheckCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import NamuWikiRenderer from './NamuWikiRenderer'
+import { useWikiAuth } from '@/contexts/WikiAuthContext'
 
 interface WikiEditorProps {
   content: string
@@ -37,10 +41,40 @@ export default function WikiEditor({
   showPreview: initialShowPreview = false,
   className = ''
 }: WikiEditorProps) {
+  const { wikiUser, login } = useWikiAuth()
   const [showPreview, setShowPreview] = useState(initialShowPreview)
   const [selectedText, setSelectedText] = useState('')
   const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isMinorEdit, setIsMinorEdit] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showTableOfContents, setShowTableOfContents] = useState(false)
+
+  // 로그인 체크
+  if (!wikiUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-8 bg-gray-900 rounded-lg border border-gray-700">
+        <div className="text-center">
+          <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-200 mb-2">로그인이 필요합니다</h3>
+          <p className="text-gray-400 mb-6">문서를 편집하려면 먼저 로그인해주세요.</p>
+          <Button 
+            onClick={() => window.location.href = '/wiki/login'}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+          >
+            로그인하기
+          </Button>
+        </div>
+      </div>
+    )
+  }
+  const [tableOfContents, setTableOfContents] = useState<Array<{level: number, title: string, anchor: string}>>([])
+  const [showTableTools, setShowTableTools] = useState(false)
+  const [spellCheckResults, setSpellCheckResults] = useState<Array<{word: string, suggestions: string[], position: number}>>([])
+  const [isSpellChecking, setIsSpellChecking] = useState(false)
+  const [showSpellCheckResults, setShowSpellCheckResults] = useState(false)
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
 
   const handleTextSelection = () => {
     if (textareaRef.current) {
@@ -61,6 +95,7 @@ export default function WikiEditor({
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
     const selectedText = content.substring(start, end)
+    const scrollTop = textarea.scrollTop  // 현재 스크롤 위치 저장
     
     let newText: string
     let newCursorPos: number
@@ -75,12 +110,39 @@ export default function WikiEditor({
     
     onChange(newText)
     
+    // 렌더링 후 커서 위치와 스크롤 위치 복원
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus()
         textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+        textareaRef.current.scrollTop = scrollTop  // 스크롤 위치 복원
       }
     }, 0)
+  }
+
+  // 이미지 삽입 제한 로직: 인포박스/카드그리드/인물정보상자 블록 내부에만 이미지 문법을 삽입
+  const canInsertImageHere = (): boolean => {
+    const start = textareaRef.current?.selectionStart ?? 0
+    const textUpToCursor = content.substring(0, start)
+    
+    // 인포박스와 카드그리드 체크
+    const lastBlockStart = Math.max(
+      textUpToCursor.lastIndexOf('[[인포박스:'),
+      textUpToCursor.lastIndexOf('[[카드그리드:')
+    )
+    const lastBlockEnd = textUpToCursor.lastIndexOf(']]')
+    const inSimpleBlock = lastBlockStart >= 0 && lastBlockEnd < lastBlockStart
+    
+    // 인물정보상자 또는 그룹정보상자 체크
+    const lastPersonInfoboxStart = Math.max(
+      textUpToCursor.lastIndexOf('{{인물정보상자'),
+      textUpToCursor.lastIndexOf('{{그룹정보상자')
+    )
+    const lastPersonInfoboxEnd = textUpToCursor.lastIndexOf('}}')
+    const inPersonInfobox = lastPersonInfoboxStart >= 0 && lastPersonInfoboxEnd < lastPersonInfoboxStart
+    
+    // 어느 블록 안에든 있으면 true
+    return inSimpleBlock || inPersonInfobox
   }
 
   const insertAtLineStart = (prefix: string) => {
@@ -88,6 +150,7 @@ export default function WikiEditor({
     
     const textarea = textareaRef.current
     const start = textarea.selectionStart
+    const scrollTop = textarea.scrollTop  // 현재 스크롤 위치 저장
     const lines = content.split('\n')
     const currentLineIndex = content.substring(0, start).split('\n').length - 1
     
@@ -100,6 +163,7 @@ export default function WikiEditor({
       if (textareaRef.current) {
         textareaRef.current.focus()
         textareaRef.current.setSelectionRange(start + prefix.length, start + prefix.length)
+        textareaRef.current.scrollTop = scrollTop  // 스크롤 위치 복원
       }
     }, 0)
   }
@@ -118,8 +182,14 @@ export default function WikiEditor({
     ],
     [
       { icon: Link2, label: '내부 링크', action: () => insertText('[[', ']]') },
-      { icon: Link, label: '외부 링크', action: () => insertText('[', ']') },
-      { icon: Image, label: '이미지', action: () => insertText('[이미지:', ']') },
+      { icon: Link, label: '외부 링크', action: () => insertText('[', '](https://)') },
+      { icon: Image, label: '이미지', action: () => {
+        if (!canInsertImageHere()) {
+          alert('이미지는 인포박스/카드그리드/인물정보상자 영역에서만 삽입할 수 있습니다.')
+          return
+        }
+        insertText('[이미지:', ']')
+      } },
     ],
     [
       { icon: List, label: '불릿 목록', action: () => insertAtLineStart('* ') },
@@ -130,6 +200,23 @@ export default function WikiEditor({
       { icon: Code, label: '인라인 코드', action: () => insertText('`', '`') },
       { icon: Hash, label: '각주', action: () => insertText('[*', ']') },
       { icon: Palette, label: '색상 텍스트', action: () => insertText('{{{#ff0000 ', '}}}') },
+    ],
+    [
+      { icon: Superscript, label: '상첨자', action: () => insertSuperscript() },
+      { icon: Subscript, label: '하첨자', action: () => insertSubscript() },
+    ],
+    [
+      { icon: AlignLeft, label: '왼쪽 정렬', action: () => insertTableAlignment('left') },
+      { icon: AlignCenter, label: '가운데 정렬', action: () => insertTableAlignment('center') },
+      { icon: AlignRight, label: '오른쪽 정렬', action: () => insertTableAlignment('right') },
+    ],
+    [
+      { icon: Menu, label: '목차 생성', action: () => generateTableOfContents() },
+      { icon: Table, label: '표 삽입', action: () => setShowTableTools(!showTableTools) },
+      { icon: Columns, label: '분류 태그', action: () => insertText('\n[[분류:', ']]') },
+    ],
+    [
+      { icon: CheckCircle, label: isSpellChecking ? '검사 중...' : '맞춤법 검사', action: () => performSpellCheck() },
     ]
   ]
 
@@ -161,6 +248,488 @@ export default function WikiEditor({
     }
   }
 
+  // 업로드 + 삽입
+  const uploadImageAndInsert = async (file: File) => {
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/wiki/files/upload', {
+        method: 'POST',
+        body: form,
+        credentials: 'include'
+      })
+      const data = await res.json()
+      if (!data.success || !data.url) {
+        alert(data.error || '이미지 업로드 실패')
+        return
+      }
+      const url = data.url as string
+      insertImageUrlIntoContext(url)
+    } catch (e) {
+      alert('이미지 업로드 중 오류')
+    }
+  }
+
+  const getCurrentBlockInfo = (): { type: 'infobox' | 'cardgrid' | 'personinfobox' | null; start: number; end: number } => {
+    const start = textareaRef.current?.selectionStart ?? 0
+    const lastInfobox = content.lastIndexOf('[[인포박스:', start)
+    const lastCard = content.lastIndexOf('[[카드그리드:', start)
+    const lastPersonInfobox = Math.max(
+      content.lastIndexOf('{{인물정보상자', start),
+      content.lastIndexOf('{{그룹정보상자', start)
+    )
+    
+    const blockStart = Math.max(lastInfobox, lastCard, lastPersonInfobox)
+    if (blockStart < 0) return { type: null, start: -1, end: -1 }
+    
+    let end: number
+    let type: 'infobox' | 'cardgrid' | 'personinfobox'
+    
+    if (lastPersonInfobox === blockStart) {
+      end = content.indexOf('}}', blockStart)
+      type = 'personinfobox'
+      return { type, start: blockStart, end: end < 0 ? content.length : end + 2 }
+    } else {
+      end = content.indexOf(']]', blockStart)
+      type = lastInfobox > lastCard ? 'infobox' : 'cardgrid'
+      return { type, start: blockStart, end: end < 0 ? content.length : end + 2 }
+    }
+  }
+
+  const insertImageUrlIntoContext = (url: string) => {
+    const { type, start, end } = getCurrentBlockInfo()
+    if (!type || start < 0 || end <= start) {
+      alert('이미지는 인포박스/카드그리드/인물정보상자 영역에서만 삽입할 수 있습니다.')
+      return
+    }
+    const block = content.substring(start, end)
+    let updatedBlock = block
+    if (type === 'infobox') {
+      const hasImage = /\|\s*이미지\s*=/.test(block)
+      if (hasImage) {
+        updatedBlock = block.replace(/(\|\s*이미지\s*=)[^|\]]*/i, `$1 ${url} `)
+      } else {
+        updatedBlock = block.replace(/\]\]$/i, ` | 이미지=${url} ]]`)
+      }
+    } else if (type === 'personinfobox') {
+      // 인물정보상자의 경우 이미지 필드가 있는지 확인하고 업데이트
+      const hasImage = /\|\s*이미지\s*=/.test(block)
+      if (hasImage) {
+        updatedBlock = block.replace(/(\|\s*이미지\s*=)[^|}\n]*/i, `$1 ${url}`)
+      } else {
+        // 이미지 필드가 없으면 첫 번째 | 뒤에 추가
+        const firstParamMatch = block.match(/(\{\{인물정보상자[^\n]*\n)/)
+        if (firstParamMatch) {
+          updatedBlock = block.replace(firstParamMatch[1], `${firstParamMatch[1]}| 이미지= ${url}\n`)
+        }
+      }
+    } else if (type === 'cardgrid') {
+      const m = block.match(/items\s*=\s*(\[[\s\S]*?\])/i)
+      if (m) {
+        try {
+          const arr = JSON.parse(m[1]) as Array<any>
+          if (arr.length === 0) arr.push({ title: '', image: url })
+          else {
+            // 커서 기준으로 첫 아이템에 이미지 설정(간단 규칙)
+            arr[0] = { ...arr[0], image: url }
+          }
+          updatedBlock = block.replace(m[1], JSON.stringify(arr))
+        } catch {
+          updatedBlock = block
+        }
+      }
+    }
+    const newContent = content.substring(0, start) + updatedBlock + content.substring(end)
+    onChange(newContent)
+  }
+
+  // 목차 생성 함수
+  const generateTableOfContents = () => {
+    const lines = content.split('\n')
+    const toc: Array<{level: number, title: string, anchor: string}> = []
+    
+    for (const line of lines) {
+      const trimmed = line.trim()
+      let level = 0
+      let title = ''
+      
+      // 나무위키 스타일 헤딩 매칭
+      const namuHeadingMatch = trimmed.match(/^(=+)\s*(.+?)\s*=+$/)
+      if (namuHeadingMatch) {
+        level = namuHeadingMatch[1].length
+        title = namuHeadingMatch[2].trim()
+      } else {
+        // 마크다운 스타일 헤딩 매칭
+        const markdownHeadingMatch = trimmed.match(/^(#+)\s*(.+)$/)
+        if (markdownHeadingMatch) {
+          level = markdownHeadingMatch[1].length
+          title = markdownHeadingMatch[2].trim()
+        }
+      }
+      
+      if (level > 0 && title) {
+        const anchor = title
+          .toLowerCase()
+          .replace(/[^\w\s가-힣]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+        toc.push({ level, title, anchor })
+      }
+    }
+    
+    setTableOfContents(toc)
+    setShowTableOfContents(true)
+  }
+
+  // 목차 삽입 함수
+  const insertTableOfContents = () => {
+    const tocText = `
+[[목차]]
+
+`
+    insertText(tocText, '', false)
+  }
+
+  // 표 삽입 함수
+  const insertTable = (rows: number = 3, cols: number = 3) => {
+    let tableText = '\n'
+    
+    // 헤더 행
+    tableText += '|| '
+    for (let i = 0; i < cols; i++) {
+      tableText += `헤더${i + 1} || `
+    }
+    tableText += '\n'
+    
+    // 데이터 행들
+    for (let r = 1; r < rows; r++) {
+      tableText += '|| '
+      for (let c = 0; c < cols; c++) {
+        tableText += `데이터${r}-${c + 1} || `
+      }
+      tableText += '\n'
+    }
+    
+    tableText += '\n'
+    insertText(tableText, '', false)
+    setShowTableTools(false) // 표 삽입 후 도구 패널 닫기
+  }
+
+  // 표 정렬 기능
+  const insertTableAlignment = (alignment: 'left' | 'center' | 'right') => {
+    if (!textareaRef.current) return
+    
+    const textarea = textareaRef.current
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const scrollTop = textarea.scrollTop  // 현재 스크롤 위치 저장
+    
+    // 선택된 텍스트가 있는지 확인
+    const selectedText = content.substring(start, end)
+    if (!selectedText) {
+      alert('정렬할 텍스트를 먼저 선택해주세요.')
+      return
+    }
+    
+    // 정렬 문법 적용
+    let alignedText = ''
+    switch (alignment) {
+      case 'left':
+        alignedText = `{{{<<${selectedText}}}}`
+        break
+      case 'center':
+        alignedText = `{{{^${selectedText}}}}`
+        break
+      case 'right':
+        alignedText = `{{{>>${selectedText}}}}`
+        break
+    }
+    
+    const newContent = content.substring(0, start) + alignedText + content.substring(end)
+    onChange(newContent)
+    
+    // 커서 위치와 스크롤 위치 복원
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        const newPos = start + alignedText.length
+        textareaRef.current.setSelectionRange(newPos, newPos)
+        textareaRef.current.scrollTop = scrollTop  // 스크롤 위치 복원
+      }
+    }, 0)
+  }
+
+  const insertSuperscript = () => {
+    if (selectedText) {
+      insertText('<sup>', '</sup>')
+    } else {
+      insertText('<sup>상첨자</sup>')
+    }
+  }
+
+  const insertSubscript = () => {
+    if (selectedText) {
+      insertText('<sub>', '</sub>')
+    } else {
+      insertText('<sub>하첨자</sub>')
+    }
+  }
+
+  const performSpellCheck = async () => {
+    if (!content.trim()) {
+      alert('맞춤법을 검사할 내용이 없습니다.')
+      return
+    }
+
+    setIsSpellChecking(true)
+    try {
+      // 한국어 맞춤법 검사 API 호출
+      const response = await fetch('/api/wiki/spell-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: content }),
+      })
+
+      if (!response.ok) {
+        throw new Error('맞춤법 검사 서비스에 연결할 수 없습니다.')
+      }
+
+      const data = await response.json()
+      setSpellCheckResults(data.results || [])
+      setShowSpellCheckResults(true)
+    } catch (error) {
+      console.error('맞춤법 검사 오류:', error)
+      alert('맞춤법 검사 중 오류가 발생했습니다.')
+    } finally {
+      setIsSpellChecking(false)
+    }
+  }
+
+  const applySpellCheckSuggestion = (originalWord: string, suggestion: string, position: number) => {
+    const newContent = content.substring(0, position) + 
+                      content.substring(position).replace(originalWord, suggestion)
+    onChange(newContent)
+    
+    // 해당 결과를 제거
+    setSpellCheckResults(prev => prev.filter(result => 
+      !(result.word === originalWord && result.position === position)
+    ))
+  }
+
+  // 텍스트 영역과 줄 번호 스크롤 동기화
+  const handleTextareaScroll = () => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }
+
+  // 위치를 줄 번호로 변환하고 해당 줄 내용도 반환하는 함수
+  const getLineInfoFromPosition = (position: number): { lineNumber: number, lineContent: string, wordInLine: string } => {
+    const textUpToPosition = content.substring(0, position)
+    const lineNumber = textUpToPosition.split('\n').length
+    const lines = content.split('\n')
+    const lineContent = lines[lineNumber - 1] || ''
+    
+    // 해당 위치 주변의 단어 찾기
+    const start = Math.max(0, position - 10)
+    const end = Math.min(content.length, position + 10)
+    const wordInLine = content.substring(start, end).trim()
+    
+    return { lineNumber, lineContent, wordInLine }
+  }
+
+  // 템플릿 데이터
+  const templates = {
+    personInfobox: {
+      name: '인물정보상자 (완전판)',
+      icon: User,
+      template: `{{인물정보상자
+|상단로고 = 
+|상단제목 = 태릉고등학교 37기 학생회장
+|상단부제목 = 재학 당시의 모습
+|상단설명 = 촬영일 : 정재원
+|이름 = 정재원
+|영문명 = Jung Jae Won
+|이미지 = /images/default-music-cover.jpg
+|이미지설명 = Jung 'Jay' Jae-Won
+|출생 = 2005년 7월 27일 (만 19세)
+|출생지 = 🇰🇷 대한민국 서울특별시
+|국적 = 🇰🇷 대한민국
+|거주지 = 서울특별시 중구 목동
+|소속 = 🔵 경북대학교 빅데이터학과<br/>🔴 태릉고등학교 부동창장<br/>🟢 2024.03.20 ~ (🔴 현 재)<br/>🟡 태릉고등학교 서기부장 ▼
+|직업 = 대학생
+|학력 = 태릉고등학교 부동창장<br/>2024.03.20 ~ (현 재)<br/>태릉고등학교 서기부장<br/>2022.04.08 ~ 2023.04.30<br/>한창초등학교 전학<br/>(2012 ~ 2014)<br/>원목초등학교 졸업<br/>(2014 ~ 2018)<br/>해룡중학교 졸업<br/>(2018 ~ 2021)<br/>태릉고등학교 졸업<br/>(2021 ~ 2024)<br/>경북대학교<sup>(빅데이터학과)</sup><br/>(2024 ~ )
+|경력 = 전 태릉고등학교 중구 미디어팀<br/>전 FCA를 유스넘 축구부에서 선수단으로 활동한 적이 있다.<br/>전 태릉고등학교 3학년 학급 부회장<br/>전 태릉고등학교 3학년 학급 반장<br/>전 이랑가입원 운영진<br/>전 에스팀 이스쿨다운 6571<br/>현 태릉고등학교 3기 졸업회 부동창장
+|본관 = 은평 정씨
+|신체 = 186cm, INTJ-T
+|별명 = 산업기능요원<sup>(예정)</sup><br/>(미정)
+|종교 = 천주교
+|서명 = (서명 이미지)
+|링크 = 📸 인스타그램
+}}
+
+== 개요 ==
+대한민국의 모델 겸 대학생이다.
+
+[[태릉고등학교]]를 졸업했으며, 경북대학교 [[빅데이터학과]]에 재학하고 있다. 랑구 그룹의 창립자로, 랑구 그룹 멤버이다.
+
+== 생애 ==
+2005년 7월 27일 출생했다.
+
+=== 친구관계 ===
+친구들과의 관계에 대한 내용...
+
+=== 취미 ===
+여러 장르의 게임을 즐긴다...
+
+== 학습 ==
+
+=== 프로그래밍 ===
+어느정도 하는 편이다. 주로 사용하는 프로그램은 [[비주얼 스튜디오]]로 보인다.
+사용 가능한 언어는 [[PYTHON]], [[JAVASCRIPT]], [[HTML5]], [[CSS3]], [[PYCHARM]], [[SQLITE3]]
+
+== 여담 ==
+
+== 작품 목록 ==
+
+[[카드그리드: items=[
+  {
+    "title": "Rangu.fam 웹사이트", 
+    "image": "/images/default-music-cover.jpg",
+    "description": "Next.js로 구축한 개인 포트폴리오",
+    "date": "2024년"
+  },
+  {
+    "title": "이랑위키",
+    "description": "나무위키 스타일 개인 위키",
+    "date": "2024년"
+  }
+]]]
+
+[[분류:RANGU.FAM]]
+[[분류:대학생]]`
+    },
+    groupInfobox: {
+      name: '그룹정보상자',
+      icon: Users,
+      template: `{{그룹정보상자
+|상단로고 = 
+|상단제목 = Rangu.fam
+|상단부제목 = 랑구닷팸
+|그룹명 = Rangu.fam
+|메인제목 = 랑구
+|메인멤버 = R27 정재원, R7 정진규, R20 정민석, R17 강한울
+|서브제목 = 랑구 객원
+|서브멤버 = R1 이승찬, R10 윤의현
+|설립일 = 2024년 3월
+|본부 = 서울특별시
+|설명 = 태릉고등학교 동창회 기반 그룹
+}}
+
+== 개요 ==
+Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
+
+== 멤버 ==
+
+=== 메인 멤버 ===
+* '''R27 정재원''' - 리더
+* '''R7 정진규''' - 
+* '''R20 정민석''' - 
+* '''R17 강한울''' - 
+
+=== 객원 멤버 ===
+* '''R1 이승찬''' - 
+* '''R10 윤의현''' - 
+
+== 활동 ==
+
+== 여담 ==
+
+[[분류:RANGU.FAM]]
+[[분류:그룹]]`
+    },
+    simpleInfobox: {
+      name: '간단한 인포박스',
+      icon: Bookmark,
+      template: `[[인포박스: 제목=정재원 | 이미지=/images/default-music-cover.jpg | 본명=정재원 | 출생=2005년 7월 27일 | 국적=대한민국 | 신체=186cm | 학력=경북대학교 | 소속=빅데이터학과 | 직업=대학생 | 링크=인스타그램]]
+
+== 개요 ==
+
+== 활동 ==
+
+== 여담 ==`
+    },
+    cardGrid: {
+      name: '카드그리드',
+      icon: Layout,
+      template: `[[카드그리드: items=[
+  {
+    "title": "프로젝트 제목",
+    "image": "/images/default-music-cover.jpg",
+    "description": "프로젝트 설명",
+    "date": "2024년"
+  },
+  {
+    "title": "두 번째 프로젝트",
+    "description": "다른 프로젝트 설명",
+    "date": "2024년"
+  }
+]]]`
+    },
+    basicArticle: {
+      name: '기본 문서 구조',
+      icon: FileText,
+      template: `= 문서 제목 =
+
+== 개요 ==
+문서의 개요를 작성하세요.
+
+== 상세 내용 ==
+
+=== 하위 제목 ===
+상세한 내용을 작성하세요.
+
+== 참고 ==
+* [[관련 문서]]
+* [외부 링크 https://example.com]
+
+[[분류:분류명]]`
+    }
+  }
+
+  const insertTemplate = (templateKey: keyof typeof templates) => {
+    const template = templates[templateKey]
+    if (!textareaRef.current) return
+    
+    const textarea = textareaRef.current
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    
+    const newContent = content.substring(0, start) + template.template + content.substring(end)
+    onChange(newContent)
+    
+    // 커서를 템플릿 시작 부분으로 이동
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(start, start + template.template.length)
+      }
+    }, 0)
+    
+    setShowTemplates(false)
+  }
+
+  const handlePickImage = () => fileInputRef.current?.click()
+  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    uploadImageAndInsert(file)
+    e.currentTarget.value = ''
+  }
+
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
       localStorage.setItem('wiki-editor-autosave', content)
@@ -169,6 +738,13 @@ export default function WikiEditor({
     return () => clearInterval(autoSaveInterval)
   }, [content])
 
+  // 내용이 변경될 때마다 목차 자동 업데이트
+  useEffect(() => {
+    if (showTableOfContents) {
+      generateTableOfContents()
+    }
+  }, [content, showTableOfContents])
+
   return (
     <div className={`wiki-editor ${className}`}>
       <Card className="bg-gray-800 border-gray-700">
@@ -176,19 +752,54 @@ export default function WikiEditor({
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-200">{title}</h3>
             <div className="flex items-center space-x-2">
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowPreview(!showPreview)}
+                onClick={handlePickImage}
                 className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
+                title="사진 선택 후 현재 표에 삽입"
+              >
+                <Image className="w-4 h-4" />
+                <span>사진 선택</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
+                title="템플릿 불러오기"
+              >
+                <FileText className="w-4 h-4" />
+                <span>템플릿</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={insertTableOfContents}
+                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
+                title="목차 삽입"
+              >
+                <Menu className="w-4 h-4" />
+                <span>목차</span>
+              </Button>
+              <Button
+                variant={showPreview ? "primary" : "ghost"}
+                size="sm"
+                onClick={() => setShowPreview(!showPreview)}
+                className={`flex items-center space-x-1 ${
+                  showPreview 
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
               >
                 {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                <span>{showPreview ? '편집' : '미리보기'}</span>
+                <span>{showPreview ? '편집모드' : '미리보기'}</span>
               </Button>
               {onSave && (
                 <Button
                   size="sm"
-                  onClick={onSave}
+                  onClick={() => onSave?.()}
                   className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-gray-200"
                 >
                   <Save className="w-4 h-4" />
@@ -206,10 +817,14 @@ export default function WikiEditor({
                   {group.map((button) => (
                     <motion.button
                       key={button.label}
-                      className="p-2 rounded hover:bg-gray-700 transition-colors relative group"
-                      onClick={button.action}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      className={`p-2 rounded transition-colors relative group ${
+                        button.label.includes('검사 중') 
+                          ? 'bg-gray-600 cursor-not-allowed' 
+                          : 'hover:bg-gray-700'
+                      }`}
+                      onClick={button.label.includes('검사 중') ? undefined : button.action}
+                      whileHover={button.label.includes('검사 중') ? {} : { scale: 1.05 }}
+                      whileTap={button.label.includes('검사 중') ? {} : { scale: 0.95 }}
                     >
                       <button.icon className="w-4 h-4 text-gray-400" />
                       
@@ -229,52 +844,295 @@ export default function WikiEditor({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className={showPreview ? 'hidden lg:block' : ''}>
-              <div className="relative">
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={(e) => onChange(e.target.value)}
-                  onSelect={handleTextSelection}
-                  onKeyDown={handleKeyDown}
-                  className="w-full h-96 p-4 border border-gray-600 rounded-lg font-mono text-sm resize-y bg-gray-900 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                  placeholder="문서 내용을 작성하세요...
+          {/* 마이너 편집 옵션 */}
+          <div className="flex items-center gap-3 text-sm text-gray-300 py-2">
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="accent-blue-500" 
+                checked={isMinorEdit} 
+                onChange={(e) => setIsMinorEdit(e.target.checked)} 
+              />
+              <span className="select-none">마이너 편집</span>
+            </label>
+            <div className="text-xs text-gray-400">
+              (오타 수정, 문법 교정 등 내용에 큰 변화가 없는 편집)
+            </div>
+          </div>
+
+          {/* 목차 표시 영역 */}
+          {showTableOfContents && tableOfContents.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-gray-300">목차</h4>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={insertTableOfContents}
+                    className="text-gray-400 hover:text-gray-200 text-xs"
+                  >
+                    문서에 삽입
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTableOfContents(false)}
+                    className="text-gray-400 hover:text-gray-200"
+                  >
+                    닫기
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-60 overflow-y-auto">
+                {tableOfContents.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`py-1 px-2 text-sm text-gray-300 hover:bg-gray-700 rounded cursor-pointer`}
+                    style={{ paddingLeft: `${8 + item.level * 12}px` }}
+                    onClick={() => {
+                      // 해당 제목으로 스크롤
+                      const element = document.getElementById(item.anchor)
+                      if (element) {
+                        element.scrollIntoView({ behavior: 'smooth' })
+                      }
+                    }}
+                  >
+                    {item.title}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* 표 도구 영역 */}
+          {showTableTools && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4"
+            >
+              <h4 className="text-sm font-medium text-gray-300 mb-3">표 도구</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <motion.button
+                  onClick={() => insertTable(2, 2)}
+                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Table className="w-6 h-6 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-200">2×2 표</span>
+                </motion.button>
+                <motion.button
+                  onClick={() => insertTable(3, 3)}
+                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Table className="w-6 h-6 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-200">3×3 표</span>
+                </motion.button>
+                <motion.button
+                  onClick={() => insertTable(4, 4)}
+                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Table className="w-6 h-6 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-200">4×4 표</span>
+                </motion.button>
+                <motion.button
+                  onClick={() => insertTable(5, 3)}
+                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Table className="w-6 h-6 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-200">5×3 표</span>
+                </motion.button>
+              </div>
+              <div className="flex justify-end mt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTableTools(false)}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  닫기
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* 템플릿 선택 영역 */}
+          {showTemplates && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4"
+            >
+              <h4 className="text-sm font-medium text-gray-300 mb-3">템플릿 선택</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {Object.entries(templates).map(([key, template]) => (
+                  <motion.button
+                    key={key}
+                    onClick={() => insertTemplate(key as keyof typeof templates)}
+                    className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-left"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <template.icon className="w-6 h-6 text-gray-400 mb-2" />
+                    <span className="text-sm font-medium text-gray-200">{template.name}</span>
+                    <span className="text-xs text-gray-400 mt-1 text-center">
+                      {key === 'personInfobox' && '구글 문서와 동일한 복잡한 구조'}
+                      {key === 'groupInfobox' && '여러 표로 나뉘는 그룹/팀 구조'}
+                      {key === 'simpleInfobox' && '기존 호환 버전'}
+                      {key === 'cardGrid' && '작품/프로젝트 목록'}
+                      {key === 'basicArticle' && '일반 문서 구조'}
+                    </span>
+                  </motion.button>
+                ))}
+              </div>
+              <div className="flex justify-end mt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTemplates(false)}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  닫기
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+                    {showPreview ? (
+            /* 미리보기 모드: 편집창 + 미리보기 */
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="hidden lg:block">
+                <div className="relative">
+                  <div className="flex border border-gray-600 rounded-lg bg-gray-900 h-96">
+                    {/* 줄 번호 표시 영역 */}
+                    <div 
+                      ref={lineNumbersRef}
+                      className="flex-shrink-0 bg-gray-800 border-r border-gray-600 p-2 font-mono text-sm text-gray-500 min-w-[50px] overflow-hidden"
+                    >
+                      {content.split('\n').map((_, index) => (
+                        <div key={index} className="text-right pr-2 leading-5 select-none h-5">
+                          {index + 1}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* 텍스트 입력 영역 */}
+                    <textarea
+                      ref={textareaRef}
+                      value={content}
+                      onChange={(e) => onChange(e.target.value)}
+                      onSelect={handleTextSelection}
+                      onKeyDown={handleKeyDown}
+                      onScroll={handleTextareaScroll}
+                      className="flex-1 p-4 font-mono text-sm resize-none bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none leading-5"
+                      style={{ lineHeight: '1.25rem' }}
+                      placeholder="문서 내용을 작성하세요...
 
 나무위키 문법을 사용할 수 있습니다:
 - '''굵게''' 또는 **굵게**
 - ''기울임'' 또는 *기울임*
 - [[내부 링크]]
-- [외부링크 https://example.com]
+- [링크텍스트](URL)
 - {{{#ff0000 빨간 글씨}}}
 - [*1] 각주
-- :::info 정보 박스
+- <sup>상첨자</sup> <sub>하첨자</sub>
 
 단축키:
 - Ctrl+B: 굵게
 - Ctrl+I: 기울임  
 - Ctrl+S: 저장
 - Ctrl+Enter: 미리보기 토글"
-                />
-                
-                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-                  {content.length.toLocaleString()} 글자
+                    />
+                  </div>
+                  
+                  <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                    {content.length.toLocaleString()} 글자 | {content.split('\n').length} 줄
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="border border-gray-600 rounded-lg p-4 h-96 overflow-y-auto bg-gray-900">
+                  <h4 className="text-sm font-medium text-gray-400 mb-4 border-b border-gray-600 pb-2">
+                    미리보기
+                  </h4>
+                  <div className="image-render-stable">
+                    <NamuWikiRenderer
+                      content={content || '*편집 영역에 내용을 입력하면 여기에 미리보기가 표시됩니다.*'}
+                      generateTableOfContents={true}
+                      isPreview
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+          ) : (
+            /* 편집 모드: 편집창만 풀사이즈 */
+            <div className="w-full">
+              <div className="relative">
+                <div className="flex border border-gray-600 rounded-lg bg-gray-900 h-96">
+                  {/* 줄 번호 표시 영역 */}
+                  <div 
+                    ref={lineNumbersRef}
+                    className="flex-shrink-0 bg-gray-800 border-r border-gray-600 p-2 font-mono text-sm text-gray-500 min-w-[50px] overflow-hidden"
+                  >
+                    {content.split('\n').map((_, index) => (
+                      <div key={index} className="text-right pr-2 leading-5 select-none h-5">
+                        {index + 1}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* 텍스트 입력 영역 */}
+                  <textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={(e) => onChange(e.target.value)}
+                    onSelect={handleTextSelection}
+                    onKeyDown={handleKeyDown}
+                    onScroll={handleTextareaScroll}
+                    className="flex-1 p-4 font-mono text-sm resize-none bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none leading-5"
+                    style={{ lineHeight: '1.25rem' }}
+                    placeholder="문서 내용을 작성하세요...
 
-            <div className={showPreview ? '' : 'hidden lg:block'}>
-              <div className="border border-gray-600 rounded-lg p-4 h-96 overflow-y-auto bg-gray-900">
-                <h4 className="text-sm font-medium text-gray-400 mb-4 border-b border-gray-600 pb-2">
-                  미리보기
-                </h4>
-                <NamuWikiRenderer
-                  content={content || '*편집 영역에 내용을 입력하면 여기에 미리보기가 표시됩니다.*'}
-                  generateTableOfContents={false}
-                />
+나무위키 문법을 사용할 수 있습니다:
+- '''굵게''' 또는 **굵게**
+- ''기울임'' 또는 *기울임*
+- [[내부 링크]]
+- [링크텍스트](URL)
+- {{{#ff0000 빨간 글씨}}}
+- [*1] 각주
+- <sup>상첨자</sup> <sub>하첨자</sub>
+
+단축키:
+- Ctrl+B: 굵게
+- Ctrl+I: 기울임  
+- Ctrl+S: 저장
+- Ctrl+Enter: 미리보기 토글"
+                  />
+                </div>
+                
+                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                  {content.length.toLocaleString()} 글자 | {content.split('\n').length} 줄
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-600">
             <div className="flex items-start space-x-2">
@@ -289,21 +1147,126 @@ export default function WikiEditor({
                       <li><code className="bg-gray-700 px-1 rounded">''기울임''</code> → <em>기울임</em></li>
                       <li><code className="bg-gray-700 px-1 rounded">~~취소선~~</code> → <del>취소선</del></li>
                       <li><code className="bg-gray-700 px-1 rounded">__밑줄__</code> → <u>밑줄</u></li>
+                      <li><code className="bg-gray-700 px-1 rounded">&lt;sup&gt;상첨자&lt;/sup&gt;</code> → x<sup>2</sup></li>
+                      <li><code className="bg-gray-700 px-1 rounded">&lt;sub&gt;하첨자&lt;/sub&gt;</code> → H<sub>2</sub>O</li>
                     </ul>
                   </div>
                   <div>
                     <p className="font-medium mb-1 text-gray-300">링크와 참조:</p>
                     <ul className="space-y-0.5 text-gray-400">
                       <li><code className="bg-gray-700 px-1 rounded">[[내부링크]]</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">[외부링크 URL]</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">[링크텍스트](URL)</code></li>
                       <li><code className="bg-gray-700 px-1 rounded">[*1]</code> → 각주</li>
                       <li><code className="bg-gray-700 px-1 rounded">{`{{{#색상 텍스트}}}`}</code></li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1 text-gray-300">고급 기능:</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li><code className="bg-gray-700 px-1 rounded">[[목차]]</code> → 목차 삽입</li>
+                      <li><code className="bg-gray-700 px-1 rounded">|| 셀1 || 셀2 ||</code> → 표</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`{{{^가운데정렬}}}`}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`{{{+2 큰글씨}}}`}</code></li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1 text-gray-300">편집 기능:</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li><strong>미리보기:</strong> 실시간 렌더링 확인</li>
+                      <li><strong>마이너 편집:</strong> 작은 수정사항 표시</li>
+                      <li><strong>맞춤법 검사:</strong> 한국어 오타 검출</li>
+                      <li><strong>Ctrl+Enter:</strong> 미리보기 토글</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1 text-gray-300">템플릿:</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li>인물정보상자, 그룹정보상자</li>
+                      <li>카드그리드, 간단 인포박스</li>
+                      <li>템플릿 버튼으로 쉽게 삽입</li>
                     </ul>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* 맞춤법 검사 결과 */}
+          {showSpellCheckResults && (
+            <div className="mt-4 p-4 border border-red-600 rounded-lg bg-red-900/20">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium text-red-400 flex items-center">
+                  맞춤법 검사 결과
+                  {isSpellChecking && (
+                    <div className="ml-2 w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSpellCheckResults(false)}
+                  className="text-gray-400 hover:text-gray-300"
+                >
+                  ✕
+                </Button>
+              </div>
+              
+              {spellCheckResults.length === 0 ? (
+                <p className="text-green-400">맞춤법 오류가 발견되지 않았습니다!</p>
+              ) : (
+                <div className="space-y-2">
+                  {spellCheckResults.map((result, index) => {
+                    const lineInfo = getLineInfoFromPosition(result.position)
+                    const actualWordExists = lineInfo.lineContent.includes(result.word)
+                    
+                    // 실제로 단어가 없는 경우 건너뛰기
+                    if (!actualWordExists) {
+                      return null
+                    }
+                    
+                    return (
+                      <div key={index} className="p-3 bg-gray-800 rounded border border-gray-600">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-red-400 font-medium">"{result.word}"</span>
+                          <span className="text-xs text-gray-400">{lineInfo.lineNumber}줄</span>
+                        </div>
+                        
+                        {/* 해당 줄 내용 표시 */}
+                        <div className="mb-2 p-2 bg-gray-700 rounded text-xs">
+                          <span className="text-gray-500">{lineInfo.lineNumber}줄: </span>
+                          <span className="text-gray-300 font-mono">
+                            {lineInfo.lineContent.length > 60 
+                              ? lineInfo.lineContent.substring(0, 60) + '...' 
+                              : lineInfo.lineContent || '(빈 줄)'}
+                          </span>
+                        </div>
+                        
+                        {result.suggestions.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-400 mb-1">제안:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {result.suggestions.map((suggestion, suggestionIndex) => (
+                                <Button
+                                  key={suggestionIndex}
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => applySpellCheckSuggestion(result.word, suggestion, result.position)}
+                                  className="text-xs bg-blue-600 hover:bg-blue-500 border border-blue-500"
+                                >
+                                  {suggestion}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }).filter(Boolean)}
+                </div>
+              )}
+            </div>
+          )}
+
         </CardContent>
       </Card>
     </div>

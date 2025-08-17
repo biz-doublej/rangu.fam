@@ -305,4 +305,17 @@ export interface GameSettings {
   }
   createdAt: Date
   updatedAt: Date
+}
+
+// 개인 북마크 타입
+export interface Bookmark {
+  _id?: string
+  userId: string
+  title: string
+  url: string
+  description?: string
+  icon?: string
+  order: number
+  createdAt: Date
+  updatedAt: Date
 } 

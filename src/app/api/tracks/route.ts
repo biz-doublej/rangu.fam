@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import Track from '@/models/Track'
 import User from '@/models/User'
 import Comment from '@/models/Comment'
+export const dynamic = 'force-dynamic'
 
 // GET - 모든 트랙 또는 필터링된 트랙 가져오기
 export async function GET(request: NextRequest) {
@@ -49,17 +50,8 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit
 
-    // 트랙 조회 (populate로 관련 데이터 포함)
+    // 트랙 조회 (간단한 조회로 변경)
     const tracks = await Track.find(filter)
-      .populate('uploadedById', 'username profileImage')
-      .populate({
-        path: 'commentsIds',
-        populate: {
-          path: 'userById',
-          select: 'username profileImage'
-        },
-        options: { limit: 5, sort: { createdAt: -1 } }
-      })
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -99,6 +91,8 @@ export async function POST(request: NextRequest) {
       album,
       duration,
       youtubeId,
+      soundcloudUrl,
+      sourceType,
       genre,
       tags,
       description,
@@ -107,44 +101,76 @@ export async function POST(request: NextRequest) {
     } = body
 
     // 필수 필드 검증
-    if (!title || !artist || !youtubeId || !genre || !uploadedBy || !uploadedById) {
+    if (!title || !artist || !genre || !uploadedBy || !uploadedById || !sourceType) {
       return NextResponse.json(
         { success: false, error: '필수 필드가 누락되었습니다.' },
         { status: 400 }
       )
     }
 
-    // 사용자 존재 확인
-    const user = await User.findById(uploadedById)
-    if (!user) {
+    // 소스 타입별 필수 필드 검증
+    if (sourceType === 'youtube' && !youtubeId) {
       return NextResponse.json(
-        { success: false, error: '사용자를 찾을 수 없습니다.' },
-        { status: 404 }
+        { success: false, error: 'YouTube URL이 필요합니다.' },
+        { status: 400 }
       )
     }
 
-    // YouTube 썸네일 URL 생성
-    const coverImage = `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`
+    if (sourceType === 'soundcloud' && !soundcloudUrl) {
+      return NextResponse.json(
+        { success: false, error: 'SoundCloud URL이 필요합니다.' },
+        { status: 400 }
+      )
+    }
+
+    // 사용자 존재 확인 또는 생성
+    let user = await User.findOne({ username: uploadedById })
+    if (!user) {
+      // 사용자가 없으면 새로 생성 (임시)
+      user = new User({
+        username: uploadedById,
+        email: `${uploadedById}@rangu.fam`,
+        password: 'temp123', // 임시 비밀번호
+        role: 'member'
+      })
+      await user.save()
+      console.log(`새 사용자 생성: ${uploadedById}`)
+    }
+
+    // 소스 타입에 따른 커버 이미지 설정
+    let coverImage = '/images/default-music-cover.jpg'
+    if (sourceType === 'youtube' && youtubeId) {
+      coverImage = `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`
+    }
 
     // 새 트랙 생성
-    const newTrack = new Track({
+    const trackData: any = {
       title,
       artist,
       album: album || '',
       duration: duration || 0,
-      youtubeId,
+      sourceType,
       coverImage,
       uploadedBy,
-      uploadedById,
+      uploadedById: user._id,
       genre,
       tags: tags || [],
       description: description || ''
-    })
+    }
+
+    // 소스 타입별 필드 추가
+    if (sourceType === 'youtube') {
+      trackData.youtubeId = youtubeId
+    } else if (sourceType === 'soundcloud') {
+      trackData.soundcloudUrl = soundcloudUrl
+    }
+
+    const newTrack = new Track(trackData)
 
     const savedTrack = await newTrack.save()
 
     // 사용자의 플레이리스트에 추가 (선택사항)
-    await User.findByIdAndUpdate(uploadedById, {
+    await User.findByIdAndUpdate(user._id, {
       $inc: { totalPlays: 1 }
     })
 

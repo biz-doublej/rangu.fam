@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import DiscordService from '@/services/discordService'
 import Track from '@/models/Track'
+export const dynamic = 'force-dynamic'
 
 // POST /api/discord/sync - 웹사이트와 디스코드 큐 동기화
 export async function POST(request: NextRequest) {

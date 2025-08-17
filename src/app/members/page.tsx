@@ -78,7 +78,7 @@ export default function MembersPage() {
               Rangu.fam 멤버들
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              네 친구의 각기 다른 이야기와 현재 모습을 만나보세요.
+              여섯 친구의 각기 다른 이야기와 현재 모습을 만나보세요.
               각자의 길을 걸으며 서로를 응원하는 특별한 우정입니다.
             </p>
           </motion.div>
@@ -104,8 +104,42 @@ export default function MembersPage() {
                       <CardContent className="p-6">
                         <div className="flex items-start space-x-4">
                           {/* 아바타 */}
-                          <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-full flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-                            {member.name[0]}
+                          <div className={`w-16 h-16 ${
+                            member.id === 'seungchan' 
+                              ? 'bg-gradient-to-br from-purple-600 to-indigo-600' 
+                              : member.id === 'heeyeol'
+                              ? 'bg-gradient-to-br from-green-600 to-teal-600'
+                              : member.id === 'jaewon'
+                              ? 'bg-gradient-to-br from-purple-500 to-blue-500'
+                              : member.id === 'minseok'
+                              ? 'bg-gradient-to-br from-red-500 to-pink-500'
+                              : member.id === 'jinkyu'
+                              ? 'bg-gradient-to-br from-green-600 to-green-500'
+                              : 'bg-gradient-to-br from-primary-500 to-secondary-500'
+                          } rounded-full flex items-center justify-center text-white text-xl font-bold flex-shrink-0 relative overflow-hidden`}>
+                            {member.avatar && member.avatar !== '/images/default-avatar.jpg' ? (
+                              <img 
+                                src={member.avatar} 
+                                alt={member.name} 
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.currentTarget as HTMLElement
+                                  const sibling = target.nextElementSibling as HTMLElement
+                                  target.style.display = 'none'
+                                  if (sibling) sibling.style.display = 'flex'
+                                }}
+                              />
+                            ) : null}
+                            <div className={`absolute inset-0 flex items-center justify-center ${
+                              member.avatar && member.avatar !== '/images/default-avatar.jpg' ? 'hidden' : 'flex'
+                            }`}>
+                              {member.id === 'seungchan' ? '🪄' : 
+                               member.id === 'heeyeol' ? '🎵' :
+                               member.id === 'jaewon' ? '👨‍💻' :
+                               member.id === 'minseok' ? '🏔️' :
+                               member.id === 'jinkyu' ? '🪖' :
+                               member.name[0]}
+                            </div>
                           </div>
                           
                           <div className="flex-1 min-w-0">
@@ -146,10 +180,20 @@ export default function MembersPage() {
                                 <User className="w-4 h-4 mr-2" />
                                 <span className={`px-2 py-1 rounded-full text-xs ${
                                   member.status === 'active' 
-                                    ? 'bg-green-100 text-green-700' 
+                                    ? member.id === 'seungchan'
+                                      ? 'bg-purple-100 text-purple-700'
+                                      : 'bg-green-100 text-green-700'
+                                    : member.id === 'heeyeol'
+                                    ? 'bg-yellow-100 text-yellow-700'
                                     : 'bg-gray-100 text-gray-700'
                                 }`}>
-                                  {member.status === 'active' ? '활성' : '비활성'}
+                                  {member.status === 'active' 
+                                    ? member.id === 'seungchan' 
+                                      ? '마법사 ✨' 
+                                      : member.id === 'heeyeol'
+                                      ? '합류 예정'
+                                      : '활성'
+                                    : '비활성'}
                                 </span>
                               </div>
                             </div>
@@ -183,12 +227,12 @@ export default function MembersPage() {
                 <Card variant="glass">
                   <CardContent className="py-8">
                     <h3 className="text-xl font-semibold text-primary-700 mb-2">
-                      🤝 네 친구의 이야기
+                      🤝 여섯 친구의 이야기
                     </h3>
                     <p className="text-gray-600 max-w-2xl mx-auto">
                       각자 다른 길을 걸어가고 있지만, 언제나 서로를 응원하며 
-                      소중한 추억을 함께 나누는 네 친구의 공간입니다.
-                      이곳에서 서로의 근황을 확인하고 응원의 메시지를 전해보세요.
+                      소중한 추억을 함께 나누는 여섯 친구의 공간입니다.
+                      새로운 멤버들과 함께 더욱 풍성해진 우리들의 이야기를 만나보세요.
                     </p>
                   </CardContent>
                 </Card>

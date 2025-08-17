@@ -107,6 +107,22 @@ const DEMO_CREDENTIALS = {
   guest: 'guest123'
 }
 
+// 상태별 기본 메시지 함수
+const getDefaultStatusMessage = (status: string): string => {
+  switch (status) {
+    case 'online':
+      return '온라인'
+    case 'idle':
+      return '자리 비움'
+    case 'dnd':
+      return '방해금지'
+    case 'offline':
+      return '오프라인'
+    default:
+      return '오프라인'
+  }
+}
+
 interface AuthContextType {
   user: User | null
   member: Member | null
@@ -179,7 +195,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               activity: '온라인'
             })
           })
-          console.log(`Login activity updated for ${foundMember.name}`)
+          
+          // 상태 시스템에서도 온라인으로 변경 (기존 설정이 있으면 유지, 없으면 온라인)
+          const statusResponse = await fetch(`/api/profiles/${foundMember.id}/status`)
+          let statusToSet = 'online'
+          
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json()
+            // 기존에 설정된 상태가 있고 오프라인이 아니면 그 상태 유지
+            if (statusData.status && statusData.status !== 'offline') {
+              statusToSet = statusData.status
+            }
+          }
+          
+          await fetch(`/api/profiles/${foundMember.id}/status`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: statusToSet,
+              customMessage: getDefaultStatusMessage(statusToSet)
+            })
+          })
+          
+          console.log(`Login activity updated for ${foundMember.name} - set to ${statusToSet}`)
         } catch (error) {
           console.error('Failed to update member activity on login:', error)
         }
@@ -218,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = async () => {
-    if (user?.memberId) {
+    if (user?.memberId || user?.id) {
       // 멤버 활동 상태를 오프라인으로 업데이트 (로그아웃 시간 기록)
       try {
         await fetch('/api/members', {
@@ -227,12 +267,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            memberId: user.memberId,
+            memberId: user.memberId || user.id,
             action: 'logout',
             activity: '오프라인'
           })
         })
-        console.log(`Logout activity updated for ${user.username}`)
+        
+        // 상태 시스템에서도 오프라인으로 변경
+        await fetch(`/api/profiles/${user.memberId || user.id}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'offline',
+            customMessage: '오프라인'
+          })
+        })
+        
+        console.log(`Logout activity updated for ${user.username} - set to offline`)
       } catch (error) {
         console.error('Failed to update member activity on logout:', error)
       }

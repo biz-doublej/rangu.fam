@@ -23,6 +23,7 @@ export interface MemberWithActivity {
   lastSeen: Date
   isOnline: boolean
   currentActivity: string
+  userStatus: 'online' | 'idle' | 'dnd' | 'offline'
 }
 
 export interface ActivityUpdate {

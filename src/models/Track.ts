@@ -9,6 +9,11 @@ export interface ITrack extends Document {
   youtubeId?: string
   spotifyId?: string
   soundcloudId?: string
+  soundcloudUrl?: string
+  audioFile?: string // 업로드된 오디오 파일 경로
+  audioFileName?: string // 원본 파일명
+  audioFileSize?: number // 파일 크기 (바이트)
+  sourceType: 'youtube' | 'soundcloud' | 'file' | 'spotify' // 음원 소스 타입
   coverImage: string
   uploadedBy: string
   uploadedById: string
@@ -60,6 +65,28 @@ const TrackSchema: Schema = new Schema({
     type: String,
     trim: true
   },
+  soundcloudUrl: {
+    type: String,
+    trim: true
+  },
+  audioFile: {
+    type: String,
+    trim: true
+  },
+  audioFileName: {
+    type: String,
+    trim: true
+  },
+  audioFileSize: {
+    type: Number,
+    min: 0
+  },
+  sourceType: {
+    type: String,
+    required: true,
+    enum: ['youtube', 'soundcloud', 'file', 'spotify'],
+    default: 'youtube'
+  },
   coverImage: {
     type: String,
     required: true
@@ -69,8 +96,7 @@ const TrackSchema: Schema = new Schema({
     required: true
   },
   uploadedById: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
     required: true
   },
   genre: {
@@ -108,8 +134,7 @@ const TrackSchema: Schema = new Schema({
     min: 0
   },
   commentsIds: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Comment'
+    type: String
   }],
   isPublic: {
     type: Boolean,

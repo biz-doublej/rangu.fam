@@ -27,7 +27,8 @@ import {
   ExternalLink,
   Users,
   FileText,
-  Zap
+  Zap,
+  Shield
 } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -35,41 +36,56 @@ import { Input } from '@/components/ui/Input'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 
 export default function WikiMainPage() {
+  // 최근 변경 토글 상태
+  const [showRecentChanges, setShowRecentChanges] = useState(false)
   const router = useRouter()
-  const { wikiUser, isLoggedIn, logout } = useWikiAuth()
+  const { wikiUser, isLoggedIn, logout, isModerator } = useWikiAuth()
   const [searchQuery, setSearchQuery] = useState('')
   
-  // 실시간 검색어 (더미 데이터)
-  const [realtimeSearch, setRealtimeSearch] = useState([
-    'RANGU.FAM',
-    '2025-26 Next.js',
-    'React 개발가이드',
-    'TypeScript 팁',
-    'MongoDB 연동',
-    '위키 편집법',
-    '개발환경 설정',
-    'Framer Motion',
-    'Tailwind CSS',
-    '프론트엔드'
-  ])
+  // 실시간 검색어 (DB에서 인기 문서 fetch)
+  type TrendingItem = { title: string; slug: string; views: number }
+  const [realtimeSearch, setRealtimeSearch] = useState<TrendingItem[]>([])
+  useEffect(() => {
+    fetch('/api/wiki/trending?limit=10')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.trending) setRealtimeSearch(data.trending)
+      })
+      .catch(() => setRealtimeSearch([]))
+  }, [])
 
-  // 최근 변경 문서 (더미 데이터)
-  const [recentChanges, setRecentChanges] = useState([
-    { title: 'RANGU.FAM', editor: 'admin', time: '1분 전', type: '편집' },
-    { title: '2025-26 Next.js 가이드', editor: 'jaewon', time: '5분 전', type: '편집' },
-    { title: 'React 개발 가이드', editor: 'minseok', time: '10분 전', type: '편집' },
-    { title: 'TypeScript 기초', editor: 'user3', time: '15분 전', type: '편집' },
-    { title: 'MongoDB 연동법', editor: 'user4', time: '20분 전', type: '편집' }
-  ])
+  // 최근 변경 문서 (DB에서 동적 fetch)
+  type RecentChange = {
+    title: string;
+    slug: string;
+    namespace?: string;
+    revision: {
+      author?: string;
+      timestamp?: number;
+      editType?: string;
+    }
+  }
+  const [recentChanges, setRecentChanges] = useState<RecentChange[]>([])
+  useEffect(() => {
+    fetch('/api/wiki/recent?limit=5')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.changes) setRecentChanges(data.changes)
+      })
+      .catch(() => setRecentChanges([]))
+  }, [])
 
-  // 이랑뉴스 (더미 데이터) 
-  const [news, setNews] = useState([
-    '"새해 지역에 가져갈 출간..."서울교통공단"',
-    '"내가 고라니? 김명화, 망실한 한 총구 관..."',
-    '"억대 근현근 기도 연기 위...우킹"',
-    '"적인 수술기, 삼픙 부칠 시연에 관련..."',
-    '"고슈 수술기, 삼픙 부칠 시연에 관련..."'
-  ])
+  // 이랑뉴스 (실시간 NewsAPI)
+  type NewsItem = { title: string; url: string }
+  const [news, setNews] = useState<NewsItem[]>([])
+  useEffect(() => {
+    fetch('/api/news')
+      .then(res => res.json())
+      .then(data => {
+        if (data.news) setNews(data.news)
+      })
+      .catch(() => setNews([]))
+  }, [])
 
   // 검색 처리
   const handleSearch = (e: React.FormEvent) => {
@@ -87,7 +103,7 @@ export default function WikiMainPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen bg-gray-900 text-gray-100" suppressHydrationWarning>
       {/* 상단 네비게이션 */}
       <header className="border-b border-gray-700 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4">
@@ -140,6 +156,21 @@ export default function WikiMainPage() {
 
             <div className="flex items-center space-x-3">
               <Bell className="w-4 h-4 text-gray-400" />
+              
+              {/* 운영자 대시보드 버튼 (운영자만 표시) */}
+              {isLoggedIn && isModerator && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push('/wiki/mod')}
+                  className="flex items-center space-x-1 text-yellow-400 hover:text-yellow-300 border border-yellow-400 hover:border-yellow-300 h-8"
+                  title="운영자 대시보드"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span className="hidden sm:block">운영자</span>
+                </Button>
+              )}
+              
               {isLoggedIn ? (
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-300">{wikiUser?.displayName}</span>
@@ -361,17 +392,22 @@ export default function WikiMainPage() {
               </div>
               <div className="p-4">
                 <div className="space-y-2">
-                  {realtimeSearch.slice(0, 10).map((keyword, index) => (
-                    <div key={index} className="flex items-center text-sm">
-                      <span className="w-6 text-gray-400 font-mono">{index + 1}</span>
-                      <button 
-                        onClick={() => router.push(`/wiki/${encodeURIComponent(keyword)}`)}
-                        className="text-gray-300 hover:text-blue-400 hover:underline"
-                      >
-                        {keyword}
-                      </button>
-                    </div>
-                  ))}
+                  {realtimeSearch.length === 0 ? (
+                    <div className="text-xs text-gray-500">실시간 인기 검색어가 없습니다.</div>
+                  ) : (
+                    realtimeSearch.map((item, index) => (
+                      <div key={index} className="flex items-center text-sm">
+                        <span className="w-6 text-gray-400 font-mono">{index + 1}</span>
+                        <button
+                          onClick={() => router.push(`/wiki/${encodeURIComponent(item.slug || item.title)}`)}
+                          className="text-gray-300 hover:text-blue-400 hover:underline"
+                        >
+                          {item.title}
+                        </button>
+                        <span className="ml-2 text-xs text-gray-500">({item.views}회)</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -383,29 +419,36 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
             >
-              <div className="p-4 border-b border-gray-700">
+              <div className="p-4 border-b border-gray-700 cursor-pointer select-none" onClick={() => setShowRecentChanges(v => !v)}>
                 <h3 className="font-bold text-gray-200 flex items-center">
                   <Clock className="w-4 h-4 text-blue-400 mr-2" />
-                  최근 변경 <ChevronRight className="w-3 h-3 ml-auto" />
+                  최근 변경
+                  <ChevronRight className={`w-3 h-3 ml-auto transition-transform ${showRecentChanges ? 'rotate-90' : ''}`} />
                 </h3>
               </div>
-              <div className="p-4">
-                <div className="space-y-3">
-                  {recentChanges.map((change, index) => (
-                    <div key={index} className="text-sm">
-                      <button 
-                        onClick={() => router.push(`/wiki/${encodeURIComponent(change.title)}`)}
-                        className="text-blue-400 hover:underline block"
-                      >
-                        {change.title}
-                      </button>
-                      <div className="text-gray-500 text-xs">
-                        {change.editor} · {change.time}
-                      </div>
-                    </div>
-                  ))}
+              {showRecentChanges && (
+                <div className="p-4">
+                  <div className="space-y-3">
+                    {recentChanges.length === 0 ? (
+                      <div className="text-xs text-gray-500">최근 변경 내역이 없습니다.</div>
+                    ) : (
+                      recentChanges.map((change, index) => (
+                        <div key={index} className="text-sm">
+                          <button
+                            onClick={() => router.push(`/wiki/${encodeURIComponent(change.slug || change.title)}`)}
+                            className="text-blue-400 hover:underline block"
+                          >
+                            {change.title}
+                          </button>
+                          <div className="text-gray-500 text-xs">
+                            {change.revision.author || '익명'} · {change.revision.editType || '편집'} · {change.revision.timestamp ? new Date(change.revision.timestamp).toLocaleString('ko-KR', { hour12: false }) : ''}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
 
             {/* 이랑뉴스 */}
@@ -423,11 +466,21 @@ export default function WikiMainPage() {
               </div>
               <div className="p-4">
                 <div className="space-y-2">
-                  {news.map((item, index) => (
-                    <div key={index} className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer">
-                      "{item}"
-                    </div>
-                  ))}
+                  {news.length === 0 ? (
+                    <div className="text-xs text-gray-500">실시간 뉴스를 불러올 수 없습니다.</div>
+                  ) : (
+                    news.map((item, index) => (
+                      <a
+                        key={index}
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-xs text-orange-400 hover:text-orange-300 hover:underline cursor-pointer"
+                      >
+                        {item.title}
+                      </a>
+                    ))
+                  )}
                 </div>
               </div>
             </motion.div>

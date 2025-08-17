@@ -94,7 +94,28 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ username, password })
       })
 
-      const data = await response.json()
+      // 응답이 비어있거나 잘못된 경우 체크
+      if (!response.ok) {
+        console.error('HTTP 오류:', response.status, response.statusText)
+        toast.error(`서버 오류 (${response.status})`)
+        return false
+      }
+
+      const text = await response.text()
+      if (!text) {
+        console.error('빈 응답 받음')
+        toast.error('서버에서 빈 응답을 받았습니다.')
+        return false
+      }
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseError) {
+        console.error('JSON 파싱 오류:', parseError, '응답 텍스트:', text)
+        toast.error('서버 응답 형식이 올바르지 않습니다.')
+        return false
+      }
 
       if (data.success) {
         setWikiUser(data.user)
@@ -127,7 +148,28 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(userData)
       })
 
-      const data = await response.json()
+      // 응답이 비어있거나 잘못된 경우 체크
+      if (!response.ok) {
+        console.error('HTTP 오류:', response.status, response.statusText)
+        toast.error(`서버 오류 (${response.status})`)
+        return false
+      }
+
+      const text = await response.text()
+      if (!text) {
+        console.error('빈 응답 받음')
+        toast.error('서버에서 빈 응답을 받았습니다.')
+        return false
+      }
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseError) {
+        console.error('JSON 파싱 오류:', parseError, '응답 텍스트:', text)
+        toast.error('서버 응답 형식이 올바르지 않습니다.')
+        return false
+      }
 
       if (data.success) {
         toast.success('위키 계정이 생성되었습니다! 로그인해주세요.')

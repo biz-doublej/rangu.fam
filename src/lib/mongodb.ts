@@ -4,11 +4,14 @@ declare global {
   var mongoose: any // This must be a `var` and not a `let / const`
 }
 
-const MONGODB_URI = process.env.MONGODB_URI!
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/rangu-fam'
 
-if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable inside .env.local')
+// MongoDB URI가 설정되지 않은 경우 경고 메시지 출력
+if (!process.env.MONGODB_URI) {
+  console.log('⚠️ MONGODB_URI 환경 변수가 설정되지 않았습니다. 기본값을 사용합니다:', MONGODB_URI)
 }
+
+// MongoDB Atlas Network Access 설정 완료 후 정상 연결 가능
 
 let cached = global.mongoose
 
@@ -38,4 +41,8 @@ async function dbConnect() {
   return cached.conn
 }
 
-export default dbConnect 
+// 기본 export
+export default dbConnect
+
+// named export for compatibility
+export const connectToDatabase = dbConnect 

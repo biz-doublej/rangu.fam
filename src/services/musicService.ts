@@ -8,6 +8,13 @@ export interface Track {
   album?: string
   duration: number
   youtubeId?: string
+  spotifyId?: string
+  soundcloudId?: string
+  soundcloudUrl?: string
+  audioFile?: string
+  audioFileName?: string
+  audioFileSize?: number
+  sourceType: 'youtube' | 'soundcloud' | 'file' | 'spotify'
   coverImage: string
   uploadedBy: string
   uploadedById: string
@@ -142,13 +149,15 @@ export const musicService = {
     }
   },
 
-  // 새 트랙 업로드
+  // 새 트랙 업로드 (URL 기반)
   async uploadTrack(trackData: {
     title: string
     artist: string
     album?: string
     duration?: number
-    youtubeId: string
+    youtubeId?: string
+    soundcloudUrl?: string
+    sourceType: 'youtube' | 'soundcloud'
     genre: string
     tags?: string[]
     description?: string
@@ -176,6 +185,33 @@ export const musicService = {
       }
     } catch (error) {
       console.error('트랙 업로드 오류:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+      }
+    }
+  },
+
+  // 새 트랙 업로드 (파일 기반)
+  async uploadTrackFile(formData: FormData): Promise<ApiResponse<Track>> {
+    try {
+      const response = await fetch(`${API_BASE}/tracks/upload`, {
+        method: 'POST',
+        body: formData // FormData는 Content-Type 헤더를 자동으로 설정
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || '파일 업로드에 실패했습니다.')
+      }
+
+      return {
+        success: true,
+        data: data.track
+      }
+    } catch (error) {
+      console.error('파일 업로드 오류:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
@@ -324,6 +360,21 @@ export const extractYouTubeId = (url: string): string | null => {
   return match ? match[1] : null
 }
 
+// SoundCloud URL 유효성 검사
+export const validateSoundCloudUrl = (url: string): boolean => {
+  const regex = /^https?:\/\/(www\.)?(soundcloud\.com|snd\.sc)\/.+/
+  return regex.test(url)
+}
+
+// SoundCloud URL에서 트랙 ID 추출 (간단한 유효성 검사용)
+export const extractSoundCloudInfo = (url: string): { isValid: boolean; url: string } => {
+  const isValid = validateSoundCloudUrl(url)
+  return {
+    isValid,
+    url: isValid ? url : ''
+  }
+}
+
 // YouTube 썸네일 URL 생성
 export const getYouTubeThumbnail = (videoId: string, quality: 'default' | 'medium' | 'high' | 'maxres' = 'maxres'): string => {
   const qualityMap = {
@@ -333,6 +384,39 @@ export const getYouTubeThumbnail = (videoId: string, quality: 'default' | 'mediu
     maxres: 'maxresdefault'
   }
   return `https://img.youtube.com/vi/${videoId}/${qualityMap[quality]}.jpg`
+}
+
+// 오디오 파일 유효성 검사
+export const validateAudioFile = (file: File): { isValid: boolean; error?: string } => {
+  const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/flac']
+  const maxSize = 50 * 1024 * 1024 // 50MB
+
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      isValid: false,
+      error: '지원되지 않는 파일 형식입니다. MP3, WAV, OGG, M4A, FLAC 파일만 업로드 가능합니다.'
+    }
+  }
+
+  if (file.size > maxSize) {
+    return {
+      isValid: false,
+      error: '파일 크기가 너무 큽니다. 최대 50MB까지 업로드 가능합니다.'
+    }
+  }
+
+  return { isValid: true }
+}
+
+// 파일 크기를 읽기 쉬운 형태로 변환
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes'
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 // 플레이리스트 관련 API

@@ -29,8 +29,7 @@ const CommentSchema: Schema = new Schema({
     required: true
   },
   userById: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
     required: true
   },
   username: {
@@ -38,20 +37,16 @@ const CommentSchema: Schema = new Schema({
     required: true
   },
   trackId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Track'
+    type: String
   },
   playlistId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Playlist'
+    type: String
   },
   parentCommentId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Comment'
+    type: String
   },
   repliesIds: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Comment'
+    type: String
   }],
   likes: {
     type: Number,

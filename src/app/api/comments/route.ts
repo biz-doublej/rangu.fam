@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import Comment from '@/models/Comment'
 import Track from '@/models/Track'
 import User from '@/models/User'
+export const dynamic = 'force-dynamic'
 
 // GET - 댓글 가져오기 (트랙별 또는 사용자별)
 export async function GET(request: NextRequest) {

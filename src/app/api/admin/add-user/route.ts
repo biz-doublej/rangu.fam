@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import User from '@/models/User'
 import bcrypt from 'bcryptjs'
+export const dynamic = 'force-dynamic'
 
 // POST - 새로운 사용자 추가 (관리자용)
 export async function POST(request: NextRequest) {

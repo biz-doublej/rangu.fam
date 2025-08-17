@@ -21,6 +21,9 @@ import {
   playlistService,
   extractYouTubeId, 
   getYouTubeThumbnail,
+  extractSoundCloudInfo,
+  validateAudioFile,
+  formatFileSize,
   Track as DbTrack,
   Comment as DbComment,
   Playlist as DbPlaylist
@@ -73,7 +76,6 @@ export default function MusicPage() {
   const [selectedGenre, setSelectedGenre] = useState<string>('all')
   
   // 모달 및 폼 상태
-  const [showUploadModal, setShowUploadModal] = useState(false)
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
   const [showComments, setShowComments] = useState<string | null>(null)
   
@@ -88,16 +90,9 @@ export default function MusicPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isUploadingTrack, setIsUploadingTrack] = useState(false)
   
-  // 업로드 폼 상태
-  const [uploadForm, setUploadForm] = useState({
-    title: '',
-    artist: '',
-    album: '',
-    genre: '',
-    youtubeUrl: '',
-    tags: '',
-    description: ''
-  })
+
+  
+
   
   // 새 댓글 상태
   const [newComment, setNewComment] = useState('')
@@ -109,12 +104,50 @@ export default function MusicPage() {
     artist: dbTrack.artist,
     album: dbTrack.album,
     duration: dbTrack.duration,
-    audioUrl: dbTrack.youtubeId ? `https://www.youtube.com/watch?v=${dbTrack.youtubeId}` : '',
+    audioUrl: getAudioUrl(dbTrack),
     coverImage: dbTrack.coverImage,
     uploadedBy: dbTrack.uploadedBy,
     uploadDate: new Date(dbTrack.createdAt),
     genre: dbTrack.genre
   })
+
+  // 트랙 소스에 따른 오디오 URL 생성
+  const getAudioUrl = (track: DbTrack): string => {
+    switch (track.sourceType) {
+      case 'youtube':
+        return track.youtubeId ? `https://www.youtube.com/watch?v=${track.youtubeId}` : ''
+      case 'soundcloud':
+        return track.soundcloudUrl || ''
+      case 'file':
+        // 파일 업로드의 경우 전체 URL 생성
+        const audioPath = track.audioFile || ''
+        if (audioPath.startsWith('/uploads/')) {
+          return `${window.location.origin}${audioPath}`
+        }
+        return audioPath
+      default:
+        return ''
+    }
+  }
+
+  // SoundCloud 스타일 파형 높이 생성 (트랙별 고정 패턴)
+  const generateWaveHeight = (index: number, trackId: string): number => {
+    // 트랙 ID를 기반으로 시드 생성
+    const seed = trackId.split('').reduce((acc, char, i) => acc + char.charCodeAt(0) * (i + 1), 0)
+    
+    // 유사 랜덤 함수 (같은 trackId에 대해 항상 같은 결과)
+    const pseudoRandom = (n: number) => {
+      const x = Math.sin(seed + n * 0.1) * 10000
+      return x - Math.floor(x)
+    }
+    
+    // 자연스러운 파형 패턴 생성
+    const baseHeight = 4 + pseudoRandom(index) * 16 // 4px ~ 20px
+    const variation = Math.sin(index * 0.3) * 3 // 사인파 변화
+    const randomness = pseudoRandom(index * 2) * 4 // 약간의 무작위성
+    
+    return Math.max(3, Math.min(24, baseHeight + variation + randomness))
+  }
 
   const categories = [
     { id: 'all', label: '전체', icon: Music },
@@ -329,60 +362,11 @@ export default function MusicPage() {
     )
   }
 
-  // 업로드 처리
-  const handleUpload = async () => {
-    if (!uploadForm.title || !uploadForm.artist || !uploadForm.youtubeUrl || !user) return
 
-    setIsUploadingTrack(true)
-    try {
-      // YouTube URL에서 비디오 ID 추출
-      const youtubeId = extractYouTubeId(uploadForm.youtubeUrl)
-      if (!youtubeId) {
-        alert('유효하지 않은 YouTube URL입니다.')
-        return
-      }
 
-      const trackData = {
-        title: uploadForm.title,
-        artist: uploadForm.artist,
-        album: uploadForm.album,
-        youtubeId,
-        genre: uploadForm.genre || 'Other',
-        tags: uploadForm.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-        description: uploadForm.description,
-        uploadedBy: user.username,
-        uploadedById: user.id
-      }
 
-      const response = await musicService.uploadTrack(trackData)
-      
-      if (response.success && response.data) {
-        // 트랙 목록에 추가
-        setTracks(prev => [response.data!, ...prev])
-        
-        // 폼 초기화
-        setUploadForm({
-          title: '',
-          artist: '',
-          album: '',
-          genre: '',
-          youtubeUrl: '',
-          tags: '',
-          description: ''
-        })
-        setShowUploadModal(false)
-        
-        alert('음악이 성공적으로 업로드되었습니다!')
-      } else {
-        alert(response.error || '업로드에 실패했습니다.')
-      }
-    } catch (error) {
-      console.error('업로드 오류:', error)
-      alert('업로드 중 오류가 발생했습니다.')
-    } finally {
-      setIsUploadingTrack(false)
-    }
-  }
+
+
 
   // 댓글 추가
   const handleAddComment = async (trackId: string) => {
@@ -476,7 +460,7 @@ export default function MusicPage() {
             <div className="flex items-center space-x-4">
               <Button 
                 className="bg-white text-[#f50] hover:bg-gray-100 border-0 rounded-full px-6"
-                onClick={() => setShowUploadModal(true)}
+                onClick={() => router.push('/music/upload')}
               >
                 <Upload className="w-4 h-4 mr-2" />
                 업로드
@@ -714,9 +698,9 @@ export default function MusicPage() {
                               {track.title}
                             </h4>
                             
-                            {/* Waveform 시뮬레이션 */}
+                            {/* SoundCloud 스타일 Waveform */}
                             <div 
-                              className="flex items-center space-x-1 mb-2 cursor-pointer group"
+                              className="flex items-center space-x-0.5 mb-2 cursor-pointer group"
                               onClick={(e) => {
                                 if (currentTrack?._id === track._id) {
                                   const rect = e.currentTarget.getBoundingClientRect()
@@ -727,15 +711,18 @@ export default function MusicPage() {
                                 }
                               }}
                             >
-                              {Array.from({ length: 50 }).map((_, i) => {
+                              {Array.from({ length: 100 }).map((_, i) => {
                                 const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0
-                                const barProgress = (i / 50) * 100
+                                const barProgress = (i / 100) * 100
                                 const isActive = currentTrack?._id === track._id && barProgress <= progressPercentage
+                                
+                                // SoundCloud 스타일 파형 생성 (고정 패턴)
+                                const waveHeight = generateWaveHeight(i, track._id)
                                 
                                 return (
                                   <div
                                     key={i}
-                                    className={`w-1 rounded-full transition-all duration-200 ${
+                                    className={`w-0.5 rounded-full transition-all duration-100 ${
                                       isActive
                                         ? 'bg-[#f50]' 
                                         : currentTrack?._id === track._id
@@ -743,7 +730,7 @@ export default function MusicPage() {
                                         : 'bg-gray-300 group-hover:bg-gray-400'
                                     }`}
                                     style={{ 
-                                      height: `${Math.random() * 20 + 8}px`,
+                                      height: `${waveHeight}px`,
                                       opacity: currentTrack?._id === track._id ? 1 : 0.7
                                     }}
                                   />
@@ -806,15 +793,35 @@ export default function MusicPage() {
                                 <Share2 className="w-4 h-4" />
                               </motion.button>
 
-                              {track.youtubeId && (
+                              {/* 소스 타입별 외부 링크 버튼 */}
+                              {track.sourceType === 'youtube' && track.youtubeId && (
                                 <motion.button
                                   className="text-gray-400 hover:text-red-500 transition-colors"
                                   whileHover={{ scale: 1.05 }}
                                   whileTap={{ scale: 0.95 }}
                                   onClick={() => window.open(`https://youtube.com/watch?v=${track.youtubeId}`, '_blank')}
+                                  title="YouTube에서 보기"
                                 >
                                   <Youtube className="w-4 h-4" />
                                 </motion.button>
+                              )}
+
+                              {track.sourceType === 'soundcloud' && track.soundcloudUrl && (
+                                <motion.button
+                                  className="text-gray-400 hover:text-orange-500 transition-colors"
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => window.open(track.soundcloudUrl!, '_blank')}
+                                  title="SoundCloud에서 듣기"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </motion.button>
+                              )}
+
+                              {track.sourceType === 'file' && (
+                                <div className="text-gray-400 flex items-center" title="업로드된 파일">
+                                  <Upload className="w-4 h-4" />
+                                </div>
                               )}
                             </div>
                           </div>
@@ -986,89 +993,7 @@ export default function MusicPage() {
         </div>
       </main>
 
-      {/* 업로드 모달 */}
-      <AnimatePresence>
-        {showUploadModal && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="bg-white rounded-2xl p-6 w-full max-w-md"
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-            >
-              <h3 className="text-xl font-bold text-gray-800 mb-4">새 음악 업로드</h3>
-              
-              <div className="space-y-4">
-                <Input
-                  placeholder="제목 *"
-                  value={uploadForm.title}
-                  onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
-                />
-                <Input
-                  placeholder="아티스트 *"
-                  value={uploadForm.artist}
-                  onChange={(e) => setUploadForm({...uploadForm, artist: e.target.value})}
-                />
-                <Input
-                  placeholder="앨범"
-                  value={uploadForm.album}
-                  onChange={(e) => setUploadForm({...uploadForm, album: e.target.value})}
-                />
-                <select
-                  value={uploadForm.genre}
-                  onChange={(e) => setUploadForm({...uploadForm, genre: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">장르 선택</option>
-                  {genres.slice(1).map(genre => (
-                    <option key={genre} value={genre}>{genre}</option>
-                  ))}
-                </select>
-                <Input
-                  placeholder="YouTube URL *"
-                  value={uploadForm.youtubeUrl}
-                  onChange={(e) => setUploadForm({...uploadForm, youtubeUrl: e.target.value})}
-                />
-                <Input
-                  placeholder="태그 (쉼표로 구분)"
-                  value={uploadForm.tags}
-                  onChange={(e) => setUploadForm({...uploadForm, tags: e.target.value})}
-                />
-                <Textarea
-                  placeholder="설명"
-                  value={uploadForm.description}
-                  onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
-                  rows={3}
-                />
-                
-                <div className="flex space-x-3">
-                  <Button
-                    variant="primary"
-                    onClick={handleUpload}
-                    disabled={!uploadForm.title || !uploadForm.artist || !uploadForm.youtubeUrl || isUploadingTrack}
-                    className="flex-1"
-                  >
-                    {isUploadingTrack ? '업로드 중...' : '업로드'}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowUploadModal(false)}
-                    className="flex-1"
-                    disabled={isUploadingTrack}
-                  >
-                    취소
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* SoundCloud 스타일 하단 플레이어 */}
       {currentTrack && (

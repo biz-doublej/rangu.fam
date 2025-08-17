@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import SiteHistory from '@/models/SiteHistory'
+export const dynamic = 'force-dynamic'
 
 // GET - 사이트 히스토리 조회
 export async function GET(request: NextRequest) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import { GameSettings } from '@/models/GameSettings'
+export const dynamic = 'force-dynamic'
 
 // 게임 설정 조회
 export async function GET(request: NextRequest) {

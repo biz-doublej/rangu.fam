@@ -90,6 +90,20 @@ const ProfileSchema = new mongoose.Schema({
   phone: { type: String },
   birthdate: { type: Date },
   
+  // 군대 관련 정보
+  militaryInfo: {
+    branch: { type: String },
+    rank: { type: String },
+    unit: { type: String },
+    enlistmentDate: { type: Date },
+    dischargeDate: { type: Date },
+    trainingEndDate: { type: Date },
+    daysServed: { type: Number },
+    daysRemaining: { type: Number },
+    totalServiceDays: { type: Number },
+    motto: { type: String }
+  },
+  
   // 포트폴리오 데이터
   skills: [SkillSchema],
   projects: [ProjectSchema],
@@ -103,6 +117,9 @@ const ProfileSchema = new mongoose.Schema({
   // 통계
   viewCount: { type: Number, default: 0 },
   likesReceived: { type: Number, default: 0 },
+  projectCount: { type: Number, default: 0 },
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   
   // 설정
   isPublic: { type: Boolean, default: true },
@@ -111,9 +128,7 @@ const ProfileSchema = new mongoose.Schema({
   allowComments: { type: Boolean, default: true }
 }, { timestamps: true })
 
-// 인덱스 설정
-ProfileSchema.index({ userId: 1 })
-ProfileSchema.index({ username: 1 })
+// 인덱스 설정 (userId, username은 unique: true로 자동 생성됨)
 ProfileSchema.index({ 'skills.name': 1 })
 ProfileSchema.index({ 'projects.featured': 1 })
 ProfileSchema.index({ createdAt: -1 })
@@ -203,6 +218,9 @@ export interface IProfile extends mongoose.Document {
   }>
   viewCount: number
   likesReceived: number
+  projectCount: number
+  followers: mongoose.Types.ObjectId[]
+  following: mongoose.Types.ObjectId[]
   isPublic: boolean
   showEmail: boolean
   showPhone: boolean

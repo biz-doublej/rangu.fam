@@ -101,15 +101,15 @@ export default function WikiRegisterPage() {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
     
-    // 사용자명 검증
+    // 아이디 검증
     if (!formData.username.trim()) {
-      newErrors.username = '사용자명을 입력해주세요.'
+      newErrors.username = '아이디를 입력해주세요.'
     } else if (formData.username.length < 3) {
-      newErrors.username = '사용자명은 3자 이상이어야 합니다.'
+      newErrors.username = '아이디는 3자 이상이어야 합니다.'
     } else if (formData.username.length > 20) {
-      newErrors.username = '사용자명은 20자 이하여야 합니다.'
+      newErrors.username = '아이디는 20자 이하여야 합니다.'
     } else if (!/^[a-zA-Z0-9_-]+$/.test(formData.username)) {
-      newErrors.username = '사용자명은 영문, 숫자, _, - 만 사용할 수 있습니다.'
+      newErrors.username = '아이디는 영문, 숫자, _, - 만 사용할 수 있습니다.'
     }
     
     // 이메일 검증
@@ -157,12 +157,17 @@ export default function WikiRegisterPage() {
     setErrors({})
     
     try {
+      // mainUserId는 24자 hex 형태인 경우에만 전달 (ObjectId 캐스팅 오류 방지)
+      const maybeMainId = (formData.linkMainAccount && mainUser && typeof mainUser.memberId === 'string' && /^[a-fA-F0-9]{24}$/.test(mainUser.memberId))
+        ? mainUser.memberId
+        : undefined
+
       const success = await register({
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
         displayName: formData.displayName.trim(),
-        mainUserId: formData.linkMainAccount && mainUser ? mainUser.memberId : undefined
+        mainUserId: maybeMainId
       })
       
       if (success) {
@@ -240,10 +245,10 @@ export default function WikiRegisterPage() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* 사용자명 */}
+                {/* 아이디 */}
                 <div>
                   <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
-                    사용자명 *
+                    아이디 *
                   </label>
                   <div className="relative">
                     <Input

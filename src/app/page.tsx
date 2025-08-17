@@ -13,6 +13,7 @@ import {
   BookOpen, 
   Calendar,
   Gamepad2,
+  Package,
   LogIn,
   LogOut,
   Menu,
@@ -28,6 +29,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { MemberWithActivity } from '@/backend/types'
 import { MediaPlayer } from '@/components/ui/MediaPlayer'
+import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
+import { CardDropWidget } from '@/components/ui/CardDropWidget'
 
 // 슬라이드 콘텐츠 (이미지와 영상 혼합)
 const slideContent = [
@@ -178,6 +181,7 @@ export default function HomePage() {
     { icon: BookOpen, label: '이랑위키', href: '/wiki' },
     { icon: Calendar, label: '달력', href: '/calendar' },
     { icon: Gamepad2, label: '게임', href: '/games' },
+    { icon: Package, label: '카드 드랍', href: '/cards' },
   ]
 
   return (
@@ -267,9 +271,10 @@ export default function HomePage() {
       </header>
 
       {/* 네비게이션 메뉴 */}
-      <nav className="hidden md:block glass-nav fixed left-0 top-20 bottom-0 w-64 z-40">
+      <nav className="hidden md:block glass-nav fixed left-0 top-20 bottom-0 w-64 z-40 overflow-y-auto">
         <div className="p-6">
-          <ul className="space-y-3">
+          {/* 메인 네비게이션 */}
+          <ul className="space-y-3 mb-6">
             {navigationItems.map((item, index) => (
               <motion.li 
                 key={item.label}
@@ -287,6 +292,29 @@ export default function HomePage() {
               </motion.li>
             ))}
           </ul>
+
+          {/* 카드 드랍 위젯 - 로그인한 사용자만 표시 */}
+          {isLoggedIn && user?.id && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.7 }}
+              className="mb-4"
+            >
+              <CardDropWidget userId={user.id} />
+            </motion.div>
+          )}
+
+          {/* 개인 바로가기 위젯 - 로그인한 사용자만 표시 */}
+          {isLoggedIn && user?.id && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+            >
+              <BookmarkWidget userId={user.id} />
+            </motion.div>
+          )}
         </div>
       </nav>
 
@@ -294,13 +322,14 @@ export default function HomePage() {
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            className="md:hidden fixed inset-0 z-50 bg-glass-white backdrop-blur-lg"
+            className="md:hidden fixed inset-0 z-50 bg-glass-white backdrop-blur-lg overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <div className="pt-20 p-6">
-              <ul className="space-y-3">
+              {/* 메인 네비게이션 */}
+              <ul className="space-y-3 mb-6">
                 {navigationItems.map((item, index) => (
                   <motion.li 
                     key={item.label}
@@ -319,6 +348,29 @@ export default function HomePage() {
                   </motion.li>
                 ))}
               </ul>
+
+              {/* 카드 드랍 위젯 - 로그인한 사용자만 표시 */}
+              {isLoggedIn && user?.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 }}
+                  className="mb-4"
+                >
+                  <CardDropWidget userId={user.id} />
+                </motion.div>
+              )}
+
+              {/* 개인 바로가기 위젯 - 로그인한 사용자만 표시 */}
+              {isLoggedIn && user?.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.7 }}
+                >
+                  <BookmarkWidget userId={user.id} />
+                </motion.div>
+              )}
             </div>
           </motion.div>
         )}
@@ -490,26 +542,52 @@ export default function HomePage() {
                     ) : (
                       // 실제 멤버 데이터
                       members.map((member, index) => {
-                        const getActivityStatusColor = () => {
-                          if (member.isOnline) return 'text-green-500'
-                          
-                          const now = new Date()
-                          const diffInMinutes = Math.floor((now.getTime() - new Date(member.lastSeen).getTime()) / (1000 * 60))
-                          
-                          if (diffInMinutes < 30) return 'text-yellow-500'
-                          return 'text-gray-500'
+                        // 상태별 색상 반환
+                        const getStatusColor = (status: string) => {
+                          switch (status) {
+                            case 'online':
+                              return 'text-green-500'
+                            case 'idle':
+                              return 'text-yellow-500'
+                            case 'dnd':
+                              return 'text-red-500'
+                            case 'offline':
+                              return 'text-gray-500'
+                            default:
+                              return 'text-green-500'
+                          }
                         }
 
-                        const getActivityText = () => {
-                          if (member.isOnline) return '활동중'
-                          
-                          const now = new Date()
-                          const lastSeenDate = new Date(member.lastSeen)
-                          const diffInMinutes = Math.floor((now.getTime() - lastSeenDate.getTime()) / (1000 * 60))
-                          
-                          if (diffInMinutes < 30) return '방금 전 활동'
-                          
-                          return '오프라인'
+                        // 상태별 텍스트 반환
+                        const getStatusText = (status: string) => {
+                          switch (status) {
+                            case 'online':
+                              return '온라인'
+                            case 'idle':
+                              return '자리 비움'
+                            case 'dnd':
+                              return '방해금지'
+                            case 'offline':
+                              return '오프라인'
+                            default:
+                              return '온라인'
+                          }
+                        }
+
+                        // 상태별 배경색 반환 (상태 점용)
+                        const getStatusBgColor = (status: string) => {
+                          switch (status) {
+                            case 'online':
+                              return 'bg-green-500'
+                            case 'idle':
+                              return 'bg-yellow-500'
+                            case 'dnd':
+                              return 'bg-red-500'
+                            case 'offline':
+                              return 'bg-gray-500'
+                            default:
+                              return 'bg-green-500'
+                          }
                         }
 
                         const getEmoji = (name: string) => {
@@ -536,37 +614,15 @@ export default function HomePage() {
                           >
                             <div className="relative">
                               <div className="text-4xl mb-3">{getEmoji(member.name)}</div>
-                              {/* 온라인 상태 표시 */}
-                              {member.isOnline && (
-                                <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                              )}
+                              {/* 새로운 상태 표시 시스템 */}
+                              <div className={`absolute top-0 right-0 w-4 h-4 ${getStatusBgColor(member.userStatus || 'offline')} rounded-full border-2 border-white ${
+                                member.userStatus === 'online' ? 'animate-pulse' : ''
+                              }`}></div>
                             </div>
                             <h3 className="text-xl font-bold text-primary-700 mb-2">{member.name}</h3>
-                            <p className={`text-sm ${getActivityStatusColor()}`}>
-                              {getActivityText()}
+                            <p className={`text-sm font-medium ${getStatusColor(member.userStatus || 'offline')}`}>
+                              {getStatusText(member.userStatus || 'offline')}
                             </p>
-                            {!member.isOnline && member.lastLogin && (
-                              <p className="text-xs text-gray-400 mt-1">
-                                마지막 로그인: {(() => {
-                                  const loginDate = new Date(member.lastLogin)
-                                  const now = new Date()
-                                  const diffInMinutes = Math.floor((now.getTime() - loginDate.getTime()) / (1000 * 60))
-                                  
-                                  if (diffInMinutes < 1) return '방금 전'
-                                  if (diffInMinutes < 60) return `${diffInMinutes}분 전`
-                                  
-                                  const diffInHours = Math.floor(diffInMinutes / 60)
-                                  if (diffInHours < 24) return `${diffInHours}시간 전`
-                                  
-                                  return loginDate.toLocaleDateString('ko-KR', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })
-                                })()}
-                              </p>
-                            )}
                           </motion.div>
                         )
                       })

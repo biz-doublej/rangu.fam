@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import Playlist from '@/models/Playlist'
 import User from '@/models/User'
 import Track from '@/models/Track'
+export const dynamic = 'force-dynamic'
 
 // GET - 모든 플레이리스트 또는 필터링된 플레이리스트 가져오기
 export async function GET(request: NextRequest) {

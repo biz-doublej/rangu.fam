@@ -5,6 +5,12 @@ import User, { IUser } from '@/models/User'
 export class MemberService {
   // MongoDB에서 모든 멤버 가져오기
   static async getAllMembers(): Promise<Member[]> {
+    // 현재 MongoDB 연결 문제로 인해 임시로 기본 멤버 반환
+    console.log('MongoDB 연결 문제로 기본 멤버 데이터 사용')
+    return this.getDefaultMembers()
+    
+    // TODO: MongoDB 연결 안정화 후 활성화
+    /* 
     try {
       await dbConnect()
       
@@ -27,6 +33,7 @@ export class MemberService {
       // 오류 시 기본 멤버 반환
       return this.getDefaultMembers()
     }
+    */
   }
 
   // 특정 멤버 가져오기
@@ -126,7 +133,7 @@ export class MemberService {
         personalPageUrl: '/members/minseok'
       },
       {
-        id: 'jingyu',
+        id: 'jinkyu',
         name: '정진규',
         role: '군 입대 중',
         description: '현재 군 복무 중이며, 전역 후 새로운 도전을 계획하고 있습니다.',
@@ -135,7 +142,7 @@ export class MemberService {
         status: 'active',
         location: '대한민국',
         joinDate: new Date('2020-01-01'),
-        personalPageUrl: '/members/jingyu'
+        personalPageUrl: '/members/jinkyu'
       },
       {
         id: 'hanul',
@@ -148,6 +155,30 @@ export class MemberService {
         location: '서울, 대한민국',
         joinDate: new Date('2020-01-01'),
         personalPageUrl: '/members/hanul'
+      },
+      {
+        id: 'seungchan',
+        name: '이승찬',
+        role: '마술사 & 호그와트 재학생',
+        description: '마술과 마법을 통해 사람들에게 즐거움을 선사하는 마술사입니다.',
+        avatar: '/images/seungchan.jpg',
+        email: 'seungchan@rangu.fam',
+        status: 'active',
+        location: '호그와트 마법학교, 영국',
+        joinDate: new Date('2025-01-21'),
+        personalPageUrl: '/members/seungchan'
+      },
+      {
+        id: 'heeyeol',
+        name: '윤희열',
+        role: '임시멤버 (2025.09 합류 예정)',
+        description: '2025년 9월부터 임시 멤버로 합류할 예정입니다.',
+        avatar: '/images/heeyeol.jpg',
+        email: 'heeyeol@rangu.fam',
+        status: 'active',
+        location: '대한민국',
+        joinDate: new Date('2025-09-01'),
+        personalPageUrl: '/members/heeyeol'
       }
     ]
   }

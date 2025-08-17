@@ -59,7 +59,7 @@ export default function WikiLoginPage() {
     const newErrors: {[key: string]: string} = {}
     
     if (!formData.username.trim()) {
-      newErrors.username = '사용자명을 입력해주세요.'
+      newErrors.username = '아이디 또는 이메일을 입력해주세요.'
     }
     
     if (!formData.password) {
@@ -144,7 +144,7 @@ export default function WikiLoginPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
-                    사용자명 또는 이메일
+                    아이디 또는 이메일
                   </label>
                   <Input
                     id="username"
@@ -152,7 +152,7 @@ export default function WikiLoginPage() {
                     type="text"
                     value={formData.username}
                     onChange={handleInputChange}
-                    placeholder="사용자명 또는 이메일을 입력하세요"
+                     placeholder="아이디 또는 이메일을 입력하세요"
                     className={`w-full bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400 focus:border-gray-500 ${errors.username ? 'border-red-500' : ''}`}
                     disabled={isSubmitting}
                   />

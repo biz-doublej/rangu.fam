@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import Profile from '@/models/Profile'
 import User from '@/models/User'
+export const dynamic = 'force-dynamic'
 
 // GET - 모든 프로필 또는 특정 사용자 프로필 가져오기
 export async function GET(request: NextRequest) {

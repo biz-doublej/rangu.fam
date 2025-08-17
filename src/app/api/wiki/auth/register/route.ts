@@ -1,32 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
+import mongoose from 'mongoose'
 import dbConnect from '@/lib/mongodb'
 import { WikiUser } from '@/models/Wiki'
 import User from '@/models/User'
 
+
+export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect()
+    try {
+      await dbConnect()
+    } catch (dbError) {
+      console.error('데이터베이스 연결 오류:', dbError)
+      return NextResponse.json(
+        { success: false, error: '데이터베이스 연결에 실패했습니다.' },
+        { status: 500 }
+      )
+    }
     
-    const { username, email, password, displayName, mainUserId } = await request.json()
+    let body;
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('JSON 파싱 오류:', parseError)
+      return NextResponse.json(
+        { success: false, error: '잘못된 요청 형식입니다.' },
+        { status: 400 }
+      )
+    }
+    
+    const { username, email, password, displayName, mainUserId } = body
     
     // 필수 필드 검증
     if (!username || !email || !password) {
       return NextResponse.json(
-        { success: false, error: '사용자명, 이메일, 비밀번호는 필수입니다.' },
+        { success: false, error: '아이디, 이메일, 비밀번호는 필수입니다.' },
         { status: 400 }
       )
     }
     
-    // 사용자명 유효성 검증
+    // 아이디 유효성 검증
     if (username.length < 3 || username.length > 20) {
       return NextResponse.json(
-        { success: false, error: '사용자명은 3-20자 사이여야 합니다.' },
+        { success: false, error: '아이디는 3-20자 사이여야 합니다.' },
         { status: 400 }
       )
     }
     
-    // 사용자명 중복 검사
+    // 아이디/이메일 중복 검사
     const existingUser = await WikiUser.findOne({
       $or: [
         { username: username },
@@ -35,7 +57,7 @@ export async function POST(request: NextRequest) {
     })
     
     if (existingUser) {
-      const duplicateField = existingUser.username === username ? '사용자명' : '이메일'
+      const duplicateField = existingUser.username === username ? '아이디' : '이메일'
       return NextResponse.json(
         { success: false, error: `이미 사용 중인 ${duplicateField}입니다.` },
         { status: 409 }
@@ -43,14 +65,14 @@ export async function POST(request: NextRequest) {
     }
     
     // 메인 사이트 사용자와 연결 검사 (선택사항)
-    let linkedMainUser = null
-    if (mainUserId) {
-      linkedMainUser = await User.findById(mainUserId)
-      if (!linkedMainUser) {
-        return NextResponse.json(
-          { success: false, error: '연결할 메인 사이트 사용자를 찾을 수 없습니다.' },
-          { status: 404 }
-        )
+    // - 제공된 mainUserId가 유효한 ObjectId일 때만 연결 시도
+    // - 찾지 못해도 회원가입 자체는 진행 (연결은 생략)
+    let linkedMainUser = null as null | (typeof User extends never ? never : any)
+    if (mainUserId && typeof mainUserId === 'string' && mongoose.Types.ObjectId.isValid(mainUserId)) {
+      try {
+        linkedMainUser = await User.findById(mainUserId)
+      } catch {
+        linkedMainUser = null
       }
     }
     
@@ -90,7 +112,7 @@ export async function POST(request: NextRequest) {
       isBanned: false,
       lastLogin: new Date(),
       lastActivity: new Date(),
-      mainUserId: mainUserId || null
+      ...(linkedMainUser?._id ? { mainUserId: linkedMainUser._id } : {})
     })
     
     const savedUser = await newWikiUser.save()
@@ -126,7 +148,7 @@ export async function POST(request: NextRequest) {
     // MongoDB 중복 키 오류 처리
     if ((error as any).code === 11000) {
       const duplicateField = Object.keys((error as any).keyValue)[0]
-      const fieldName = duplicateField === 'username' ? '사용자명' : '이메일'
+      const fieldName = duplicateField === 'username' ? '아이디' : '이메일'
       return NextResponse.json(
         { success: false, error: `이미 사용 중인 ${fieldName}입니다.` },
         { status: 409 }

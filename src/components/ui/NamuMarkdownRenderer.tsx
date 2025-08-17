@@ -254,31 +254,466 @@ const NamuComponents = {
   )
 };
 
+// 공통 앵커/슬러그 규칙: 한글 포함, 소문자-하이픈
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s가-힣]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+// 템플릿 파라미터 파싱 함수 (개선된 버전)
+function parseTemplateParams(content: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  const lines = content.split('\n');
+  
+  console.log('🔍 파싱할 템플릿 내용:', content); // 디버깅용
+  
+  for (const line of lines) {
+    // | 또는 없이 시작하고, = 으로 구분되는 패턴 매칭
+    const match = line.match(/^\s*\|?\s*([^=]+?)\s*=\s*(.*?)$/);
+    if (match) {
+      const key = match[1].trim();
+      const value = match[2].trim();
+      params[key] = value;
+      console.log(`✅ 파라미터 파싱: ${key} = ${value}`); // 디버깅용
+    } else if (line.trim()) {
+      console.log(`❌ 파싱 실패한 라인: "${line}"`); // 디버깅용
+    }
+  }
+  
+  console.log('📋 최종 파라미터:', params); // 디버깅용
+  return params;
+}
+
+// 인물정보상자 블록을 라인 기준으로 보다 안정적으로 치환
+function replacePersonInfoboxBlocks(text: string): string {
+  // \r?\n 호환, 시작 {{ 인물정보상자 ... \n }} 단독 라인으로 종료
+  const blockPattern = /^\s*\{\{\s*인물정보상자\s*[\r\n]+([\s\S]*?)^\s*\}\}\s*$/gmi;
+  return text.replace(blockPattern, (_match, inner: string) => {
+    return renderPersonInfobox(inner);
+  });
+}
+
+// 인물 정보상자 렌더링 함수 (나무위키 스타일 - 복잡한 테이블 구조 지원)
+function renderPersonInfobox(content: string): string {
+  const params = parseTemplateParams(content);
+  
+  // 복잡한 학력 테이블 생성 함수
+  function renderEducationTable(education: string): string {
+    if (!education) return '';
+    
+    // 스크린샷과 같은 복잡한 테이블 구조 생성
+    return `
+      <div class="education-complex-table">
+        <!-- 상단 헤더 테이블 (R27, R7, R20, R17) -->
+        <table class="w-full border-collapse text-xs mb-1">
+          <tr>
+            <td class="border border-gray-400 bg-blue-100 px-2 py-1 text-center font-semibold">R27<br/>학사과정</td>
+            <td class="border border-gray-400 bg-blue-100 px-2 py-1 text-center font-semibold">R7<br/>석사과정</td>
+            <td class="border border-gray-400 bg-blue-100 px-2 py-1 text-center font-semibold">R20<br/>박사과정</td>
+            <td class="border border-gray-400 bg-blue-100 px-2 py-1 text-center font-semibold">R17<br/>기타과정</td>
+          </tr>
+          <tr>
+            <td colspan="4" class="border border-gray-400 bg-blue-200 px-2 py-1 text-center font-bold">R3 과정</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-400 bg-blue-100 px-2 py-1 text-center">R1<br/>학사과정</td>
+            <td colspan="3" class="border border-gray-400 bg-blue-100 px-2 py-1 text-center">R10<br/>졸업과정</td>
+          </tr>
+        </table>
+        
+        <!-- 실제 학력 정보 -->
+        <div class="text-xs leading-relaxed mt-2">
+          ${education.replace(/<br\/?>/g, '<br/>')}
+        </div>
+      </div>
+    `;
+  }
+  
+  // 소속 정보에 드롭다운 화살표 추가
+  function renderAffiliation(affiliation: string): string {
+    if (!affiliation) return '';
+    
+    return `
+      <div class="affiliation-dropdown">
+        ${affiliation.replace(/<br\/?>/g, '<br/>')}
+        <span class="float-right text-blue-500">▼</span>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="person-infobox bg-white border border-gray-300 shadow-lg float-right ml-4 mb-4" style="width: 320px; max-width: 100%;">
+      <!-- 상단 헤더 (태릉고등학교 37기 학생회장...) -->
+      <div class="bg-red-700 text-white text-center py-2 px-3">
+        <div class="text-sm font-medium">${params['상단제목'] || '태릉고등학교 37기 학생회장'}</div>
+        <div class="text-sm">${params['상단부제목'] || '재학 당시의 모습'}</div>
+        <div class="text-sm">${params['상단설명'] || '촬영일 : 정재원'}</div>
+        <div class="text-base font-bold mt-1">${params['이름'] || params['본명'] || 'Jung Jae Won'}</div>
+      </div>
+      
+      <!-- 이미지 섹션 -->
+      ${params['이미지'] ? `
+        <div class="text-center bg-gray-50 p-3">
+          <img src="${params['이미지']}" alt="${params['이름'] || '인물 사진'}" class="w-full max-w-56 mx-auto" style="max-height: 300px; object-fit: contain;">
+          ${params['이미지설명'] ? `<div class="text-xs text-gray-600 mt-2">${params['이미지설명'].replace(/<br\/?>/g, '<br/>')}</div>` : ''}
+        </div>
+      ` : ''}
+      
+      <!-- 정보 테이블 -->
+      <div class="border-t border-gray-300">
+        <table class="w-full text-sm border-collapse">
+          ${params['출생'] || params['생년월일'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300" style="width: 80px;">출생</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['출생'] || params['생년월일']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['출생지'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">출생지</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['출생지']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['국적'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">국적</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['국적']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['거주지'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">거주지</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['거주지']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['소속'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">소속</td>
+              <td class="px-3 py-2 border-b border-gray-300">${renderAffiliation(params['소속'])}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['직업'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">직업</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['직업']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['학력'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300 align-top">학력</td>
+              <td class="px-3 py-2 border-b border-gray-300">
+                ${renderEducationTable(params['학력'])}
+              </td>
+            </tr>
+          ` : ''}
+          
+          ${params['경력'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300 align-top">경력</td>
+              <td class="px-3 py-2 border-b border-gray-300">
+                <div class="text-xs leading-relaxed">
+                  ${params['경력'].replace(/<br\/?>/g, '<br/>')}
+                </div>
+              </td>
+            </tr>
+          ` : ''}
+          
+          ${params['본관'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">본관</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['본관']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['신체'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">신체</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['신체']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['별명'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">별명</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['별명'].replace(/<br\/?>/g, '<br/>')}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['종교'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">종교</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['종교']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['서명'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">서명</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['서명']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['링크'] ? `
+            <tr>
+              <td class="bg-red-700 text-white px-3 py-2 font-semibold">링크</td>
+              <td class="px-3 py-2">${params['링크']}</td>
+            </tr>
+          ` : ''}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// 기본 정보상자 렌더링 함수
+function renderBasicInfobox(content: string): string {
+  const params = parseTemplateParams(content);
+  
+  return `
+    <div class="basic-infobox bg-white border border-gray-300 rounded-lg shadow-lg float-right ml-4 mb-4 w-80 max-w-full">
+      ${params['제목'] ? `
+        <div class="bg-blue-600 text-white p-3 text-center font-bold text-lg">
+          ${params['제목']}
+        </div>
+      ` : ''}
+      
+      ${params['이미지'] ? `
+        <div class="p-4 text-center">
+          <img src="${params['이미지']}" alt="${params['제목'] || '이미지'}" class="w-full max-w-64 mx-auto rounded">
+        </div>
+      ` : ''}
+      
+      ${params['설명'] ? `
+        <div class="p-4 text-sm border-t border-gray-300">
+          ${params['설명']}
+        </div>
+      ` : ''}
+      
+      ${params['분류'] ? `
+        <div class="p-3 bg-gray-50 border-t border-gray-300 text-xs">
+          <strong>분류:</strong> ${params['분류']}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// 컬러 박스 렌더링 함수
+function renderColorBox(color: string, title: string, content: string): string {
+  return `
+    <div class="color-box rounded-lg p-4 my-4 border-l-4" style="border-left-color: ${color}; background-color: ${color}20;">
+      <div class="font-bold text-lg mb-2" style="color: ${color};">${title}</div>
+      <div class="text-gray-700">${content.replace(/\n/g, '<br>')}</div>
+    </div>
+  `;
+}
+
+// 카드그리드 렌더링 함수
+function renderCardGrid(itemsStr: string): string {
+  try {
+    const items = JSON.parse(itemsStr);
+    if (!Array.isArray(items)) return '';
+    
+    return `
+      <div class="card-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
+        ${items.map(item => `
+          <div class="card-item bg-white border border-gray-300 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+            ${item.image ? `
+              <div class="card-image">
+                <img src="${item.image}" alt="${item.title || '이미지'}" class="w-full h-48 object-cover">
+              </div>
+            ` : ''}
+            ${item.title ? `
+              <div class="card-content p-4">
+                <h3 class="font-semibold text-lg text-gray-800">${item.title}</h3>
+                ${item.description ? `<p class="text-gray-600 text-sm mt-2">${item.description}</p>` : ''}
+                ${item.date ? `<p class="text-gray-500 text-xs mt-2">${item.date}</p>` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (error) {
+    return `<div class="text-red-500 text-sm">카드그리드 데이터 파싱 오류: ${itemsStr}</div>`;
+  }
+}
+
+// 간단한 인포박스 렌더링 함수
+function renderSimpleInfobox(content: string): string {
+  // 파라미터 파싱 (키=값 형태)
+  const params: Record<string, string> = {};
+  const pairs = content.split('|').map(s => s.trim()).filter(Boolean);
+  
+  for (const pair of pairs) {
+    const [key, ...valueParts] = pair.split('=');
+    if (key && valueParts.length > 0) {
+      params[key.trim()] = valueParts.join('=').trim();
+    }
+  }
+  
+  return `
+    <div class="simple-infobox bg-white border border-gray-300 rounded-lg shadow-lg float-right ml-4 mb-4 w-80 max-w-full">
+      ${params['제목'] ? `
+        <div class="bg-blue-600 text-white p-3 text-center font-bold text-lg">
+          ${params['제목']}
+        </div>
+      ` : ''}
+      
+      ${params['이미지'] ? `
+        <div class="p-4 text-center bg-gray-50">
+          <img src="${params['이미지']}" alt="${params['제목'] || '인물 사진'}" class="w-full max-w-64 mx-auto rounded">
+        </div>
+      ` : ''}
+      
+      <div class="border-t border-gray-300">
+        <table class="w-full text-sm">
+          ${Object.entries(params)
+            .filter(([key]) => !['제목', '이미지'].includes(key))
+            .map(([key, value]) => `
+              <tr class="border-b border-gray-200">
+                <td class="bg-blue-600 text-white px-3 py-2 font-semibold w-24">${key}</td>
+                <td class="px-3 py-2">${value}</td>
+              </tr>
+            `).join('')}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 // 앵커 ID 생성 함수
 function generateAnchor(children: any): string {
   if (typeof children === 'string') {
-    return children.toLowerCase().replace(/[^a-z0-9가-힣]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    return toSlug(children)
   }
   if (Array.isArray(children)) {
-    return children.map(child => 
-      typeof child === 'string' ? child : ''
-    ).join('').toLowerCase().replace(/[^a-z0-9가-힣]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    return toSlug(
+      children
+        .map(child => (typeof child === 'string' ? child : ''))
+        .join('')
+    )
   }
-  return '';
+  return ''
 }
 
 // 나무위키 특수 문법 전처리
 function preprocessNamuWikiSyntax(content: string): string {
   let processed = content;
 
-  // 나무위키 스타일 각주 [*1] -> <sup>[1]</sup>
-  processed = processed.replace(/\[\*(\d+)\]/g, '<sup><a href="#footnote-$1" class="text-primary-600 text-xs">[($1)]</a></sup>');
+  // ⭐ 템플릿 처리를 가장 먼저 실행 (다른 문법 처리보다 우선)
+  
+  // 라인 앵커 기반 블록 매칭으로 1차 치환 (공백/빈줄 허용)
+  processed = replacePersonInfoboxBlocks(processed);
 
-  // 나무위키 스타일 내부 링크 [[문서명]] -> [문서명](/wiki/문서명)
-  processed = processed.replace(/\[\[([^\]]+)\]\]/g, '[$1](/wiki/$1)');
+  // 인물 정보상자 템플릿 처리 (개선된 정규식)
+  processed = processed.replace(/\{\{인물정보상자\s*([\s\S]*?)\}\}/g, (_match, content: string) => {
+    console.log('🎯 인물정보상자 템플릿 감지됨!', content.substring(0, 100) + '...'); // 디버깅용
+    return renderPersonInfobox(content);
+  });
+
+  // 기본 정보상자 템플릿 처리
+  processed = processed.replace(/\{\{정보상자\s*([\s\S]*?)\}\}/g, (_m, content: string) => {
+    return renderBasicInfobox(content);
+  });
+
+  // 정보박스 템플릿 처리 (컬러 박스)
+  processed = processed.replace(/\{\{정보박스\|색상=([^|]+)\|제목=([^|]+)\|내용=([\s\S]*?)\}\}/g, (_m, color: string, title: string, content: string) => {
+    return renderColorBox(color, title, content);
+  });
+
+  // 안내 틀 처리
+  processed = processed.replace(/\{\{안내\|([^}]+)\}\}/g, (_m, content: string) => {
+    return `<div class="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-4 my-4 flex items-start space-x-3">
+      <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+      </svg>
+      <div>${content}</div>
+    </div>`;
+  });
+
+  // 주의 틀 처리
+  processed = processed.replace(/\{\{주의\|([^}]+)\}\}/g, (_m, content: string) => {
+    return `<div class="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4 my-4 flex items-start space-x-3">
+      <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+      </svg>
+      <div>${content}</div>
+    </div>`;
+  });
+
+  // 공사중 틀 처리
+  processed = processed.replace(/\{\{공사중\|([^}]+)\}\}/g, (_m, content: string) => {
+    return `<div class="bg-orange-50 border border-orange-200 text-orange-800 rounded-lg p-4 my-4 flex items-start space-x-3">
+      <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
+        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path>
+      </svg>
+      <div>🚧 ${content}</div>
+    </div>`;
+  });
+
+  // 카드그리드 템플릿 처리
+  processed = processed.replace(/\[\[카드그리드:\s*items=(\[.*?\])\]\]/g, (_m, itemsStr: string) => {
+    return renderCardGrid(itemsStr);
+  });
+
+  // 인포박스 템플릿 처리 (간단한 버전)
+  processed = processed.replace(/\[\[인포박스:\s*(.*?)\]\]/g, (_m, content: string) => {
+    return renderSimpleInfobox(content);
+  });
+
+  // ⭐ 여기서부터 기본 나무위키 문법 처리
+
+  // 나무위키 스타일 헤딩 (= 제목 =) → 마크다운 헤딩(#)
+  processed = processed.replace(/^(\s*)(=+)\s*(.+?)\s*=+\s*$/gm, (_m, indent: string, eqs: string, title: string) => {
+    const level = Math.min(eqs.length, 6)
+    return `${indent}${'#'.repeat(level)} ${title}`
+  })
+
+  // 나무위키 스타일 각주 [*1] -> <sup>[1]</sup>
+  processed = processed.replace(/\[\*(\d+)\]/g, '<sup><a href="#footnote-$1" class="text-primary-600 text-xs">[$1]</a></sup>');
+
+  // 분류 링크 처리: [[분류:이름]] → /wiki/category/이름
+  processed = processed.replace(/\[\[분류:([^\]]+)\]\]/g, (_m, name: string) => {
+    const n = (name || '').trim()
+    return `[분류:${n}](/wiki/category/${n})`
+  })
+
+  // 나무위키 스타일 내부 링크 [[문서|표시]] -> [표시](/wiki/slug)
+  processed = processed.replace(/\[\[([^\]]+)\]\]/g, (_m, inner: string) => {
+    const parts = String(inner).split('|')
+    const target = parts[0]?.trim() || ''
+    const label = (parts[1] ?? parts[0] ?? '').trim()
+    const slug = toSlug(target)
+    return `[${label}](/wiki/${slug})`
+  });
 
   // 나무위키 스타일 외부 링크 [http://example.com 링크텍스트] -> [링크텍스트](http://example.com)
   processed = processed.replace(/\[([^\s\]]+)\s+([^\]]+)\]/g, '[$2]($1)');
+
+    // 파일/이미지 렌더링
+    // [[파일:/uploads/wiki/name.png|캡션]] -> <img src="/uploads/wiki/name.png" alt="캡션" />
+    processed = processed.replace(/\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, p1: string, p2: string) => {
+      const src = p1.trim()
+      const caption = (p2 || '').trim()
+      return `<img src="${src}" alt="${caption}" />`
+    })
+    // [이미지:/uploads/wiki/name.png]
+    processed = processed.replace(/^\[이미지:([^\]]+)\]$/gm, (_m, p1: string) => {
+      const src = p1.trim()
+      return `<img src="${src}" />`
+    })
 
   // 나무위키 스타일 취소선 ~~텍스트~~ -> ~~텍스트~~
   processed = processed.replace(/~~([^~]+)~~/g, '<del>$1</del>');
@@ -287,7 +722,10 @@ function preprocessNamuWikiSyntax(content: string): string {
   processed = processed.replace(/__([^_]+)__/g, '<u>$1</u>');
 
   // 나무위키 스타일 색상 {{{#색상 텍스트}}} -> <span style="color: 색상">텍스트</span>
-  processed = processed.replace(/\{\{\{#([a-fA-F0-9]{6}|[a-zA-Z]+)\s+([^}]+)\}\}\}/g, '<span style="color: #$1">$2</span>');
+  processed = processed.replace(/\{\{\{#([a-fA-F0-9]{6}|[a-zA-Z]+)\s+([^}]+)\}\}\}/g, (_m, color: string, text: string) => {
+    const cssColor = /^[a-fA-F0-9]{6}$/.test(color) ? `#${color}` : color
+    return `<span style=\"color: ${cssColor}\">${text}</span>`
+  });
 
   // 나무위키 스타일 폴더 {{{+1 큰텍스트}}} -> <span class="text-lg font-bold">큰텍스트</span>
   processed = processed.replace(/\{\{\{\+(\d+)\s+([^}]+)\}\}\}/g, '<span class="text-lg font-bold">$2</span>');

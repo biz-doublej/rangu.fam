@@ -306,6 +306,28 @@ const WikiConfigSchema = new mongoose.Schema({
   }
 }, { timestamps: true })
 
+// 편집/생성 승인 대기 스키마
+const WikiSubmissionSchema = new mongoose.Schema({
+  type: { type: String, enum: ['create', 'edit'], required: true },
+  status: { type: String, enum: ['pending', 'approved', 'rejected', 'onhold'], default: 'pending' },
+  reason: { type: String },
+  namespace: { type: String, default: 'main' },
+  targetTitle: { type: String, required: true },
+  targetSlug: { type: String, required: true },
+  pageId: { type: mongoose.Schema.Types.ObjectId, ref: 'WikiPage' },
+  content: { type: String, required: true },
+  summary: { type: String },
+  editSummary: { type: String },
+  categories: [{ type: String }],
+  tags: [{ type: String }],
+  expectedRevision: { type: Number },
+  author: { type: String, required: true },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'WikiUser', required: true },
+  reviewedBy: { type: String },
+  reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'WikiUser' },
+  reviewedAt: { type: Date }
+}, { timestamps: true })
+
 // 인덱스 설정
 WikiUserSchema.index({ username: 1 })
 WikiUserSchema.index({ email: 1 })
@@ -327,6 +349,9 @@ WikiRevisionSchema.index({ timestamp: -1 })
 WikiDiscussionSchema.index({ pageId: 1 })
 WikiDiscussionSchema.index({ status: 1 })
 WikiDiscussionSchema.index({ category: 1 })
+
+WikiSubmissionSchema.index({ status: 1, createdAt: -1 })
+WikiSubmissionSchema.index({ targetSlug: 1, status: 1 })
 
 // 인터페이스 정의
 export interface IWikiUser extends mongoose.Document {
@@ -424,12 +449,36 @@ export interface IWikiPage extends mongoose.Document {
   updatedAt: Date
 }
 
+export interface IWikiSubmission extends mongoose.Document {
+  type: 'create' | 'edit'
+  status: 'pending' | 'approved' | 'rejected' | 'onhold'
+  reason?: string
+  namespace: string
+  targetTitle: string
+  targetSlug: string
+  pageId?: mongoose.Types.ObjectId
+  content: string
+  summary?: string
+  editSummary?: string
+  categories: string[]
+  tags: string[]
+  expectedRevision?: number
+  author: string
+  authorId: mongoose.Types.ObjectId
+  reviewedBy?: string
+  reviewerId?: mongoose.Types.ObjectId
+  reviewedAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
 const WikiUser = mongoose.models.WikiUser || mongoose.model<IWikiUser>('WikiUser', WikiUserSchema)
 const WikiPage = mongoose.models.WikiPage || mongoose.model<IWikiPage>('WikiPage', WikiPageSchema)
 const WikiRevision = mongoose.models.WikiRevision || mongoose.model('WikiRevision', WikiRevisionSchema)
 const WikiDiscussion = mongoose.models.WikiDiscussion || mongoose.model('WikiDiscussion', WikiDiscussionSchema)
 const WikiNamespace = mongoose.models.WikiNamespace || mongoose.model('WikiNamespace', WikiNamespaceSchema)
 const WikiConfig = mongoose.models.WikiConfig || mongoose.model('WikiConfig', WikiConfigSchema)
+const WikiSubmission = mongoose.models.WikiSubmission || mongoose.model<IWikiSubmission>('WikiSubmission', WikiSubmissionSchema)
 
-export { WikiUser, WikiPage, WikiRevision, WikiDiscussion, WikiNamespace, WikiConfig }
+export { WikiUser, WikiPage, WikiRevision, WikiDiscussion, WikiNamespace, WikiConfig, WikiSubmission }
 export default WikiPage 

@@ -41,6 +41,13 @@ Rangu.fam은 우정과 추억을 담은 네 친구만의 특별한 웹 애플리
 - 멤버 권한: 위키 수정, 개인 페이지 관리, 달력 일정 관리
 - 위젯에 외부 링크 등록 가능
 
+### 🔗 개인 바로가기 위젯
+- **개인 맞춤형**: 각 멤버(정재원/정민석/정진규/강한울/이승찬/윤희열)만 본인의 바로가기 관리 가능
+- **외부 링크 연결**: 자주 사용하는 웹사이트를 버튼 형태로 빠르게 접근
+- **편집 기능**: 바로가기 추가/수정/삭제 및 순서 조정
+- **개인정보 보호**: 다른 사용자의 바로가기는 볼 수 없음
+- **사이드바 통합**: 왼쪽 메뉴에서 로그인 시 자동 표시
+
 ## 🎨 디자인 컨셉
 
 ### iOS Liquid Glass 스타일
@@ -53,6 +60,7 @@ Rangu.fam은 우정과 추억을 담은 네 친구만의 특별한 웹 애플리
 ### 필수 요구사항
 - Node.js 18.0 이상
 - npm 또는 yarn
+- MongoDB (로컬 설치 또는 MongoDB Atlas)
 
 ### 설치 및 실행
 
@@ -67,14 +75,37 @@ cd rangu-fam
 npm install
 ```
 
-3. **개발 서버 실행**
+3. **환경 변수 설정** (선택사항)
+   
+   `.env.local` 파일을 프로젝트 루트에 생성하고 MongoDB URI를 설정:
+   ```bash
+   MONGODB_URI=mongodb://localhost:27017/rangu-fam
+   # 또는 MongoDB Atlas URI
+   # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/rangu-fam
+   ```
+   
+   **주의**: 환경 변수가 설정되지 않으면 기본값(`mongodb://localhost:27017/rangu-fam`)을 사용합니다.
+
+4. **개발 서버 실행**
 ```bash
 npm run dev
 ```
 
-4. **브라우저에서 확인**
+5. **브라우저에서 확인**
 ```
 http://localhost:3000
+```
+
+### 샘플 데이터 추가 (선택사항)
+
+```bash
+# 북마크 샘플 데이터 추가
+npm run seed-bookmarks
+
+# 기타 시드 스크립트
+npm run seed            # 기본 데이터베이스 시드
+npm run seed-extended   # 확장 데이터베이스 시드  
+npm run seed-wiki       # 위키 콘텐츠 시드
 ```
 
 ### 빌드 및 배포

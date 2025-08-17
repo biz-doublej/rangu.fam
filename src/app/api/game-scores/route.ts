@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import mongoose from 'mongoose'
 import dbConnect from '@/lib/mongodb'
 import { GameScore, GameStats } from '@/models/Game'
+export const dynamic = 'force-dynamic'
 
 // GET - 게임 점수 조회
 export async function GET(request: NextRequest) {

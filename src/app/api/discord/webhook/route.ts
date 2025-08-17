@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import DiscordService from '@/services/discordService'
+export const dynamic = 'force-dynamic'
 
 // POST /api/discord/webhook - 디스코드 봇에서 오는 웹훅 처리
 export async function POST(request: NextRequest) {

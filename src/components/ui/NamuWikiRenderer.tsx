@@ -8,6 +8,7 @@ interface NamuWikiRendererProps {
   content: string
   generateTableOfContents?: boolean
   onLinkClick?: (link: string) => void
+  isPreview?: boolean
 }
 
 interface TableOfContentsItem {
@@ -16,9 +17,131 @@ interface TableOfContentsItem {
   anchor: string
 }
 
-export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick }: NamuWikiRendererProps) {
+export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false }: NamuWikiRendererProps): JSX.Element {
   const [toc, setToc] = useState<TableOfContentsItem[]>([])
   const [footnotes, setFootnotes] = useState<{[key: string]: string}>({})
+  const PLACEHOLDER_IMAGE = '/images/default-music-cover.jpg'
+
+  function toSlug(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s가-힣]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+  }
+
+  function renderHtml(html: string) {
+    return <span dangerouslySetInnerHTML={{ __html: html }} />
+  }
+
+  function parseTemplateParams(block: string): Record<string, string> {
+    const params: Record<string, string> = {}
+    const bLines = block.split('\n')
+    let currentKey = ''
+    let currentValue = ''
+    
+    for (const ln of bLines) {
+      const m = ln.match(/^\s*\|?\s*([^=]+?)\s*=\s*(.*?)\s*$/)
+      if (m) {
+        // 이전 키-값 쌍이 있으면 저장
+        if (currentKey) {
+          params[currentKey] = currentValue.trim()
+        }
+        // 새로운 키-값 쌍 시작
+        currentKey = m[1].trim()
+        currentValue = m[2].trim()
+      } else if (currentKey && ln.trim()) {
+        // 기존 값에 줄바꿈 추가 (연속된 라인)
+        if (currentValue) {
+          currentValue += '\n' + ln.trim()
+        } else {
+          currentValue = ln.trim()
+        }
+      }
+    }
+    
+    // 마지막 키-값 쌍 저장
+    if (currentKey) {
+      params[currentKey] = currentValue.trim()
+    }
+    
+    return params
+  }
+
+  function parseTemplateParamsOrdered(block: string): Array<[string, string]> {
+    const params: Array<[string, string]> = []
+    const bLines = block.split('\n')
+    let currentKey = ''
+    let currentValue = ''
+    
+    for (const ln of bLines) {
+      const m = ln.match(/^\s*\|?\s*([^=]+?)\s*=\s*(.*?)\s*$/)
+      if (m) {
+        // 이전 키-값 쌍이 있으면 저장
+        if (currentKey && currentValue.trim()) {
+          params.push([currentKey, currentValue.trim()])
+        }
+        // 새로운 키-값 쌍 시작
+        currentKey = m[1].trim()
+        currentValue = m[2].trim()
+      } else if (currentKey && ln.trim()) {
+        // 기존 값에 줄바꿈 추가 (연속된 라인)
+        if (currentValue) {
+          currentValue += '\n' + ln.trim()
+        } else {
+          currentValue = ln.trim()
+        }
+      }
+    }
+    
+    // 마지막 키-값 쌍 저장
+    if (currentKey && currentValue.trim()) {
+      params.push([currentKey, currentValue.trim()])
+    }
+    
+    return params
+  }
+
+  function parseInlineElements(text: string): React.ReactNode {
+    // 간단한 인라인 파싱 예시 (링크, 볼드, 이탤릭 등)
+    // 실제 구현은 기존 코드에서 복사
+    // ... 기존 인라인 파싱 코드 ...
+    // 아래는 예시로 볼드만 처리
+    return text.split(/(\*\*[^*]+\*\*)/g).map((part, idx) => {
+      if (/^\*\*[^*]+\*\*$/.test(part)) {
+        return <strong key={idx}>{part.replace(/\*\*/g, '')}</strong>
+      }
+      return part
+    })
+  }
+
+  function renderGroupInfoboxElement(params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key) {
+    // 기존 코드에서 복사
+    return (
+      <React.Fragment key={key}>
+        <div className="group-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]">
+          <div className="bg-blue-700 text-white text-center py-2 px-3">
+            <div className="text-base font-bold mt-2">{params['이름'] || ''}</div>
+            {params['설명'] && <div className="text-xs opacity-80 mt-1">{params['설명']}</div>}
+          </div>
+          <div className="border-t border-gray-700">
+            <table className="w-full text-sm">
+              <tbody>
+                {orderedParams.map(([key, value], index) => (
+                  <tr key={index} className="border-b border-gray-700">
+                    <td className="bg-blue-700 text-white px-3 py-2 font-semibold w-24 align-top">{key}</td>
+                    <td className="px-3 py-2 text-gray-200 whitespace-pre-line">{parseInlineElements(value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style={{ clear: 'both' }} />
+      </React.Fragment>
+    )
+  }
 
   useEffect(() => {
     if (generateTableOfContents) {
@@ -49,10 +172,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
       
       if (level > 0 && title) {
-        const anchor = title.toLowerCase()
-          .replace(/[^\w\s가-힣]/g, '')
-          .replace(/\s+/g, '-')
-        
+        const anchor = toSlug(title)
         headings.push({ level, title, anchor })
       }
     }
@@ -63,27 +183,431 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   const extractFootnotes = (text: string) => {
     const footnoteMap: {[key: string]: string} = {}
     
-    const footnoteDefRegex = /\[\*(\d+)\]\s*([^\n]+)/g
-    let match
+    // 1. 독립된 라인에서 각주 정의 찾기
+    const lines = text.split('\n')
+    lines.forEach(line => {
+      const trimmed = line.trim()
+      // 라인 전체가 각주 정의인 경우만 처리
+      const match = trimmed.match(/^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/)
+      if (match) {
+        const key = match[1]
+        const content = match[2].trim()
+        
+        // 내용이 실제로 있고, 또 다른 각주 참조가 아닌 경우
+        if (content && content.length > 5 && !content.match(/^\[\*/)) {
+          footnoteMap[key] = content
+        }
+      }
+    })
     
-    while ((match = footnoteDefRegex.exec(text)) !== null) {
-      footnoteMap[match[1]] = match[2].trim()
+    // 2. 인라인 각주 정의 찾기 (문장 중간의 [*1] 각주내용)
+    const inlineFootnoteRegex = /\[\*(\d+)\]\s+([^[\n\r]+)/g
+    let match
+    while ((match = inlineFootnoteRegex.exec(text)) !== null) {
+      const key = match[1]
+      const content = match[2].trim()
+      
+      // 의미있는 내용이 있는 경우만 각주로 인식
+      if (content && content.length > 3 && !content.match(/^\[\*/)) {
+        footnoteMap[key] = content
+      }
     }
     
+    console.log('추출된 각주:', footnoteMap) // 디버깅용
     setFootnotes(footnoteMap)
   }
 
-  const parseContent = (text: string): React.ReactNode => {
-    const lines = text.split('\n')
-    const elements: React.ReactNode[] = []
-    let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
+  // 인라인 각주 정의를 각주 참조로 변환하는 전처리 함수
+  const preprocessInlineFootnotes = (text: string): string => {
+    // [*1] 각주내용 → [*1] (각주내용은 extractFootnotes에서 추출됨)
+    return text.replace(/\[\*(\d+)\]\s+([^[\n\r]+)/g, '[*$1]')
+  }
+
+  const parseContent = (originalText: string): React.ReactNode => {
+  // 인라인 각주 전처리
+  const text = preprocessInlineFootnotes(originalText)
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
+
+    const renderPersonInfoboxElement = (params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key) => (
+      <React.Fragment key={key}>
+        <div className="person-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]">
+          <div className="bg-red-700 text-white text-center py-2 px-3">
+            <div className="text-sm flex items-center justify-center gap-2">
+              {params['상단로고'] && (
+                <img src={params['상단로고']} alt="로고" className="w-6 h-6 object-contain" 
+                     onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+              )}
+              {params['상단제목'] || ''}
+            </div>
+            {params['상단부제목'] && (
+              <>
+                <hr className="border-white/30 my-1" />
+                <div className="text-sm">{params['상단부제목']}</div>
+              </>
+            )}
+            {params['상단설명'] && <div className="text-xs opacity-80 mt-1">{params['상단설명']}</div>}
+            <div className="text-base font-bold mt-2">{params['이름'] || params['본명'] || ''}</div>
+            {params['영문명'] && <div className="text-sm opacity-90 mt-1">{params['영문명']}</div>}
+            {params['한문명'] && <div className="text-sm opacity-90 mt-1">{params['한문명']}</div>}
+          </div>
+          {(() => { const imgSrc = params['이미지'] || PLACEHOLDER_IMAGE; return (
+            <div className="text-center bg-gray-800 p-3">
+              <img src={imgSrc} alt={params['이름'] || '인물 사진'} className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded"
+                   onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+              {params['이미지설명'] && (
+                <div className="text-xs text-gray-400 mt-2">{parseInlineElements(params['이미지설명'])}</div>
+              )}
+            </div>
+          ); })()}
+          <div className="border-t border-gray-700">
+            <table className="w-full text-sm">
+              <tbody>
+                {(() => {
+                  // 헤더에서 사용하는 특수 필드들만 제외하고, 나머지는 작성 순서대로 표시
+                  const excludeFields = new Set([
+                    '상단로고', '상단제목', '상단부제목', '상단설명', 
+                    '이름', '본명', '영문명', '한문명', '이미지', '이미지설명'
+                  ])
+                  
+                  return orderedParams
+                    .filter(([key, value]) => !excludeFields.has(key) && value && value.trim())
+                    .map(([key, value], index) => (
+                      <tr key={index} className="border-b border-gray-700">
+                        <td className="bg-red-700 text-white px-3 py-2 font-semibold w-24 align-top">
+                          {key}
+                        </td>
+                        <td className="px-3 py-2 text-gray-200 whitespace-pre-line">
+                          {parseInlineElements(value)}
+                        </td>
+                      </tr>
+                    ))
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style={{ clear: 'both' }} />
+      </React.Fragment>
+    )
+    const imageRegex = /^\[이미지:([^\]]+)\]$/
+    const fileRegex = /^\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]$/
+    const infoboxRegex = /^\[\[인포박스:(.+)\]\]$/
+    const cardGridRegex = /^\[\[카드그리드:(.*)\]\]$/
+    const tabsRegex = /^\[\[탭바:(.+)\]\]$/
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       const trimmed = line.trim()
+      // 인물정보상자 블록 처리: {{인물정보상자 \n |키=값 ... \n }}
+      if (/^\{\{\s*인물정보상자\s*$/i.test(trimmed) || /^\{\{\s*인물정보상자\b/i.test(trimmed)) {
+        let j = i + 1
+        const buf: string[] = []
+        // 만약 시작 라인에 내용이 같이 온 경우 처리 ({{인물정보상자|키=값 ...}})
+        const after = line.replace(/^.*인물정보상자/i, '')
+        if (after.includes('}}')) {
+          const innerInline = after.replace(/^.*?\{\{\s*인물정보상자\s*/i, '').replace(/}}.*$/, '')
+          buf.push(innerInline)
+        } else {
+          while (j < lines.length) {
+            const t = lines[j].trim()
+            if (/^}}\s*$/.test(t)) break
+            buf.push(lines[j])
+            j++
+          }
+          i = j // 블록 끝으로 이동 (for 루프에서 i++ 되므로 마지막 줄의 다음으로 진행)
+        }
+        const paramsText = buf.join('\n')
+        const params = parseTemplateParams(paramsText)
+        const orderedParams = parseTemplateParamsOrdered(paramsText)
+        elements.push(renderPersonInfoboxElement(params, orderedParams, i))
+        continue
+      }
+
+      // 그룹정보상자 블록 처리: {{그룹정보상자 \n |키=값 ... \n }}
+      if (/^\{\{\s*그룹정보상자\s*$/i.test(trimmed) || /^\{\{\s*그룹정보상자\b/i.test(trimmed)) {
+        let j = i + 1
+        const buf: string[] = []
+        // 만약 시작 라인에 내용이 같이 온 경우 처리 ({{그룹정보상자|키=값 ...}})
+        const after = line.replace(/^.*그룹정보상자/i, '')
+        if (after.includes('}}')) {
+          const innerInline = after.replace(/^.*?\{\{\s*그룹정보상자\s*/i, '').replace(/}}.*$/, '')
+          buf.push(innerInline)
+        } else {
+          while (j < lines.length) {
+            const t = lines[j].trim()
+            if (/^}}\s*$/.test(t)) break
+            buf.push(lines[j])
+            j++
+          }
+          i = j // 블록 끝으로 이동 (for 루프에서 i++ 되므로 마지막 줄의 다음으로 진행)
+        }
+        const paramsText = buf.join('\n')
+        const params = parseTemplateParams(paramsText)
+        const orderedParams = parseTemplateParamsOrdered(paramsText)
+        elements.push(renderGroupInfoboxElement(params, orderedParams, i))
+        continue
+      }
       
       if (!trimmed) {
-        elements.push(<br key={i} />)
+        // 빈 줄은 건너뛰고, 문단 구분 처리는 나중에
+        continue
+      }
+
+      // 분류 태그 렌더링 (예: 분류: A | B | C)
+      if (trimmed.startsWith('분류:')) {
+        const cats = trimmed.substring(3).replace(/^:/, '').split('|').map(s => s.trim()).filter(Boolean)
+        elements.push(
+          <div key={i} className="my-3 text-xs text-gray-300">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-gray-400">분류:</span>
+              {cats.map((c, idx) => (
+                <span key={idx} className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded">
+                  {c}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+        continue
+      }
+
+      // 탭바 렌더링: [[탭바: 항목=링크 | 항목2=링크2 | ...]] (링크 생략 시 슬러그 동일 가정)
+      const tabsMatch = trimmed.match(tabsRegex)
+      if (tabsMatch) {
+        const raw = tabsMatch[1]
+        const items = raw.split('|').map(s => s.trim()).filter(Boolean).map(pair => {
+          const [label, link] = pair.split('=').map(v => (v || '').trim())
+          return { label, link: link || label }
+        })
+        elements.push(
+          <div key={i} className="my-4">
+            <div className="flex items-center justify-center gap-8 text-sm">
+              {items.map((it, idx) => (
+                <a key={idx} href={`#/wiki/${encodeURIComponent(it.link)}`} className="text-gray-300 hover:text-gray-100">
+                  {it.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        )
+        continue
+      }
+
+      // 인포박스 렌더링: [[인포박스: 키=값 | 키2=값2 | ...]]
+      const infoboxMatch = trimmed.match(infoboxRegex)
+      if (infoboxMatch) {
+        const raw = infoboxMatch[1]
+        const pairs = raw.split('|').map(s => s.trim()).filter(Boolean)
+        const rows: Array<{ key: string; value: string }> = []
+        let title = ''
+        let image = ''
+        pairs.forEach(p => {
+          const [k, ...rest] = p.split('=')
+          const key = (k || '').trim()
+          const value = rest.join('=').trim()
+          if (!key) return
+          if (key === '제목' || key.toLowerCase() === 'title') title = value
+          else if (key === '이미지' || key.toLowerCase() === 'image') image = value
+          else rows.push({ key, value })
+        })
+        const resolvedImage = image || PLACEHOLDER_IMAGE
+        elements.push(
+          <div key={i} className="my-6 border border-gray-700 rounded-lg overflow-hidden bg-gray-900">
+            {(
+              <div className="w-full bg-gray-800 border-b border-gray-700 text-center">
+                <img src={resolvedImage} className="w-full h-auto max-h-[420px] object-cover" 
+                     onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+              </div>
+            )}
+            {title && (
+              <div className="px-4 py-3 border-b border-gray-700">
+                <h4 className="text-center text-gray-200 font-semibold">{title}</h4>
+              </div>
+            )}
+            <div className="divide-y divide-gray-800">
+              {rows.map((r, idx) => (
+                <div key={idx} className="grid grid-cols-3 md:grid-cols-3 gap-2 px-4 py-2">
+                  <div className="col-span-1 text-gray-400 text-sm">{r.key}</div>
+                  <div className="col-span-2 text-gray-200 text-sm whitespace-pre-line">{parseInlineElements(r.value)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+        continue
+      }
+
+      // 카드 그리드 렌더링: [[카드그리드: items=[{"title":"...","subtitle":"...","image":"...","tag":"...","date":"...","link":"..."}]]]
+      // 목차 렌더링: [[목차]]
+      if (trimmed === '[[목차]]') {
+        if (generateTableOfContents && toc.length > 0) {
+          elements.push(
+            <div key={i} className="my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-200 mb-4 border-b border-gray-600 pb-2">목차</h3>
+              <nav className="space-y-1">
+                {toc.map((item, tocIndex) => (
+                  <div key={tocIndex} className="flex items-center">
+                    <div className="flex-shrink-0 w-6 text-xs text-gray-500">
+                      {tocIndex + 1}.
+                    </div>
+                    <a
+                      href={`#${item.anchor}`}
+                      className={`text-blue-400 hover:text-blue-300 hover:underline block py-1 transition-colors`}
+                      style={{ paddingLeft: `${(item.level - 1) * 16}px` }}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        const element = document.getElementById(item.anchor)
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth' })
+                        }
+                      }}
+                    >
+                      {item.title}
+                    </a>
+                  </div>
+                ))}
+              </nav>
+            </div>
+          )
+        } else {
+          elements.push(
+            <div key={i} className="my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-200 mb-2">목차</h3>
+              <p className="text-gray-400 text-sm">문서에 제목이 없어 목차를 생성할 수 없습니다.</p>
+            </div>
+          )
+        }
+        continue
+      }
+
+      // 카드그리드 처리 (멀티라인 지원)
+      if (trimmed.startsWith('[[카드그리드:')) {
+        let j = i
+        let cardGridContent = ''
+        let foundEnd = false
+        
+        // 단일 라인 카드그리드인지 확인
+        if (trimmed.endsWith(']]')) {
+          cardGridContent = trimmed
+          foundEnd = true
+        } else {
+          // 멀티라인 카드그리드 수집
+          while (j < lines.length) {
+            const currentLine = lines[j].trim()
+            cardGridContent += (j === i ? currentLine : '\n' + currentLine)
+            
+            if (currentLine.endsWith(']]')) {
+              foundEnd = true
+              break
+            }
+            j++
+          }
+        }
+        
+        if (!foundEnd) {
+          elements.push(
+            <div key={i} className="my-4 p-4 bg-red-900 border border-red-700 rounded-lg">
+              <div className="text-red-200 font-semibold">카드그리드 문법 오류</div>
+              <div className="text-red-300 text-sm mt-1">닫는 ]] 를 찾을 수 없습니다</div>
+            </div>
+          )
+          continue
+        }
+        
+        const cardGridMatch = cardGridContent.match(/^\[\[카드그리드:([\s\S]*)\]\]$/)
+        if (cardGridMatch) {
+          const raw = cardGridMatch[1].trim()
+          let items: Array<{ title?: string; subtitle?: string; description?: string; image?: string; tag?: string; date?: string; link?: string }> = []
+          
+          // 더 유연한 JSON 파싱을 위한 여러 시도
+          try {
+            // 1. items= 형태로 시작하는 경우
+            const arrMatch = raw.match(/items\s*=\s*(\[[\s\S]*\])/)
+            if (arrMatch) {
+              items = JSON.parse(arrMatch[1])
+            } else {
+              // 2. 직접 JSON 배열인 경우
+              if (raw.startsWith('[')) {
+                items = JSON.parse(raw)
+              }
+            }
+          } catch (error) {
+            console.error('카드그리드 JSON 파싱 오류:', error, 'Raw 데이터:', raw)
+            // 파싱 실패 시 오류 메시지 표시
+            elements.push(
+              <div key={i} className="my-4 p-4 bg-red-900 border border-red-700 rounded-lg">
+                <div className="text-red-200 font-semibold">카드그리드 데이터 파싱 오류</div>
+                <div className="text-red-300 text-xs mt-2 font-mono whitespace-pre-wrap">{raw}</div>
+                <div className="text-red-300 text-sm mt-1">오류: {(error as Error).message}</div>
+              </div>
+            )
+            i = j // 멀티라인이었다면 해당 라인들을 건너뛰기
+            continue
+          }
+
+          if (!Array.isArray(items) || items.length === 0) {
+            elements.push(
+              <div key={i} className="my-4 p-4 bg-yellow-900 border border-yellow-700 rounded-lg">
+                <div className="text-yellow-200">카드그리드 데이터가 올바르지 않습니다</div>
+                <div className="text-yellow-300 text-sm mt-1">배열 형태의 데이터가 필요합니다</div>
+                <div className="text-yellow-300 text-xs mt-1 font-mono">{raw}</div>
+              </div>
+            )
+            i = j // 멀티라인이었다면 해당 라인들을 건너뛰기
+            continue
+          }
+
+          elements.push(
+            <div key={i} className="my-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {items.map((it, idx) => (
+                  <div key={idx} className="bg-gray-900 border border-gray-700 rounded-lg overflow-hidden hover:border-gray-600 transition-colors">
+                    <div className="aspect-[1/1] bg-gray-800">
+                      <img src={it.image || PLACEHOLDER_IMAGE} alt={it.title || ''} className="w-full h-full object-cover"
+                           onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+                    </div>
+                    <div className="p-3 space-y-1">
+                      {it.tag && <span className="inline-block text-[10px] px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-300">{it.tag}</span>}
+                      <div className="text-gray-200 font-medium leading-tight">{it.title}</div>
+                      {(it.subtitle || it.description) && <div className="text-xs text-gray-400">{it.subtitle || it.description}</div>}
+                      {it.date && <div className="text-[11px] text-gray-500">{it.date}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        }
+        
+        i = j // 멀티라인이었다면 해당 라인들을 건너뛰기
+        continue
+      }
+
+      // 파일/이미지 렌더링
+      const imageMatch = trimmed.match(imageRegex)
+      if (imageMatch) {
+        const src = imageMatch[1].trim()
+        elements.push(
+          <div key={i} className="my-4 text-center">
+            <img src={src} className="max-w-full h-auto rounded border border-gray-700 inline-block"
+                 onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+          </div>
+        )
+        continue
+      }
+      const fileMatch = trimmed.match(fileRegex)
+      if (fileMatch) {
+        const path = fileMatch[1].trim()
+        const caption = (fileMatch[2] || '').trim()
+        elements.push(
+          <div key={i} className="my-4 text-center">
+            <img src={path} alt={caption} className="max-w-full h-auto rounded border border-gray-700 inline-block"
+                 onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+            {caption && <div className="text-xs text-gray-400 mt-1">{caption}</div>}
+          </div>
+        )
         continue
       }
       
@@ -91,7 +615,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       if (headingMatch) {
         const level = headingMatch[1].length
         const title = headingMatch[2].trim()
-        const anchor = title.toLowerCase().replace(/[^\w\s가-힣]/g, '').replace(/\s+/g, '-')
+        const anchor = toSlug(title)
         
         const HeadingTag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements
         elements.push(
@@ -187,75 +711,115 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         }
       }
       
+      // 표 렌더링 (나무위키 스타일: || 셀1 || 셀2 ||)
+      if (trimmed.startsWith('||') && trimmed.endsWith('||')) {
+        // 연속된 표 행들을 수집
+        const tableRows: string[] = []
+        let j = i
+        
+        while (j < lines.length && lines[j].trim().startsWith('||') && lines[j].trim().endsWith('||')) {
+          tableRows.push(lines[j].trim())
+          j++
+        }
+        
+        if (tableRows.length > 0) {
+          // 표 생성
+          const tableElement = (
+            <div key={i} className="my-4 overflow-x-auto flex justify-center">
+              <table className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto">
+                <tbody>
+                  {tableRows.map((row, rowIndex) => {
+                    // || 기준으로 셀 분리
+                    const cells = row.split('||').filter(cell => cell.trim() !== '')
+                    const isHeaderRow = rowIndex === 0
+                    
+                    return (
+                      <tr key={rowIndex} className="border-b border-gray-600">
+                        {cells.map((cell, cellIndex) => {
+                          const cellContent = cell.trim()
+                          const CellTag = isHeaderRow ? 'th' : 'td'
+                          
+                          return (
+                            <CellTag
+                              key={cellIndex}
+                              className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
+                                isHeaderRow ? 'bg-gray-700 font-semibold' : 'bg-gray-800'
+                              }`}
+                            >
+                              {parseInlineElements(cellContent)}
+                            </CellTag>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+          
+          elements.push(tableElement)
+          i = j - 1 // 다음 반복에서 i++가 되므로 -1
+          continue
+        }
+      }
+      
+      // 독립된 각주 정의 라인 건너뛰기 (인라인 각주는 parseInlineElements에서 처리됨)
+      // 라인 전체가 각주 정의인 경우만 건너뛰기 (문장 중간의 인라인 각주는 제외)
+      const footnoteDefMatch = trimmed.match(/^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/)
+      if (footnoteDefMatch && footnoteDefMatch[2].trim().length > 5 && trimmed === line.trim()) {
+        continue
+      }
+      
       if (trimmed === '---' || trimmed === '***') {
         elements.push(<hr key={i} className="my-6 border-gray-600" />)
         continue
       }
       
+      // 일반 텍스트 라인 - 연속된 라인들을 하나의 문단으로 묶기 위해 수집
+      const paragraphLines: string[] = [line]
+      let j = i + 1
+      
+      // 다음 라인들이 일반 텍스트인지 확인하고 수집
+      while (j < lines.length) {
+        const nextLine = lines[j]
+        const nextTrimmed = nextLine.trim()
+        
+        // 빈 줄이거나 특수 문법이 시작되면 문단 종료
+        if (!nextTrimmed || 
+            nextTrimmed.startsWith('=') || 
+            nextTrimmed.startsWith('#') ||
+            nextTrimmed.startsWith('*') || 
+            nextTrimmed.startsWith('-') ||
+            nextTrimmed.startsWith('1.') ||
+            nextTrimmed.startsWith('>') ||
+            nextTrimmed.startsWith('||') ||
+            nextTrimmed.startsWith('[[') ||
+            nextTrimmed.startsWith('{{') ||
+            nextTrimmed.startsWith(':::') ||
+            nextTrimmed === '---' ||
+            nextTrimmed === '***' ||
+            /^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/.test(nextTrimmed)) {
+          break
+        }
+        
+        paragraphLines.push(nextLine)
+        j++
+      }
+      
+      // 수집된 라인들을 하나의 문단으로 렌더링
+      const paragraphContent = paragraphLines.join('\n')
       elements.push(
-        <p key={i} className="mb-4 leading-relaxed text-gray-300">
-          {parseInlineElements(line)}
+        <p key={i} className="mb-4 leading-relaxed text-gray-300 whitespace-pre-line">
+          {parseInlineElements(paragraphContent)}
         </p>
       )
+      
+      // 처리한 라인들만큼 인덱스 이동
+      i = j - 1
     }
     
     return elements
-  }
-
-  const parseInlineElements = (text: string): React.ReactNode => {
-    let result: React.ReactNode[] = []
-    let currentIndex = 0
-    
-    const patterns = [
-      { regex: /\[\[([^\]|]+)(\|([^\]]+))?\]\]/g, type: 'internal-link' },
-      { regex: /\[([^\s\]]+)(\s+([^\]]+))?\]/g, type: 'external-link' },
-      { regex: /\[\*(\d+)\]/g, type: 'footnote' },
-      { regex: /'''([^']+)'''|\*\*([^*]+)\*\*/g, type: 'bold' },
-      { regex: /''([^']+)''|\*([^*]+)\*/g, type: 'italic' },
-      { regex: /~~([^~]+)~~/g, type: 'strikethrough' },
-      { regex: /__([^_]+)__/g, type: 'underline' },
-      { regex: /\{\{\{#([a-fA-F0-9]{3,6})\s+([^}]+)\}\}\}/g, type: 'colored-text' },
-      { regex: /\{\{\{([+-]\d+)\s+([^}]+)\}\}\}/g, type: 'sized-text' },
-      { regex: /`([^`]+)`/g, type: 'code' }
-    ]
-    
-    while (currentIndex < text.length) {
-      let nearestMatch: { index: number, length: number, type: string, groups: RegExpMatchArray } | null = null
-      
-      for (const pattern of patterns) {
-        pattern.regex.lastIndex = currentIndex
-        const match = pattern.regex.exec(text)
-        
-        if (match && (nearestMatch === null || match.index < nearestMatch.index)) {
-          nearestMatch = {
-            index: match.index,
-            length: match[0].length,
-            type: pattern.type,
-            groups: match
-          }
-        }
-      }
-      
-      if (nearestMatch) {
-        if (nearestMatch.index > currentIndex) {
-          result.push(text.substring(currentIndex, nearestMatch.index))
-        }
-        
-        const element = renderInlineElement(nearestMatch.type, nearestMatch.groups)
-        result.push(element)
-        
-        currentIndex = nearestMatch.index + nearestMatch.length
-      } else {
-        result.push(text.substring(currentIndex))
-        break
-      }
-    }
-    
-    return result.map((item, index) => 
-      typeof item === 'string' ? 
-        <span key={index}>{item}</span> : 
-        React.cloneElement(item as React.ReactElement, { key: index })
-    )
   }
 
   const renderInlineElement = (type: string, groups: RegExpMatchArray): React.ReactElement => {
@@ -285,6 +849,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             {urlText}
             <ExternalLink className="w-3 h-3 ml-1" />
           </a>
+        )
+      case 'inline-image':
+        const src = groups[1]
+        return (
+          <img src={src} className="inline-block max-h-64 align-middle rounded border border-gray-700"
+               onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
         )
         
       case 'footnote':
@@ -332,6 +902,27 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           </span>
         )
         
+      case 'align-left':
+        return (
+          <div className="text-left">
+            {groups[1]}
+          </div>
+        )
+      
+      case 'align-center':
+        return (
+          <div className="text-center">
+            {groups[1]}
+          </div>
+        )
+      
+      case 'align-right':
+        return (
+          <div className="text-right">
+            {groups[1]}
+          </div>
+        )
+        
       case 'code':
         return (
           <code className="bg-gray-700 text-gray-200 px-1 py-0.5 rounded text-sm font-mono">
@@ -344,38 +935,34 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     }
   }
 
+  const renderedContent = parseContent(content);
+
   return (
-    <div className="namu-wiki-content text-gray-300">
-      {generateTableOfContents && toc.length > 0 && (
-        <div className="mb-8 p-4 bg-gray-800 rounded-lg border border-gray-600">
-          <h3 className="font-bold text-lg mb-3 text-gray-200">목차</h3>
-          <ul className="space-y-1">
-            {toc.map((item, index) => (
-              <li key={index} style={{ marginLeft: `${(item.level - 1) * 20}px` }}>
-                <a
-                  href={`#${item.anchor}`}
-                  className="text-blue-400 hover:text-blue-300 hover:underline text-sm"
-                >
-                  {item.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      
+    <div className={`namu-wiki-content text-gray-300 ${isPreview ? 'wiki-preview' : ''}`}>
       <div className="prose prose-lg max-w-none prose-invert">
-        {parseContent(content)}
+        {renderedContent}
       </div>
-      
       {Object.keys(footnotes).length > 0 && (
         <div className="mt-12 pt-6 border-t border-gray-600">
           <h3 className="font-bold text-lg mb-4 text-gray-200">각주</h3>
           <div className="space-y-2">
             {Object.entries(footnotes).map(([num, text]) => (
-              <div key={num} className="text-sm text-gray-400">
-                <sup className="text-blue-400 mr-2">[{num}]</sup>
-                {text}
+              <div key={num} id={`footnote-${num}`} className="text-sm text-gray-400 scroll-mt-20">
+                <sup className="text-blue-400 mr-2">
+                  <button
+                    className="hover:text-blue-300 cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      // 각주를 참조하는 곳으로 다시 돌아가기
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    title="본문으로 돌아가기"
+                  >
+                    [{num}]
+                  </button>
+                </sup>
+                <span className="text-gray-300">{parseInlineElements(text)}</span>
               </div>
             ))}
           </div>
@@ -383,4 +970,5 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       )}
     </div>
   )
-} 
+}
+

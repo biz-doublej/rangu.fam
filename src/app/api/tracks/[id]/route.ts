@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import Track from '@/models/Track'
 import User from '@/models/User'
 import Comment from '@/models/Comment'
+export const dynamic = 'force-dynamic'
 
 // GET - 특정 트랙 가져오기
 export async function GET(

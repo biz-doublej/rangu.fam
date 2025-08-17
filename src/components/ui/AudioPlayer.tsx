@@ -55,6 +55,51 @@ export function AudioPlayer({
     }
   }, [volume, isMuted])
 
+  // 재생 상태 변경 시 실제 audio 요소 제어
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        console.log('재생 시도:', track?.title, audioRef.current.src)
+        console.log('오디오 readyState:', audioRef.current.readyState)
+        console.log('오디오 volume:', audioRef.current.volume)
+        const playPromise = audioRef.current.play()
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('재생 성공!')
+            })
+            .catch(error => {
+              console.error('재생 실패:', error)
+              console.error('오디오 URL:', audioRef.current?.src)
+            })
+        }
+      } else {
+        audioRef.current.pause()
+        console.log('재생 일시정지')
+      }
+    }
+  }, [isPlaying, track])
+
+  // 트랙 변경 시 오디오 로드
+  useEffect(() => {
+    if (audioRef.current && track) {
+      console.log('새 트랙 로딩:', track.title, 'URL:', track.audioUrl)
+      
+      // URL 접근 가능성 테스트
+      fetch(track.audioUrl, { method: 'HEAD' })
+        .then(response => {
+          console.log('파일 접근 테스트:', response.ok, response.status)
+          console.log('Content-Type:', response.headers.get('content-type'))
+        })
+        .catch(error => {
+          console.error('파일 접근 실패:', error)
+        })
+      
+      audioRef.current.load() // 새 트랙 로드
+      setCurrentTime(0)
+    }
+  }, [track])
+
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60)
     const seconds = Math.floor(time % 60)
@@ -91,8 +136,18 @@ export function AudioPlayer({
         ref={audioRef}
         src={track.audioUrl}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        onLoadedMetadata={(e) => {
+          console.log('오디오 메타데이터 로드됨:', e.currentTarget.duration)
+          setDuration(e.currentTarget.duration)
+        }}
         onEnded={onNext}
+        onLoadStart={() => console.log('오디오 로드 시작:', track.audioUrl)}
+        onCanPlay={() => console.log('오디오 재생 가능 상태')}
+        onError={(e) => {
+          console.error('오디오 로드 오류:', e.currentTarget.error)
+          console.error('오디오 URL:', track.audioUrl)
+        }}
+        preload="metadata"
       />
 
       {/* 앨범 아트 및 트랙 정보 */}
