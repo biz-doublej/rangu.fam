@@ -27,13 +27,13 @@ const CardDropSchema = new mongoose.Schema<ICardDrop>({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    index: true
+    required: true
+    // index는 복합 인덱스에서 처리됨
   },
   cardId: {
     type: String,
-    required: true,
-    index: true
+    required: true
+    // index는 복합 인덱스에서 처리됨
   },
   dropType: {
     type: String,
@@ -43,8 +43,8 @@ const CardDropSchema = new mongoose.Schema<ICardDrop>({
   droppedAt: {
     type: Date,
     required: true,
-    default: Date.now,
-    index: true
+    default: Date.now
+    // index는 복합 인덱스에서 처리됨
   },
   dailyDropCount: {
     type: Number,

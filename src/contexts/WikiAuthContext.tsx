@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
+import { useNotifications } from './NotificationContext'
 
 // 위키 사용자 타입 정의
 interface WikiUser {
@@ -58,6 +59,7 @@ const WikiAuthContext = createContext<WikiAuthContextType | undefined>(undefined
 export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
   const [wikiUser, setWikiUser] = useState<WikiUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { addNotification } = useNotifications()
 
   // 페이지 로드 시 인증 상태 확인
   useEffect(() => {
@@ -119,6 +121,17 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.success) {
         setWikiUser(data.user)
+        
+        // 로그인 알림 추가
+        if (data.loginNotification) {
+          addNotification({
+            type: data.loginNotification.type,
+            title: data.loginNotification.title,
+            message: data.loginNotification.message,
+            data: data.loginNotification.data
+          })
+        }
+        
         toast.success('위키에 로그인했습니다!')
         return true
       } else {
@@ -187,6 +200,8 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async (): Promise<void> => {
     try {
+      const currentUsername = wikiUser?.displayName || wikiUser?.username
+      
       const response = await fetch('/api/wiki/auth/logout', {
         method: 'POST',
         credentials: 'include'
@@ -194,6 +209,19 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         setWikiUser(null)
+        
+        // 로그아웃 알림 추가
+        if (currentUsername) {
+          addNotification({
+            type: 'logout',
+            title: '로그아웃',
+            message: `${currentUsername}님이 로그아웃했습니다.`,
+            data: {
+              timestamp: new Date().toISOString()
+            }
+          })
+        }
+        
         toast.success('위키에서 로그아웃했습니다.')
       }
     } catch (error) {

@@ -25,6 +25,7 @@ const UserSchema: Schema = new Schema({
   username: {
     type: String,
     required: true,
+    unique: true,
     trim: true,
     minlength: 2,
     maxlength: 20
@@ -32,6 +33,7 @@ const UserSchema: Schema = new Schema({
   email: {
     type: String,
     required: true,
+    unique: true,
     lowercase: true,
     trim: true
   },
@@ -93,8 +95,9 @@ const UserSchema: Schema = new Schema({
   timestamps: true
 })
 
-// 인덱스 설정
-UserSchema.index({ username: 1 })
-UserSchema.index({ email: 1 })
+// 복합 인덱스 설정 (unique는 이미 스키마에서 설정됨)
+// UserSchema.index({ username: 1 }) - unique: true로 자동 생성됨
+// UserSchema.index({ email: 1 }) - unique: true로 자동 생성됨
+UserSchema.index({ role: 1, isOnline: 1 }) // 성능 최적화용 복합 인덱스
 
 export default mongoose.models.User || mongoose.model<IUser>('User', UserSchema) 

@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ExternalLink, ArrowUpRight, Quote, AlertCircle, Info, CheckCircle, XCircle } from 'lucide-react'
+import { WikiIcon, parseIconSyntax } from './WikiIcon'
+import { parseTableColorAttributes, getTableCellStyles, normalizeColor } from '@/lib/tableColors'
 
 interface NamuWikiRendererProps {
   content: string
@@ -20,7 +22,16 @@ interface TableOfContentsItem {
 export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false }: NamuWikiRendererProps): JSX.Element {
   const [toc, setToc] = useState<TableOfContentsItem[]>([])
   const [footnotes, setFootnotes] = useState<{[key: string]: string}>({})
+  const footnoteCounterRef = React.useRef(0)
+  const footnoteMappingRef = React.useRef<{[key: string]: number}>({})
   const PLACEHOLDER_IMAGE = '/images/default-music-cover.jpg'
+
+  // 컨텐츠가 변경될 때 각주 카운터 리셋
+  React.useEffect(() => {
+    footnoteCounterRef.current = 0
+    footnoteMappingRef.current = {}
+    extractFootnotes(content)
+  }, [content])
 
   function toSlug(text: string): string {
     return text
@@ -33,6 +44,46 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
   function renderHtml(html: string) {
     return <span dangerouslySetInnerHTML={{ __html: html }} />
+  }
+
+  // 템플릿 색상 속성 파싱 함수
+  function parseTemplateColorAttributes(colorAttribs?: string): {
+    backgroundColor?: string
+    textColor?: string
+    borderColor?: string
+  } {
+    const result: {
+      backgroundColor?: string
+      textColor?: string
+      borderColor?: string
+    } = {}
+    
+    if (!colorAttribs) return result
+    
+    // 색상 속성 매칭: <bgcolor:#color>, <color:#color>, <border:#color>
+    const colorAttributePattern = /<(bgcolor|color|border):(#?[^>\s]+)>/g
+    let match
+    
+    while ((match = colorAttributePattern.exec(colorAttribs)) !== null) {
+      const [, attribute, colorValue] = match
+      const normalizedColor = normalizeColor(colorValue.trim())
+      
+      if (normalizedColor) {
+        switch (attribute) {
+          case 'bgcolor':
+            result.backgroundColor = normalizedColor
+            break
+          case 'color':
+            result.textColor = normalizedColor
+            break
+          case 'border':
+            result.borderColor = normalizedColor
+            break
+        }
+      }
+    }
+    
+    return result
   }
 
   function parseTemplateParams(block: string): Record<string, string> {
@@ -104,36 +155,360 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   }
 
   function parseInlineElements(text: string): React.ReactNode {
-    // 간단한 인라인 파싱 예시 (링크, 볼드, 이탤릭 등)
-    // 실제 구현은 기존 코드에서 복사
-    // ... 기존 인라인 파싱 코드 ...
-    // 아래는 예시로 볼드만 처리
-    return text.split(/(\*\*[^*]+\*\*)/g).map((part, idx) => {
-      if (/^\*\*[^*]+\*\*$/.test(part)) {
-        return <strong key={idx}>{part.replace(/\*\*/g, '')}</strong>
+    if (typeof text !== 'string') {
+      return text
+    }
+    
+    // 하이퍼링크를 최우선으로 처리하는 패턴들
+    const patterns = [
+      // 1. 마크다운 하이퍼링크 [텍스트](URL) - 최우선 처리
+        {
+          regex: /\[([^\]]+)\]\(([^)]+)\)/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const [, linkText, url] = match
+            const isExternal = url.startsWith('http') || url.startsWith('//')
+            
+            // 링크 텍스트에서 아이콘 문법 파싱
+            const parsedLinkContent = parseIconSyntax(linkText)
+            const hasIcons = parsedLinkContent.some(part => typeof part !== 'string')
+            
+            // 아이콘만 있는 경우 (텍스트가 아이콘 문법만 포함)
+            const isIconOnly = linkText.trim().startsWith('!icon:') && parsedLinkContent.length === 1 && typeof parsedLinkContent[0] !== 'string'
+            
+            return (
+              <a 
+                key={key} 
+                href={url}
+                target={isExternal ? "_blank" : undefined}
+                rel={isExternal ? "noopener noreferrer" : undefined}
+                className={`text-blue-400 hover:text-blue-300 ${isIconOnly ? '' : 'underline'} inline-flex items-center gap-1 whitespace-nowrap`}
+                style={{ display: 'inline-flex', alignItems: 'center' }}
+                onClick={(e) => {
+                  if (onLinkClick && !isExternal) {
+                    e.preventDefault()
+                    onLinkClick(url)
+                  }
+                }}
+              >
+                {hasIcons ? parsedLinkContent.map((part, idx) => (
+                  <React.Fragment key={idx}>{part}</React.Fragment>
+                )) : linkText}
+                {isExternal && !isIconOnly && <ExternalLink size={12} />}
+              </a>
+            )
+          }
+        },
+        // 2. 위키 링크 [[페이지|표시텍스트]]
+        {
+          regex: /\[\[([^\]]+)\]\]/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const linkContent = match[1]
+            const [page, display] = linkContent.split('|')
+            const displayText = display?.trim() || page.trim()
+            
+            // 표시 텍스트에서 아이콘 문법 파싱
+            const parsedDisplayContent = parseIconSyntax(displayText)
+            const hasIcons = parsedDisplayContent.some(part => typeof part !== 'string')
+            
+            // 아이콘만 있는 경우
+            const isIconOnly = displayText.trim().startsWith('!icon:') && parsedDisplayContent.length === 1 && typeof parsedDisplayContent[0] !== 'string'
+            
+            return (
+              <a 
+                key={key} 
+                href={`#${page.trim()}`} 
+                className={`text-blue-400 hover:text-blue-300 ${isIconOnly ? '' : 'underline'} inline-flex items-center gap-1 whitespace-nowrap`}
+                style={{ display: 'inline-flex', alignItems: 'center' }}
+                onClick={(e) => {
+                  e.preventDefault()
+                  onLinkClick?.(page.trim())
+                }}
+              >
+                {hasIcons ? parsedDisplayContent.map((part, idx) => (
+                  <React.Fragment key={idx}>{part}</React.Fragment>
+                )) : displayText}
+              </a>
+            )
+          }
+        },
+        // 5. 상첨자 ^^텍스트^^
+        {
+          regex: /\^\^([^^]+)\^\^/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <sup key={key} className="text-xs text-gray-300">{match[1]}</sup>
+          )
+        },
+        // 6. 하첨자 ,,텍스트,,
+        {
+          regex: /,,([^,]+),,/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <sub key={key} className="text-xs text-gray-300">{match[1]}</sub>
+          )
+        },
+        // 7. 각주 참조 [*숫자] 또는 [*]
+        {
+          regex: /\[\*(\d*)\]/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const footnoteKey = match[1] || 'auto'
+            let footnoteNumber: number
+            
+            // 키 정규화 및 매핑 로직 개선
+            if (footnoteKey === 'auto' || footnoteKey === '') {
+              // 자동 번호 배정 - 고유 키 생성
+              footnoteCounterRef.current += 1
+              footnoteNumber = footnoteCounterRef.current
+              const uniqueAutoKey = `auto_ref_${footnoteCounterRef.current}_${key}`
+              footnoteMappingRef.current[uniqueAutoKey] = footnoteNumber
+              console.log(`자동 각주 생성: ${uniqueAutoKey} = ${footnoteNumber}`)
+            } else {
+              // 수동 번호 지정
+              if (!footnoteMappingRef.current[footnoteKey]) {
+                footnoteCounterRef.current += 1
+                footnoteNumber = footnoteCounterRef.current
+                footnoteMappingRef.current[footnoteKey] = footnoteNumber
+                console.log(`수동 각주 생성: ${footnoteKey} = ${footnoteNumber}`)
+              } else {
+                footnoteNumber = footnoteMappingRef.current[footnoteKey]
+                console.log(`기존 각주 참조: ${footnoteKey} = ${footnoteNumber}`)
+              }
+            }
+            
+            const scrollToFootnote = () => {
+              const footnoteElement = document.getElementById(`footnote-${footnoteNumber}`)
+              if (footnoteElement) {
+                footnoteElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                footnoteElement.style.backgroundColor = '#fef3c7'
+                setTimeout(() => {
+                  footnoteElement.style.backgroundColor = ''
+                }, 2000)
+              }
+            }
+            
+            return (
+              <sup 
+                key={key} 
+                className="text-blue-400 hover:text-blue-300 cursor-pointer text-xs underline"
+                onClick={scrollToFootnote}
+                title={`각주 ${footnoteNumber}로 이동`}
+              >
+                [{footnoteNumber}]
+              </sup>
+            )
+          }
+        },
+        // 8. 취소선 ~~텍스트~~
+        {
+          regex: /~~([^~]+)~~/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <del key={key} className="line-through text-gray-400">{match[1]}</del>
+          )
+        },
+        // 9. 밑줄 __텍스트__
+        {
+          regex: /__([^_]+)__/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <u key={key} className="underline text-gray-300">{match[1]}</u>
+          )
+        },
+        // 10. 색상 텍스트 {{{#색상 텍스트}}}
+        {
+          regex: /\{\{\{#([a-fA-F0-9]{6}|[a-zA-Z]+)\s+([^}]+)\}\}\}/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const [, color, text] = match
+            const cssColor = /^[a-fA-F0-9]{6}$/.test(color) ? `#${color}` : color
+            return (
+              <span key={key} style={{ color: cssColor }} className="font-medium">
+                {text}
+              </span>
+            )
+          }
+        },
+        // 11. 큰 텍스트 {{{+숫자 텍스트}}}
+        {
+          regex: /\{\{\{\+(\d+)\s+([^}]+)\}\}\}/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const [, sizeNum, text] = match
+            const size = parseInt(sizeNum)
+            return (
+              <span key={key} className={`font-bold ${size >= 2 ? 'text-xl' : 'text-lg'} text-gray-100`}>
+                {text}
+              </span>
+            )
+          }
+        },
+        // 12. 작은 텍스트 {{{-숫자 텍스트}}}
+        {
+          regex: /\{\{\{-(\d+)\s+([^}]+)\}\}\}/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <span key={key} className="text-sm text-gray-400">{match[2]}</span>
+          )
+        },
+        // 13. 인라인 코드 `코드`
+        {
+          regex: /`([^`]+)`/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <code key={key} className="bg-gray-700 text-gray-200 px-1 py-0.5 rounded text-sm font-mono">
+              {match[1]}
+            </code>
+          )
+        },
+        // 14. 아이콘 !icon:{name} - 단독 아이콘 처리
+        {
+          regex: /!icon:\{([^}]+)\}/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const iconParams = match[1]
+            const [name, ...options] = iconParams.split(',').map(s => s.trim())
+            
+            // Parse options
+            let size = 16
+            let className = ''
+            let color = undefined
+            
+            options.forEach(option => {
+              if (option.startsWith('size:')) {
+                size = parseInt(option.split(':')[1]) || 16
+              } else if (option.startsWith('class:')) {
+                className = option.split(':')[1] || ''
+              } else if (option.startsWith('color:')) {
+                color = option.split(':')[1] || undefined
+              }
+            })
+            
+            return (
+              <WikiIcon 
+                key={key}
+                name={name} 
+                size={size}
+                className={className}
+                color={color}
+              />
+            )
+          }
+        },
+        // 15. URL 자동 링크
+        {
+          regex: /(https?:\/\/[^\s]+)/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <a 
+              key={key} 
+              href={match[1]} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline inline-flex items-center gap-1"
+            >
+              {match[1]}
+              <ExternalLink size={12} />
+            </a>
+          )
+        }
+      ]
+    
+    // 모든 패턴의 매치들을 찾아서 위치순으로 정렬
+    const matches: Array<{ index: number; length: number; element: React.ReactNode; patternIndex: number }> = []
+    patterns.forEach((pattern, patternIndex) => {
+      let match
+      const regex = new RegExp(pattern.regex.source, pattern.regex.flags)
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({
+          index: match.index,
+          length: match[0].length,
+          element: pattern.render(match, matches.length),
+          patternIndex
+        })
       }
-      return part
     })
+    
+    // 인덱스 순으로 정렬
+    matches.sort((a, b) => a.index - b.index)
+    
+    // 겹치는 매치 제거 (앞선 매치 우선)
+    const filteredMatches = []
+    let lastEnd = 0
+    for (const match of matches) {
+      if (match.index >= lastEnd) {
+        filteredMatches.push(match)
+        lastEnd = match.index + match.length
+      }
+    }
+    
+    // 텍스트와 요소들을 순서대로 조합
+    const elements: React.ReactNode[] = []
+    let lastIndex = 0
+    filteredMatches.forEach((match, idx) => {
+      // 매치 이전의 일반 텍스트 추가
+      if (match.index > lastIndex) {
+        const beforeText = text.slice(lastIndex, match.index)
+        if (beforeText) {
+          elements.push(beforeText)
+        }
+      }
+      // 매치된 요소 추가
+      elements.push(match.element)
+      lastIndex = match.index + match.length
+    })
+    
+    // 마지막 남은 텍스트 추가
+    if (lastIndex < text.length) {
+      const remainingText = text.slice(lastIndex)
+      if (remainingText) {
+        elements.push(remainingText)
+      }
+    }
+    
+    return elements.length > 0 ? elements : text
   }
 
-  function renderGroupInfoboxElement(params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key) {
+  function renderGroupInfoboxElement(params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key, colorAttribs?: string) {
+    const templateColors = parseTemplateColorAttributes(colorAttribs)
+    const templateStyle: React.CSSProperties = {}
+    
+    if (templateColors.backgroundColor) {
+      templateStyle.backgroundColor = templateColors.backgroundColor
+    }
+    if (templateColors.textColor) {
+      templateStyle.color = templateColors.textColor
+    }
+    if (templateColors.borderColor) {
+      templateStyle.borderColor = templateColors.borderColor
+    }
+    
     // 기존 코드에서 복사
     return (
       <React.Fragment key={key}>
-        <div className="group-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]">
+        <div className="group-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]" style={templateStyle}>
           <div className="bg-blue-700 text-white text-center py-2 px-3">
-            <div className="text-base font-bold mt-2">{params['이름'] || ''}</div>
+            <div className="text-base font-bold mt-2">{params['이름'] || params['그룹명'] || ''}</div>
             {params['설명'] && <div className="text-xs opacity-80 mt-1">{params['설명']}</div>}
           </div>
           <div className="border-t border-gray-700">
             <table className="w-full text-sm">
               <tbody>
-                {orderedParams.map(([key, value], index) => (
-                  <tr key={index} className="border-b border-gray-700">
-                    <td className="bg-blue-700 text-white px-3 py-2 font-semibold w-24 align-top">{key}</td>
-                    <td className="px-3 py-2 text-gray-200 whitespace-pre-line">{parseInlineElements(value)}</td>
-                  </tr>
-                ))}
+                {orderedParams.map(([key, value], index) => {
+                  // Parse color attributes from template values
+                  const colorAttributes = parseTableColorAttributes(value)
+                  
+                  // 헤더 셀(key)에만 색상 적용, 값 셀은 기본 배경 유지
+                  const headerCellStyles = getTableCellStyles(colorAttributes)
+                  const defaultHeaderStyle = { backgroundColor: '#1e40af', color: '#ffffff' } // bg-blue-700
+                  const finalHeaderStyle = {
+                    ...defaultHeaderStyle,
+                    ...headerCellStyles
+                  }
+                  
+                  return (
+                    <tr key={index} className="border-b border-gray-700">
+                      <td 
+                        className="px-3 py-2 font-semibold w-24 align-top"
+                        style={finalHeaderStyle}
+                      >
+                        {key}
+                      </td>
+                      <td className="px-3 py-2 text-gray-200 whitespace-pre-line bg-gray-800">
+                        {parseInlineElements(colorAttributes.content)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -185,31 +560,35 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     
     // 1. 독립된 라인에서 각주 정의 찾기
     const lines = text.split('\n')
-    lines.forEach(line => {
+    lines.forEach((line, lineIndex) => {
       const trimmed = line.trim()
       // 라인 전체가 각주 정의인 경우만 처리
-      const match = trimmed.match(/^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/)
+      const match = trimmed.match(/^\[\*(\d*)\]\s*(.+)$/)
       if (match) {
-        const key = match[1]
+        const key = match[1] || `auto_${lineIndex}` // auto 키에 고유성 부여
         const content = match[2].trim()
         
         // 내용이 실제로 있고, 또 다른 각주 참조가 아닌 경우
-        if (content && content.length > 5 && !content.match(/^\[\*/)) {
+        if (content && content.length > 0 && !content.match(/^\[\*/)) {
           footnoteMap[key] = content
+          console.log(`독립 라인 각주 추가: ${key} = ${content}`)
         }
       }
     })
     
-    // 2. 인라인 각주 정의 찾기 (문장 중간의 [*1] 각주내용)
-    const inlineFootnoteRegex = /\[\*(\d+)\]\s+([^[\n\r]+)/g
+    // 2. 인라인 각주 정의 찾기 (문장 중간의 [*1] 각주내용 또는 [*] 각주내용)
+    const inlineFootnoteRegex = /\[\*(\d*)\]\s+([^[\n\r]+)/g
     let match
+    let autoInlineCounter = 0
     while ((match = inlineFootnoteRegex.exec(text)) !== null) {
-      const key = match[1]
+      const rawKey = match[1]
+      const key = rawKey || `auto_inline_${autoInlineCounter++}` // auto 키에 고유성 부여
       const content = match[2].trim()
       
       // 의미있는 내용이 있는 경우만 각주로 인식
-      if (content && content.length > 3 && !content.match(/^\[\*/)) {
+      if (content && content.length > 0 && !content.match(/^\[\*/)) {
         footnoteMap[key] = content
+        console.log(`인라인 각주 추가: ${key} = ${content}`)
       }
     }
     
@@ -220,7 +599,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   // 인라인 각주 정의를 각주 참조로 변환하는 전처리 함수
   const preprocessInlineFootnotes = (text: string): string => {
     // [*1] 각주내용 → [*1] (각주내용은 extractFootnotes에서 추출됨)
-    return text.replace(/\[\*(\d+)\]\s+([^[\n\r]+)/g, '[*$1]')
+    // [*] 각주내용 → [*] (자동 번호 각주)
+    return text.replace(/\[\*(\d*)\]\s+([^[\n\r]+)/g, '[*$1]')
   }
 
   const parseContent = (originalText: string): React.ReactNode => {
@@ -230,67 +610,106 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   const elements: React.ReactNode[] = []
   let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
 
-    const renderPersonInfoboxElement = (params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key) => (
-      <React.Fragment key={key}>
-        <div className="person-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]">
-          <div className="bg-red-700 text-white text-center py-2 px-3">
-            <div className="text-sm flex items-center justify-center gap-2">
-              {params['상단로고'] && (
-                <img src={params['상단로고']} alt="로고" className="w-6 h-6 object-contain" 
-                     onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+    const renderPersonInfoboxElement = (params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key, colorAttribs?: string) => {
+      const templateColors = parseTemplateColorAttributes(colorAttribs)
+      const templateStyle: React.CSSProperties = {}
+      
+      if (templateColors.backgroundColor) {
+        templateStyle.backgroundColor = templateColors.backgroundColor
+      }
+      if (templateColors.textColor) {
+        templateStyle.color = templateColors.textColor
+      }
+      if (templateColors.borderColor) {
+        templateStyle.borderColor = templateColors.borderColor
+      }
+      
+      return (
+        <React.Fragment key={key}>
+          <div className="person-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]" style={templateStyle}>
+            <div className="bg-red-700 text-white text-center py-2 px-3">
+              <div className="text-sm flex items-center justify-center gap-2">
+                {params['상단로고'] && (
+                  <img src={params['상단로고']} alt="로고" className="w-6 h-6 object-contain" 
+                       onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                )}
+                {params['상단제목'] || ''}
+              </div>
+              {params['상단부제목'] && (
+                <>
+                  <hr className="border-white/30 my-1" />
+                  <div className="text-sm">{params['상단부제목']}</div>
+                </>
               )}
-              {params['상단제목'] || ''}
+              {params['상단설명'] && <div className="text-xs opacity-80 mt-1">{params['상단설명']}</div>}
+              <div className="text-base font-bold mt-2">{params['이름'] || params['본명'] || ''}</div>
+              {params['영문명'] && <div className="text-sm opacity-90 mt-1">{params['영문명']}</div>}
+              {params['한문명'] && <div className="text-sm opacity-90 mt-1">{params['한문명']}</div>}
             </div>
-            {params['상단부제목'] && (
-              <>
-                <hr className="border-white/30 my-1" />
-                <div className="text-sm">{params['상단부제목']}</div>
-              </>
+            {params['이미지'] && (
+              <div className="text-center bg-gray-800 p-3">
+                <img src={params['이미지']} alt={params['이름'] || '인물 사진'} className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded"
+                     onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+                {params['이미지설명'] && (
+                  <div className="text-xs text-gray-400 mt-2">{parseInlineElements(params['이미지설명'])}</div>
+                )}
+              </div>
             )}
-            {params['상단설명'] && <div className="text-xs opacity-80 mt-1">{params['상단설명']}</div>}
-            <div className="text-base font-bold mt-2">{params['이름'] || params['본명'] || ''}</div>
-            {params['영문명'] && <div className="text-sm opacity-90 mt-1">{params['영문명']}</div>}
-            {params['한문명'] && <div className="text-sm opacity-90 mt-1">{params['한문명']}</div>}
-          </div>
-          {(() => { const imgSrc = params['이미지'] || PLACEHOLDER_IMAGE; return (
-            <div className="text-center bg-gray-800 p-3">
-              <img src={imgSrc} alt={params['이름'] || '인물 사진'} className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded"
-                   onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
-              {params['이미지설명'] && (
-                <div className="text-xs text-gray-400 mt-2">{parseInlineElements(params['이미지설명'])}</div>
-              )}
+            <div className="border-t border-gray-700">
+              <table className="w-full text-sm">
+                <tbody>
+                  {(() => {
+                    // 헤더에서 사용하는 특수 필드들만 제외하고, 나머지는 작성 순서대로 표시
+                    const excludeFields = new Set([
+                      '상단로고', '상단제목', '상단부제목', '상단설명', 
+                      '이름', '본명', '영문명', '한문명', '이미지', '이미지설명'
+                    ])
+                    
+                    return orderedParams
+                      .filter(([key, value]) => !excludeFields.has(key) && value && value.trim())
+                      .map(([key, value], index) => {
+                        // Parse color attributes from template values
+                        const colorAttributes = parseTableColorAttributes(value)
+                        const cellStyles = getTableCellStyles(colorAttributes)
+                        
+                        return (
+                          <tr key={index} className="border-b border-gray-700">
+                            <td className="bg-red-700 text-white px-3 py-2 font-semibold w-24 align-top">
+                              {key}
+                            </td>
+                            <td 
+                              className="px-3 py-2 text-gray-200 whitespace-pre-line"
+                              style={cellStyles}
+                            >
+                              {/* 서명 필드는 인라인 이미지만 허용 */}
+                              {key === '서명' ? 
+                                <span style={{ display: 'inline-block', maxWidth: '100%' }}>
+                                  {colorAttributes.content.includes('[[파일:') || colorAttributes.content.includes('[이미지:') ? (
+                                    <div dangerouslySetInnerHTML={{
+                                      __html: colorAttributes.content
+                                        .replace(/\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; vertical-align: middle;" />')
+                                        .replace(/\[이미지:([^\]]+)\]/g, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; vertical-align: middle;" />')
+                                    }}
+                                  />
+                                  ) : (
+                                    parseInlineElements(colorAttributes.content)
+                                  )}
+                                </span> :
+                                parseInlineElements(colorAttributes.content)
+                              }
+                            </td>
+                          </tr>
+                        )
+                      })
+                  })()}
+                </tbody>
+              </table>
             </div>
-          ); })()}
-          <div className="border-t border-gray-700">
-            <table className="w-full text-sm">
-              <tbody>
-                {(() => {
-                  // 헤더에서 사용하는 특수 필드들만 제외하고, 나머지는 작성 순서대로 표시
-                  const excludeFields = new Set([
-                    '상단로고', '상단제목', '상단부제목', '상단설명', 
-                    '이름', '본명', '영문명', '한문명', '이미지', '이미지설명'
-                  ])
-                  
-                  return orderedParams
-                    .filter(([key, value]) => !excludeFields.has(key) && value && value.trim())
-                    .map(([key, value], index) => (
-                      <tr key={index} className="border-b border-gray-700">
-                        <td className="bg-red-700 text-white px-3 py-2 font-semibold w-24 align-top">
-                          {key}
-                        </td>
-                        <td className="px-3 py-2 text-gray-200 whitespace-pre-line">
-                          {parseInlineElements(value)}
-                        </td>
-                      </tr>
-                    ))
-                })()}
-              </tbody>
-            </table>
           </div>
-        </div>
-        <div style={{ clear: 'both' }} />
-      </React.Fragment>
-    )
+          <div style={{ clear: 'both' }} />
+        </React.Fragment>
+      )
+    }
     const imageRegex = /^\[이미지:([^\]]+)\]$/
     const fileRegex = /^\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]$/
     const infoboxRegex = /^\[\[인포박스:(.+)\]\]$/
@@ -300,14 +719,19 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       const trimmed = line.trim()
-      // 인물정보상자 블록 처리: {{인물정보상자 \n |키=값 ... \n }}
-      if (/^\{\{\s*인물정보상자\s*$/i.test(trimmed) || /^\{\{\s*인물정보상자\b/i.test(trimmed)) {
+      // 인물정보상자 블록 처리: {{인물정보상자<bgcolor:#E8F4FD> \n |키=값 ... \n }}
+      if (/^\{\{\s*인물정보상자(<[^>]+>)?\s*$/i.test(trimmed) || /^\{\{\s*인물정보상자(<[^>]+>)?\b/i.test(trimmed)) {
         let j = i + 1
         const buf: string[] = []
+        
+        // 색상 속성 추출
+        const colorMatch = trimmed.match(/\{\{\s*인물정보상자(<[^>]+>)/i)
+        const colorAttribs = colorMatch ? colorMatch[1] : undefined
+        
         // 만약 시작 라인에 내용이 같이 온 경우 처리 ({{인물정보상자|키=값 ...}})
-        const after = line.replace(/^.*인물정보상자/i, '')
+        const after = line.replace(/^.*인물정보상자(<[^>]+>)?/i, '')
         if (after.includes('}}')) {
-          const innerInline = after.replace(/^.*?\{\{\s*인물정보상자\s*/i, '').replace(/}}.*$/, '')
+          const innerInline = after.replace(/^.*?\{\{\s*인물정보상자(<[^>]+>)?\s*/i, '').replace(/}}.*$/, '')
           buf.push(innerInline)
         } else {
           while (j < lines.length) {
@@ -321,18 +745,23 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const paramsText = buf.join('\n')
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
-        elements.push(renderPersonInfoboxElement(params, orderedParams, i))
+        elements.push(renderPersonInfoboxElement(params, orderedParams, i, colorAttribs))
         continue
       }
 
-      // 그룹정보상자 블록 처리: {{그룹정보상자 \n |키=값 ... \n }}
-      if (/^\{\{\s*그룹정보상자\s*$/i.test(trimmed) || /^\{\{\s*그룹정보상자\b/i.test(trimmed)) {
+      // 그룹정보상자 블록 처리: {{그룹정보상자<bgcolor:#E8F4FD> \n |키=값 ... \n }}
+      if (/^\{\{\s*그룹정보상자(<[^>]+>)?\s*$/i.test(trimmed) || /^\{\{\s*그룹정보상자(<[^>]+>)?\b/i.test(trimmed)) {
         let j = i + 1
         const buf: string[] = []
+        
+        // 색상 속성 추출
+        const colorMatch = trimmed.match(/\{\{\s*그룹정보상자(<[^>]+>)/i)
+        const colorAttribs = colorMatch ? colorMatch[1] : undefined
+        
         // 만약 시작 라인에 내용이 같이 온 경우 처리 ({{그룹정보상자|키=값 ...}})
-        const after = line.replace(/^.*그룹정보상자/i, '')
+        const after = line.replace(/^.*그룹정보상자(<[^>]+>)?/i, '')
         if (after.includes('}}')) {
-          const innerInline = after.replace(/^.*?\{\{\s*그룹정보상자\s*/i, '').replace(/}}.*$/, '')
+          const innerInline = after.replace(/^.*?\{\{\s*그룹정보상자(<[^>]+>)?\s*/i, '').replace(/}}.*$/, '')
           buf.push(innerInline)
         } else {
           while (j < lines.length) {
@@ -346,7 +775,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const paramsText = buf.join('\n')
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
-        elements.push(renderGroupInfoboxElement(params, orderedParams, i))
+        elements.push(renderGroupInfoboxElement(params, orderedParams, i, colorAttribs))
         continue
       }
       
@@ -739,14 +1168,31 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                           const cellContent = cell.trim()
                           const CellTag = isHeaderRow ? 'th' : 'td'
                           
+                          // Parse color attributes from cell content
+                          const colorAttributes = parseTableColorAttributes(cellContent)
+                          
+                          // 색상은 헤더 행에만 적용, 일반 행은 기본 그레이 유지
+                          let cellStyles = {}
+                          if (isHeaderRow) {
+                            cellStyles = getTableCellStyles(colorAttributes)
+                            // 헤더에 색상이 지정되지 않은 경우 기본 헤더 색상 사용
+                            if (!colorAttributes.backgroundColor) {
+                              cellStyles = { ...cellStyles, backgroundColor: '#374151' }
+                            }
+                          } else {
+                            // 일반 행은 항상 기본 그레이 배경 유지
+                            cellStyles = { backgroundColor: '#1f2937' }
+                          }
+                          
                           return (
                             <CellTag
                               key={cellIndex}
                               className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
-                                isHeaderRow ? 'bg-gray-700 font-semibold' : 'bg-gray-800'
+                                isHeaderRow ? 'font-semibold' : ''
                               }`}
+                              style={cellStyles}
                             >
-                              {parseInlineElements(cellContent)}
+                              {parseInlineElements(colorAttributes.content)}
                             </CellTag>
                           )
                         })}
@@ -942,29 +1388,55 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       <div className="prose prose-lg max-w-none prose-invert">
         {renderedContent}
       </div>
-      {Object.keys(footnotes).length > 0 && (
+      {(Object.keys(footnotes).length > 0 || footnoteCounterRef.current > 0) && (
         <div className="mt-12 pt-6 border-t border-gray-600">
           <h3 className="font-bold text-lg mb-4 text-gray-200">각주</h3>
           <div className="space-y-2">
-            {Object.entries(footnotes).map(([num, text]) => (
-              <div key={num} id={`footnote-${num}`} className="text-sm text-gray-400 scroll-mt-20">
-                <sup className="text-blue-400 mr-2">
-                  <button
-                    className="hover:text-blue-300 cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      // 각주를 참조하는 곳으로 다시 돌아가기
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
-                    }}
-                    title="본문으로 돌아가기"
-                  >
-                    [{num}]
-                  </button>
-                </sup>
-                <span className="text-gray-300">{parseInlineElements(text)}</span>
-              </div>
-            ))}
+            {Array.from({ length: footnoteCounterRef.current }, (_, index) => {
+              const footnoteNumber = index + 1
+              
+              // 해당 번호에 매핑된 키 찾기
+              const footnoteKey = Object.keys(footnoteMappingRef.current).find(key => footnoteMappingRef.current[key] === footnoteNumber)
+              
+              // 각주 내용 찾기 - 우선순위: 매핑된 키 > 숫자 키 > auto 키들
+              let footnoteText = `각주 ${footnoteNumber}`
+              
+              if (footnoteKey && footnotes[footnoteKey]) {
+                footnoteText = footnotes[footnoteKey]
+                console.log(`각주 ${footnoteNumber}: 매핑된 키 ${footnoteKey} 사용 = ${footnoteText}`)
+              } else if (footnotes[footnoteNumber.toString()]) {
+                footnoteText = footnotes[footnoteNumber.toString()]
+                console.log(`각주 ${footnoteNumber}: 숫자 키 사용 = ${footnoteText}`)
+              } else {
+                // auto 키들 중에서 순서대로 찾기
+                const autoKeys = Object.keys(footnotes).filter(key => key.startsWith('auto'))
+                if (autoKeys.length > 0 && index < autoKeys.length) {
+                  const autoKey = autoKeys[index]
+                  footnoteText = footnotes[autoKey]
+                  console.log(`각주 ${footnoteNumber}: auto 키 ${autoKey} 사용 = ${footnoteText}`)
+                }
+              }
+              
+              return (
+                <div key={footnoteNumber} id={`footnote-${footnoteNumber}`} className="text-sm text-gray-400 scroll-mt-20 p-2 rounded hover:bg-gray-800 transition-colors">
+                  <sup className="text-blue-400 mr-2">
+                    <button
+                      className="hover:text-blue-300 cursor-pointer underline"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        // 각주를 참조하는 곳으로 다시 돌아가기
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      title="본문으로 돌아가기"
+                    >
+                      [{footnoteNumber}]
+                    </button>
+                  </sup>
+                  <span className="text-gray-300">{parseInlineElements(footnoteText)}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

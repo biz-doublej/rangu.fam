@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
+import { randomUUID } from 'crypto'
 import path from 'path'
 import dbConnect from '@/lib/mongodb'
 import Track from '@/models/Track'
+import Image from '@/models/Image'
 import { validateAudioFile } from '@/services/musicService'
 import { parseBuffer } from 'music-metadata'
 
@@ -62,22 +64,37 @@ export async function POST(request: NextRequest) {
     let coverImagePath = '/images/default-music-cover.jpg' // 기본 커버
     if (coverImage && coverImage.size > 0) {
       try {
-        // 이미지 저장 경로 설정
-        const coverUploadsDir = path.join(process.cwd(), 'public', 'uploads', 'covers')
-        await mkdir(coverUploadsDir, { recursive: true })
-
-        // 고유한 커버 이미지 파일명 생성
-        const coverExtension = path.extname(coverImage.name)
-        const coverFileName = `cover_${timestamp}_${coverImage.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-        const coverFilePath = path.join(coverUploadsDir, coverFileName)
-
-        // 커버 이미지 저장
-        const coverBytes = await coverImage.arrayBuffer()
-        const coverBuffer = Buffer.from(coverBytes)
-        await writeFile(coverFilePath, coverBuffer)
-
-        coverImagePath = `/uploads/covers/${coverFileName}`
-        console.log(`커버 이미지 저장 완료: ${coverImagePath}`)
+        // 이미지 MIME 타입 검증
+        const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+        if (!allowedImageTypes.includes(coverImage.type)) {
+          console.warn('허용되지 않는 이미지 형식, 기본 커버 사용')
+        } else if (coverImage.size > 5 * 1024 * 1024) {
+          console.warn('이미지 파일이 너무 큽니다, 기본 커버 사용')
+        } else {
+          // 커버 이미지를 데이터베이스에 저장
+          const coverBuffer = Buffer.from(await coverImage.arrayBuffer())
+          const base64Data = coverBuffer.toString('base64')
+          
+          const fileExtension = coverImage.name.split('.').pop()?.toLowerCase() || 'jpg'
+          const uniqueFilename = `music_cover_${randomUUID()}.${fileExtension}`
+          
+          const imageDoc = new Image({
+            filename: uniqueFilename,
+            originalName: coverImage.name,
+            mimeType: coverImage.type,
+            size: coverImage.size,
+            data: base64Data,
+            uploadedBy: uploadedBy,
+            uploadedById: uploadedById,
+            category: 'music',
+            description: `Cover image for ${title} by ${artist}`,
+            isPublic: true
+          })
+          
+          await imageDoc.save()
+          coverImagePath = `/api/images/serve/${uniqueFilename}`
+          console.log(`커버 이미지 데이터베이스 저장 완료: ${coverImagePath}`)
+        }
       } catch (error) {
         console.warn('커버 이미지 저장 실패, 기본 커버 사용:', error)
       }

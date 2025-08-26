@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import { WikiSubmission, WikiPage, WikiUser } from '@/models/Wiki'
 import { isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
+import { DiscordWebhookService } from '@/services/discordWebhookService'
 import jwt from 'jsonwebtoken'
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,20 @@ export async function POST(request: NextRequest) {
     sub.reviewerId = user._id
     sub.reviewedAt = new Date()
     await sub.save()
+    
+    // 디스코드 웹훅 전송
+    try {
+      await DiscordWebhookService.sendDocumentApprove(
+        user.username,
+        sub.author,
+        sub.targetTitle,
+        'rejected',
+        reason
+      )
+    } catch (error) {
+      console.error('디스코드 웹훅 전송 오류:', error)
+    }
+    
     return NextResponse.json({ success: true, message: '반려 처리되었습니다.' })
   }
 
@@ -58,6 +73,20 @@ export async function POST(request: NextRequest) {
     sub.reviewerId = user._id
     sub.reviewedAt = new Date()
     await sub.save()
+    
+    // 디스코드 웹훅 전송
+    try {
+      await DiscordWebhookService.sendDocumentApprove(
+        user.username,
+        sub.author,
+        sub.targetTitle,
+        'hold',
+        reason
+      )
+    } catch (error) {
+      console.error('디스코드 웹훅 전송 오류:', error)
+    }
+    
     return NextResponse.json({ success: true, message: '보류 처리되었습니다.' })
   }
 
@@ -128,6 +157,19 @@ export async function POST(request: NextRequest) {
     sub.reviewerId = user._id
     sub.reviewedAt = new Date()
     await sub.save()
+    
+    // 디스코드 웹훅 전송
+    try {
+      await DiscordWebhookService.sendDocumentApprove(
+        user.username,
+        sub.author,
+        sub.targetTitle,
+        'approved'
+      )
+    } catch (error) {
+      console.error('디스코드 웹훅 전송 오류:', error)
+    }
+    
     return NextResponse.json({ success: true, message: '승인 처리되었습니다.' })
   }
 

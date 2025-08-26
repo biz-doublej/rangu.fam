@@ -17,7 +17,7 @@ import WikiEditor from '@/components/ui/WikiEditor'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { formatDate } from '@/lib/utils'
 
-type WikiTabType = 'document' | 'edit' | 'history' | 'discussion'
+type WikiTabType = 'document' | 'edit' | 'history'
 
 interface WikiPageData {
   id: string
@@ -652,128 +652,6 @@ export default function WikiDocumentPage() {
           </motion.div>
         )
 
-      case 'discussion':
-        return (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-200">토론</h3>
-                    <p className="text-sm text-gray-400">문서에 대한 의견을 나누는 공간입니다.</p>
-                  </div>
-                  <Button className="bg-gray-700 hover:bg-gray-600 text-gray-200" onClick={loadDiscussions}>새로고침</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* 새 토론 생성 */}
-                {isLoggedIn && (
-                  <div className="mb-4 p-3 bg-gray-900 rounded">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <input
-                        className="bg-gray-700 text-gray-200 border border-gray-600 rounded px-2 py-2 md:col-span-1"
-                        placeholder="주제"
-                        value={newDiscussion.topic}
-                        onChange={(e) => setNewDiscussion(v => ({ ...v, topic: e.target.value }))}
-                      />
-                      <input
-                        className="bg-gray-700 text-gray-200 border border-gray-600 rounded px-2 py-2 md:col-span-2"
-                        placeholder="내용"
-                        value={newDiscussion.content}
-                        onChange={(e) => setNewDiscussion(v => ({ ...v, content: e.target.value }))}
-                      />
-                    </div>
-                    <div className="mt-2">
-                      <Button
-                        onClick={async () => {
-                          const res = await fetch('/api/wiki/discussions', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ title: slug, topic: newDiscussion.topic, content: newDiscussion.content })
-                          })
-                          const data = await res.json()
-                          if (data.success) {
-                            setNewDiscussion({ topic: '', content: '' })
-                            loadDiscussions()
-                          } else {
-                            alert(data.error || '토론 생성 실패')
-                          }
-                        }}
-                        className="bg-gray-700 hover:bg-gray-600 text-gray-200"
-                      >
-                        토론 생성
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 토론 목록 */}
-                <div className="space-y-3">
-                  {discussions.map((d: any) => (
-                    <div key={d._id} className="bg-gray-900 rounded p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-gray-200 font-medium">{d.title}</div>
-                        <div className="text-xs text-gray-500">{d.status}</div>
-                      </div>
-                      <div className="text-sm text-gray-400 mt-1">{d.content}</div>
-                      <div className="text-xs text-gray-500 mt-2">작성자 {d.author} · {new Date(d.createdAt || d.timestamp || Date.now()).toLocaleString()}</div>
-
-                      {/* 답글 */}
-                      <div className="mt-3 space-y-2">
-                        {(d.replies || []).map((r: any, idx: number) => (
-                          <div key={idx} className="text-sm text-gray-300 bg-gray-800 rounded px-2 py-1">
-                            <span className="text-xs text-gray-400 mr-2">{r.author}</span>
-                            {r.content}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* 답글 입력 */}
-                      {isLoggedIn && !d.isLocked && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <input id={`reply-${d._id}`} className="flex-1 bg-gray-700 text-gray-200 border border-gray-600 rounded px-2 py-1" placeholder="답글을 입력하세요" />
-                          <Button
-                            variant="ghost"
-                            className="text-blue-400 hover:text-blue-300"
-                            onClick={async () => {
-                              const el = document.getElementById(`reply-${d._id}`) as HTMLInputElement
-                              const val = el?.value || ''
-                              if (!val) return
-                              const res = await fetch('/api/wiki/discussions', {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'include',
-                                body: JSON.stringify({ title: slug, action: 'reply', discussionId: d._id, payload: { content: val } })
-                              })
-                              const data = await res.json()
-                              if (data.success) {
-                                el.value = ''
-                                loadDiscussions()
-                              } else {
-                                alert(data.error || '답글 실패')
-                              }
-                            }}
-                          >
-                            등록
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {discussions.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">토론이 없습니다.</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )
-
       default:
         return null
     }
@@ -929,8 +807,7 @@ export default function WikiDocumentPage() {
                 {[
                   { id: 'document', label: '문서', icon: Eye },
                   { id: 'edit', label: '편집', icon: Edit },
-                  { id: 'history', label: '역사', icon: History },
-                  { id: 'discussion', label: '토론', icon: MessageSquare }
+                  { id: 'history', label: '역사', icon: History }
                 ].map((tab) => (
                   <button
                     key={tab.id}

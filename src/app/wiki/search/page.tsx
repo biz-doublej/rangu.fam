@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Search } from 'lucide-react'
 
-export default function WikiSearchPage() {
+function WikiSearchPageContent() {
   const params = useSearchParams()
   const router = useRouter()
   const [q, setQ] = useState(params.get('q') || '')
@@ -63,7 +63,7 @@ export default function WikiSearchPage() {
           </Button>
         </div>
 
-          <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <div className="flex items-center justify-between">
               <span>{isLoading ? '검색 중...' : `검색 결과 (${total})`}</span>
@@ -102,32 +102,40 @@ export default function WikiSearchPage() {
                         {r.title}
                       </button>
                       <span className="text-xs text-gray-500">{r.namespace}</span>
-                    </div>
-                    {r.summary && (
-                      <div className="text-gray-400 text-xs mt-1">{r.summary}</div>
-                    )}
-                    {r.categories?.length > 0 && (
-                      <div className="text-xs text-gray-500 mt-1">분류: {r.categories.join(', ')}</div>
-                    )}
                   </div>
-                ))}
-                {/* 정확히 "q" 제목이 없을 때 바로 만들기 CTA 노출 */}
-                {showCreate && (
-                  <div className="bg-gray-900 rounded px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-gray-300">정확히 "{q}" 제목의 문서가 없습니다.</div>
-                      <Button onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)} className="bg-gray-700 hover:bg-gray-600 text-gray-200 h-8 px-3">
-                        "{q}" 새 문서 만들기
-                      </Button>
-                    </div>
+                  {r.summary && (
+                    <div className="text-gray-400 text-xs mt-1">{r.summary}</div>
+                  )}
+                  {r.categories?.length > 0 && (
+                    <div className="text-xs text-gray-500 mt-1">분류: {r.categories.join(', ')}</div>
+                  )}
+                </div>
+              ))}
+              {/* 정확히 "q" 제목이 없을 때 바로 만들기 CTA 노출 */}
+              {showCreate && (
+                <div className="bg-gray-900 rounded px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-300">정확히 "{q}" 제목의 문서가 없습니다.</div>
+                    <Button onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)} className="bg-gray-700 hover:bg-gray-600 text-gray-200 h-8 px-3">
+                      "{q}" 새 문서 만들기
+                    </Button>
                   </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
+  </div>
+  )
+}
+
+export default function WikiSearchPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">Loading...</div>}>
+      <WikiSearchPageContent />
+    </Suspense>
   )
 }
 

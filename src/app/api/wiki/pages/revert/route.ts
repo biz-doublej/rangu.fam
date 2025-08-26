@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import { WikiPage, WikiUser } from '@/models/Wiki'
 import jwt from 'jsonwebtoken'
 import { canEditPage } from '@/app/api/wiki/_utils/policy'
+import { DiscordWebhookService } from '@/services/discordWebhookService'
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
@@ -72,6 +73,19 @@ export async function POST(request: NextRequest) {
     page.revisions.push(newRevision as any)
 
     await page.save()
+
+    // Send Discord webhook notification for document revert
+    try {
+      await DiscordWebhookService.sendDocumentEdit(
+        user.username,
+        page.title,
+        `문서를 버전 ${revisionNumber}로 되돌림: ${summary}`,
+        `문서가 이전 버전(#${revisionNumber})으로 되돌려졌습니다.`
+      )
+    } catch (webhookError) {
+      console.error('Discord webhook 전송 실패:', webhookError)
+      // Webhook 실패는 되돌리기를 방해하지 않음
+    }
 
     return NextResponse.json({ success: true, message: '되돌리기 완료', revisionNumber: newRevisionNumber })
   } catch (e) {

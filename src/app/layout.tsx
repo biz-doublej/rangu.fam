@@ -4,7 +4,10 @@ import './globals.css'
 import React from 'react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { WikiAuthProvider } from '@/contexts/WikiAuthContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
 import { Toaster } from 'react-hot-toast'
+import { Footer } from '@/components/ui'
+import { DemoNotificationTrigger } from '@/components/DemoNotificationTrigger'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -27,25 +30,29 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className={`${inter.className} bg-gradient-to-br from-primary-50 to-warm-50 min-h-screen`} suppressHydrationWarning>
+      <body className={`${inter.className} bg-gray-900 min-h-screen`} suppressHydrationWarning>
         <AuthProvider>
           <WikiAuthProvider>
-            <div className="relative">
-              {children}
-              <Toaster 
-                position="top-center"
-                toastOptions={{
-                  duration: 3000,
-                  style: {
-                    background: 'rgba(255, 255, 255, 0.9)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-                  },
-                }}
-              />
-            </div>
+            <NotificationProvider>
+              <div className="relative">
+                <DemoNotificationTrigger />
+                {children}
+                <Footer />
+                <Toaster 
+                  position="top-center"
+                  toastOptions={{
+                    duration: 3000,
+                    style: {
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      borderRadius: '12px',
+                      boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+                    },
+                  }}
+                />
+              </div>
+            </NotificationProvider>
           </WikiAuthProvider>
         </AuthProvider>
       </body>

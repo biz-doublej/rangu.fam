@@ -18,8 +18,8 @@ const BookmarkSchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true,
-    enum: ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan', 'heeyeol'],
-    index: true
+    enum: ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan', 'heeyeol']
+    // index는 복합 인덱스에서 처리됨
   },
   title: {
     type: String,

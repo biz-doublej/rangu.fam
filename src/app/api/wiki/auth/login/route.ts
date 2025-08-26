@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import dbConnect from '@/lib/mongodb'
 import { WikiUser } from '@/models/Wiki'
+import { getIpAddress, formatIpForDisplay } from '@/lib/getIpAddress'
+import { DiscordWebhookService } from '@/services/discordWebhookService'
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
@@ -95,10 +97,28 @@ export async function POST(request: NextRequest) {
       { expiresIn: '7d' }
     )
     
+    // 사용자 IP 주소 가져오기
+    const ipAddress = getIpAddress(request)
+    const formattedIp = formatIpForDisplay(ipAddress)
+    
     // 마지막 로그인 시간 업데이트
     wikiUser.lastLogin = new Date()
     wikiUser.lastActivity = new Date()
+    wikiUser.lastLoginIp = ipAddress
     await wikiUser.save()
+    
+    // Send Discord webhook notification for user login
+    try {
+      const userAgent = request.headers.get('user-agent')
+      await DiscordWebhookService.sendUserLogin(
+        wikiUser.username,
+        ipAddress,
+        userAgent || undefined
+      )
+    } catch (webhookError) {
+      console.error('Discord webhook 전송 실패:', webhookError)
+      // Webhook 실패는 로그인을 방해하지 않음
+    }
     
     // 사용자 정보 (비밀번호 제외)
     const userInfo = {
@@ -123,7 +143,16 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: '로그인 성공',
-      user: userInfo
+      user: userInfo,
+      loginNotification: {
+        type: 'login',
+        title: '로그인 성공',
+        message: `${wikiUser.displayName || wikiUser.username}님, 안전하게 로그인되었습니다.`,
+        data: {
+          ipAddress: formattedIp,
+          timestamp: new Date().toISOString()
+        }
+      }
     })
     
     response.cookies.set('wiki-token', token, {

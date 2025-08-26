@@ -52,8 +52,8 @@ const UserCardStatsSchema = new mongoose.Schema<IUserCardStats>({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
-    unique: true,
-    index: true
+    unique: true
+    // index는 unique: true로 자동 생성됨
   },
   lastDropDate: {
     type: Date,
@@ -170,8 +170,8 @@ const UserCardStatsSchema = new mongoose.Schema<IUserCardStats>({
   timestamps: true
 })
 
-// 인덱스 설정
-UserCardStatsSchema.index({ userId: 1 })
+// 인덱스 설정 (userId는 unique: true로 자동 생성됨)
+// UserCardStatsSchema.index({ userId: 1 }) - unique: true로 자동 생성됨
 UserCardStatsSchema.index({ totalCardsOwned: -1 })
 UserCardStatsSchema.index({ uniqueCardsOwned: -1 })
 

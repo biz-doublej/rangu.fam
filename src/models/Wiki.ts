@@ -43,9 +43,26 @@ const WikiUserSchema = new mongoose.Schema({
   
   // 상태
   isActive: { type: Boolean, default: true },
-  isBanned: { type: Boolean, default: false },
-  banReason: { type: String },
-  banExpiry: { type: Date },
+  
+  // 차단 정보
+  banStatus: {
+    isBanned: { type: Boolean, default: false },
+    reason: { type: String },
+    bannedBy: { type: String },
+    bannedAt: { type: Date },
+    bannedUntil: { type: Date },
+    unbannedBy: { type: String },
+    unbannedAt: { type: Date }
+  },
+  
+  // 경고 기록
+  warnings: [{
+    reason: { type: String, required: true },
+    warnedBy: { type: String, required: true },
+    warnedAt: { type: Date, default: Date.now }
+  }],
+  
+  // 활동 로그
   lastLogin: { type: Date },
   lastActivity: { type: Date },
   
@@ -227,6 +244,16 @@ const WikiPageSchema = new mongoose.Schema({
       defaultValue: { type: String }
     }],
     usage: { type: String }
+  },
+  
+  // 편집 잠금 (동시 편집 방지)
+  editLock: {
+    isLocked: { type: Boolean, default: false },
+    lockedBy: { type: String }, // 편집 중인 사용자명
+    lockedById: { type: mongoose.Schema.Types.ObjectId, ref: 'WikiUser' },
+    lockStartTime: { type: Date },
+    lockExpiry: { type: Date }, // 자동 해제 시간 (10분 후)
+    lockReason: { type: String, default: 'editing' }
   }
 }, { timestamps: true })
 
@@ -328,19 +355,20 @@ const WikiSubmissionSchema = new mongoose.Schema({
   reviewedAt: { type: Date }
 }, { timestamps: true })
 
-// 인덱스 설정
-WikiUserSchema.index({ username: 1 })
-WikiUserSchema.index({ email: 1 })
+// 인덱스 설정 (unique 필드는 자동으로 인덱스 생성됨)
+// WikiUserSchema.index({ username: 1 }) - unique: true로 자동 생성됨
+// WikiUserSchema.index({ email: 1 }) - unique: true로 자동 생성됨
 WikiUserSchema.index({ role: 1 })
 WikiUserSchema.index({ isActive: 1 })
 
-WikiPageSchema.index({ slug: 1 })
+// WikiPageSchema.index({ slug: 1 }) - unique: true로 자동 생성됨
 WikiPageSchema.index({ title: 'text', content: 'text' })
 WikiPageSchema.index({ namespace: 1 })
 WikiPageSchema.index({ categories: 1 })
 WikiPageSchema.index({ views: -1 })
 WikiPageSchema.index({ lastEditDate: -1 })
 WikiPageSchema.index({ 'protection.level': 1 })
+WikiPageSchema.index({ 'editLock.isLocked': 1, 'editLock.lockExpiry': 1 })
 
 WikiRevisionSchema.index({ pageId: 1, revisionNumber: -1 })
 WikiRevisionSchema.index({ author: 1 })
@@ -444,6 +472,14 @@ export interface IWikiPage extends mongoose.Document {
       defaultValue?: string
     }>
     usage?: string
+  }
+  editLock: {
+    isLocked: boolean
+    lockedBy?: string
+    lockedById?: mongoose.Types.ObjectId
+    lockStartTime?: Date
+    lockExpiry?: Date
+    lockReason?: string
   }
   createdAt: Date
   updatedAt: Date

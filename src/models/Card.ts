@@ -56,8 +56,8 @@ const CardSchema = new mongoose.Schema<ICard>({
   cardId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
+    // index는 unique: true로 자동 생성됨
   },
   name: {
     type: String,

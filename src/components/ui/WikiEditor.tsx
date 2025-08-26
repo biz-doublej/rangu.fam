@@ -10,12 +10,18 @@ import {
   Plus, Minus, Hash, Type, Link2, FileText, 
   User, Users, Bookmark, Layout, AlignLeft, AlignCenter, AlignRight,
   Table, TableProperties, Columns, Menu, ChevronDown, ChevronRight,
-  Superscript, Subscript, CheckCircle
+  Superscript, Subscript, CheckCircle, X, PaintBucket, AlertCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import NamuWikiRenderer from './NamuWikiRenderer'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
+import { 
+  COLOR_PICKER_PALETTE, 
+  generateTableColorSyntax, 
+  normalizeColor, 
+  isValidHexColor 
+} from '@/lib/tableColors'
 
 interface WikiEditorProps {
   content: string
@@ -75,6 +81,18 @@ export default function WikiEditor({
   const [isSpellChecking, setIsSpellChecking] = useState(false)
   const [showSpellCheckResults, setShowSpellCheckResults] = useState(false)
   const lineNumbersRef = useRef<HTMLDivElement>(null)
+  const [showTableColorPicker, setShowTableColorPicker] = useState(false)
+  const [selectedTableColors, setSelectedTableColors] = useState<{
+    backgroundColor?: string
+    textColor?: string
+    borderColor?: string
+  }>({})
+  const [customColor, setCustomColor] = useState('')
+
+  // 편집 잠금 상태
+  const [isLocked, setIsLocked] = useState(false)
+  const [lockedBy, setLockedBy] = useState<string | null>(null)
+  const [lockCheckInterval, setLockCheckInterval] = useState<NodeJS.Timeout | null>(null)
 
   const handleTextSelection = () => {
     if (textareaRef.current) {
@@ -120,29 +138,42 @@ export default function WikiEditor({
     }, 0)
   }
 
-  // 이미지 삽입 제한 로직: 인포박스/카드그리드/인물정보상자 블록 내부에만 이미지 문법을 삽입
+  // Enhanced image insertion logic: Allow images anywhere with smart positioning
   const canInsertImageHere = (): boolean => {
+    // Allow image insertion anywhere - no restrictions
+    return true
+  }
+
+  // Enhanced cursor-based image insertion
+  const getImageInsertionInfo = (): { canInsert: boolean; insertionType: 'table' | 'template' | 'inline' | 'block'; position: number } => {
     const start = textareaRef.current?.selectionStart ?? 0
     const textUpToCursor = content.substring(0, start)
+    const textFromCursor = content.substring(start)
+    const currentLine = textUpToCursor.split('\n').pop() || ''
     
-    // 인포박스와 카드그리드 체크
-    const lastBlockStart = Math.max(
-      textUpToCursor.lastIndexOf('[[인포박스:'),
-      textUpToCursor.lastIndexOf('[[카드그리드:')
-    )
-    const lastBlockEnd = textUpToCursor.lastIndexOf(']]')
-    const inSimpleBlock = lastBlockStart >= 0 && lastBlockEnd < lastBlockStart
+    // Check if cursor is in a table row
+    if (currentLine.trim().startsWith('||') && currentLine.includes('||')) {
+      return { canInsert: true, insertionType: 'table', position: start }
+    }
     
-    // 인물정보상자 또는 그룹정보상자 체크
-    const lastPersonInfoboxStart = Math.max(
+    // Check if cursor is in a template (infobox, personinfobox, groupinfobox)
+    const inInfobox = textUpToCursor.lastIndexOf('[[인포박스:') > textUpToCursor.lastIndexOf(']]')
+    const inPersonInfobox = Math.max(
       textUpToCursor.lastIndexOf('{{인물정보상자'),
       textUpToCursor.lastIndexOf('{{그룹정보상자')
-    )
-    const lastPersonInfoboxEnd = textUpToCursor.lastIndexOf('}}')
-    const inPersonInfobox = lastPersonInfoboxStart >= 0 && lastPersonInfoboxEnd < lastPersonInfoboxStart
+    ) > textUpToCursor.lastIndexOf('}}')
     
-    // 어느 블록 안에든 있으면 true
-    return inSimpleBlock || inPersonInfobox
+    if (inInfobox || inPersonInfobox) {
+      return { canInsert: true, insertionType: 'template', position: start }
+    }
+    
+    // Check if at start of line (good for block image)
+    if (currentLine.trim() === '' || start === 0 || textUpToCursor.endsWith('\n')) {
+      return { canInsert: true, insertionType: 'block', position: start }
+    }
+    
+    // Default to inline insertion
+    return { canInsert: true, insertionType: 'inline', position: start }
   }
 
   const insertAtLineStart = (prefix: string) => {
@@ -184,11 +215,16 @@ export default function WikiEditor({
       { icon: Link2, label: '내부 링크', action: () => insertText('[[', ']]') },
       { icon: Link, label: '외부 링크', action: () => insertText('[', '](https://)') },
       { icon: Image, label: '이미지', action: () => {
-        if (!canInsertImageHere()) {
-          alert('이미지는 인포박스/카드그리드/인물정보상자 영역에서만 삽입할 수 있습니다.')
-          return
+        const info = getImageInsertionInfo()
+        if (info.insertionType === 'table') {
+          insertText('[이미지:', ']')
+        } else if (info.insertionType === 'template') {
+          insertText('[이미지:', ']')
+        } else if (info.insertionType === 'block') {
+          insertText('[이미지:', ']\n', false)
+        } else {
+          insertText('[이미지:', ']')
         }
-        insertText('[이미지:', ']')
       } },
     ],
     [
@@ -248,7 +284,7 @@ export default function WikiEditor({
     }
   }
 
-  // 업로드 + 삽입
+  // Enhanced upload and insert with smart positioning
   const uploadImageAndInsert = async (file: File) => {
     try {
       const form = new FormData()
@@ -264,13 +300,39 @@ export default function WikiEditor({
         return
       }
       const url = data.url as string
-      insertImageUrlIntoContext(url)
+      insertImageAtCursorPosition(url)
     } catch (e) {
       alert('이미지 업로드 중 오류')
     }
   }
 
-  const getCurrentBlockInfo = (): { type: 'infobox' | 'cardgrid' | 'personinfobox' | null; start: number; end: number } => {
+  // Smart image insertion based on cursor position
+  const insertImageAtCursorPosition = (url: string) => {
+    const info = getImageInsertionInfo()
+    const start = info.position
+    
+    if (info.insertionType === 'table') {
+      // Insert image directly in table cell
+      insertText(`[이미지:${url}]`, '', false)
+    } else if (info.insertionType === 'template') {
+      // Check if we're in a specific field that supports images
+      const { type, blockStart, blockEnd } = getCurrentBlockInfo()
+      if (type && blockStart >= 0 && blockEnd > blockStart) {
+        insertImageUrlIntoContext(url)
+      } else {
+        // Fallback to direct insertion
+        insertText(`[이미지:${url}]`, '', false)
+      }
+    } else if (info.insertionType === 'block') {
+      // Insert as block-level image
+      insertText(`[이미지:${url}]\n`, '', false)
+    } else {
+      // Insert inline
+      insertText(`[이미지:${url}]`, '', false)
+    }
+  }
+
+  const getCurrentBlockInfo = (): { type: 'infobox' | 'cardgrid' | 'personinfobox' | null; blockStart: number; blockEnd: number } => {
     const start = textareaRef.current?.selectionStart ?? 0
     const lastInfobox = content.lastIndexOf('[[인포박스:', start)
     const lastCard = content.lastIndexOf('[[카드그리드:', start)
@@ -280,29 +342,30 @@ export default function WikiEditor({
     )
     
     const blockStart = Math.max(lastInfobox, lastCard, lastPersonInfobox)
-    if (blockStart < 0) return { type: null, start: -1, end: -1 }
+    if (blockStart < 0) return { type: null, blockStart: -1, blockEnd: -1 }
     
-    let end: number
+    let blockEnd: number
     let type: 'infobox' | 'cardgrid' | 'personinfobox'
     
     if (lastPersonInfobox === blockStart) {
-      end = content.indexOf('}}', blockStart)
+      blockEnd = content.indexOf('}}', blockStart)
       type = 'personinfobox'
-      return { type, start: blockStart, end: end < 0 ? content.length : end + 2 }
+      return { type, blockStart, blockEnd: blockEnd < 0 ? content.length : blockEnd + 2 }
     } else {
-      end = content.indexOf(']]', blockStart)
+      blockEnd = content.indexOf(']]', blockStart)
       type = lastInfobox > lastCard ? 'infobox' : 'cardgrid'
-      return { type, start: blockStart, end: end < 0 ? content.length : end + 2 }
+      return { type, blockStart, blockEnd: blockEnd < 0 ? content.length : blockEnd + 2 }
     }
   }
 
   const insertImageUrlIntoContext = (url: string) => {
-    const { type, start, end } = getCurrentBlockInfo()
-    if (!type || start < 0 || end <= start) {
-      alert('이미지는 인포박스/카드그리드/인물정보상자 영역에서만 삽입할 수 있습니다.')
+    const { type, blockStart, blockEnd } = getCurrentBlockInfo()
+    if (!type || blockStart < 0 || blockEnd <= blockStart) {
+      // If not in a recognized block, just insert at cursor position
+      insertText(`[이미지:${url}]`, '', false)
       return
     }
-    const block = content.substring(start, end)
+    const block = content.substring(blockStart, blockEnd)
     let updatedBlock = block
     if (type === 'infobox') {
       const hasImage = /\|\s*이미지\s*=/.test(block)
@@ -339,7 +402,7 @@ export default function WikiEditor({
         }
       }
     }
-    const newContent = content.substring(0, start) + updatedBlock + content.substring(end)
+    const newContent = content.substring(0, blockStart) + updatedBlock + content.substring(blockEnd)
     onChange(newContent)
   }
 
@@ -391,14 +454,22 @@ export default function WikiEditor({
     insertText(tocText, '', false)
   }
 
-  // 표 삽입 함수
-  const insertTable = (rows: number = 3, cols: number = 3) => {
+  // 표 삽입 함수 (색상 지원)
+  const insertTable = (rows: number = 3, cols: number = 3, colors?: {
+    backgroundColor?: string
+    textColor?: string
+    borderColor?: string
+  }) => {
     let tableText = '\n'
+    
+    // 색상 속성 생성
+    const colorSyntax = colors ? generateTableColorSyntax(colors) : ''
     
     // 헤더 행
     tableText += '|| '
     for (let i = 0; i < cols; i++) {
-      tableText += `헤더${i + 1} || `
+      const cellContent = colorSyntax ? `${colorSyntax}헤더${i + 1}` : `헤더${i + 1}`
+      tableText += `${cellContent} || `
     }
     tableText += '\n'
     
@@ -414,6 +485,31 @@ export default function WikiEditor({
     tableText += '\n'
     insertText(tableText, '', false)
     setShowTableTools(false) // 표 삽입 후 도구 패널 닫기
+    setShowTableColorPicker(false) // 색상 선택기 닫기
+  }
+
+  // 색상 표 삽입 함수
+  const insertColoredTable = (rows: number, cols: number) => {
+    insertTable(rows, cols, selectedTableColors)
+  }
+
+  // 커스텀 색상 적용
+  const applyCustomColor = (colorType: 'backgroundColor' | 'textColor' | 'borderColor') => {
+    if (isValidHexColor(customColor)) {
+      const normalizedColor = normalizeColor(customColor)
+      setSelectedTableColors(prev => ({
+        ...prev,
+        [colorType]: normalizedColor
+      }))
+      setCustomColor('')
+    } else {
+      alert('올바른 RGB 색상 코드를 입력하세요. (예: #FF0000 또는 FF0000)')
+    }
+  }
+
+  // 색상 초기화
+  const resetTableColors = () => {
+    setSelectedTableColors({})
   }
 
   // 표 정렬 기능
@@ -745,6 +841,111 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
     }
   }, [content, showTableOfContents])
 
+  // 문서 편집 잠금 획득
+  const acquireEditLock = async (): Promise<boolean> => {
+    if (!title || title === '문서 편집') return true
+    
+    try {
+      const response = await fetch('/api/wiki/pages/lock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ title })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // 잠금 획득 성공
+        setIsLocked(true)
+        setLockedBy(wikiUser?.username || null)
+        return true
+      } else {
+        // 잠금 획득 실패 (다른 사용자가 편집 중)
+        setIsLocked(true)
+        setLockedBy(data.lockedBy || null)
+        return false
+      }
+    } catch (error) {
+      console.error('편집 잠금 획득 오류:', error)
+      return false
+    }
+  }
+
+  // 문서 편집 잠금 해제
+  const releaseEditLock = async (): Promise<void> => {
+    if (!title || title === '문서 편집') return
+    
+    try {
+      await fetch(`/api/wiki/pages/lock?title=${encodeURIComponent(title)}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+      
+      // 상태 업데이트
+      setIsLocked(false)
+      setLockedBy(null)
+    } catch (error) {
+      console.error('편집 잠금 해제 오류:', error)
+    }
+  }
+
+  // 문서 편집 잠금 상태 확인
+  useEffect(() => {
+    const checkEditLock = async () => {
+      if (!title || title === '문서 편집') return
+      
+      try {
+        const response = await fetch(`/api/wiki/pages/lock?title=${encodeURIComponent(title)}`)
+        const data = await response.json()
+        
+        if (data.success) {
+          setIsLocked(data.isLocked)
+          setLockedBy(data.lockedBy)
+        }
+      } catch (error) {
+        console.error('편집 잠금 상태 확인 오류:', error)
+      }
+    }
+    
+    // 초기 잠금 상태 확인
+    checkEditLock()
+    
+    // 주기적으로 잠금 상태 확인 (30초마다)
+    const interval = setInterval(checkEditLock, 30000)
+    setLockCheckInterval(interval)
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval)
+      }
+    }
+  }, [title])
+
+  // 편집 잠금 획득 및 해제
+  useEffect(() => {
+    const handleLock = async () => {
+      if (!title || title === '문서 편집') return
+      
+      // 편집 잠금 획득 시도
+      const lockAcquired = await acquireEditLock()
+      
+      if (!lockAcquired) {
+        // 잠금 획득 실패 시 사용자에게 알림
+        console.warn('편집 잠금 획득 실패')
+      }
+    }
+    
+    handleLock()
+    
+    // 컴포넌트 언마운트 시 잠금 해제
+    return () => {
+      releaseEditLock()
+    }
+  }, [title])
+
   return (
     <div className={`wiki-editor ${className}`}>
       <Card className="bg-gray-800 border-gray-700">
@@ -758,7 +959,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                 size="sm"
                 onClick={handlePickImage}
                 className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
-                title="사진 선택 후 현재 표에 삽입"
+                title="사진 선택 후 커서 위치에 삽입"
               >
                 <Image className="w-4 h-4" />
                 <span>사진 선택</span>
@@ -799,7 +1000,35 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
               {onSave && (
                 <Button
                   size="sm"
-                  onClick={() => onSave?.()}
+                  onClick={async () => {
+                    // 편집 잠금 상태 확인
+                    if (isLocked && lockedBy && lockedBy !== wikiUser?.username) {
+                      alert(`${lockedBy}님이 편집 중인 문서입니다. 저장할 수 없습니다.`)
+                      return
+                    }
+                    
+                    // 편집 잠금 갱신
+                    try {
+                      const response = await fetch('/api/wiki/pages/lock', {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ title })
+                      })
+                      
+                      const data = await response.json()
+                      
+                      if (!data.success) {
+                        console.warn('편집 잠금 갱신 실패:', data.error)
+                      }
+                    } catch (error) {
+                      console.error('편집 잠금 갱신 오류:', error)
+                    }
+                    
+                    onSave?.()
+                  }}
                   className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-gray-200"
                 >
                   <Save className="w-4 h-4" />
@@ -809,6 +1038,17 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
             </div>
           </div>
         </CardHeader>
+        {/* 편집 잠금 경고 메시지 */}
+        {isLocked && lockedBy && lockedBy !== wikiUser?.username && (
+          <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mx-4 mt-2">
+            <div className="flex items-center text-red-400">
+              <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+              <span className="font-medium">
+                이 문서는 <span className="font-bold">{lockedBy}</span>님이 편집 중입니다.
+              </span>
+            </div>
+          </div>
+        )}
         <CardContent className="space-y-4">
           <div className="border-b border-gray-600 pb-4">
             <div className="flex flex-wrap gap-2">
@@ -957,6 +1197,144 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                   <span className="text-sm text-gray-200">5×3 표</span>
                 </motion.button>
               </div>
+              
+              {/* 표 색상 선택 영역 */}
+              <div className="mt-4 border-t border-gray-600 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="text-sm font-medium text-gray-300">표 색상 설정</h5>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTableColorPicker(!showTableColorPicker)}
+                    className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
+                  >
+                    <PaintBucket className="w-4 h-4" />
+                    <span>{showTableColorPicker ? '숨기기' : '색상 선택'}</span>
+                  </Button>
+                </div>
+                
+                {showTableColorPicker && (
+                  <div className="space-y-4">
+                    {/* 미리 정의된 색상 팔레트 */}
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2">미리 정의된 색상:</p>
+                      <div className="grid grid-cols-6 gap-2">
+                        {COLOR_PICKER_PALETTE.map((colorItem, index) => (
+                          <button
+                            key={index}
+                            className="w-8 h-8 rounded border-2 border-gray-600 hover:border-gray-400 transition-colors"
+                            style={{ backgroundColor: colorItem.value }}
+                            title={colorItem.name}
+                            onClick={() => setSelectedTableColors(prev => ({
+                              ...prev,
+                              backgroundColor: colorItem.value
+                            }))}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* 커스텀 색상 입력 */}
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2">커스텀 RGB 색상 (예: #FF0000 또는 FF0000):</p>
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          value={customColor}
+                          onChange={(e) => setCustomColor(e.target.value)}
+                          placeholder="#FF0000"
+                          className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm focus:outline-none focus:border-blue-500"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => applyCustomColor('backgroundColor')}
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-3"
+                          disabled={!customColor.trim()}
+                        >
+                          배경 적용
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => applyCustomColor('textColor')}
+                          className="bg-green-600 hover:bg-green-500 text-white px-3"
+                          disabled={!customColor.trim()}
+                        >
+                          글자 적용
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* 선택된 색상 미리보기 */}
+                    {(selectedTableColors.backgroundColor || selectedTableColors.textColor) && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-2">선택된 색상 미리보기:</p>
+                        <div 
+                          className="p-3 rounded border border-gray-600 text-center"
+                          style={{
+                            backgroundColor: selectedTableColors.backgroundColor || 'transparent',
+                            color: selectedTableColors.textColor || '#e5e7eb'
+                          }}
+                        >
+                          샘플 표 셀 텍스트
+                        </div>
+                        <div className="flex justify-between mt-2">
+                          <div className="text-xs text-gray-400">
+                            {selectedTableColors.backgroundColor && `배경: ${selectedTableColors.backgroundColor}`}
+                            {selectedTableColors.backgroundColor && selectedTableColors.textColor && ' | '}
+                            {selectedTableColors.textColor && `글자: ${selectedTableColors.textColor}`}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={resetTableColors}
+                            className="text-red-400 hover:text-red-300 text-xs"
+                          >
+                            초기화
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 색상 표 생성 버튼 */}
+                    {(selectedTableColors.backgroundColor || selectedTableColors.textColor) && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-2">색상이 적용된 표 생성:</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => insertColoredTable(2, 2)}
+                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
+                          >
+                            2×2 색상 표
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => insertColoredTable(3, 3)}
+                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
+                          >
+                            3×3 색상 표
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => insertColoredTable(4, 4)}
+                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
+                          >
+                            4×4 색상 표
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => insertColoredTable(5, 3)}
+                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
+                          >
+                            5×3 색상 표
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
               <div className="flex justify-end mt-3">
                 <Button
                   variant="ghost"
@@ -1044,19 +1422,19 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                       placeholder="문서 내용을 작성하세요...
 
 나무위키 문법을 사용할 수 있습니다:
-- '''굵게''' 또는 **굵게**
-- ''기울임'' 또는 *기울임*
-- [[내부 링크]]
-- [링크텍스트](URL)
-- {{{#ff0000 빨간 글씨}}}
-- [*1] 각주
-- <sup>상첨자</sup> <sub>하첨자</sub>
+- **굵게** 또는 '''굵게'''
+- *기울임* 또는 ''기울임''
+- ~~취소선~~ __밑줄__
+- ^^상첨자^^ ,,하첨자,,
+- [[내부 링크]] [링크텍스트](URL)
+- [*1] 각주 (자동 번호: [*])
+- {{{#ff0000 빨간 글씨}}} {{{+1 큰 글씨}}}
+- !icon:{home} [!icon:{insta}](URL)
+- ||<bgcolor:#ff0000> 색상 표 ||
 
 단축키:
-- Ctrl+B: 굵게
-- Ctrl+I: 기울임  
-- Ctrl+S: 저장
-- Ctrl+Enter: 미리보기 토글"
+- Ctrl+B: 굵게, Ctrl+I: 기울임  
+- Ctrl+S: 저장, Ctrl+Enter: 미리보기 토글"
                     />
                   </div>
                   
@@ -1111,19 +1489,20 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     placeholder="문서 내용을 작성하세요...
 
 나무위키 문법을 사용할 수 있습니다:
-- '''굵게''' 또는 **굵게**
-- ''기울임'' 또는 *기울임*
-- [[내부 링크]]
-- [링크텍스트](URL)
-- {{{#ff0000 빨간 글씨}}}
-- [*1] 각주
-- <sup>상첨자</sup> <sub>하첨자</sub>
+- **굵게** 또는 '''굵게'''
+- *기울임* 또는 ''기울임''
+- ~~취소선~~ __밑줄__
+- ^^상첨자^^ ,,하첨자,,
+- [[내부 링크]] [링크텍스트](URL)
+- [*1] 각주 (자동 번호: [*])
+- {{{#ff0000 빨간 글씨}}} {{{+1 큰 글씨}}}
+- !icon:{home} [!icon:{insta}](URL)
+- ||<bgcolor:#ff0000> 색상 표 ||
+- `인라인 코드` ```코드 블록```
 
 단축키:
-- Ctrl+B: 굵게
-- Ctrl+I: 기울임  
-- Ctrl+S: 저장
-- Ctrl+Enter: 미리보기 토글"
+- Ctrl+B: 굵게, Ctrl+I: 기울임  
+- Ctrl+S: 저장, Ctrl+Enter: 미리보기 토글"
                   />
                 </div>
                 
@@ -1143,12 +1522,12 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                   <div>
                     <p className="font-medium mb-1 text-gray-300">기본 서식:</p>
                     <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">'''굵게'''</code> → <strong>굵게</strong></li>
-                      <li><code className="bg-gray-700 px-1 rounded">''기울임''</code> → <em>기울임</em></li>
+                      <li><code className="bg-gray-700 px-1 rounded">**굵게**</code> 또는 <code className="bg-gray-700 px-1 rounded">'''굵게'''</code> → <strong>굵게</strong></li>
+                      <li><code className="bg-gray-700 px-1 rounded">*기울임*</code> 또는 <code className="bg-gray-700 px-1 rounded">''기울임''</code> → <em>기울임</em></li>
                       <li><code className="bg-gray-700 px-1 rounded">~~취소선~~</code> → <del>취소선</del></li>
                       <li><code className="bg-gray-700 px-1 rounded">__밑줄__</code> → <u>밑줄</u></li>
-                      <li><code className="bg-gray-700 px-1 rounded">&lt;sup&gt;상첨자&lt;/sup&gt;</code> → x<sup>2</sup></li>
-                      <li><code className="bg-gray-700 px-1 rounded">&lt;sub&gt;하첨자&lt;/sub&gt;</code> → H<sub>2</sub>O</li>
+                      <li><code className="bg-gray-700 px-1 rounded">^^상첨자^^</code> → x<sup>2</sup></li>
+                      <li><code className="bg-gray-700 px-1 rounded">,,하첨자,,</code> → H<sub>2</sub>O</li>
                     </ul>
                   </div>
                   <div>
@@ -1156,8 +1535,10 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     <ul className="space-y-0.5 text-gray-400">
                       <li><code className="bg-gray-700 px-1 rounded">[[내부링크]]</code></li>
                       <li><code className="bg-gray-700 px-1 rounded">[링크텍스트](URL)</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">[*1]</code> → 각주</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`{{{#색상 텍스트}}}`}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">[*1]</code> 또는 <code className="bg-gray-700 px-1 rounded">[*]</code> → 각주</li>
+                      <li><code className="bg-gray-700 px-1 rounded">`코드`</code> → 인라인 코드</li>
+                      <li><code className="bg-gray-700 px-1 rounded">!icon:{`{home}`}</code> → 아이콘</li>
+                      <li><code className="bg-gray-700 px-1 rounded">[!icon:{`{insta}`}](URL)</code> → 아이콘 링크</li>
                     </ul>
                   </div>
                   <div>
@@ -1165,24 +1546,37 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     <ul className="space-y-0.5 text-gray-400">
                       <li><code className="bg-gray-700 px-1 rounded">[[목차]]</code> → 목차 삽입</li>
                       <li><code className="bg-gray-700 px-1 rounded">|| 셀1 || 셀2 ||</code> → 표</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`{{{^가운데정렬}}}`}</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`{{{+2 큰글씨}}}`}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000> 셀 ||`}</code> → 색상 표 (헤더만)</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`{{{#ff0000 빨간글씨}}}`}</code> → 색상 텍스트</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`{{{+1 큰글씨}}}`}</code> → 크기 조절</li>
                     </ul>
                   </div>
                   <div>
                     <p className="font-medium mb-1 text-gray-300">편집 기능:</p>
                     <ul className="space-y-0.5 text-gray-400">
                       <li><strong>미리보기:</strong> 실시간 렌더링 확인</li>
-                      <li><strong>마이너 편집:</strong> 작은 수정사항 표시</li>
+                      <li><strong>각주 자동 번호:</strong> [*]로 순서 자동 배정</li>
+                      <li><strong>각주 클릭 이동:</strong> 각주↔본문 이동</li>
                       <li><strong>맞춤법 검사:</strong> 한국어 오타 검출</li>
                       <li><strong>Ctrl+Enter:</strong> 미리보기 토글</li>
                     </ul>
                   </div>
                   <div>
+                    <p className="font-medium mb-1 text-gray-300">표 색상 문법:</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000> 빨간 배경 ||`}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<color:#ffffff> 흰 글자 ||`}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000 color:#fff> 조합 ||`}</code></li>
+                      <li><strong>색상 도구:</strong> 표 삽입 시 색상 선택기 이용</li>
+                    </ul>
+                  </div>
+                  <div>
                     <p className="font-medium mb-1 text-gray-300">템플릿:</p>
                     <ul className="space-y-0.5 text-gray-400">
-                      <li>인물정보상자, 그룹정보상자</li>
-                      <li>카드그리드, 간단 인포박스</li>
+                      <li><strong>인물정보상자:</strong> 동적 이미지 표시</li>
+                      <li><strong>그룹정보상자:</strong> 색상 속성 지원</li>
+                      <li><strong>카드그리드:</strong> 프로젝트 목록</li>
+                      <li><strong>간단 인포박스:</strong> 기본 정보</li>
                       <li>템플릿 버튼으로 쉽게 삽입</li>
                     </ul>
                   </div>

@@ -1,0 +1,32 @@
+# Icon Placeholder Files
+
+Place your 13 icon files here with these exact names:
+
+## Required Files:
+- swiss.png
+- usa.png
+- canada.png
+- korea.png
+- army.png
+- ir2.png
+- ir.png
+- linkedin.png
+- soundcloud.png
+- github.png
+- youtube.png
+- web.png
+- insta.png
+
+## File Requirements:
+- Format: PNG (recommended) or JPG
+- Size: 64x64px or higher recommended
+- Transparency: Supported with PNG
+- File naming: Must be lowercase, exact match
+
+## Quick Test:
+After adding the icon files, test them in wiki content:
+- !icon:{korea} - Should show Korea flag/icon
+- !icon:{github} - Should show GitHub icon
+- !icon:{linkedin} - Should show LinkedIn icon
+
+If an icon fails to load, it will show [iconname] in a bordered box as fallback.

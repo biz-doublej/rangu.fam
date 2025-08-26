@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import dbConnect from '@/lib/mongodb'
+import { DiscordWebhookService } from '@/services/discordWebhookService'
 
 export const dynamic = 'force-dynamic'
 import { WikiPage, WikiUser, WikiSubmission } from '@/models/Wiki'
@@ -37,10 +38,42 @@ async function getUserFromToken(request: NextRequest) {
   }
 }
 
+// 자동 잠금 해제: 만료된 잠금 정리
+async function cleanupExpiredLocks() {
+  try {
+    const now = new Date()
+    const result = await WikiPage.updateMany(
+      {
+        'editLock.isLocked': true,
+        'editLock.lockExpiry': { $lt: now }
+      },
+      {
+        $set: {
+          'editLock.isLocked': false,
+          'editLock.lockedBy': undefined,
+          'editLock.lockedById': undefined,
+          'editLock.lockStartTime': undefined,
+          'editLock.lockExpiry': undefined,
+          'editLock.lockReason': undefined
+        }
+      }
+    )
+    
+    if (result.modifiedCount > 0) {
+      console.log(`자동 잠금 해제: ${result.modifiedCount}개 문서의 만료된 잠금 해제됨`)
+    }
+  } catch (error) {
+    console.error('자동 잠금 해제 오류:', error)
+  }
+}
+
 // GET - 위키 문서 검색/조회
 export async function GET(request: NextRequest) {
   try {
     await dbConnect()
+    
+    // 자동 잠금 해제 실행 (주기적으로 만료된 잠금 정리)
+    await cleanupExpiredLocks()
     
     const { searchParams } = new URL(request.url)
     const title = searchParams.get('title')
@@ -670,6 +703,21 @@ export async function POST(request: NextRequest) {
     user.pagesCreated += 1
     user.lastActivity = new Date()
     await user.save()
+    
+    // Send Discord webhook notification for document creation
+    try {
+      const contentPreview = content.length > 200 ? content.substring(0, 200) + '...' : content
+      await DiscordWebhookService.sendDocumentCreate(
+        user.username,
+        title,
+        summary || '새로운 문서가 생성되었습니다',
+        contentPreview
+      )
+    } catch (webhookError) {
+      console.error('Discord webhook 전송 실패:', webhookError)
+      // Webhook 실패는 문서 생성을 방해하지 않음
+    }
+    
     appendAuditLog({ actor: user.username, action: 'page.create', meta: { title } })
     return NextResponse.json({ success: true, message: '문서가 성공적으로 생성되었습니다.', page: { id: savedPage._id, title: savedPage.title, slug: savedPage.slug, namespace: savedPage.namespace } })
     
@@ -857,6 +905,20 @@ export async function PUT(request: NextRequest) {
     user.edits += 1
     user.lastActivity = new Date()
     await user.save()
+    
+    // Send Discord webhook notification for document edit
+    try {
+      const contentChange = `리비전 ${existingPage.currentRevision}로 업데이트\n차이: ${newRevision.sizeChange > 0 ? '+' : ''}${newRevision.sizeChange}바이트`
+      await DiscordWebhookService.sendDocumentEdit(
+        user.username,
+        title,
+        editSummary || '문서 편집',
+        contentChange
+      )
+    } catch (webhookError) {
+      console.error('Discord webhook 전송 실패:', webhookError)
+      // Webhook 실패는 문서 편집을 방해하지 않음
+    }
     
     const response = NextResponse.json({
       success: true,

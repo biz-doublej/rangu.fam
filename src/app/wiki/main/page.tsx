@@ -5,17 +5,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Search, Edit, History, MessageSquare, Star, Clock, 
   Users, FileText, Settings, AlertCircle, HelpCircle,
-  MessageCircle, Shield, Gavel, CheckCircle, TrendingUp,
+  Shield, Gavel, CheckCircle, TrendingUp,
   BookOpen, Archive, Folder, BarChart3, Bell, Globe,
   ArrowLeft, ChevronRight, ExternalLink, Hash, Zap,
-  User, UserPlus, LogIn, LogOut
+  User, UserPlus, LogIn, LogOut, MessageCircle
 } from 'lucide-react'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { NotificationDropdown } from '@/components/ui/NotificationDropdown'
 import { formatDate } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWikiAuth } from '@/contexts/WikiAuthContext'
 
 // 더미 데이터
 const RECENT_CHANGES = [
@@ -32,12 +34,6 @@ const TRENDING_SEARCHES = [
   '유코', '메킨 더 게더링/용량', '만 나이'
 ]
 
-const RECENT_DISCUSSIONS = [
-  { title: 'Rangu.fam', topic: '내용 개선', replies: 3, time: new Date('2024-01-20T15:00:00') },
-  { title: '게임 센터', topic: '새 게임 추가', replies: 7, time: new Date('2024-01-20T12:30:00') },
-  { title: '음악 스테이션', topic: '플레이리스트 정리', replies: 2, time: new Date('2024-01-19T18:45:00') }
-]
-
 const WIKI_NEWS = [
   '"실제 지연에 가해자 승진···서울교통공"',
   '"내가 고라니," 김명화, 밥상만 한 광고 전···',
@@ -49,13 +45,57 @@ const WIKI_NEWS = [
 export default function WikiMainPage() {
   const router = useRouter()
   const { user, isLoggedIn } = useAuth()
+  const { wikiUser, isLoggedIn: isWikiLoggedIn, isModerator } = useWikiAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [mainPageData, setMainPageData] = useState<{
+    lastEditDate: string;
+    lastEditor: string;
+    views: number;
+  } | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // Fetch latest edit data from entire wiki
+  useEffect(() => {
+    const fetchLatestEditData = async () => {
+      try {
+        const response = await fetch('/api/wiki/latest-edit')
+        const data = await response.json()
+        
+        if (data.success && data.latestEdit) {
+          setMainPageData({
+            lastEditDate: data.latestEdit.lastEditDate,
+            lastEditor: data.latestEdit.lastEditor,
+            views: data.latestEdit.views || 20000 // API에서 제공되지 않으면 기본값
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch latest edit data:', error)
+        // Keep default null state if fetch fails
+      }
+    }
+
+    fetchLatestEditData()
+  }, [])
+
+  // 편집 페이지로 이동 (관리자만 가능)
+  const handleEditMainPage = () => {
+    if (!isWikiLoggedIn) {
+      router.push('/wiki/login')
+      return
+    }
+    
+    if (!isModerator) {
+      alert('나무위키:대문은 관리자만 편집할 수 있습니다.')
+      return
+    }
+    
+    router.push('/wiki/나무위키:대문')
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -74,13 +114,14 @@ export default function WikiMainPage() {
                 <Button variant="ghost" size="sm" className="text-green-400 font-medium hover:text-green-300">
                   위키
                 </Button>
-                <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-gray-300 hover:text-white"
+                  onClick={() => router.push('/wiki/recent')}
+                >
                   <MessageSquare className="w-4 h-4 mr-1" />
                   최근 변경
-                </Button>
-                <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                  <MessageCircle className="w-4 h-4 mr-1" />
-                  최근 토론
                 </Button>
                 <div className="relative group">
                   <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
@@ -120,9 +161,7 @@ export default function WikiMainPage() {
               </div>
 
               {/* 알림 */}
-              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                <Bell className="w-4 h-4" />
-              </Button>
+              <NotificationDropdown />
 
               {/* 로그인/프로필 */}
               {isLoggedIn ? (
@@ -161,7 +200,7 @@ export default function WikiMainPage() {
               <div className="flex items-center space-x-4">
                 <h1 className="text-2xl font-bold text-white">나무위키:대문</h1>
                 <div className="text-sm bg-gray-700 px-2 py-1 rounded">
-                  20K
+                  {mainPageData ? `${(mainPageData.views / 1000).toFixed(1)}K` : '20K'}
                 </div>
                 <div className="flex items-center space-x-2">
                   <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
@@ -169,13 +208,14 @@ export default function WikiMainPage() {
                   </Button>
                   {isLoggedIn && (
                     <>
-                      <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-gray-300 hover:text-white"
+                        onClick={handleEditMainPage}
+                      >
                         <Edit className="w-4 h-4" />
                         편집
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                        <MessageSquare className="w-4 h-4" />
-                        토론
                       </Button>
                     </>
                   )}
@@ -187,7 +227,18 @@ export default function WikiMainPage() {
               </div>
               
               <div className="text-sm text-gray-400">
-                최근 수정 시간: 2025.07.18 13:19:22
+                최근 수정 시간: {mainPageData ? 
+                  new Date(mainPageData.lastEditDate).toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                  }).replace(/\. /g, '.').replace(/\.$/, '') : 
+                  '2025.07.18 13:19:22'
+                }
               </div>
             </div>
           </div>
@@ -393,32 +444,7 @@ export default function WikiMainPage() {
               </div>
             </motion.div>
 
-            {/* 최근 운영 토론 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.9 }}
-            >
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
-                    <MessageSquare className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">최근 운영 토론</h3>
-                </div>
-                <div className="space-y-2">
-                  {RECENT_DISCUSSIONS.map((discussion, index) => (
-                    <div key={index} className="text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-blue-400">{discussion.title}</span>
-                        <span className="text-gray-500 text-xs">{discussion.replies}개 답글</span>
-                      </div>
-                      <div className="text-gray-300 text-xs">{discussion.topic}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
+
           </div>
 
           {/* 우측 사이드바 (1/4 차지) */}

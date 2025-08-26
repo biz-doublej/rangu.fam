@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import { motion } from 'framer-motion'
+import { parseTableColorAttributes, getTableCellStyles, normalizeColor } from '@/lib/tableColors'
 import { 
   ExternalLink, 
   Link as LinkIcon, 
@@ -16,6 +17,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react'
+import { parseIconSyntax } from './WikiIcon'
 
 interface NamuMarkdownRendererProps {
   content: string
@@ -91,17 +93,47 @@ const NamuComponents = {
     const isExternal = href?.startsWith('http') || href?.startsWith('//');
     const isInternal = href?.startsWith('/') || href?.startsWith('#');
     
+    // children이 문자열인 경우 아이콘 파싱 적용
+    const parseChildren = (children: any) => {
+      if (typeof children === 'string') {
+        const parsedContent = parseIconSyntax(children)
+        const hasIcons = parsedContent.some(part => typeof part !== 'string')
+        
+        // 아이콘만 있는 경우 체크
+        const isIconOnly = typeof children === 'string' && children.trim().startsWith('!icon:') && 
+                          parsedContent.length === 1 && typeof parsedContent[0] !== 'string'
+                          
+        return {
+          content: hasIcons ? parsedContent.map((part, idx) => (
+            <React.Fragment key={idx}>{part}</React.Fragment>
+          )) : children,
+          isIconOnly
+        }
+      }
+      return { content: children, isIconOnly: false }
+    }
+    
+    const { content, isIconOnly } = parseChildren(children)
+    
     if (isExternal) {
       return (
         <a
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+          className={`text-blue-600 hover:text-blue-800 ${isIconOnly ? '' : 'underline'} inline-flex items-center gap-1 whitespace-nowrap transition-colors duration-200`}
+          style={{ display: 'inline-flex', alignItems: 'center' }}
+          onClick={(e) => {
+            // 아이콘 링크의 경우 외부 URL로 이동하도록 처리
+            if (isIconOnly && href) {
+              e.preventDefault();
+              window.open(href, '_blank', 'noopener,noreferrer');
+            }
+          }}
           {...props}
         >
-          {children}
-          <ExternalLink className="w-3 h-3" />
+          {content}
+          {!isIconOnly && <ExternalLink className="w-3 h-3" />}
         </a>
       );
     }
@@ -110,19 +142,47 @@ const NamuComponents = {
       return (
         <a
           href={href}
-          className="text-primary-600 hover:text-primary-800 underline font-medium"
+          className={`text-primary-600 hover:text-primary-800 ${isIconOnly ? '' : 'underline'} font-medium inline-flex items-center gap-1 whitespace-nowrap transition-colors duration-200`}
+          style={{ display: 'inline-flex', alignItems: 'center' }}
+          onClick={(e) => {
+            // 내부 링크 처리 개선
+            if (href && (href.startsWith('/') || href.startsWith('#'))) {
+              e.preventDefault();
+              if (href.startsWith('#')) {
+                // 앵커 링크 스크롤
+                const element = document.getElementById(href.substring(1));
+                if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              } else {
+                // 내부 페이지 이동
+                window.location.href = href;
+              }
+            }
+          }}
           {...props}
         >
-          {children}
+          {content}
         </a>
       );
     }
     
     // 나무위키 내부 링크 스타일
     return (
-      <span className="text-primary-600 hover:text-primary-800 underline cursor-pointer font-medium inline-flex items-center gap-1">
-        <LinkIcon className="w-3 h-3" />
-        {children}
+      <span 
+        className={`text-primary-600 hover:text-primary-800 ${isIconOnly ? '' : 'underline'} cursor-pointer font-medium inline-flex items-center gap-1 whitespace-nowrap transition-colors duration-200`} 
+        style={{ display: 'inline-flex', alignItems: 'center' }}
+        onClick={(e) => {
+          // 나무위키 링크 클릭 처리
+          e.preventDefault();
+          if (href) {
+            console.log('Wiki link clicked:', href);
+            // 필요시 onInternalLinkClick 콜백 호출
+          }
+        }}
+      >
+        {!isIconOnly && <LinkIcon className="w-3 h-3" />}
+        {content}
       </span>
     );
   },
@@ -297,9 +357,50 @@ function replacePersonInfoboxBlocks(text: string): string {
   });
 }
 
+// 템플릿 색상 속성 파싱 함수
+function parseTemplateColorAttributes(colorAttribs?: string): {
+  backgroundColor?: string
+  textColor?: string
+  borderColor?: string
+} {
+  const result: {
+    backgroundColor?: string
+    textColor?: string
+    borderColor?: string
+  } = {}
+  
+  if (!colorAttribs) return result
+  
+  // 색상 속성 매칭: <bgcolor:#color>, <color:#color>, <border:#color>
+  const colorAttributePattern = /<(bgcolor|color|border):(#?[^>\s]+)>/g
+  let match
+  
+  while ((match = colorAttributePattern.exec(colorAttribs)) !== null) {
+    const [, attribute, colorValue] = match
+    const normalizedColor = normalizeColor(colorValue.trim())
+    
+    if (normalizedColor) {
+      switch (attribute) {
+        case 'bgcolor':
+          result.backgroundColor = normalizedColor
+          break
+        case 'color':
+          result.textColor = normalizedColor
+          break
+        case 'border':
+          result.borderColor = normalizedColor
+          break
+      }
+    }
+  }
+  
+  return result
+}
+
 // 인물 정보상자 렌더링 함수 (나무위키 스타일 - 복잡한 테이블 구조 지원)
-function renderPersonInfobox(content: string): string {
+function renderPersonInfobox(content: string, colorAttribs?: string): string {
   const params = parseTemplateParams(content);
+  const templateColors = parseTemplateColorAttributes(colorAttribs);
   
   // 복잡한 학력 테이블 생성 함수
   function renderEducationTable(education: string): string {
@@ -345,8 +446,17 @@ function renderPersonInfobox(content: string): string {
     `;
   }
   
+  // 템플릿 레벨 스타일 생성
+  const templateStyle = Object.entries({
+    backgroundColor: templateColors.backgroundColor,
+    color: templateColors.textColor,
+    borderColor: templateColors.borderColor
+  }).filter(([, value]) => value)
+    .map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${value}`)
+    .join('; ');
+  
   return `
-    <div class="person-infobox bg-white border border-gray-300 shadow-lg float-right ml-4 mb-4" style="width: 320px; max-width: 100%;">
+    <div class="person-infobox bg-white border border-gray-300 shadow-lg float-right ml-4 mb-4" style="width: 320px; max-width: 100%; ${templateStyle}">
       <!-- 상단 헤더 (태릉고등학교 37기 학생회장...) -->
       <div class="bg-red-700 text-white text-center py-2 px-3">
         <div class="text-sm font-medium">${params['상단제목'] || '태릉고등학교 37기 학생회장'}</div>
@@ -357,9 +467,9 @@ function renderPersonInfobox(content: string): string {
       
       <!-- 이미지 섹션 -->
       ${params['이미지'] ? `
-        <div class="text-center bg-gray-50 p-3">
-          <img src="${params['이미지']}" alt="${params['이름'] || '인물 사진'}" class="w-full max-w-56 mx-auto" style="max-height: 300px; object-fit: contain;">
-          ${params['이미지설명'] ? `<div class="text-xs text-gray-600 mt-2">${params['이미지설명'].replace(/<br\/?>/g, '<br/>')}</div>` : ''}
+        <div class="text-center bg-gray-800 p-3">
+          <img src="${params['이미지']}" alt="${params['이름'] || '인물 사진'}" class="w-full max-w-56 mx-auto rounded" style="max-height: 300px; object-fit: contain;">
+          ${params['이미지설명'] ? `<div class="text-xs text-gray-400 mt-2">${params['이미지설명'].replace(/<br\/?>/g, '<br/>')}</div>` : ''}
         </div>
       ` : ''}
       
@@ -459,7 +569,23 @@ function renderPersonInfobox(content: string): string {
           ${params['서명'] ? `
             <tr>
               <td class="bg-red-700 text-white px-3 py-2 font-semibold border-b border-gray-300">서명</td>
-              <td class="px-3 py-2 border-b border-gray-300">${params['서명']}</td>
+              <td class="px-3 py-2 border-b border-gray-300">
+                ${(() => {
+                  const signature = params['서명'];
+                  // 다양한 이미지 패턴 처리
+                  if (signature.includes('[[파일:') || signature.includes('[이미지:') || signature.includes('<img') || signature.includes('.jpg') || signature.includes('.png') || signature.includes('.gif')) {
+                    return signature
+                      // [[파일:경로|옵션]] 패턴
+                      .replace(/\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; border: 1px solid #ddd; background: white; padding: 2px;" />')
+                      // [이미지:경로] 패턴
+                      .replace(/\[이미지:([^\]]+)\]/g, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; border: 1px solid #ddd; background: white; padding: 2px;" />')
+                      // 직접 이미지 경로 패턴 (https://... 또는 /uploads/...)
+                      .replace(/(https?:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp))/gi, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; border: 1px solid #ddd; background: white; padding: 2px;" />')
+                      .replace(/(\/uploads\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp))/gi, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; border: 1px solid #ddd; background: white; padding: 2px;" />');
+                  }
+                  return signature; // 텍스트 서명
+                })()}
+              </td>
             </tr>
           ` : ''}
           
@@ -475,12 +601,117 @@ function renderPersonInfobox(content: string): string {
   `;
 }
 
-// 기본 정보상자 렌더링 함수
-function renderBasicInfobox(content: string): string {
+// 그룹정보상자 렌더링 함수
+function renderGroupInfobox(content: string, colorAttribs?: string): string {
   const params = parseTemplateParams(content);
+  const templateColors = parseTemplateColorAttributes(colorAttribs);
+  
+  // 템플릿 레벨 스타일 생성
+  const templateStyle = Object.entries({
+    backgroundColor: templateColors.backgroundColor,
+    color: templateColors.textColor,
+    borderColor: templateColors.borderColor
+  }).filter(([, value]) => value)
+    .map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${value}`)
+    .join('; ');
   
   return `
-    <div class="basic-infobox bg-white border border-gray-300 rounded-lg shadow-lg float-right ml-4 mb-4 w-80 max-w-full">
+    <div class="group-infobox bg-white border border-gray-300 shadow-lg float-right ml-4 mb-4" style="width: 320px; max-width: 100%; ${templateStyle}">
+      <!-- 상단 헤더 -->
+      <div class="bg-blue-700 text-white text-center py-2 px-3">
+        <div class="text-base font-bold mt-2">${params['그룹명'] || params['이름'] || ''}</div>
+        ${params['설명'] && `<div class="text-xs opacity-80 mt-1">${params['설명']}</div>`}
+      </div>
+      
+      <!-- 이미지 섹션 -->
+      ${params['이미지'] ? `
+        <div class="text-center bg-gray-50 p-3">
+          <img src="${params['이미지']}" alt="${params['그룹명'] || '그룹 이미지'}" class="w-full max-w-56 mx-auto" style="max-height: 300px; object-fit: contain;">
+          ${params['이미지설명'] ? `<div class="text-xs text-gray-600 mt-2">${params['이미지설명'].replace(/<br\/?>/g, '<br/>')}</div>` : ''}
+        </div>
+      ` : ''}
+      
+      <!-- 정보 테이블 -->
+      <div class="border-t border-gray-300">
+        <table class="w-full text-sm border-collapse">
+          ${params['설립일'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold border-b border-gray-300" style="width: 80px;">설립일</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['설립일']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['본부'] || params['본사'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold border-b border-gray-300">본부</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['본부'] || params['본사']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['메인멤버'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold border-b border-gray-300 align-top">메인멤버</td>
+              <td class="px-3 py-2 border-b border-gray-300">
+                <div class="text-xs leading-relaxed">
+                  ${params['메인멤버'].replace(/<br\/?>/g, '<br/>')}
+                </div>
+              </td>
+            </tr>
+          ` : ''}
+          
+          ${params['서브멤버'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold border-b border-gray-300 align-top">서브멤버</td>
+              <td class="px-3 py-2 border-b border-gray-300">
+                <div class="text-xs leading-relaxed">
+                  ${params['서브멤버'].replace(/<br\/?>/g, '<br/>')}
+                </div>
+              </td>
+            </tr>
+          ` : ''}
+          
+          ${params['장르'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold border-b border-gray-300">장르</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['장르']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['활동기간'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold border-b border-gray-300">활동기간</td>
+              <td class="px-3 py-2 border-b border-gray-300">${params['활동기간']}</td>
+            </tr>
+          ` : ''}
+          
+          ${params['웹사이트'] || params['링크'] ? `
+            <tr>
+              <td class="bg-blue-700 text-white px-3 py-2 font-semibold">링크</td>
+              <td class="px-3 py-2">${params['웹사이트'] || params['링크']}</td>
+            </tr>
+          ` : ''}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// 기본 정보상자 렌더링 함수
+function renderBasicInfobox(content: string, colorAttribs?: string): string {
+  const params = parseTemplateParams(content);
+  const templateColors = parseTemplateColorAttributes(colorAttribs);
+  
+  // 템플릿 레벨 스타일 생성
+  const templateStyle = Object.entries({
+    backgroundColor: templateColors.backgroundColor,
+    color: templateColors.textColor,
+    borderColor: templateColors.borderColor
+  }).filter(([, value]) => value)
+    .map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${value}`)
+    .join('; ');
+  
+  return `
+    <div class="basic-infobox bg-white border border-gray-300 rounded-lg shadow-lg float-right ml-4 mb-4 w-80 max-w-full" style="${templateStyle}">
       ${params['제목'] ? `
         <div class="bg-blue-600 text-white p-3 text-center font-bold text-lg">
           ${params['제목']}
@@ -571,8 +802,8 @@ function renderSimpleInfobox(content: string): string {
       ` : ''}
       
       ${params['이미지'] ? `
-        <div class="p-4 text-center bg-gray-50">
-          <img src="${params['이미지']}" alt="${params['제목'] || '인물 사진'}" class="w-full max-w-64 mx-auto rounded">
+        <div class="p-4 text-center bg-gray-800">
+          <img src="${params['이미지']}" alt="${params['제목'] || '이미지'}" class="w-full max-w-64 mx-auto rounded">
         </div>
       ` : ''}
       
@@ -616,15 +847,21 @@ function preprocessNamuWikiSyntax(content: string): string {
   // 라인 앵커 기반 블록 매칭으로 1차 치환 (공백/빈줄 허용)
   processed = replacePersonInfoboxBlocks(processed);
 
-  // 인물 정보상자 템플릿 처리 (개선된 정규식)
-  processed = processed.replace(/\{\{인물정보상자\s*([\s\S]*?)\}\}/g, (_match, content: string) => {
+  // 인물 정보상자 템플릿 처리 (색상 속성 지원)
+  processed = processed.replace(/\{\{인물정보상자(<[^>]+>)?\s*([\s\S]*?)\}\}/g, (_match, colorAttribs: string, content: string) => {
     console.log('🎯 인물정보상자 템플릿 감지됨!', content.substring(0, 100) + '...'); // 디버깅용
-    return renderPersonInfobox(content);
+    return renderPersonInfobox(content, colorAttribs);
   });
 
-  // 기본 정보상자 템플릿 처리
-  processed = processed.replace(/\{\{정보상자\s*([\s\S]*?)\}\}/g, (_m, content: string) => {
-    return renderBasicInfobox(content);
+  // 그룹정보상자 템플릿 처리 (색상 속성 지원)
+  processed = processed.replace(/\{\{그룹정보상자(<[^>]+>)?\s*([\s\S]*?)\}\}/g, (_match, colorAttribs: string, content: string) => {
+    console.log('🎯 그룹정보상자 템플릿 감지됨!', content.substring(0, 100) + '...'); // 디버깅용
+    return renderGroupInfobox(content, colorAttribs);
+  });
+
+  // 기본 정보상자 템플릿 처리 (색상 속성 지원)
+  processed = processed.replace(/\{\{정보상자(<[^>]+>)?\s*([\s\S]*?)\}\}/g, (_match, colorAttribs: string, content: string) => {
+    return renderBasicInfobox(content, colorAttribs);
   });
 
   // 정보박스 템플릿 처리 (컬러 박스)
@@ -681,8 +918,29 @@ function preprocessNamuWikiSyntax(content: string): string {
     return `${indent}${'#'.repeat(level)} ${title}`
   })
 
-  // 나무위키 스타일 각주 [*1] -> <sup>[1]</sup>
-  processed = processed.replace(/\[\*(\d+)\]/g, '<sup><a href="#footnote-$1" class="text-primary-600 text-xs">[$1]</a></sup>');
+  // 나무위키 스타일 각주 [*1] 또는 [*] -> <sup>[1]</sup> (자동 번호 지원)
+  let footnoteCounter = 0
+  const footnoteMapping: {[key: string]: number} = {}
+  
+  processed = processed.replace(/\[\*(\d*)\]/g, (match, num) => {
+    const footnoteKey = num || 'auto'
+    let footnoteNumber: number
+    
+    if (footnoteKey === 'auto' || footnoteKey === '') {
+      footnoteCounter++
+      footnoteNumber = footnoteCounter
+    } else {
+      if (!footnoteMapping[footnoteKey]) {
+        footnoteCounter++
+        footnoteNumber = footnoteCounter
+        footnoteMapping[footnoteKey] = footnoteNumber
+      } else {
+        footnoteNumber = footnoteMapping[footnoteKey]
+      }
+    }
+    
+    return `<sup><a href="#footnote-${footnoteNumber}" class="text-primary-600 text-xs hover:text-primary-800 cursor-pointer underline" onclick="document.getElementById('footnote-${footnoteNumber}').scrollIntoView({behavior: 'smooth', block: 'center'}); document.getElementById('footnote-${footnoteNumber}').style.backgroundColor='#fef3c7'; setTimeout(() => document.getElementById('footnote-${footnoteNumber}').style.backgroundColor='', 2000)" title="각주 ${footnoteNumber}로 이동">[${footnoteNumber}]</a></sup>`
+  });
 
   // 분류 링크 처리: [[분류:이름]] → /wiki/category/이름
   processed = processed.replace(/\[\[분류:([^\]]+)\]\]/g, (_m, name: string) => {
@@ -702,6 +960,12 @@ function preprocessNamuWikiSyntax(content: string): string {
   // 나무위키 스타일 외부 링크 [http://example.com 링크텍스트] -> [링크텍스트](http://example.com)
   processed = processed.replace(/\[([^\s\]]+)\s+([^\]]+)\]/g, '[$2]($1)');
 
+  // 상첨자 ^^텍스트^^ -> <sup>텍스트</sup>
+  processed = processed.replace(/\^\^([^^]+)\^\^/g, '<sup class="text-xs">$1</sup>');
+
+  // 하첨자 ,,텍스트,, -> <sub>텍스트</sub>
+  processed = processed.replace(/,,([^,]+),,/g, '<sub class="text-xs">$1</sub>');
+
     // 파일/이미지 렌더링
     // [[파일:/uploads/wiki/name.png|캡션]] -> <img src="/uploads/wiki/name.png" alt="캡션" />
     processed = processed.replace(/\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, p1: string, p2: string) => {
@@ -714,6 +978,9 @@ function preprocessNamuWikiSyntax(content: string): string {
       const src = p1.trim()
       return `<img src="${src}" />`
     })
+
+  // 나무위키 스타일 볼드체와 기울임체는 ReactMarkdown이 자동 처리하므로 그대로 유지
+  // **텍스트** 와 *텍스트* 는 ReactMarkdown이 자동으로 <strong>과 <em>으로 변환
 
   // 나무위키 스타일 취소선 ~~텍스트~~ -> ~~텍스트~~
   processed = processed.replace(/~~([^~]+)~~/g, '<del>$1</del>');
