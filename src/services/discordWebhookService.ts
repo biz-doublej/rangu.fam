@@ -86,8 +86,8 @@ export class DiscordWebhookService {
     HEART: '💖'
   }
 
-  private static readonly RANGU_AVATAR = 'https://rangu-fam.vercel.app/images/poster-jaewon.jpg'
-  private static readonly WIKI_ICON = 'https://rangu-fam.vercel.app/favicon.ico'
+  private static readonly RANGU_AVATAR = 'https://media.discordapp.net/attachments/833512797052076044/1409566696985067600/image.png?ex=68ae8189&is=68ad3009&hm=c9fc86a2165493a637e206c0943b0ea38fe11979225d842c60481748dce24e29&=&format=webp&quality=lossless&width=1320&height=1320'
+  private static readonly WIKI_ICON = 'https://media.discordapp.net/attachments/833512797052076044/1409566696985067600/image.png?ex=68ae8189&is=68ad3009&hm=c9fc86a2165493a637e206c0943b0ea38fe11979225d842c60481748dce24e29&=&format=webp&quality=lossless&width=1320&height=1320'
 
   /**
    * IP 주소 마스킹 처리 (개인정보 보호)
@@ -197,7 +197,7 @@ export class DiscordWebhookService {
     }
 
     return this.sendWebhook({ 
-      username: 'RangU 위키봇',
+      username: '이랑위키 봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
     })
@@ -261,7 +261,7 @@ export class DiscordWebhookService {
     }
 
     return this.sendWebhook({ 
-      username: 'RangU 위키봇',
+      username: '이랑위키 봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
     })
@@ -340,7 +340,7 @@ export class DiscordWebhookService {
     }
 
     return this.sendWebhook({ 
-      username: 'RangU 위키봇',
+      username: '이랑위키 봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
     })
@@ -402,7 +402,7 @@ export class DiscordWebhookService {
     }
 
     return this.sendWebhook({ 
-      username: 'RangU 위키봇',
+      username: '이랑위키 봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
     })
