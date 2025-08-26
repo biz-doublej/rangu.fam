@@ -245,6 +245,7 @@ export default function AdminDashboard() {
           setNewNotice(prev => ({ ...prev, author: result.user.username }))
           loadDashboardData()
           startAutoRefresh()
+          setInitialLoading(false)
           return
         } else {
           localStorage.removeItem('adminToken')
@@ -257,11 +258,36 @@ export default function AdminDashboard() {
 
     // adminToken이 없으면 위키 쿠키를 확인
     await checkWikiAuth()
+    setInitialLoading(false)
   }
 
   const checkWikiAuth = async () => {
     try {
-      // 위키 인증 상태 확인
+      // 직접 위키 토큰 확인
+      const wikiToken = getCookie('wiki-token')
+      if (wikiToken) {
+        // 위키 토큰으로 관리자 인증 시도
+        try {
+          const response = await fetch('/api/admin/wiki-auth', {
+            headers: { 'Authorization': `Bearer ${wikiToken}` }
+          })
+
+          if (response.ok) {
+            const result = await response.json()
+            localStorage.setItem('adminToken', wikiToken)
+            setCurrentUser(result.user)
+            setIsAuthenticated(true)
+            setNewNotice(prev => ({ ...prev, author: result.user.username }))
+            loadDashboardData()
+            startAutoRefresh()
+            return
+          }
+        } catch (error) {
+          console.error('위키 토큰 인증 실패:', error)
+        }
+      }
+
+      // 위키 토큰 인증이 실패하면 /api/wiki/auth/me로 확인
       const response = await fetch('/api/wiki/auth/me', {
         credentials: 'include'
       })
@@ -272,22 +298,21 @@ export default function AdminDashboard() {
 
         // admin, moderator, owner 권한이 있는지 확인
         if (user && (user.role === 'admin' || user.role === 'moderator' || user.role === 'owner')) {
-          // 위키 토큰으로 관리자 인증 진행
-          const wikiToken = getCookie('wiki-token')
-          if (wikiToken) {
-            localStorage.setItem('adminToken', wikiToken)
-            setCurrentUser({
-              id: user.id,
-              username: user.username,
-              displayName: user.displayName || user.username,
-              role: user.role,
-              isAdmin: true
-            })
-            setIsAuthenticated(true)
-            setNewNotice(prev => ({ ...prev, author: user.username }))
-            loadDashboardData()
-            startAutoRefresh()
-          }
+          // 사용자 정보를 직접 설정
+          setCurrentUser({
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName || user.username,
+            role: user.role,
+            isAdmin: true
+          })
+          setIsAuthenticated(true)
+          setNewNotice(prev => ({ ...prev, author: user.username }))
+          
+          // 임시 토큰 생성
+          localStorage.setItem('adminToken', 'wiki-authenticated')
+          loadDashboardData()
+          startAutoRefresh()
         }
       }
     } catch (error) {
@@ -511,6 +536,35 @@ export default function AdminDashboard() {
     }
   }, [])
 
+  // 초기 로딩 상태 추가
+  const [initialLoading, setInitialLoading] = useState(true)
+
+  // 초기 로딩 중이면 로딩 화면 표시
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-gray-100 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative z-10 text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="inline-block mb-4"
+          >
+            <Shield className="w-16 h-16 text-blue-400 mx-auto" />
+          </motion.div>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            RangU 관리자 대시보드
+          </h2>
+          <p className="text-gray-400 mt-2">인증 상태를 확인하는 중...</p>
+        </motion.div>
+      </div>
+    )
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-gray-100 flex items-center justify-center">
@@ -572,8 +626,9 @@ export default function AdminDashboard() {
                   관리자 로그인
                 </Button>
                 <div className="text-center text-sm text-gray-500">
-                  WikiUser 테이블의 role이 'admin'인 계정만 접근 가능<br/>
-                  또는 위키에서 admin/moderator/owner 권한으로 로그인 후 운영자 버튼 클릭
+                  ⚠️ 관리자 권한이 필요합니다<br/>
+                  <span className="text-red-400">위키에서 admin/moderator/owner 권한으로 로그인하거나</span><br/>
+                  <span className="text-blue-400">WikiUser 테이블의 admin 계정으로 직접 로그인하세요</span>
                 </div>
               </div>
             </CardContent>
