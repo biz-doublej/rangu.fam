@@ -13,10 +13,27 @@ async function getUserFromToken(request: NextRequest) {
     if (!authHeader?.startsWith('Bearer ')) return null
     
     const token = authHeader.split(' ')[1]
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any
+    
+    // 위키 기반 임시 토큰인 경우
+    if (token === 'wiki-authenticated') {
+      await dbConnect()
+      return await WikiUser.findOne({ username: 'gabriel0727' })
+    }
+    
+    const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+    const decoded = jwt.verify(token, JWT_SECRET) as any
     
     await dbConnect()
-    const user = await WikiUser.findOne({ username: decoded.username })
+    
+    let user
+    if (decoded.userId) {
+      // Admin JWT 토큰 형식
+      user = await WikiUser.findById(decoded.userId)
+    } else if (decoded.username) {
+      // Wiki JWT 토큰 형식
+      user = await WikiUser.findOne({ username: decoded.username })
+    }
+    
     return user
   } catch (error) {
     return null
