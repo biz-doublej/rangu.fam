@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import { WikiUser, WikiSubmission } from '@/models/Wiki'
-import { User } from '@/models/User'
-import { Track } from '@/models/Track'
+import User, { IUser } from '@/models/User'
+import Track, { ITrack } from '@/models/Track'
 import { GameScore } from '@/models/Game'
 import { UserCardStats } from '@/models/UserCardStats'
 import jwt from 'jsonwebtoken'
@@ -68,52 +68,60 @@ export async function GET(request: NextRequest) {
       UserCardStats.find({}).lean()
     ])
 
+    // 타입 캐스팅
+    const typedWikiUsers = wikiUsers as any[]
+    const typedRegularUsers = regularUsers as any[]
+    const typedWikiSubmissions = wikiSubmissions as any[]
+    const typedTracks = tracks as any[]
+    const typedGameScores = gameScores as any[]
+    const typedCardStats = cardStats as any[]
+
     // 사용자 통계
     const userStats = {
-      total: wikiUsers.length,
-      active: wikiUsers.filter(u => u.isActive).length,
-      banned: wikiUsers.filter(u => u.banStatus?.isBanned).length,
-      newToday: wikiUsers.filter(u => 
+      total: typedWikiUsers.length,
+      active: typedWikiUsers.filter((u: any) => u.isActive).length,
+      banned: typedWikiUsers.filter((u: any) => u.banStatus?.isBanned).length,
+      newToday: typedWikiUsers.filter((u: any) => 
         new Date(u.createdAt) >= today
       ).length
     }
 
     // 위키 통계
     const wikiStats = {
-      totalPages: wikiSubmissions.length,
-      pending: wikiSubmissions.filter(s => s.status === 'pending').length,
-      approved: wikiSubmissions.filter(s => s.status === 'approved').length,
-      rejected: wikiSubmissions.filter(s => s.status === 'rejected').length,
-      onhold: wikiSubmissions.filter(s => s.status === 'onhold').length
+      totalPages: typedWikiSubmissions.length,
+      pending: typedWikiSubmissions.filter((s: any) => s.status === 'pending').length,
+      approved: typedWikiSubmissions.filter((s: any) => s.status === 'approved').length,
+      rejected: typedWikiSubmissions.filter((s: any) => s.status === 'rejected').length,
+      onhold: typedWikiSubmissions.filter((s: any) => s.status === 'onhold').length
     }
 
     // 게임 통계
     const gameStats = {
-      totalScores: gameScores.length,
+      totalScores: typedGameScores.length,
       todayPlayers: new Set(
-        gameScores
-          .filter(score => new Date(score.createdAt) >= today)
-          .map(score => score.playerId)
+        typedGameScores
+          .filter((score: any) => new Date(score.createdAt) >= today)
+          .map((score: any) => score.playerId)
       ).size,
-      topScore: gameScores.length > 0 ? Math.max(...gameScores.map(s => s.score)) : 0
+      topScore: typedGameScores.length > 0 ? Math.max(...typedGameScores.map((s: any) => s.score)) : 0
     }
 
     // 음악 통계
     const musicStats = {
-      totalTracks: tracks.length,
-      totalPlays: tracks.reduce((sum, track) => sum + (track.playCount || 0), 0),
-      uploadsToday: tracks.filter(t => 
+      totalTracks: typedTracks.length,
+      totalPlays: typedTracks.reduce((sum: number, track: any) => sum + (track.playCount || track.plays || 0), 0),
+      uploadsToday: typedTracks.filter((t: any) => 
         new Date(t.createdAt) >= today
       ).length
     }
 
     // 카드 통계
     const cardStatsData = {
-      totalDrops: cardStats.reduce((sum, stat) => sum + (stat.totalDrops || 0), 0),
-      activeCollectors: cardStats.filter(stat => 
+      totalDrops: typedCardStats.reduce((sum: number, stat: any) => sum + (stat.totalDrops || 0), 0),
+      activeCollectors: typedCardStats.filter((stat: any) => 
         new Date(stat.lastDropDate) >= yesterday
       ).length,
-      rareCards: cardStats.reduce((sum, stat) => sum + (stat.rareCardCount || 0), 0)
+      rareCards: typedCardStats.reduce((sum: number, stat: any) => sum + (stat.rareCardCount || 0), 0)
     }
 
     // 이미지 통계 (임시 데이터)
@@ -132,7 +140,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 최근 활동 데이터
-    const recentActivity = await generateRecentActivity(wikiSubmissions, wikiUsers, tracks, gameScores)
+    const recentActivity = await generateRecentActivity(typedWikiSubmissions, typedWikiUsers, typedTracks, typedGameScores)
 
     const dashboardStats = {
       users: userStats,
@@ -179,8 +187,8 @@ async function generateRecentActivity(
   users: any[],
   tracks: any[],
   gameScores: any[]
-) {
-  const activities = []
+): Promise<any[]> {
+  const activities: any[] = []
   
   // 최근 위키 편집
   const recentSubmissions = submissions
