@@ -720,7 +720,7 @@ export default function WikiDocumentPage() {
               {/* 운영자 대시보드 버튼 (운영자만 표시) */}
               {isLoggedIn && isModerator && (
                 <button
-                  onClick={() => router.push('/wiki/mod')}
+                  onClick={() => router.push('/admin')}
                   className="flex items-center space-x-1 text-yellow-400 hover:text-yellow-300 border border-yellow-400 hover:border-yellow-300 px-3 py-2 rounded-md transition-colors"
                   title="운영자 대시보드"
                 >
@@ -752,7 +752,7 @@ export default function WikiDocumentPage() {
                       {((wikiUser?.role === 'moderator') || (wikiUser?.role === 'admin') || (wikiUser?.role === 'owner') || wikiUser?.permissions?.canManageUsers) && (
                         <button
                           className="block w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                          onClick={() => { setIsUserMenuOpen(false); router.push('/wiki/mod') }}
+                          onClick={() => { setIsUserMenuOpen(false); router.push('/admin') }}
                         >
                           운영자 대시보드
                         </button>

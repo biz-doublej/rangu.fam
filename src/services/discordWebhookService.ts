@@ -90,6 +90,31 @@ export class DiscordWebhookService {
   private static readonly WIKI_ICON = 'https://rangu-fam.vercel.app/favicon.ico'
 
   /**
+   * IP 주소 마스킹 처리 (개인정보 보호)
+   */
+  private static maskIpAddress(ip: string): string {
+    if (ip === '127.0.0.1') {
+      return '로컬호스트'
+    }
+    
+    // IPv4 주소 마스킹
+    const parts = ip.split('.')
+    if (parts.length === 4) {
+      return `${parts[0]}.${parts[1]}.${parts[2]}.***`
+    }
+    
+    // IPv6 주소 마스킹
+    if (ip.includes(':')) {
+      const parts = ip.split(':')
+      if (parts.length > 2) {
+        return `${parts[0]}:${parts[1]}:**:**:**:**`
+      }
+    }
+    
+    return '알 수 없음'
+  }
+
+  /**
    * Send a message to Discord webhook
    */
   private static async sendWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
@@ -329,6 +354,9 @@ export class DiscordWebhookService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<boolean> {
+    // IP 주소 마스킹 처리
+    const maskedIp = ipAddress ? this.maskIpAddress(ipAddress) : '알 수 없음'
+    
     const embed: DiscordEmbed = {
       author: {
         name: '이랑위키 사용자 로그인',
@@ -345,7 +373,7 @@ export class DiscordWebhookService {
         },
         {
           name: '🌐 IP 주소',
-          value: ipAddress ? `\`${ipAddress}\`` : '알 수 없음',
+          value: `\`${maskedIp}\``,
           inline: true
         },
         {
