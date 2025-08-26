@@ -232,27 +232,74 @@ export default function AdminDashboard() {
 
   const checkAuth = async () => {
     const token = localStorage.getItem('adminToken')
-    if (!token) return
+    if (token) {
+      try {
+        const response = await fetch('/api/admin/wiki-auth', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
 
+        if (response.ok) {
+          const result = await response.json()
+          setCurrentUser(result.user)
+          setIsAuthenticated(true)
+          setNewNotice(prev => ({ ...prev, author: result.user.username }))
+          loadDashboardData()
+          startAutoRefresh()
+          return
+        } else {
+          localStorage.removeItem('adminToken')
+        }
+      } catch (error) {
+        console.error('인증 확인 오류:', error)
+        localStorage.removeItem('adminToken')
+      }
+    }
+
+    // adminToken이 없으면 위키 쿠키를 확인
+    await checkWikiAuth()
+  }
+
+  const checkWikiAuth = async () => {
     try {
-      const response = await fetch('/api/admin/wiki-auth', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      // 위키 인증 상태 확인
+      const response = await fetch('/api/wiki/auth/me', {
+        credentials: 'include'
       })
 
       if (response.ok) {
         const result = await response.json()
-        setCurrentUser(result.user)
-        setIsAuthenticated(true)
-        setNewNotice(prev => ({ ...prev, author: result.user.username }))
-        loadDashboardData()
-        startAutoRefresh()
-      } else {
-        localStorage.removeItem('adminToken')
+        const user = result.user
+
+        // admin, moderator, owner 권한이 있는지 확인
+        if (user && (user.role === 'admin' || user.role === 'moderator' || user.role === 'owner')) {
+          // 위키 토큰으로 관리자 인증 진행
+          const wikiToken = getCookie('wiki-token')
+          if (wikiToken) {
+            localStorage.setItem('adminToken', wikiToken)
+            setCurrentUser({
+              id: user.id,
+              username: user.username,
+              displayName: user.displayName || user.username,
+              role: user.role,
+              isAdmin: true
+            })
+            setIsAuthenticated(true)
+            setNewNotice(prev => ({ ...prev, author: user.username }))
+            loadDashboardData()
+            startAutoRefresh()
+          }
+        }
       }
     } catch (error) {
-      console.error('인증 확인 오류:', error)
-      localStorage.removeItem('adminToken')
+      console.error('위키 인증 확인 오류:', error)
     }
+  }
+
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null
+    return null
   }
 
   // 통계 데이터 로드
@@ -525,7 +572,8 @@ export default function AdminDashboard() {
                   관리자 로그인
                 </Button>
                 <div className="text-center text-sm text-gray-500">
-                  WikiUser 테이블의 role이 'admin'인 계정만 접근 가능
+                  WikiUser 테이블의 role이 'admin'인 계정만 접근 가능<br/>
+                  또는 위키에서 admin/moderator/owner 권한으로 로그인 후 운영자 버튼 클릭
                 </div>
               </div>
             </CardContent>

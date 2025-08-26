@@ -19,28 +19,55 @@ export async function GET(request: NextRequest) {
     }
     
     const token = authHeader.split(' ')[1]
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any
     
-    const user = await WikiUser.findOne({ username: decoded.username })
-      .select('-password')
-      .lean()
-    
-    if (!user) {
+    try {
+      // Admin JWT 토큰 또는 Wiki JWT 토큰 둘 다 처리
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'rangu-wiki-secret') as any
+      
+      let user: any
+      if (decoded.userId) {
+        // Admin JWT 토큰 형식
+        user = await WikiUser.findById(decoded.userId).select('-password').lean()
+      } else if (decoded.username) {
+        // Wiki JWT 토큰 형식
+        user = await WikiUser.findOne({ username: decoded.username }).select('-password').lean()
+      }
+      
+      if (!user) {
+        return NextResponse.json(
+          { success: false, error: '사용자를 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+      
+      // 관리자 권한 확인
+      const hasAdminAccess = user.role === 'admin' || user.role === 'moderator' || user.role === 'owner'
+      
+      if (!hasAdminAccess) {
+        return NextResponse.json(
+          { success: false, error: '관리자 권한이 필요합니다.' },
+          { status: 403 }
+        )
+      }
+      
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: user._id,
+          username: user.username,
+          displayName: user.displayName || user.username,
+          role: user.role,
+          avatar: user.avatar,
+          isAdmin: hasAdminAccess
+        }
+      })
+      
+    } catch (jwtError) {
       return NextResponse.json(
-        { success: false, error: '사용자를 찾을 수 없습니다.' },
-        { status: 404 }
+        { success: false, error: '유효하지 않은 토큰입니다.' },
+        { status: 401 }
       )
     }
-    
-    const isAdmin = (user as any).role === 'admin' || (user as any).role === 'owner'
-    
-    return NextResponse.json({
-      success: true,
-      user: {
-        ...user,
-        isAdmin
-      }
-    })
     
   } catch (error) {
     console.error('WikiUser 인증 확인 오류:', error)

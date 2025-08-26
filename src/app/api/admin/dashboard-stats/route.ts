@@ -22,7 +22,15 @@ async function verifyAdmin(request: NextRequest) {
     const decoded = jwt.verify(token, JWT_SECRET) as any
     
     await dbConnect()
-    const user = await WikiUser.findById(decoded.userId)
+    
+    let user
+    if (decoded.userId) {
+      // Admin JWT 토큰 형식
+      user = await WikiUser.findById(decoded.userId)
+    } else if (decoded.username) {
+      // Wiki JWT 토큰 형식
+      user = await WikiUser.findOne({ username: decoded.username })
+    }
     
     if (!user || (user.role !== 'admin' && user.role !== 'moderator' && user.role !== 'owner')) {
       return null
@@ -30,6 +38,7 @@ async function verifyAdmin(request: NextRequest) {
     
     return user
   } catch (error) {
+    // JWT 검증 실패 시 null 반환
     return null
   }
 }
