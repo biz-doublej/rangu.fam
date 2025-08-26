@@ -564,7 +564,7 @@ export class DiscordWebhookService {
     }
 
     return this.sendWebhook({ 
-      username: 'RangU 관리봇',
+      username: '이랑위키 관리봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
     })

@@ -65,20 +65,65 @@ export default function UserManagement({
   }
 
   const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'admin': return 'bg-red-600 text-red-100'
-      case 'moderator': return 'bg-yellow-600 text-yellow-100'
-      case 'editor': return 'bg-blue-600 text-blue-100'
-      default: return 'bg-gray-600 text-gray-100'
+    const normalizedRole = role?.toLowerCase()
+    switch (normalizedRole) {
+      case 'admin':
+      case '관리자':
+        return 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
+      case 'moderator':
+      case '운영자':
+      case 'mod':
+        return 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+      case 'editor':
+      case '편집자':
+        return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+      case 'owner':
+      case '소유자':
+        return 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
+      default: 
+        return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-lg'
     }
   }
 
   const getRoleText = (role: string) => {
-    switch (role) {
-      case 'admin': return '관리자'
-      case 'moderator': return '운영자'
-      case 'editor': return '편집자'
-      default: return '일반'
+    const normalizedRole = role?.toLowerCase()
+    switch (normalizedRole) {
+      case 'admin':
+      case '관리자':
+        return '관리자'
+      case 'moderator':
+      case '운영자':
+      case 'mod':
+        return '운영자'
+      case 'editor':
+      case '편집자':
+        return '편집자'
+      case 'owner':
+      case '소유자':
+        return '소유자'
+      default: 
+        return '일반'
+    }
+  }
+
+  const getRoleIcon = (role: string) => {
+    const normalizedRole = role?.toLowerCase()
+    switch (normalizedRole) {
+      case 'admin':
+      case '관리자':
+        return '👑'
+      case 'moderator':
+      case '운영자':
+      case 'mod':
+        return '🛡️'
+      case 'editor':
+      case '편집자':
+        return '✏️'
+      case 'owner':
+      case '소유자':
+        return '⭐'
+      default: 
+        return '👤'
     }
   }
 
@@ -232,17 +277,47 @@ export default function UserManagement({
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mr-4">
-                          <span className="text-sm font-bold text-white">
-                            {user.username.charAt(0).toUpperCase()}
-                          </span>
+                        <div className="relative w-10 h-10 mr-4">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
+                            <span className="text-sm font-bold text-white">
+                              {user.username.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          {/* 권한 표시 배지 */}
+                          {(user.role === 'admin' || user.role === '관리자') && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs">
+                              👑
+                            </div>
+                          )}
+                          {(user.role === 'moderator' || user.role === '운영자' || user.role === 'mod') && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center text-xs">
+                              🛡️
+                            </div>
+                          )}
+                          {(user.role === 'owner' || user.role === '소유자') && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center text-xs">
+                              ⭐
+                            </div>
+                          )}
                         </div>
                         <div>
-                          <span className="font-medium text-gray-200">{user.username}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-200">{user.username}</span>
+                            {user.username === 'gabriel0727' && (
+                              <span className="text-xs bg-gradient-to-r from-yellow-400 to-yellow-500 text-black px-2 py-0.5 rounded-full font-bold">
+                                창작자
+                              </span>
+                            )}
+                          </div>
                           {user.banStatus?.isBanned && (
                             <div className="flex items-center mt-1">
                               <Ban className="w-3 h-3 text-red-500 mr-1" />
                               <span className="text-xs text-red-400">차단됨</span>
+                            </div>
+                          )}
+                          {user.lastActive && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              마지막 활동: {new Date(user.lastActive).toLocaleDateString('ko-KR')}
                             </div>
                           )}
                         </div>
@@ -255,15 +330,16 @@ export default function UserManagement({
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                        <span>{getRoleIcon(user.role)}</span>
                         {getRoleText(user.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       {user.banStatus?.isBanned ? (
                         <div>
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-600 text-red-100">
-                            차단됨
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg">
+                            🚫 차단됨
                           </span>
                           <p className="text-xs text-red-400 mt-1 max-w-xs truncate">
                             {user.banStatus.reason}
@@ -275,12 +351,12 @@ export default function UserManagement({
                           )}
                         </div>
                       ) : user.isActive ? (
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-600 text-green-100">
-                          활성
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg">
+                          ✅ 활성
                         </span>
                       ) : (
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-600 text-gray-100">
-                          비활성
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-lg">
+                          ⏸️ 비활성
                         </span>
                       )}
                     </td>
