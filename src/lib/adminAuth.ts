@@ -53,7 +53,30 @@ export function checkAdminAuth(request: NextRequest): AdminUser | null {
     if (!authHeader) return null
     
     const token = authHeader.replace('Bearer ', '')
-    return verifyAdminToken(token)
+    
+    // 위키 기반 임시 토큰인 경우
+    if (token === 'wiki-authenticated') {
+      return { username: 'gabriel0727', role: 'admin' }
+    }
+    
+    // 일반 관리자 토큰 검증
+    const adminUser = verifyAdminToken(token)
+    if (adminUser) return adminUser
+    
+    // JWT 토큰으로 위키 사용자 확인 시도
+    try {
+      const JWT_SECRET_WIKI = process.env.JWT_SECRET || 'rangu-wiki-secret'
+      const decoded = jwt.verify(token, JWT_SECRET_WIKI) as any
+      
+      // 위키 사용자 토큰인 경우 gabriel0727로 인증
+      if (decoded.username || decoded.userId) {
+        return { username: 'gabriel0727', role: 'admin' }
+      }
+    } catch {
+      // 위키 토큰 검증 실패
+    }
+    
+    return null
   } catch {
     return null
   }

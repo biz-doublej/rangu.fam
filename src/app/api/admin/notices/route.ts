@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
 
     const { title, content, type, category, author, isPinned } = await request.json()
     
-    if (!title || !content || !category || !author) {
-      return NextResponse.json({ error: '필수 필드가 누락되었습니다' }, { status: 400 })
+    if (!title || !content) {
+      return NextResponse.json({ error: '제목과 내용은 필수 필드입니다' }, { status: 400 })
     }
 
     await dbConnect()
@@ -79,9 +79,9 @@ export async function POST(request: NextRequest) {
       content,
       type: type || 'announcement',
       isPinned: isPinned || false,
-      author,
+      author: author || 'gabriel0727',
       date: new Date(),
-      category
+      category: category || '일반'
     })
 
     const savedNotice = await newNotice.save()
