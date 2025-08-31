@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import connectDB from '@/lib/mongodb'
-import { Card, CardType } from '@/models/Card'
+import { Card } from '@/models/Card'
+
 export const dynamic = 'force-dynamic'
+
+// 카드 타입 열거형 정의
+enum CardType {
+  YEAR = 'year',
+  SPECIAL = 'special',
+  SIGNATURE = 'signature',
+  MATERIAL = 'material',
+  PRESTIGE = 'prestige'
+}
 
 // POST: 기존 카드들의 드랍률만 업데이트
 export async function POST(request: NextRequest) {
@@ -52,7 +62,10 @@ export async function POST(request: NextRequest) {
       { $set: jokerCardData },
       { upsert: true, new: true }
     )
-    console.log(`조커카드 생성/업데이트됨: ${jokerResult.name} (5%)`)
+    
+    if (jokerResult) {
+      console.log(`조커카드 생성/업데이트됨: ${jokerResult.name} (5%)`)
+    }
     
     // 4. Special 카드들 개별 업데이트
     
@@ -149,7 +162,7 @@ export async function POST(request: NextRequest) {
       cardCounts: dropRateSummary,
       expectedDropRates,
       totalExpectedDropRate: `${(totalExpectedRate * 100).toFixed(1)}%`
-    })
+    }, { status: 200 })
     
   } catch (error) {
     console.error('Drop rate update error:', error)
