@@ -1,85 +1,173 @@
-# R.랑구 (Jung Trio) - React Version
+# 🏰 R.랑구 (Jung Trio)
 
-중랑구 패밀리를 위한 개인화된 포털 사이트입니다.
+<div align="center">
+  <img src="public/images/slide1.jpg" alt="랑구팸 배너" width="800"/>
+  
+  [![Next.js](https://img.shields.io/badge/Next.js-13.0-black?logo=next.js)](https://nextjs.org/)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
+  [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+  [![MongoDB](https://img.shields.io/badge/MongoDB-6.0-47A248?logo=mongodb)](https://www.mongodb.com/)
+  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+</div>
 
-## 🎯 프로젝트 소개
+## 🌈 프로젝트 소개
 
-랑구팸은 네 명의 친구들(진규, 재원, 한울, 민석)이 모인 특별한 가족을 위한 웹사이트입니다. 음악, 여행, 추억을 공유하는 디지털 공간입니다.
+랑구팸은 네 명의 특별한 친구들(진규, 재원, 한울, 민석)이 만든 디지털 놀이터입니다. 음악, 여행, 추억을 공유하고 함께 성장하는 우리만의 공간입니다.
 
-## 🌟 주요 기능
+### ✨ 핵심 가치
 
-- **다국어 지원**: 한국어, 영어, 독일어
-- **실시간 세계시계**: 서울, 밴쿠버, 루체른 시간 표시
-- **개인 위젯 시스템**: 사용자별 맞춤형 바로가기 (최대 6개)
-- **배경 슬라이드쇼**: 자동 순환하는 배경 이미지
-- **사용자 인증**: 로컬스토리지 기반 로그인 시스템
-- **테마 시스템**: 크리스마스, 새해, 기본, 다크, 화이트 테마
+- **연결 (Connection)**: 전 세계에 흩어져 있는 멤버들을 하나로 연결
+- **공유 (Sharing)**: 일상의 순간들과 창작물을 함께 나누는 공간
+- **성장 (Growth)**: 서로의 발전을 응원하고 기록하는 플랫폼
+- **추억 (Memories)**: 소중한 순간들을 영원히 간직하는 디지털 앨범
+
+## 🎮 주요 기능
+
+### 1. 멀티미디어 통합 시스템
+- 🎵 음악 스트리밍 & 공유
+- 📸 사진 갤러리 & 메모리 월
+- 🎮 미니게임 (테트리스, 카드게임 등)
+- 📝 위키 시스템
+
+### 2. 개인화 기능
+- 🌍 다국어 지원 (한국어, 영어, 독일어)
+- 🕒 실시간 세계시계 (서울, 밴쿠버, 루체른)
+- 🎨 커스텀 테마 (계절별, 이벤트별)
+- 🎯 개인 대시보드
+
+### 3. 소셜 기능
+- 💬 실시간 채팅
+- 📢 공지사항 시스템
+- 🏆 업적 시스템
+- 👥 프로필 커스터마이징
+
+## 🛠 기술 스택
+
+### Frontend
+- **Framework**: Next.js 13
+- **Language**: TypeScript 5.0
+- **Styling**: Tailwind CSS, Framer Motion
+- **State Management**: React Context, SWR
+- **UI Components**: Headless UI, Radix UI
+
+### Backend
+- **Database**: MongoDB
+- **Storage**: Cloudinary
+- **Authentication**: NextAuth.js
+- **API**: REST, tRPC
+
+### DevOps
+- **Hosting**: Vercel
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Sentry
+- **Analytics**: Vercel Analytics
+
+## 📱 스크린샷
+
+<div align="center">
+  <img src="public/images/slide2.jpg" alt="메인 화면" width="200"/>
+  <img src="public/images/slide3.jpg" alt="음악 플레이어" width="200"/>
+  <img src="public/images/slide4.jpg" alt="프로필" width="200"/>
+</div>
 
 ## 🚀 시작하기
 
-### 개발 서버 실행
+### 필수 요구사항
+- Node.js 18.0 이상
+- MongoDB 6.0 이상
+- Yarn 또는 npm
 
-```bash
-npm start
-```
+### 설치 방법
 
-브라우저에서 [http://localhost:3000](http://localhost:3000)를 열어 확인하세요.
+1. 저장소 클론
+\`\`\`bash
+git clone https://github.com/GabrielJung0727/rangu.fam.git
+cd rangu.fam
+\`\`\`
 
-### 프로덕션 빌드
+2. 의존성 설치
+\`\`\`bash
+yarn install
+# 또는
+npm install
+\`\`\`
 
-```bash
-npm run build
-```
+3. 환경 변수 설정
+\`\`\`bash
+cp .env.example .env.local
+# .env.local 파일을 적절히 수정
+\`\`\`
 
-### GitHub Pages 배포
+4. 개발 서버 실행
+\`\`\`bash
+yarn dev
+# 또는
+npm run dev
+\`\`\`
 
-```bash
-npm run deploy
-```
+## 🤝 기여하기
 
-## 👥 테스트 계정
+1. 이 저장소를 포크합니다
+2. 새로운 브랜치를 생성합니다 (\`git checkout -b feature/amazing-feature\`)
+3. 변경사항을 커밋합니다 (\`git commit -m 'feat: Add amazing feature'\`)
+4. 브랜치에 푸시합니다 (\`git push origin feature/amazing-feature\`)
+5. Pull Request를 생성합니다
 
-- **사용자명**: jingyu, jaewon, hanul, minseok, guest
-- **비밀번호**: 각 사용자별로 설정된 비밀번호 (데이터 파일 참조)
+## 📜 커밋 컨벤션
 
-## 🏗️ 기술 스택
+- **feat**: 새로운 기능 추가
+- **fix**: 버그 수정
+- **docs**: 문서 수정
+- **style**: 코드 포맷팅
+- **refactor**: 코드 리팩토링
+- **test**: 테스트 코드
+- **chore**: 빌드 업무 수정
 
-- **Frontend**: React 18, TypeScript
-- **Routing**: React Router v6
-- **Styling**: Tailwind CSS
-- **State Management**: React Context API
-- **Date/Time**: dayjs
-- **Icons**: Lucide React
-- **Build Tool**: Create React App
+## 📄 라이선스
 
-## 📁 프로젝트 구조
+이 프로젝트는 MIT 라이선스를 따릅니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
-```
-src/
-├── components/     # 재사용 컴포넌트
-├── context/        # React Context (테마 관리)
-├── data/          # JSON 데이터 파일
-├── i18n/          # 다국어 리소스
-├── pages/         # 페이지 컴포넌트
-└── utils/         # 유틸리티 함수
-```
+## 👥 팀 멤버
 
-## 🎨 테마 및 다국어
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/username1">
+        <img src="public/images/members/jingyu.jpg" width="100px;" alt="진규"/><br />
+        <sub><b>진규</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/username2">
+        <img src="public/images/members/jaewon.jpg" width="100px;" alt="재원"/><br />
+        <sub><b>재원</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/username3">
+        <img src="public/images/members/hanul.jpg" width="100px;" alt="한울"/><br />
+        <sub><b>한울</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/username4">
+        <img src="public/images/members/minseok.jpg" width="100px;" alt="민석"/><br />
+        <sub><b>민석</b></sub>
+      </a>
+    </td>
+  </tr>
+</table>
 
-- **언어**: Context API를 통한 전역 언어 설정
-- **테마**: HTML 클래스 기반 테마 전환
-- **로컬스토리지**: 사용자 설정 자동 저장
+## 📞 연락처
 
-## 📱 반응형 디자인
+프로젝트에 대한 문의사항이 있으시다면 아래 방법으로 연락해주세요:
 
-모든 페이지는 모바일, 태블릿, 데스크톱에서 최적화되어 작동합니다.
-
-## 🔐 보안
-
-- 클라이언트 사이드 인증 (개발용)
-- 로컬스토리지 기반 세션 관리
-- 권한 기반 기능 접근 제어
+- 이메일: [example@email.com](mailto:example@email.com)
+- 디스코드: [랑구팸 서버](https://discord.gg/example)
+- 트위터: [@rangufam](https://twitter.com/rangufam)
 
 ---
 
-**Note**: 이 프로젝트는 Next.js에서 React로 포팅된 버전입니다.
+<div align="center">
+  Made with ❤️ by Rangu Family
+</div>
