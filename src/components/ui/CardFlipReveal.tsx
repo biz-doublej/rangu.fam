@@ -352,10 +352,7 @@ export function CardFlipReveal({
     flipped: { 
       scale: [1, 1.2, 1], // 간단한 스케일 애니메이션만
       opacity: [1, 0.8, 1],
-      transition: { 
-        duration: duration * 0.8, // 더 짧게
-        ease: [0.42, 0, 0.58, 1]
-      }
+      transition: { duration: duration * 0.8 }
     }
   }
 
@@ -377,11 +374,7 @@ export function CardFlipReveal({
     visible: { 
       opacity: 1,
       scale: [0.5, 1.2, 1], // 간단한 팝 애니메이션
-      transition: { 
-        delay: duration * 0.3, // 더 빨리 나타남
-        duration: duration * 0.5,
-        ease: [0.42, 0, 0.58, 1]
-      }
+      transition: { delay: duration * 0.3, duration: duration * 0.5 }
     }
   }
 
