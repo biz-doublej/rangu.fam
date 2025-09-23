@@ -8,7 +8,6 @@ import Image from '@/models/Image'
 import { validateAudioFile } from '@/services/musicService'
 import { parseBuffer } from 'music-metadata'
 
-
 export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {

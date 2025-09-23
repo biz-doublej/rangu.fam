@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import Profile, { type IProfile } from '@/models/Profile'
+import type { Types } from 'mongoose'
 export const dynamic = 'force-dynamic'
 
 // POST - 팔로우/언팔로우
@@ -41,6 +42,9 @@ export async function POST(
       )
     }
 
+    // null 아님이 보장된 시점의 대상 사용자 ID 캐시
+    const targetUserIdStr = targetProfile.userId.toString()
+
     // 팔로우하는 사용자의 프로필 찾기
     const userProfile = await Profile.findOne({ userId })
 
@@ -58,7 +62,7 @@ export async function POST(
         await targetProfile.save()
       }
       
-      if (!userProfile.following.includes(targetProfile.userId)) {
+      if (!userProfile.following.map((id: Types.ObjectId) => id.toString()).includes(targetUserIdStr)) {
         userProfile.following.push(targetProfile.userId)
         await userProfile.save()
       }
@@ -70,7 +74,7 @@ export async function POST(
       await targetProfile.save()
       
       userProfile.following = userProfile.following.filter(
-        (followingId: any) => followingId.toString() !== targetProfile.userId.toString()
+        (followingId: any) => followingId.toString() !== targetUserIdStr
       )
       await userProfile.save()
     }
