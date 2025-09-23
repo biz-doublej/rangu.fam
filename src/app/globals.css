@@ -2,21 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent browser extension hydration warnings */
-[bis_skin_checked] {
-  /* Suppress any styling from browser extensions */
-}
-
-/* Hide browser extension artifacts and prevent hydration issues */
-*[data-darkreader-inline-color],
-*[data-darkreader-inline-bgcolor],
-*[data-darkreader-inline-fill],
-*[data-darkreader-inline-stroke],
-*[bis_skin_checked],
-*[data-adblock-key],
-*[data-extension-mutated] {
-  /* Reset any extension-added properties that might cause hydration issues */
-}
+/* Prevent browser extension hydration warnings (intentionally left out – no-op) */
 
 /* Framer Motion hydration fix */
 .motion-reduce *,
@@ -55,6 +41,7 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2; /* for editors that expect a standard property */
 }
 
 /* iOS Liquid Glass 스타일 기본 설정 */
