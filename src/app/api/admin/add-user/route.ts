@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
   try {
     await dbConnect()
     
-    const users = await User.find({}, '-password').lean()
+    const users = await (User as any).find({}, '-password').lean()
     
     return NextResponse.json({
       success: true,
