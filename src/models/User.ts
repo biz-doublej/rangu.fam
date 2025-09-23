@@ -100,4 +100,6 @@ const UserSchema: Schema = new Schema({
 // UserSchema.index({ email: 1 }) - unique: true로 자동 생성됨
 UserSchema.index({ role: 1, isOnline: 1 }) // 성능 최적화용 복합 인덱스
 
-export default mongoose.models.User || mongoose.model<IUser>('User', UserSchema) 
+const UserModel = (mongoose.models.User as mongoose.Model<IUser>) || mongoose.model<IUser>('User', UserSchema)
+
+export default UserModel
