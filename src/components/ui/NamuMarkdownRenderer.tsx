@@ -1068,7 +1068,7 @@ export default function NamuMarkdownRenderer({
         {contentWithAlerts}
       </ReactMarkdown>
 
-      <style jsx global>{`
+      <style>{`
         .namu-wiki-content {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
           line-height: 1.7;
