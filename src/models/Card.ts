@@ -1,16 +1,41 @@
 import mongoose, { Document, Schema } from 'mongoose'
 
+// 공통에서 사용하는 카드 타입/희귀도 열거형을 모델에서 노출
+export enum CardType {
+  YEAR = 'year',
+  SPECIAL = 'special',
+  SIGNATURE = 'signature',
+  MATERIAL = 'material',
+  PRESTIGE = 'prestige'
+}
+
+export enum CardRarity {
+  BASIC = 'basic',
+  RARE = 'rare',
+  EPIC = 'epic',
+  LEGENDARY = 'legendary',
+  MATERIAL = 'material'
+}
+
 export interface ICard extends Document {
   cardId: string
   name: string
-  type: string
-  rarity: string
+  type: CardType | string
+  rarity: CardRarity | string
   description: string
   imageUrl: string
-  cardImageUrl: string
+  cardImageUrl?: string
   isGroupCard: boolean
   dropRate: number
   canBeUsedForCrafting: boolean
+  // 선택 필드 (시드에서 사용)
+  member?: string
+  year?: number
+  version?: number
+  period?: string
+  backgroundUrl?: string
+  maxCopies?: number
+  craftingRecipe?: any
   createdAt: Date
   updatedAt: Date
 }
@@ -22,10 +47,19 @@ const CardSchema = new Schema<ICard>({
   rarity: { type: String, required: true },
   description: { type: String, required: true },
   imageUrl: { type: String, required: true },
-  cardImageUrl: { type: String, required: true },
+  // 일부 카드 타입(연도/스페셜 등)은 cardImageUrl이 없을 수 있으므로 필수 해제
+  cardImageUrl: { type: String, required: false, default: '' },
   isGroupCard: { type: Boolean, default: false },
   dropRate: { type: Number, default: 0 },
   canBeUsedForCrafting: { type: Boolean, default: false },
+  // 선택 필드들
+  member: { type: String },
+  year: { type: Number },
+  version: { type: Number },
+  period: { type: String },
+  backgroundUrl: { type: String },
+  maxCopies: { type: Number },
+  craftingRecipe: { type: Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 })
