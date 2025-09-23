@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import connectDB from '@/lib/mongodb'
 import { Bookmark } from '@/models/Bookmark'
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +12,7 @@ export async function GET(
     const { id } = params
     
     try {
-      await connectToDatabase()
+      await connectDB()
       const bookmark = await Bookmark.findById(id)
       
       if (!bookmark) {
@@ -65,7 +65,7 @@ export async function PUT(
     }
 
     try {
-      await connectToDatabase()
+      await connectDB()
       
       // 북마크 존재 확인
       const existingBookmark = await Bookmark.findById(id)
@@ -120,7 +120,7 @@ export async function DELETE(
     const { id } = params
     
     try {
-      await connectToDatabase()
+      await connectDB()
       
       // 북마크 존재 확인 및 삭제
       const deletedBookmark = await Bookmark.findByIdAndDelete(id)

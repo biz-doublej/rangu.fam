@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import connectDB from '@/lib/mongodb'
 import { Bookmark } from '@/models/Bookmark'
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await connectToDatabase()
+      await connectDB()
       
       // 해당 사용자의 모든 북마크 조회
       const userBookmarks = await Bookmark.find({ userId })

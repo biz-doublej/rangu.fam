@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import connectDB from '@/lib/mongodb'
 import { Bookmark } from '@/models/Bookmark'
 import { Bookmark as BookmarkType } from '@/types'
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      await connectToDatabase()
+      await connectDB()
       // userId로 북마크 조회 (order 순으로 정렬)
       const bookmarks = await Bookmark.find({ userId }).sort({ order: 1 })
       
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await connectToDatabase()
+      await connectDB()
       
       // 사용자의 현재 북마크 개수 확인하여 order 설정
       const bookmarkCount = await Bookmark.countDocuments({ userId })
