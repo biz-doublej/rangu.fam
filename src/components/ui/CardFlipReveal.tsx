@@ -354,8 +354,7 @@ export function CardFlipReveal({
       opacity: [1, 0.8, 1],
       transition: { 
         duration: duration * 0.8, // 더 짧게
-        ease: 'easeInOut',
-        times: [0, 0.5, 1]
+        ease: [0.42, 0, 0.58, 1]
       }
     }
   }
@@ -381,8 +380,7 @@ export function CardFlipReveal({
       transition: { 
         delay: duration * 0.3, // 더 빨리 나타남
         duration: duration * 0.5,
-        ease: 'easeInOut',
-        times: [0, 0.6, 1]
+        ease: [0.42, 0, 0.58, 1]
       }
     }
   }
