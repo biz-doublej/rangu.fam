@@ -196,6 +196,11 @@
     @apply bg-glass-white backdrop-blur-lg border-b border-glass shadow-soft;
   }
   
+  /* 다크 톤 사이드바 전용 */
+  .glass-sidebar {
+    @apply bg-gray-900/70 backdrop-blur-lg border-r border-glass shadow-soft;
+  }
+  
   .text-gradient {
     @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
   }

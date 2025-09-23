@@ -62,6 +62,8 @@ export default function HomePage() {
   const [membersLoading, setMembersLoading] = useState(true)
   const [countdown, setCountdown] = useState(17) // 카운트다운 타이머
   const [isSlideHovered, setIsSlideHovered] = useState(false) // 슬라이드 호버 상태
+  const [showVolumePanel, setShowVolumePanel] = useState(false) // 슬라이드 내부 볼륨 패널 표시
+  const [videoError, setVideoError] = useState(false)
   const { user, logout, isLoggedIn } = useAuth()
   const router = useRouter()
 
@@ -115,6 +117,9 @@ export default function HomePage() {
     const currentContent = slideContent[currentSlide]
     const initialTime = currentContent?.type === 'video' ? 17 : 5 // 영상 17초, 이미지 5초
     setCountdown(initialTime)
+    // 슬라이드 전환 시 볼륨 패널은 닫고 에러 상태 초기화
+    setShowVolumePanel(false)
+    setVideoError(false)
   }, [currentSlide])
 
   // 카운트다운 타이머
@@ -187,7 +192,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen relative overflow-hidden bg-gray-900">
       {/* 상단 시간 표시 */}
-      <header className="glass-nav fixed top-0 left-0 right-0 z-50">
+      <header className="glass-nav fixed top-0 left-0 right-0 z-50 bg-gray-900/70">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
             {/* 로고 */}
@@ -205,31 +210,31 @@ export default function HomePage() {
               {isClient ? (
                 <>
                   <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <span className="text-gray-700">서울</span>
-                    <span className="font-mono text-primary-700">
+                    <Clock className="w-4 h-4 text-primary-300" />
+                    <span className="text-gray-200">서울</span>
+                    <span className="font-mono text-primary-300">
                       {format(times.seoul, 'HH:mm:ss')}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <span className="text-gray-700">밴쿠버</span>
-                    <span className="font-mono text-primary-700">
+                    <Clock className="w-4 h-4 text-primary-300" />
+                    <span className="text-gray-200">밴쿠버</span>
+                    <span className="font-mono text-primary-300">
                       {format(times.vancouver, 'HH:mm:ss')}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <span className="text-gray-700">스위스</span>
-                    <span className="font-mono text-primary-700">
+                    <Clock className="w-4 h-4 text-primary-300" />
+                    <span className="text-gray-200">스위스</span>
+                    <span className="font-mono text-primary-300">
                       {format(times.switzerland, 'HH:mm:ss')}
                     </span>
                   </div>
                 </>
               ) : (
                 <div className="flex items-center space-x-2 text-sm">
-                  <Clock className="w-4 h-4 text-primary-600" />
-                  <span className="text-gray-700">시간 로딩중...</span>
+                  <Clock className="w-4 h-4 text-primary-300" />
+                  <span className="text-gray-200">시간 로딩중...</span>
                 </div>
               )}
             </div>
@@ -239,7 +244,7 @@ export default function HomePage() {
               {isLoggedIn ? (
                 <div className="flex items-center space-x-3">
                   <div className="hidden md:block text-right">
-                    <p className="text-sm font-medium text-primary-700">{user?.username}</p>
+                    <p className="text-sm font-medium text-primary-200">{user?.username}</p>
                     <p className="text-xs text-gray-500">{user?.role === 'member' ? '멤버' : '게스트'}</p>
                   </div>
                   <button 
@@ -260,8 +265,9 @@ export default function HomePage() {
                 </button>
               )}
               <button 
-                className="glass-button p-2 md:hidden"
+                className="glass-button p-2"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
+                title="메뉴"
               >
                 {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -271,7 +277,7 @@ export default function HomePage() {
       </header>
 
       {/* 네비게이션 메뉴 */}
-      <nav className="hidden md:block glass-nav fixed left-0 top-20 bottom-0 w-64 z-40 overflow-y-auto">
+      <nav className="hidden md:block glass-sidebar fixed left-0 top-20 bottom-0 w-64 z-40 overflow-y-auto">
         <div className="p-6">
           {/* 메인 네비게이션 */}
           <ul className="space-y-3 mb-6">
@@ -286,8 +292,8 @@ export default function HomePage() {
                   href={item.href}
                   className="glass-button flex items-center space-x-3 p-4 w-full text-left"
                 >
-                  <item.icon className="w-5 h-5 text-primary-600" />
-                  <span className="text-gray-700 font-medium">{item.label}</span>
+                  <item.icon className="w-5 h-5 text-primary-300" />
+                  <span className="text-gray-100 font-medium">{item.label}</span>
                 </a>
               </motion.li>
             ))}
@@ -322,12 +328,20 @@ export default function HomePage() {
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            className="md:hidden fixed inset-0 z-50 bg-glass-white backdrop-blur-lg overflow-y-auto"
+            className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={() => setIsMenuOpen(false)}
           >
-            <div className="pt-20 p-6">
+            <motion.div
+              className="pt-20 p-6 w-full max-w-sm h-full glass-sidebar"
+              initial={{ x: -40, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -40, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* 메인 네비게이션 */}
               <ul className="space-y-3 mb-6">
                 {navigationItems.map((item, index) => (
@@ -342,8 +356,8 @@ export default function HomePage() {
                       className="glass-button flex items-center space-x-3 p-4 w-full text-left"
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <item.icon className="w-5 h-5 text-primary-600" />
-                      <span className="text-gray-700 font-medium">{item.label}</span>
+                      <item.icon className="w-5 h-5 text-primary-300" />
+                      <span className="text-gray-100 font-medium">{item.label}</span>
                     </a>
                   </motion.li>
                 ))}
@@ -371,7 +385,7 @@ export default function HomePage() {
                   <BookmarkWidget userId={user.id} />
                 </motion.div>
               )}
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -389,7 +403,7 @@ export default function HomePage() {
             <h1 className="text-4xl md:text-6xl font-bold text-gradient mb-4">
               환영합니다
             </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
               네 친구의 특별한 온라인 공간, Rangu.fam에 오신 것을 환영합니다. 
               우정과 추억이 가득한 이곳에서 함께 시간을 보내세요.
             </p>
@@ -402,7 +416,11 @@ export default function HomePage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
             onMouseEnter={() => setIsSlideHovered(true)}
-            onMouseLeave={() => setIsSlideHovered(false)}
+            onMouseLeave={() => {
+              setIsSlideHovered(false)
+              // 호버가 끝나면 패널 자동 숨김 (고정 클릭 시 유지 원치 않음)
+              setShowVolumePanel(false)
+            }}
             onClick={() => setIsSlideHovered(!isSlideHovered)}
             style={{ aspectRatio: '16/9' }}
           >
@@ -415,7 +433,7 @@ export default function HomePage() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 1 }}
               >
-                {slideContent[currentSlide]?.type === 'video' ? (
+                {slideContent[currentSlide]?.type === 'video' && !videoError ? (
                   <video
                     className="w-full h-full object-cover"
                     autoPlay
@@ -436,6 +454,7 @@ export default function HomePage() {
                       video.volume = videoVolume / 100;
                       video.muted = videoMuted;
                     }}
+                    onError={() => setVideoError(true)}
                   >
                     <source src={slideContent[currentSlide].src} type="video/mp4" />
                     <div className="w-full h-full bg-gradient-to-br from-primary-100 to-warm-100 flex items-center justify-center">
@@ -448,15 +467,13 @@ export default function HomePage() {
                       </div>
                     </div>
                   </video>
-                ) : slideContent[currentSlide]?.type === 'image' ? (
+                ) : slideContent[currentSlide]?.type === 'image' && !videoError ? (
                   <Image
                     src={slideContent[currentSlide].src}
                     alt={slideContent[currentSlide].title}
                     fill
                     className="object-cover object-top"
-                    onError={() => {
-                      // 이미지 로드 실패 시 플레이스홀더 표시
-                    }}
+                    onError={() => setVideoError(true)}
                   />
                 ) : (
                   // 플레이스홀더 (파일이 없을 때)
@@ -512,6 +529,102 @@ export default function HomePage() {
               )}
             </AnimatePresence>
 
+            {/* 슬라이드 내부 볼륨 토글 버튼 및 패널 (비디오일 때만) */}
+            {(slideContent[currentSlide]?.type === 'video') && (
+              <>
+                {/* 토글 버튼: 호버 시 또는 패널 열려있을 때만 표시 */}
+                {(isSlideHovered || showVolumePanel) && (
+                  <button
+                    className={`absolute bottom-4 right-4 z-20 glass-button p-3 rounded-full ${showVolumePanel ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                    title={videoMuted ? '음소거 해제' : '볼륨 조절'}
+                    onClick={(e) => { e.stopPropagation(); setShowVolumePanel(true) }}
+                  >
+                    {videoMuted ? <VolumeX className="w-5 h-5 text-primary-700" /> : <Volume2 className="w-5 h-5 text-primary-700" />}
+                  </button>
+                )}
+
+                {/* 볼륨 패널 */}
+                {showVolumePanel && (
+                  <div className="absolute bottom-4 right-4 z-30 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg p-4 min-w-[260px]" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
+                          <Volume2 className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-800">메인 영상 볼륨</h3>
+                          <p className="text-xs text-gray-500">{slideContent[currentSlide].title}</p>
+                        </div>
+                      </div>
+                      <button className="p-1 rounded-lg hover:bg-gray-100" onClick={() => setShowVolumePanel(false)} title="닫기">
+                        <X className="w-4 h-4 text-gray-600" />
+                      </button>
+                    </div>
+                    <div className="mb-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={videoMuted ? 0 : videoVolume}
+                        onChange={(e) => {
+                          const volume = Number(e.target.value)
+                          setVideoVolume(volume)
+                          setSavedVolume(volume)
+                          if (volume > 0) setVideoMuted(false)
+                          updateAllVideosVolume(volume, volume === 0)
+                          localStorage.setItem('rangu_video_volume', volume.toString())
+                          localStorage.setItem('rangu_video_muted', (volume === 0).toString())
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                        style={{
+                          background: `linear-gradient(to right, #f97316 0%, #f97316 ${videoMuted ? 0 : videoVolume}%, #e5e7eb ${videoMuted ? 0 : videoVolume}%, #e5e7eb 100%)`
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => {
+                          const newMuted = !videoMuted
+                          setVideoMuted(newMuted)
+                          updateAllVideosVolume(videoVolume, newMuted)
+                          localStorage.setItem('rangu_video_muted', newMuted.toString())
+                        }}
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                        title={videoMuted ? '음소거 해제' : '음소거'}
+                      >
+                        {videoMuted ? (
+                          <VolumeX className="w-4 h-4 text-gray-600" />
+                        ) : (
+                          <Volume2 className="w-4 h-4 text-gray-600" />
+                        )}
+                      </button>
+                      <div className="flex space-x-1">
+                        {[25, 50, 75, 100].map((preset) => (
+                          <button
+                            key={preset}
+                            onClick={() => {
+                              setVideoVolume(preset)
+                              setSavedVolume(preset)
+                              setVideoMuted(false)
+                              updateAllVideosVolume(preset, false)
+                              localStorage.setItem('rangu_video_volume', preset.toString())
+                              localStorage.setItem('rangu_video_muted', 'false')
+                            }}
+                            className={`px-2 py-1 text-xs rounded transition-colors ${
+                              videoVolume === preset && !videoMuted
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
           </motion.div>
 
@@ -651,108 +764,14 @@ export default function HomePage() {
                         onClick={() => router.push(feature.link)}
                       >
                         <h3 className="text-lg font-bold text-primary-700 mb-2">{feature.title}</h3>
-                        <p className="text-sm text-gray-600">{feature.desc}</p>
+                        <p className="text-sm text-gray-300">{feature.desc}</p>
                       </motion.div>
                     ))}
                   </motion.div>
         </div>
       </main>
 
-      {/* 우측 하단 비디오 볼륨 컨트롤 */}
-      {isClient && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg p-4 min-w-[280px]">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
-                  <Volume2 className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">메인 영상 볼륨</h3>
-                  <p className="text-xs text-gray-500">
-                    {slideContent[currentSlide]?.type === 'video' 
-                      ? slideContent[currentSlide].title 
-                      : '이미지 슬라이드'}
-                  </p>
-                </div>
-              </div>
-              <div className="text-sm font-medium text-gray-600">
-                {videoMuted ? '음소거' : `${videoVolume}%`}
-              </div>
-            </div>
-
-            {/* 볼륨 슬라이더 */}
-            <div className="mb-3">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={videoMuted ? 0 : videoVolume}
-                onChange={(e) => {
-                  const volume = Number(e.target.value)
-                  setVideoVolume(volume)
-                  setSavedVolume(volume)
-                  if (volume > 0) setVideoMuted(false)
-                  updateAllVideosVolume(volume, volume === 0)
-                  localStorage.setItem('rangu_video_volume', volume.toString())
-                  localStorage.setItem('rangu_video_muted', (volume === 0).toString())
-                }}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                style={{
-                  background: `linear-gradient(to right, #f97316 0%, #f97316 ${videoMuted ? 0 : videoVolume}%, #e5e7eb ${videoMuted ? 0 : videoVolume}%, #e5e7eb 100%)`
-                }}
-              />
-            </div>
-
-            {/* 컨트롤 버튼들 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                {/* 음소거 버튼 */}
-                <button
-                  onClick={() => {
-                    const newMuted = !videoMuted
-                    setVideoMuted(newMuted)
-                    updateAllVideosVolume(videoVolume, newMuted)
-                    localStorage.setItem('rangu_video_muted', newMuted.toString())
-                  }}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  {videoMuted ? (
-                    <VolumeX className="w-4 h-4 text-gray-600" />
-                  ) : (
-                    <Volume2 className="w-4 h-4 text-gray-600" />
-                  )}
-                </button>
-
-                {/* 볼륨 프리셋 버튼들 */}
-                <div className="flex space-x-1">
-                  {[25, 50, 75, 100].map((preset) => (
-                    <button
-                      key={preset}
-                      onClick={() => {
-                        setVideoVolume(preset)
-                        setSavedVolume(preset)
-                        setVideoMuted(false)
-                        updateAllVideosVolume(preset, false)
-                        localStorage.setItem('rangu_video_volume', preset.toString())
-                        localStorage.setItem('rangu_video_muted', 'false')
-                      }}
-                      className={`px-2 py-1 text-xs rounded transition-colors ${
-                        videoVolume === preset && !videoMuted
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 우측 하단 고정 볼륨 패널은 제거하고, 슬라이드 내부로 이동함 */}
     </div>
   )
-} 
+}
