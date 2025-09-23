@@ -100,12 +100,12 @@ const UserSchema: Schema = new Schema({
 // UserSchema.index({ email: 1 }) - unique: true로 자동 생성됨
 UserSchema.index({ role: 1, isOnline: 1 }) // 성능 최적화용 복합 인덱스
 
-let UserModel: mongoose.Model<IUser>
+let UserModel: any
 if (mongoose.models.User) {
-  // 이미 컴파일된 모델 재사용
-  UserModel = mongoose.model<IUser>('User')
+  // 이미 컴파일된 모델 재사용 (타입 단순화로 CRA 빌드 호환성 확보)
+  UserModel = mongoose.model('User')
 } else {
-  UserModel = mongoose.model<IUser>('User', UserSchema)
+  UserModel = mongoose.model('User', UserSchema)
 }
 
-export default UserModel
+export default UserModel as unknown as mongoose.Model<IUser>
