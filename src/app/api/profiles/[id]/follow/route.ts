@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
-import Profile from '@/models/Profile'
+import Profile, { type IProfile } from '@/models/Profile'
 export const dynamic = 'force-dynamic'
 
 // POST - 팔로우/언팔로우
@@ -25,7 +25,7 @@ export async function POST(
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(targetId)
     
     // 대상 프로필 찾기
-    let targetProfile
+    let targetProfile: IProfile | null
     if (isObjectId) {
       // ObjectId로 조회 (userId 기준)
       targetProfile = await Profile.findOne({ userId: targetId })
