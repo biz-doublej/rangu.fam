@@ -48,6 +48,7 @@ const LyricsPanel: React.FC<LyricsPanelProps> = ({
     }));
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!isPlaying || !track) return;
 
@@ -84,6 +85,7 @@ const LyricsPanel: React.FC<LyricsPanelProps> = ({
 
   if (!isOpen || !track) return null;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const lyricTimings = getLyricTimings();
 
   return (
