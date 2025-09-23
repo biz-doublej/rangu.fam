@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Music2, 
-  Award,
+  // Award,
   Star,
   Mail,
   Phone,
@@ -362,7 +362,8 @@ const MinseokPage: React.FC = () => {
                       <div className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 rounded-2xl p-6 border border-violet-500/20">
                         <div className="aspect-video bg-black/20 rounded-xl flex items-center justify-center">
                           {soundCloudLoaded ? (
-                            <iframe
+            <iframe 
+              title="soundcloud-track"
                               width="100%"
                               height="166"
                               scrolling="no"

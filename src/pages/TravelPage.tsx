@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import TravelCard from '../components/TravelCard';
 import travelsData from '../data/travels.json';
@@ -15,8 +15,8 @@ import {
   Search,
   Grid3X3,
   List,
-  Eye,
-  Heart,
+  // Eye,
+  // Heart,
   DollarSign
 } from 'lucide-react';
 

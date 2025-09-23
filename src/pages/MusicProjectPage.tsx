@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import languages from '../i18n';
+// import languages from '../i18n';
 import MusicPlayer from '../components/MusicPlayer';
 import LyricsPanel from '../components/LyricsPanel';
 import musicData from '../data/music.json';
@@ -24,7 +24,7 @@ interface Track {
 
 const MusicProjectPage: React.FC = () => {
   const { language } = useTheme();
-  const text = languages[language];
+  // const text = languages[language];
   
   const [tracks] = useState<Track[]>(musicData as Track[]);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);

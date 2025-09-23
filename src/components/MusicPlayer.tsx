@@ -44,6 +44,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
   const [isShuffled, setIsShuffled] = useState(false);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;

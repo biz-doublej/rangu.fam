@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
-import languages from '../i18n';
+// import languages from '../i18n';
 import MemberCard from '../components/MemberCard';
 import membersData from '../data/members.json';
 import { Music, MapPin, Users, Heart } from 'lucide-react';

@@ -6,7 +6,7 @@ import {
   Brain,
   Star,
   Mail,
-  Phone,
+  // Phone,
   Linkedin,
   ArrowLeft,
   Download,
@@ -23,10 +23,10 @@ import {
   Server,
   Globe,
   Instagram,
-  ExternalLink,
-  BookOpen,
-  Trophy,
-  Target,
+  // ExternalLink,
+  // BookOpen,
+  // Trophy,
+  // Target,
   Users
 } from 'lucide-react';
 

@@ -12,7 +12,7 @@ import {
   Award,
   TrendingUp,
   Eye,
-  Zap,
+  // Zap,
   Instagram,
   Play
 } from 'lucide-react';
