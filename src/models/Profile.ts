@@ -229,6 +229,13 @@ export interface IProfile extends mongoose.Document {
   updatedAt: Date
 }
 
-const Profile = mongoose.models.Profile || mongoose.model<IProfile>('Profile', ProfileSchema)
+let ProfileModel: any
+if (mongoose.models.Profile) {
+  ProfileModel = mongoose.model('Profile')
+} else {
+  ProfileModel = mongoose.model('Profile', ProfileSchema)
+}
+
+const Profile = ProfileModel as unknown as mongoose.Model<IProfile>
 
 export default Profile 
