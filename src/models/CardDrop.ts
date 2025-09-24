@@ -23,7 +23,7 @@ export interface ICardDrop {
   createdAt: Date
 }
 
-const CardDropSchema = new mongoose.Schema<ICardDrop>({
+const CardDropSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -59,7 +59,7 @@ const CardDropSchema = new mongoose.Schema<ICardDrop>({
     }],
     wasSuccessful: Boolean
   }
-}, {
+} as any, {
   timestamps: true
 })
 
@@ -67,4 +67,11 @@ const CardDropSchema = new mongoose.Schema<ICardDrop>({
 CardDropSchema.index({ userId: 1, droppedAt: -1 })
 CardDropSchema.index({ userId: 1, dropType: 1, droppedAt: -1 })
 
-export const CardDrop = mongoose.models.CardDrop || mongoose.model<ICardDrop>('CardDrop', CardDropSchema)
+let CardDropModel: any
+if (mongoose.models.CardDrop) {
+  CardDropModel = mongoose.model('CardDrop')
+} else {
+  CardDropModel = mongoose.model('CardDrop', CardDropSchema)
+}
+
+export const CardDrop = CardDropModel as unknown as mongoose.Model<ICardDrop>
