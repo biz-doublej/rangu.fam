@@ -45,7 +45,14 @@ const GameSettingsSchema = new mongoose.Schema({
   timestamps: true
 })
 
-export const GameSettings = mongoose.models.GameSettings || mongoose.model('GameSettings', GameSettingsSchema)
+let GameSettingsModel: any
+if (mongoose.models.GameSettings) {
+  GameSettingsModel = mongoose.model('GameSettings')
+} else {
+  GameSettingsModel = mongoose.model('GameSettings', GameSettingsSchema)
+}
+
+export const GameSettings = GameSettingsModel as unknown as mongoose.Model<any>
 export type IGameSettings = mongoose.InferSchemaType<typeof GameSettingsSchema>
 export type ITetrisKeys = mongoose.InferSchemaType<typeof TetrisKeysSchema>
 export type IBotSettings = mongoose.InferSchemaType<typeof BotSettingsSchema> 
