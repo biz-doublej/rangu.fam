@@ -40,7 +40,7 @@ export interface ICard extends Document {
   updatedAt: Date
 }
 
-const CardSchema = new Schema<ICard>({
+const CardSchema = new Schema({
   cardId: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   type: { type: String, required: true },
@@ -62,7 +62,14 @@ const CardSchema = new Schema<ICard>({
   craftingRecipe: { type: Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
-})
+} as any)
 
-// 모델이 이미 컴파일되었는지 확인
-export const Card = mongoose.models.Card || mongoose.model<ICard>('Card', CardSchema)
+// 모델이 이미 컴파일되었는지 확인 (CRA 빌드에서 복잡한 제네릭 회피)
+let CardModel: any
+if (mongoose.models.Card) {
+  CardModel = mongoose.model('Card')
+} else {
+  CardModel = mongoose.model('Card', CardSchema)
+}
+
+export const Card = CardModel as unknown as mongoose.Model<ICard>
