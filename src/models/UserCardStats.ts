@@ -47,7 +47,7 @@ export interface IUserCardStats {
   updatedAt: Date
 }
 
-const UserCardStatsSchema = new mongoose.Schema<IUserCardStats>({
+const UserCardStatsSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -166,7 +166,7 @@ const UserCardStatsSchema = new mongoose.Schema<IUserCardStats>({
       required: true
     }
   }]
-}, {
+} as any, {
   timestamps: true
 })
 

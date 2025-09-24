@@ -205,6 +205,13 @@ export interface ISiteHistory extends mongoose.Document {
   updatedAt: Date
 }
 
-const SiteHistory = mongoose.models.SiteHistory || mongoose.model<ISiteHistory>('SiteHistory', SiteHistorySchema)
+let SiteHistoryModel: any
+if (mongoose.models.SiteHistory) {
+  SiteHistoryModel = mongoose.model('SiteHistory')
+} else {
+  SiteHistoryModel = mongoose.model('SiteHistory', SiteHistorySchema)
+}
+
+const SiteHistory = SiteHistoryModel as unknown as mongoose.Model<ISiteHistory>
 
 export default SiteHistory 

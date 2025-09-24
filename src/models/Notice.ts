@@ -14,7 +14,7 @@ export interface INotice {
   updatedAt?: Date
 }
 
-const NoticeSchema = new mongoose.Schema<INotice>({
+const NoticeSchema = new mongoose.Schema({
   id: {
     type: Number,
     required: true,
@@ -57,7 +57,7 @@ const NoticeSchema = new mongoose.Schema<INotice>({
     trim: true,
     maxlength: 50
   }
-}, {
+} as any, {
   timestamps: true, // createdAt, updatedAt 자동 생성
   collection: 'notices'
 })

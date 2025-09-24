@@ -19,7 +19,7 @@ export interface IUserCard {
   updatedAt: Date
 }
 
-const UserCardSchema = new mongoose.Schema<IUserCard>({
+const UserCardSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -56,7 +56,7 @@ const UserCardSchema = new mongoose.Schema<IUserCard>({
     type: Boolean,
     default: false
   }
-}, {
+} as any, {
   timestamps: true
 })
 
