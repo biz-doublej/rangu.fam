@@ -105,7 +105,7 @@ const SiteHistorySchema = new mongoose.Schema({
     improvements: [{ type: String }],
     contributor: { type: String }
   }]
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 인덱스 설정
 HistoryEventSchema.index({ date: -1 })
