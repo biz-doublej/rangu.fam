@@ -126,7 +126,7 @@ const ProfileSchema = new mongoose.Schema({
   showEmail: { type: Boolean, default: false },
   showPhone: { type: Boolean, default: false },
   allowComments: { type: Boolean, default: true }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 인덱스 설정 (userId, username은 unique: true로 자동 생성됨)
 ProfileSchema.index({ 'skills.name': 1 })
