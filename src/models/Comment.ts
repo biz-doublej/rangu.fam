@@ -70,4 +70,11 @@ CommentSchema.index({ playlistId: 1, createdAt: -1 })
 CommentSchema.index({ userById: 1 })
 CommentSchema.index({ parentCommentId: 1 })
 
-export default mongoose.models.Comment || mongoose.model<IComment>('Comment', CommentSchema) 
+let CommentModel: any
+if (mongoose.models.Comment) {
+  CommentModel = mongoose.model('Comment')
+} else {
+  CommentModel = mongoose.model('Comment', CommentSchema)
+}
+
+export default CommentModel as unknown as mongoose.Model<IComment>
