@@ -1,6 +1,7 @@
-import { NextRequest } from 'next/server'
+// Avoid Next.js type dependency so CRA build doesn't fail
+type MinimalRequest = { headers: { get(name: string): string | null } }
 
-export function getIpAddress(request: NextRequest): string {
+export function getIpAddress(request: MinimalRequest): string {
   // Try to get IP from various headers
   const forwarded = request.headers.get('x-forwarded-for')
   const realIp = request.headers.get('x-real-ip')

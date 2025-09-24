@@ -67,5 +67,12 @@ const BookmarkSchema = new mongoose.Schema({
 // userId와 order로 복합 인덱스 생성 (정렬 최적화)
 BookmarkSchema.index({ userId: 1, order: 1 })
 
-// 모델 생성 및 export
-export const Bookmark = mongoose.models.Bookmark || mongoose.model<IBookmark>('Bookmark', BookmarkSchema)
+// 모델 생성 및 export (CRA 빌드에서의 복잡한 제네릭 회피)
+let BookmarkModel: any
+if (mongoose.models.Bookmark) {
+  BookmarkModel = mongoose.model('Bookmark')
+} else {
+  BookmarkModel = mongoose.model('Bookmark', BookmarkSchema)
+}
+
+export const Bookmark = BookmarkModel as unknown as mongoose.Model<IBookmark>
