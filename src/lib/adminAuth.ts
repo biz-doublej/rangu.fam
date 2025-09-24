@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken'
-import { NextRequest } from 'next/server'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-fam-admin-secret-key-2025'
 // 모든 유저가 관리자 로그인 가능하도록 설정
@@ -47,7 +46,9 @@ export function verifyAdminToken(token: string): AdminUser | null {
 }
 
 // 요청에서 관리자 인증 확인
-export function checkAdminAuth(request: NextRequest): AdminUser | null {
+// Note: Avoid importing Next.js types to keep CRA build happy
+type MinimalRequest = { headers: { get(name: string): string | null } }
+export function checkAdminAuth(request: MinimalRequest): AdminUser | null {
   try {
     const authHeader = request.headers.get('authorization')
     if (!authHeader) return null
