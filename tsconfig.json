@@ -29,6 +29,7 @@
     "src"
   ],
   "exclude": [
-    "src/app/**"
+    "src/app/**",
+    "src/backend/**"
   ]
 }
