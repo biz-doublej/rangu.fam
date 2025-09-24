@@ -68,7 +68,7 @@ const WikiUserSchema = new mongoose.Schema({
   
   // 연결
   mainUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } // 메인 사이트 사용자와 연결
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 위키 문서 리비전 스키마
 const WikiRevisionSchema = new mongoose.Schema({
@@ -105,7 +105,7 @@ const WikiRevisionSchema = new mongoose.Schema({
   verifiedBy: { type: String },
   
   timestamp: { type: Date, default: Date.now }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 위키 토론/논의 스키마
 const WikiDiscussionSchema = new mongoose.Schema({
@@ -157,7 +157,7 @@ const WikiDiscussionSchema = new mongoose.Schema({
   isLocked: { type: Boolean, default: false },
   lockedBy: { type: String },
   lockReason: { type: String }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 메인 위키 페이지 스키마
 const WikiPageSchema = new mongoose.Schema({
@@ -255,7 +255,7 @@ const WikiPageSchema = new mongoose.Schema({
     lockExpiry: { type: Date }, // 자동 해제 시간 (10분 후)
     lockReason: { type: String, default: 'editing' }
   }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 위키 네임스페이스 스키마
 const WikiNamespaceSchema = new mongoose.Schema({
@@ -281,7 +281,7 @@ const WikiNamespaceSchema = new mongoose.Schema({
   pageCount: { type: Number, default: 0 },
   
   isActive: { type: Boolean, default: true }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 위키 사이트 설정 스키마
 const WikiConfigSchema = new mongoose.Schema({
@@ -331,7 +331,7 @@ const WikiConfigSchema = new mongoose.Schema({
     frequency: { type: String, default: 'daily' },
     retention: { type: Number, default: 30 } // 일
   }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 편집/생성 승인 대기 스키마
 const WikiSubmissionSchema = new mongoose.Schema({
@@ -353,7 +353,7 @@ const WikiSubmissionSchema = new mongoose.Schema({
   reviewedBy: { type: String },
   reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'WikiUser' },
   reviewedAt: { type: Date }
-}, { timestamps: true })
+} as any, { timestamps: true })
 
 // 인덱스 설정 (unique 필드는 자동으로 인덱스 생성됨)
 // WikiUserSchema.index({ username: 1 }) - unique: true로 자동 생성됨
@@ -521,10 +521,33 @@ if (mongoose.models.WikiPage) {
 } else {
   WikiPageModel = mongoose.model('WikiPage', WikiPageSchema)
 }
-const WikiRevision = mongoose.models.WikiRevision || mongoose.model('WikiRevision', WikiRevisionSchema)
-const WikiDiscussion = mongoose.models.WikiDiscussion || mongoose.model('WikiDiscussion', WikiDiscussionSchema)
-const WikiNamespace = mongoose.models.WikiNamespace || mongoose.model('WikiNamespace', WikiNamespaceSchema)
-const WikiConfig = mongoose.models.WikiConfig || mongoose.model('WikiConfig', WikiConfigSchema)
+let WikiRevisionModel: any
+if (mongoose.models.WikiRevision) {
+  WikiRevisionModel = mongoose.model('WikiRevision')
+} else {
+  WikiRevisionModel = mongoose.model('WikiRevision', WikiRevisionSchema)
+}
+
+let WikiDiscussionModel: any
+if (mongoose.models.WikiDiscussion) {
+  WikiDiscussionModel = mongoose.model('WikiDiscussion')
+} else {
+  WikiDiscussionModel = mongoose.model('WikiDiscussion', WikiDiscussionSchema)
+}
+
+let WikiNamespaceModel: any
+if (mongoose.models.WikiNamespace) {
+  WikiNamespaceModel = mongoose.model('WikiNamespace')
+} else {
+  WikiNamespaceModel = mongoose.model('WikiNamespace', WikiNamespaceSchema)
+}
+
+let WikiConfigModel: any
+if (mongoose.models.WikiConfig) {
+  WikiConfigModel = mongoose.model('WikiConfig')
+} else {
+  WikiConfigModel = mongoose.model('WikiConfig', WikiConfigSchema)
+}
 let WikiSubmissionModel: any
 if (mongoose.models.WikiSubmission) {
   WikiSubmissionModel = mongoose.model('WikiSubmission')
@@ -535,6 +558,10 @@ if (mongoose.models.WikiSubmission) {
 const WikiUser = WikiUserModel as unknown as mongoose.Model<IWikiUser>
 const WikiPage = WikiPageModel as unknown as mongoose.Model<IWikiPage>
 const WikiSubmission = WikiSubmissionModel as unknown as mongoose.Model<IWikiSubmission>
+const WikiRevision = WikiRevisionModel as unknown as mongoose.Model<any>
+const WikiDiscussion = WikiDiscussionModel as unknown as mongoose.Model<any>
+const WikiNamespace = WikiNamespaceModel as unknown as mongoose.Model<any>
+const WikiConfig = WikiConfigModel as unknown as mongoose.Model<any>
 
 export { WikiUser, WikiPage, WikiRevision, WikiDiscussion, WikiNamespace, WikiConfig, WikiSubmission }
 export default WikiPage 
