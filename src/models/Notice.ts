@@ -84,6 +84,13 @@ NoticeSchema.set('toJSON', {
   }
 })
 
-const Notice = mongoose.models.Notice || mongoose.model<INotice>('Notice', NoticeSchema)
+let NoticeModel: any
+if (mongoose.models.Notice) {
+  NoticeModel = mongoose.model('Notice')
+} else {
+  NoticeModel = mongoose.model('Notice', NoticeSchema)
+}
+
+const Notice = NoticeModel as unknown as mongoose.Model<INotice>
 
 export default Notice

@@ -156,4 +156,11 @@ TrackSchema.index({ createdAt: -1 })
 TrackSchema.index({ plays: -1 })
 TrackSchema.index({ likes: -1 })
 
-export default mongoose.models.Track || mongoose.model<ITrack>('Track', TrackSchema) 
+let TrackModel: any
+if (mongoose.models.Track) {
+  TrackModel = mongoose.model('Track')
+} else {
+  TrackModel = mongoose.model('Track', TrackSchema)
+}
+
+export default TrackModel as unknown as mongoose.Model<ITrack>
