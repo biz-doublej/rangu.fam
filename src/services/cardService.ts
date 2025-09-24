@@ -107,9 +107,10 @@ export class CardService {
     
     try {
       // 모든 카드 조회 (프레스티지 제외)
-      const availableCards = await Card.find({
+      // CRA 빌드의 복잡한 제네릭 문제를 피하기 위해 any 캐스팅 사용
+      const availableCards = await (Card as any).find({
         type: { $ne: CardType.PRESTIGE }
-      }).lean()
+      }).lean() as any[]
       
       console.log('Available cards count:', availableCards.length)
       
@@ -121,7 +122,7 @@ export class CardService {
       }
       
       // 가중 랜덤 선택
-      const totalWeight = availableCards.reduce((sum, card) => sum + card.dropRate, 0)
+      const totalWeight = availableCards.reduce((sum: number, card: any) => sum + (card.dropRate || 0), 0)
       console.log('Total weight:', totalWeight)
       
       if (totalWeight === 0) {
@@ -133,8 +134,8 @@ export class CardService {
       const random = Math.random() * totalWeight
       
       let currentWeight = 0
-      for (const card of availableCards) {
-        currentWeight += card.dropRate
+      for (const card of availableCards as any[]) {
+        currentWeight += (card.dropRate || 0)
         if (random <= currentWeight) {
           return card
         }
@@ -173,7 +174,7 @@ export class CardService {
       }
       const memberAbbrev = memberAbbrevMap[randomMember] || 'JAE' // 기본값 설정
       
-      const defaultCard = new Card({
+      const defaultCard = new (Card as any)({
         cardId: `${memberAbbrev.toLowerCase()}_${randomYear}_${randomPeriod}`,
         name: `${randomMember} ${randomYear}년 ${randomPeriod === 'h1' ? '상반기' : '하반기'}`,
         type: CardType.YEAR,
@@ -414,15 +415,15 @@ export class CardService {
       const userObjectId = new ObjectId(userId)
       
       // 사용자 인벤토리 조회
-      const userCards = await UserCard.find({ userId: userObjectId }).lean()
-      const cardCounts = userCards.reduce((acc, card) => {
+      const userCards = await (UserCard as any).find({ userId: userObjectId }).lean() as any[]
+      const cardCounts = userCards.reduce((acc: Record<string, number>, card: any) => {
         acc[card.cardId] = card.quantity
         return acc
       }, {} as Record<string, number>)
       
       // 카드 정보 조회
-      const allCards = await Card.find().lean()
-      const cardMap = allCards.reduce((acc, card) => {
+      const allCards = await (Card as any).find().lean() as any[]
+      const cardMap = allCards.reduce((acc: Record<string, any>, card: any) => {
         acc[card.cardId] = card
         return acc
       }, {} as Record<string, any>)
@@ -539,7 +540,7 @@ export class CardService {
         await this.addCardToInventory(userId, prestigeCardId, 'craft')
         
         // 프레스티지 카드 정보 조회
-        const prestigeCard = await Card.findOne({ cardId: prestigeCardId }).lean()
+        const prestigeCard = await (Card as any).findOne({ cardId: prestigeCardId }).lean()
         
         return {
           success: true,
