@@ -1,9 +1,7 @@
 {
-  "functions": {
-    "src/app/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
+  "framework": "create-react-app",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "headers": [
     {
       "source": "/api/(.*)",
