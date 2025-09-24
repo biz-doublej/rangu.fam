@@ -264,9 +264,30 @@ export interface IGameStats extends mongoose.Document {
   updatedAt: Date
 }
 
-const GameScore = mongoose.models.GameScore || mongoose.model<IGameScore>('GameScore', GameScoreSchema)
-const GameStats = mongoose.models.GameStats || mongoose.model<IGameStats>('GameStats', GameStatsSchema)
-const Tournament = mongoose.models.Tournament || mongoose.model('Tournament', TournamentSchema)
+let GameScoreModel: any
+if (mongoose.models.GameScore) {
+  GameScoreModel = mongoose.model('GameScore')
+} else {
+  GameScoreModel = mongoose.model('GameScore', GameScoreSchema)
+}
+
+let GameStatsModel: any
+if (mongoose.models.GameStats) {
+  GameStatsModel = mongoose.model('GameStats')
+} else {
+  GameStatsModel = mongoose.model('GameStats', GameStatsSchema)
+}
+
+let TournamentModel: any
+if (mongoose.models.Tournament) {
+  TournamentModel = mongoose.model('Tournament')
+} else {
+  TournamentModel = mongoose.model('Tournament', TournamentSchema)
+}
+
+const GameScore = GameScoreModel as unknown as mongoose.Model<IGameScore>
+const GameStats = GameStatsModel as unknown as mongoose.Model<IGameStats>
+const Tournament = TournamentModel as unknown as mongoose.Model<any>
 
 export { GameScore, GameStats, Tournament }
 export default GameScore 
