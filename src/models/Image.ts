@@ -77,4 +77,11 @@ ImageSchema.index({ category: 1 })
 ImageSchema.index({ createdAt: -1 })
 ImageSchema.index({ mimeType: 1 })
 
-export default mongoose.models.Image || mongoose.model<IImage>('Image', ImageSchema)
+let ImageModel: any
+if (mongoose.models.Image) {
+  ImageModel = mongoose.model('Image')
+} else {
+  ImageModel = mongoose.model('Image', ImageSchema)
+}
+
+export default ImageModel as unknown as mongoose.Model<IImage>

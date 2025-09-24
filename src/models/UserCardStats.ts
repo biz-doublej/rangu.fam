@@ -175,4 +175,11 @@ const UserCardStatsSchema = new mongoose.Schema<IUserCardStats>({
 UserCardStatsSchema.index({ totalCardsOwned: -1 })
 UserCardStatsSchema.index({ uniqueCardsOwned: -1 })
 
-export const UserCardStats = mongoose.models.UserCardStats || mongoose.model<IUserCardStats>('UserCardStats', UserCardStatsSchema)
+let UserCardStatsModel: any
+if (mongoose.models.UserCardStats) {
+  UserCardStatsModel = mongoose.model('UserCardStats')
+} else {
+  UserCardStatsModel = mongoose.model('UserCardStats', UserCardStatsSchema)
+}
+
+export const UserCardStats = UserCardStatsModel as unknown as mongoose.Model<IUserCardStats>

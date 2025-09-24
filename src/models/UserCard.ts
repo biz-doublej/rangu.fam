@@ -65,4 +65,11 @@ UserCardSchema.index({ userId: 1, cardId: 1 }, { unique: true })
 UserCardSchema.index({ userId: 1, isFavorite: 1 })
 UserCardSchema.index({ userId: 1, acquiredAt: -1 })
 
-export const UserCard = mongoose.models.UserCard || mongoose.model<IUserCard>('UserCard', UserCardSchema)
+let UserCardModel: any
+if (mongoose.models.UserCard) {
+  UserCardModel = mongoose.model('UserCard')
+} else {
+  UserCardModel = mongoose.model('UserCard', UserCardSchema)
+}
+
+export const UserCard = UserCardModel as unknown as mongoose.Model<IUserCard>

@@ -508,13 +508,33 @@ export interface IWikiSubmission extends mongoose.Document {
   updatedAt: Date
 }
 
-const WikiUser = mongoose.models.WikiUser || mongoose.model<IWikiUser>('WikiUser', WikiUserSchema)
-const WikiPage = mongoose.models.WikiPage || mongoose.model<IWikiPage>('WikiPage', WikiPageSchema)
+let WikiUserModel: any
+if (mongoose.models.WikiUser) {
+  WikiUserModel = mongoose.model('WikiUser')
+} else {
+  WikiUserModel = mongoose.model('WikiUser', WikiUserSchema)
+}
+
+let WikiPageModel: any
+if (mongoose.models.WikiPage) {
+  WikiPageModel = mongoose.model('WikiPage')
+} else {
+  WikiPageModel = mongoose.model('WikiPage', WikiPageSchema)
+}
 const WikiRevision = mongoose.models.WikiRevision || mongoose.model('WikiRevision', WikiRevisionSchema)
 const WikiDiscussion = mongoose.models.WikiDiscussion || mongoose.model('WikiDiscussion', WikiDiscussionSchema)
 const WikiNamespace = mongoose.models.WikiNamespace || mongoose.model('WikiNamespace', WikiNamespaceSchema)
 const WikiConfig = mongoose.models.WikiConfig || mongoose.model('WikiConfig', WikiConfigSchema)
-const WikiSubmission = mongoose.models.WikiSubmission || mongoose.model<IWikiSubmission>('WikiSubmission', WikiSubmissionSchema)
+let WikiSubmissionModel: any
+if (mongoose.models.WikiSubmission) {
+  WikiSubmissionModel = mongoose.model('WikiSubmission')
+} else {
+  WikiSubmissionModel = mongoose.model('WikiSubmission', WikiSubmissionSchema)
+}
+
+const WikiUser = WikiUserModel as unknown as mongoose.Model<IWikiUser>
+const WikiPage = WikiPageModel as unknown as mongoose.Model<IWikiPage>
+const WikiSubmission = WikiSubmissionModel as unknown as mongoose.Model<IWikiSubmission>
 
 export { WikiUser, WikiPage, WikiRevision, WikiDiscussion, WikiNamespace, WikiConfig, WikiSubmission }
 export default WikiPage 

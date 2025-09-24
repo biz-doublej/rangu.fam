@@ -102,4 +102,11 @@ PlaylistSchema.index({ createdAt: -1 })
 PlaylistSchema.index({ likes: -1 })
 PlaylistSchema.index({ plays: -1 })
 
-export default mongoose.models.Playlist || mongoose.model<IPlaylist>('Playlist', PlaylistSchema) 
+let PlaylistModel: any
+if (mongoose.models.Playlist) {
+  PlaylistModel = mongoose.model('Playlist')
+} else {
+  PlaylistModel = mongoose.model('Playlist', PlaylistSchema)
+}
+
+export default PlaylistModel as unknown as mongoose.Model<IPlaylist>
