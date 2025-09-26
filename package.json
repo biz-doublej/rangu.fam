@@ -44,7 +44,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next dev",
+    "start": "next start",
     "start:prod": "next start",
     "start:cra": "react-scripts start",
     "build:cra": "react-scripts build",

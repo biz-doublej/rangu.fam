@@ -6,3 +6,7 @@ public/uploads/audio/
 *.mp3
 *.wav
 *.flac
+# Ignore local build artifacts to avoid confusing framework detection
+build/
+.next/
+node_modules/
