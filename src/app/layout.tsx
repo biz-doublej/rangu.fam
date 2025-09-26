@@ -11,6 +11,9 @@ import { DemoNotificationTrigger, DevInitializer } from '@/components'
 
 const inter = Inter({ subsets: ['latin'] })
 
+// Force dynamic rendering to avoid static prerender crashes (e.g., default 404)
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Rangu.fam - 우정과 추억의 공간',
   description: '네 친구의 특별한 온라인 공간, Rangu.fam에 오신 것을 환영합니다.',
