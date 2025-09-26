@@ -41,11 +41,15 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next dev",
+    "start:prod": "next start",
+    "start:cra": "react-scripts start",
+    "build:cra": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "predeploy": "npm run build",
+    "predeploy": "npm run build:cra",
     "deploy": "gh-pages -d build"
   },
   "eslintConfig": {

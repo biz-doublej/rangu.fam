@@ -1,58 +1,22 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
-import Header from './components/Header';
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
-import AboutPage from './pages/AboutPage';
-import LanguageSettingsPage from './pages/LanguageSettingsPage';
-import MusicProjectPage from './pages/MusicProjectPage';
-import TravelPage from './pages/TravelPage';
-import WhosePage from './pages/WhosePage';
-import MinseokPage from './pages/member/MinseokPage';
-import JaewonPage from './pages/member/JaewonPage';
-import HanwoolPage from './pages/member/HanwoolPage';
-import JingyuPage from './pages/member/JingyuPage';
-import LanguageBackground from './components/LanguageBackground';
-import './index.css';
+import React from 'react'
 
-function App() {
+export default function App() {
   return (
-    <ThemeProvider>
-      <Router>
-        <div className="App">
-          <LanguageBackground />
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/member/minseok" element={<MinseokPage />} />
-            <Route path="/member/jaewon" element={<JaewonPage />} />
-            <Route path="/member/hanwool" element={<HanwoolPage />} />
-            <Route path="/member/jingyu" element={<JingyuPage />} />
-            <Route path="/*" element={
-              <>
-                <Header />
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/about" element={<AboutPage />} />
-                  <Route path="/music" element={<MusicProjectPage />} />
-                  <Route path="/travel" element={<TravelPage />} />
-                  <Route path="/whose" element={<WhosePage />} />
-                  <Route path="/whose/:memberId" element={<WhosePage />} />
-                  <Route path="/calendar" element={<div className="pt-24 text-white text-center">캘린더 페이지 (준비중)</div>} />
-                  <Route path="/todo" element={<div className="pt-24 text-white text-center">할일 목록 페이지 (준비중)</div>} />
-                  <Route path="/settings/theme" element={<LanguageSettingsPage />} />
-                  <Route path="/settings/profile" element={<div className="pt-24 text-white text-center">개인정보 수정 페이지 (준비중)</div>} />
-                  <Route path="/settings/others" element={<div className="pt-24 text-white text-center">기타 설정 페이지 (준비중)</div>} />
-                  <Route path="/settings/*" element={<div className="pt-24 text-white text-center">설정 페이지 (준비중)</div>} />
-                  <Route path="/search" element={<div className="pt-24 text-white text-center">검색 페이지 (준비중)</div>} />
-                </Routes>
-              </>
-            } />
-          </Routes>
-        </div>
-      </Router>
-    </ThemeProvider>
-  );
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#0b1220',
+      color: '#e5e7eb',
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <h1 style={{ fontSize: 28, marginBottom: 8 }}>Rangu.fam</h1>
+        <p style={{ opacity: 0.8 }}>CRA 프론트엔드 엔트리가 복원되었습니다.</p>
+        <p style={{ opacity: 0.6, marginTop: 8 }}>메인 화면은 추후 라우팅에 맞춰 연결할 수 있어요.</p>
+      </div>
+    </div>
+  )
 }
 
-export default App;
