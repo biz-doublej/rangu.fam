@@ -34,7 +34,9 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { NotificationDropdown } from '@/components/ui/NotificationDropdown'
+import { BRANDING } from '@/config/branding'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
+import ThemeMenu from '@/components/ui/ThemeMenu'
 
 export default function WikiMainPage() {
   // 최근 변경 토글 상태
@@ -159,7 +161,7 @@ export default function WikiMainPage() {
                 whileHover={{ scale: 1.05 }}
               >
                 <BookOpen className="w-5 h-5" />
-                <span className="font-bold text-lg">이랑위키</span>
+                <span className="font-bold text-lg">{BRANDING.brandWiki}</span>
               </motion.button>
               
               <nav className="hidden md:flex items-center space-x-4 text-sm">
@@ -171,13 +173,13 @@ export default function WikiMainPage() {
                 </button>
                 <button 
                   onClick={() => router.push('/wiki/recent')}
-                  className="text-gray-400 hover:text-gray-300 px-2 py-1"
+                  className="text-gray-200 hover:text-gray-100 px-2 py-1"
                 >
                   최근 변경
                 </button>
                 <button 
                   onClick={goToRandomPage}
-                  className="text-gray-400 hover:text-gray-300 px-2 py-1 flex items-center"
+                  className="text-gray-200 hover:text-gray-100 px-2 py-1 flex items-center"
                 >
                   특수 기능 <ChevronRight className="w-3 h-3 ml-1" />
                 </button>
@@ -222,6 +224,7 @@ export default function WikiMainPage() {
               {isLoggedIn ? (
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-300">{wikiUser?.displayName}</span>
+                  <ThemeMenu />
                   <Button
                     variant="ghost"
                     size="sm"

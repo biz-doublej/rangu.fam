@@ -16,6 +16,8 @@ import NamuWikiRenderer from '@/components/ui/NamuWikiRenderer'
 import WikiEditor from '@/components/ui/WikiEditor'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { formatDate } from '@/lib/utils'
+import { BRANDING } from '@/config/branding'
+import ThemeMenu from '@/components/ui/ThemeMenu'
 
 type WikiTabType = 'document' | 'edit' | 'history'
 
@@ -676,7 +678,7 @@ export default function WikiDocumentPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <motion.button
-                className="flex items-center space-x-2 text-gray-400 hover:text-gray-200"
+                className="flex items-center space-x-2 text-gray-100 hover:text-white"
                 onClick={() => router.push('/')}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -688,12 +690,12 @@ export default function WikiDocumentPage() {
               <div className="text-gray-600">|</div>
               
               <motion.button
-                className="flex items-center space-x-2 text-gray-400 hover:text-gray-200"
+                className="flex items-center space-x-2 text-gray-100 hover:text-white"
                 onClick={() => router.push('/wiki')}
                 whileHover={{ scale: 1.02 }}
               >
                 <BookOpen className="w-6 h-6" />
-                <h1 className="text-xl font-bold">이랑위키</h1>
+                <h1 className="text-xl font-bold">{BRANDING.brandWiki}</h1>
               </motion.button>
             </div>
 
@@ -728,11 +730,12 @@ export default function WikiDocumentPage() {
                   <span className="hidden sm:block">운영자</span>
                 </button>
               )}
-              
+
 
 
               {isLoggedIn ? (
                 <div className="flex items-center space-x-3 relative" ref={userMenuRef}>
+                  <ThemeMenu />
                   <button
                     type="button"
                     onClick={() => setIsUserMenuOpen((v) => !v)}

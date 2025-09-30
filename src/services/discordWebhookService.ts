@@ -34,7 +34,15 @@ interface DiscordWebhookPayload {
 }
 
 export class DiscordWebhookService {
-  private static readonly WEBHOOK_URL = "https://discord.com/api/webhooks/1407640995218329660/YiYz6_iPFi-An6XqsFrHAT6khzl-L4qAYGYH7ePrk5iLOxipJfFWov3AZaukHawwfelS"
+  private static readonly WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || ''
+  
+  // Available style variants for webhook embeds
+  static readonly STYLES = {
+    STANDARD: 'standard',
+    COMPACT: 'compact',
+    CARD: 'card',
+    MINIMAL: 'minimal',
+  } as const
   
   private static readonly COLORS = {
     // 브랜드 컬러
@@ -119,6 +127,10 @@ export class DiscordWebhookService {
    */
   private static async sendWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
     try {
+      if (!this.WEBHOOK_URL) {
+        console.error('Discord webhook URL is not configured (DISCORD_WEBHOOK_URL)')
+        return false
+      }
       const response = await fetch(this.WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -137,6 +149,50 @@ export class DiscordWebhookService {
       console.error('Discord webhook send error:', error)
       return false
     }
+  }
+  
+  // Internal: apply a visual style to a base embed
+  private static applyStyle(base: DiscordEmbed, style: string): DiscordEmbed {
+    const embed: DiscordEmbed = { ...base }
+    switch (style) {
+      case 'compact': {
+        if (embed.fields) embed.fields = embed.fields.map(f => ({ ...f, inline: true }))
+        delete embed.thumbnail
+        delete embed.image
+        break
+      }
+      case 'card': {
+        const divider = { name: '\u200b', value: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false }
+        embed.fields = [divider, ...(embed.fields || []), divider]
+        if (!embed.thumbnail && embed.image) {
+          embed.thumbnail = embed.image
+          delete embed.image
+        }
+        break
+      }
+      case 'minimal': {
+        delete embed.fields
+        delete embed.thumbnail
+        delete embed.image
+        if (embed.description && embed.description.length > 140) {
+          embed.description = embed.description.substring(0, 137) + '...'
+        }
+        break
+      }
+      // standard: no-op
+    }
+    return embed
+  }
+
+  // Public: send any prepared embed with a chosen style
+  static async sendEmbedStyled(
+    username: string,
+    avatarUrl: string | undefined,
+    baseEmbed: DiscordEmbed,
+    style: string = 'standard'
+  ): Promise<boolean> {
+    const embed = this.applyStyle(baseEmbed, style)
+    return this.sendWebhook({ username, avatar_url: avatarUrl, embeds: [embed] })
   }
 
   /**
@@ -480,11 +536,7 @@ export class DiscordWebhookService {
       embed.description = `🔥 **중요 공지** 🔥\n\n${embed.description}`
     }
 
-    return this.sendWebhook({ 
-      username: 'RangU 공지봇',
-      avatar_url: this.RANGU_AVATAR,
-      embeds: [embed] 
-    })
+    return this.sendEmbedStyled('RangU 공지봇', this.RANGU_AVATAR, embed, 'card')
   }
 
   /**
@@ -594,11 +646,7 @@ export class DiscordWebhookService {
       timestamp: new Date().toISOString()
     }
 
-    return this.sendWebhook({ 
-      username: 'RangU 이벤트봇',
-      avatar_url: this.RANGU_AVATAR,
-      embeds: [embed] 
-    })
+    return this.sendEmbedStyled('RangU 이벤트봇', this.RANGU_AVATAR, embed, 'card')
   }
 
   /**
@@ -638,7 +686,7 @@ export class DiscordWebhookService {
         },
         {
           name: '🌟 버전',
-          value: '**v2.0 Enhanced**',
+          value: '**v4.0 Enhanced**',
           inline: true
         }
       ],
@@ -652,10 +700,6 @@ export class DiscordWebhookService {
       timestamp: new Date().toISOString()
     }
 
-    return this.sendWebhook({ 
-      username: 'RangU 테스트봇',
-      avatar_url: this.RANGU_AVATAR,
-      embeds: [embed] 
-    })
+    return this.sendEmbedStyled('RangU 테스트봇', this.RANGU_AVATAR, embed, 'standard')
   }
 }

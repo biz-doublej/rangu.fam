@@ -31,6 +31,7 @@ import { MemberWithActivity } from '@/backend/types'
 import { MediaPlayer } from '@/components/ui/MediaPlayer'
 import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
 import { CardDropWidget } from '@/components/ui/CardDropWidget'
+import ThemeMenu from '@/components/ui/ThemeMenu'
 
 // 슬라이드 콘텐츠 (이미지와 영상 혼합)
 const slideContent = [
@@ -247,8 +248,9 @@ export default function HomePage() {
                     onClick={() => logout()}
                     title="로그아웃"
                   >
-                    <LogOut className="w-5 h-5 text-primary-600" />
+                    <LogOut className="w-5 h-5 text-primary-300" />
                   </button>
+                  <ThemeMenu />
                 </div>
               ) : (
                 <button 
@@ -286,8 +288,8 @@ export default function HomePage() {
                   href={item.href}
                   className="glass-button flex items-center space-x-3 p-4 w-full text-left"
                 >
-                  <item.icon className="w-5 h-5 text-primary-600" />
-                  <span className="text-gray-700 font-medium">{item.label}</span>
+                  <item.icon className="w-5 h-5 text-primary-300" />
+                  <span className="text-gray-100 font-medium">{item.label}</span>
                 </a>
               </motion.li>
             ))}
@@ -322,7 +324,7 @@ export default function HomePage() {
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            className="md:hidden fixed inset-0 z-50 bg-glass-white backdrop-blur-lg overflow-y-auto"
+            className="md:hidden fixed inset-0 z-50 bg-gray-900/80 backdrop-blur-lg overflow-y-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -342,8 +344,8 @@ export default function HomePage() {
                       className="glass-button flex items-center space-x-3 p-4 w-full text-left"
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <item.icon className="w-5 h-5 text-primary-600" />
-                      <span className="text-gray-700 font-medium">{item.label}</span>
+                      <item.icon className="w-5 h-5 text-primary-300" />
+                      <span className="text-gray-100 font-medium">{item.label}</span>
                     </a>
                   </motion.li>
                 ))}
@@ -389,7 +391,7 @@ export default function HomePage() {
             <h1 className="text-4xl md:text-6xl font-bold text-gradient mb-4">
               환영합니다
             </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
               네 친구의 특별한 온라인 공간, Rangu.fam에 오신 것을 환영합니다. 
               우정과 추억이 가득한 이곳에서 함께 시간을 보내세요.
             </p>
@@ -650,8 +652,8 @@ export default function HomePage() {
                         whileHover={{ y: -5 }}
                         onClick={() => router.push(feature.link)}
                       >
-                        <h3 className="text-lg font-bold text-primary-700 mb-2">{feature.title}</h3>
-                        <p className="text-sm text-gray-600">{feature.desc}</p>
+                        <h3 className="text-lg font-bold text-primary-300 mb-2">{feature.title}</h3>
+                        <p className="text-sm text-gray-300">{feature.desc}</p>
                       </motion.div>
                     ))}
                   </motion.div>

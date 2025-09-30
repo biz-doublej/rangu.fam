@@ -16,6 +16,7 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
+import { BRANDING } from '@/config/branding'
 
 export default function WikiLoginPage() {
   const router = useRouter()
@@ -102,7 +103,7 @@ export default function WikiLoginPage() {
         >
           <div className="flex items-center justify-center space-x-3 mb-4">
             <BookOpen className="w-10 h-10 text-gray-400" />
-            <h1 className="text-3xl font-bold text-gray-200">이랑위키</h1>
+            <h1 className="text-3xl font-bold text-gray-200">{BRANDING.brandWiki}</h1>
           </div>
           <p className="text-gray-400">위키에 로그인하여 문서를 편집하고 기여해보세요</p>
         </motion.div>

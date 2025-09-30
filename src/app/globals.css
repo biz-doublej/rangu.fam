@@ -4,9 +4,28 @@
 
 /* iOS Liquid Glass 스타일 기본 설정 */
 :root {
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  /* default to dark to avoid flash */
+  --glass-bg: rgba(17, 24, 39, 0.85);
+  --glass-border: rgba(75, 85, 99, 0.6);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  --page-background: #111827;
+  --page-foreground: #e5e7eb;
+}
+
+:root[data-theme='dark'] {
+  --glass-bg: rgba(17, 24, 39, 0.85); /* gray-900 with opacity */
+  --glass-border: rgba(75, 85, 99, 0.6); /* gray-600 */
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  --page-background: #111827;
+  --page-foreground: #e5e7eb;
+}
+
+:root[data-theme='amoled'] {
+  --glass-bg: rgba(0, 0, 0, 0.85);
+  --glass-border: rgba(31, 41, 55, 0.8); /* gray-800 */
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+  --page-background: #000000;
+  --page-foreground: #f9fafb;
 }
 
 /* 모바일 텍스트 가독성 개선 */
@@ -129,7 +148,9 @@
 /* Glass 효과 컴포넌트 클래스 */
 @layer components {
   .glass-card {
-    @apply bg-glass-white backdrop-blur-md border border-glass rounded-2xl shadow-glass;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    @apply backdrop-blur-md border rounded-2xl shadow-glass;
   }
   
   .glass-button {
@@ -137,12 +158,15 @@
            transition-all duration-200 hover:bg-glass-medium hover:shadow-glass;
   }
   
+  /* Nav/top/side bars bind to theme variables */
   .glass-nav {
-    @apply bg-glass-white backdrop-blur-lg border-b border-glass shadow-soft;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    @apply backdrop-blur-lg border-b shadow-soft text-gray-100;
   }
   
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-emerald-300 to-amber-200 bg-clip-text text-transparent;
   }
   
   .warm-gradient {
@@ -157,8 +181,10 @@
 
 /* 배경 그라디언트 효과 */
 body {
-  background: linear-gradient(135deg, #e6f2ff 0%, #fefcf9 100%);
+  background: var(--page-background);
+  color: var(--page-foreground);
   background-attachment: fixed;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* 선택 영역 스타일 */
@@ -640,3 +666,5 @@ video:hover {
   vertical-align: top;
   word-break: break-word;
 } 
+
+
