@@ -661,7 +661,7 @@ export default function WikiDocumentPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen theme-surface flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-400 mx-auto mb-4"></div>
           <p className="text-lg text-gray-400">문서를 불러오고 있습니다...</p>
@@ -671,7 +671,7 @@ export default function WikiDocumentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100" suppressHydrationWarning>
+    <div className="min-h-screen theme-surface text-gray-100" suppressHydrationWarning>
       {/* 헤더 */}
       <header className="border-b border-gray-700 bg-gray-800 sticky top-0 z-50" onClick={() => setIsUserMenuOpen(false)}>
         <div className="max-w-7xl mx-auto px-2 sm:px-4">

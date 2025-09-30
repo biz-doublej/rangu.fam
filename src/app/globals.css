@@ -187,6 +187,12 @@ body {
   transition: background 0.3s ease, color 0.3s ease;
 }
 
+.theme-surface {
+  background: var(--page-background);
+  color: var(--page-foreground);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
 /* 선택 영역 스타일 */
 ::selection {
   background: rgba(0, 102, 204, 0.3);

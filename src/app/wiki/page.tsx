@@ -149,7 +149,7 @@ export default function WikiMainPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100" suppressHydrationWarning>
+    <div className="min-h-screen theme-surface text-gray-100" suppressHydrationWarning>
       {/* 상단 네비게이션 */}
       <header className="border-b border-gray-700 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4">

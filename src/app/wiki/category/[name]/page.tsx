@@ -28,7 +28,7 @@ export default function WikiCategoryPage() {
   }, [name])
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen theme-surface text-gray-100">
       <div className="max-w-5xl mx-auto px-4 py-6">
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>분류: {name}</CardHeader>

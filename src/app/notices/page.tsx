@@ -333,7 +333,7 @@ export default function NoticesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+      <div className="min-h-screen theme-surface text-gray-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p className="text-gray-300">공지사항을 불러오는 중...</p>
@@ -343,7 +343,7 @@ export default function NoticesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen theme-surface text-gray-100">
       {/* Navigation Spacer */}
       <div className="h-20"></div>
       

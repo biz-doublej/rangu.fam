@@ -98,7 +98,7 @@ export default function WikiMainPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen theme-surface text-gray-100">
       {/* 상단 네비게이션 */}
       <header className="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
         <div className="max-w-full mx-auto">

@@ -46,7 +46,7 @@ export default function WikiModPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
+    <div className="min-h-screen theme-surface text-gray-100 p-6">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">운영자 대시보드</h1>

@@ -47,7 +47,7 @@ function WikiSearchPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen theme-surface text-gray-100">
       <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center gap-2 mb-6">
           <Input
@@ -133,7 +133,7 @@ function WikiSearchPageContent() {
 
 export default function WikiSearchPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen theme-surface text-gray-100 flex items-center justify-center">Loading...</div>}>
       <WikiSearchPageContent />
     </Suspense>
   )

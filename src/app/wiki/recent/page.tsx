@@ -93,7 +93,7 @@ function WikiRecentChangesPageContent() {
   const totalPages = Math.ceil(pagination.total / pagination.limit)
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen theme-surface text-gray-100">
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         {/* Header */}
         <Card className="bg-gray-800 border-gray-700">
@@ -290,7 +290,7 @@ function WikiRecentChangesPageContent() {
 
 export default function WikiRecentChangesPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen theme-surface text-gray-100 flex items-center justify-center">Loading...</div>}>
       <WikiRecentChangesPageContent />
     </Suspense>
   )
