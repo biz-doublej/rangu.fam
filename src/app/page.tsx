@@ -59,6 +59,7 @@ export default function HomePage() {
   const [savedVolume, setSavedVolume] = useState(50)
   const [videoVolume, setVideoVolume] = useState(50)
   const [videoMuted, setVideoMuted] = useState(true)
+  const [isVolumeOpen, setIsVolumeOpen] = useState(true)
   const [members, setMembers] = useState<MemberWithActivity[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
   const [countdown, setCountdown] = useState(17) // 카운트다운 타이머
@@ -269,6 +270,8 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+          
+
         </div>
       </header>
 
@@ -661,101 +664,122 @@ export default function HomePage() {
       </main>
 
       {/* 우측 하단 비디오 볼륨 컨트롤 */}
+      {/* Main video volume controls */}
       {isClient && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg p-4 min-w-[280px]">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
-                  <Volume2 className="w-4 h-4 text-white" />
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end space-y-3">
+          <AnimatePresence>
+            {isVolumeOpen && (
+              <motion.div
+                key="volume-panel"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                transition={{ duration: 0.2 }}
+                className="glass-card backdrop-blur-xl bg-white/10 border border-white/30 shadow-glass rounded-2xl p-4 min-w-[280px]"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-pink-500/90 rounded-full flex items-center justify-center">
+                      <Volume2 className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-100">Main Video Volume</h3>
+                      <p className="text-xs text-gray-200/80">
+                        {slideContent[currentSlide]?.type === 'video'
+                          ? slideContent[currentSlide].title
+                          : 'Image slide'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-medium text-gray-100/90">
+                    {videoMuted ? 'Muted' : `${videoVolume}%`}
+                  </span>
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">메인 영상 볼륨</h3>
-                  <p className="text-xs text-gray-500">
-                    {slideContent[currentSlide]?.type === 'video' 
-                      ? slideContent[currentSlide].title 
-                      : '이미지 슬라이드'}
-                  </p>
+
+                <div className="mb-3">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={videoMuted ? 0 : videoVolume}
+                    onChange={(e) => {
+                      const volume = Number(e.target.value)
+                      const shouldMute = volume === 0
+                      setVideoVolume(volume)
+                      setSavedVolume(volume)
+                      setVideoMuted(shouldMute)
+                      updateAllVideosVolume(volume, shouldMute)
+                      localStorage.setItem('rangu_video_volume', volume.toString())
+                      localStorage.setItem('rangu_video_muted', shouldMute.toString())
+                    }}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, rgba(249,115,22,0.9) 0%, rgba(249,115,22,0.9) ${videoMuted ? 0 : videoVolume}%, rgba(255,255,255,0.25) ${videoMuted ? 0 : videoVolume}%, rgba(255,255,255,0.25) 100%)`
+                    }}
+                  />
                 </div>
-              </div>
-              <div className="text-sm font-medium text-gray-600">
-                {videoMuted ? '음소거' : `${videoVolume}%`}
-              </div>
-            </div>
 
-            {/* 볼륨 슬라이더 */}
-            <div className="mb-3">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={videoMuted ? 0 : videoVolume}
-                onChange={(e) => {
-                  const volume = Number(e.target.value)
-                  setVideoVolume(volume)
-                  setSavedVolume(volume)
-                  if (volume > 0) setVideoMuted(false)
-                  updateAllVideosVolume(volume, volume === 0)
-                  localStorage.setItem('rangu_video_volume', volume.toString())
-                  localStorage.setItem('rangu_video_muted', (volume === 0).toString())
-                }}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                style={{
-                  background: `linear-gradient(to right, #f97316 0%, #f97316 ${videoMuted ? 0 : videoVolume}%, #e5e7eb ${videoMuted ? 0 : videoVolume}%, #e5e7eb 100%)`
-                }}
-              />
-            </div>
-
-            {/* 컨트롤 버튼들 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                {/* 음소거 버튼 */}
-                <button
-                  onClick={() => {
-                    const newMuted = !videoMuted
-                    setVideoMuted(newMuted)
-                    updateAllVideosVolume(videoVolume, newMuted)
-                    localStorage.setItem('rangu_video_muted', newMuted.toString())
-                  }}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  {videoMuted ? (
-                    <VolumeX className="w-4 h-4 text-gray-600" />
-                  ) : (
-                    <Volume2 className="w-4 h-4 text-gray-600" />
-                  )}
-                </button>
-
-                {/* 볼륨 프리셋 버튼들 */}
-                <div className="flex space-x-1">
-                  {[25, 50, 75, 100].map((preset) => (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
                     <button
-                      key={preset}
                       onClick={() => {
-                        setVideoVolume(preset)
-                        setSavedVolume(preset)
-                        setVideoMuted(false)
-                        updateAllVideosVolume(preset, false)
-                        localStorage.setItem('rangu_video_volume', preset.toString())
-                        localStorage.setItem('rangu_video_muted', 'false')
+                        const newMuted = !videoMuted
+                        setVideoMuted(newMuted)
+                        updateAllVideosVolume(videoVolume, newMuted)
+                        localStorage.setItem('rangu_video_muted', newMuted.toString())
                       }}
-                      className={`px-2 py-1 text-xs rounded transition-colors ${
-                        videoVolume === preset && !videoMuted
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className="glass-button p-2 rounded-lg"
+                      title={videoMuted ? 'Unmute' : 'Mute'}
                     >
-                      {preset}
+                      {videoMuted ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
                     </button>
-                  ))}
+
+                    <div className="flex space-x-1">
+                      {[25, 50, 75, 100].map((preset) => (
+                        <button
+                          key={preset}
+                          onClick={() => {
+                            setVideoVolume(preset)
+                            setSavedVolume(preset)
+                            setVideoMuted(false)
+                            updateAllVideosVolume(preset, false)
+                            localStorage.setItem('rangu_video_volume', preset.toString())
+                            localStorage.setItem('rangu_video_muted', 'false')
+                          }}
+                          className={`px-2 py-1 text-xs rounded glass-button ${
+                            videoVolume === preset && !videoMuted
+                              ? 'bg-orange-500/80 text-white'
+                              : 'text-gray-100/80'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button
+            onClick={() => setIsVolumeOpen(!isVolumeOpen)}
+            className="glass-button w-12 h-12 rounded-full flex items-center justify-center"
+            title={isVolumeOpen ? 'Hide volume panel' : 'Show volume panel'}
+            aria-label={isVolumeOpen ? 'Hide volume panel' : 'Show volume panel'}
+          >
+            {videoMuted ? (
+              <VolumeX className="w-5 h-5" />
+            ) : (
+              <Volume2 className="w-5 h-5" />
+            )}
+          </button>
         </div>
       )}
     </div>
   )
 } 
-
