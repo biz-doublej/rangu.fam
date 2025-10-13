@@ -35,16 +35,16 @@ import ThemeMenu from '@/components/ui/ThemeMenu'
 
 // 슬라이드 콘텐츠 (이미지와 영상 혼합)
 const slideContent = [
-  { type: 'video', src: '/scripts/videos/intro-jaewon.mp4', title: '정재원 소개', poster: '/images/poster-jaewon.jpg' },
+  { type: 'video', src: '/videos/intro-jaewon.mp4', title: '정재원 소개', poster: '/images/poster-jaewon.jpg' },
   { type: 'image', src: '/images/slide1.jpg', title: '추억의 사진 1' },
-  { type: 'video', src: '/scripts/videos/intro-minseok.mp4', title: '정민석 소개', poster: '/images/poster-minseok.jpg' },
+  { type: 'video', src: '/videos/intro-minseok.mp4', title: '정민석 소개', poster: '/images/poster-minseok.jpg' },
   { type: 'image', src: '/images/slide2.jpg', title: '추억의 사진 2' },
-  { type: 'video', src: '/scripts/videos/intro-jingyu.mp4', title: '정진규 소개', poster: '/images/poster-jingyu.jpg' },
+  { type: 'video', src: '/videos/intro-jingyu.mp4', title: '정진규 소개', poster: '/images/poster-jingyu.jpg' },
   { type: 'image', src: '/images/slide3.jpg', title: '추억의 사진 3' },
-  { type: 'video', src: '/scripts/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg' },
-  { type: 'video', src: '/scripts/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg' },
+  { type: 'video', src: '/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg' },
+  { type: 'video', src: '/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg' },
   { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4' },
-  { type: 'video', src: '/scripts/videos/intro-heeyeol.mp4', title: '윤희열 소개', poster: '/images/poster-heeyeol.jpg' },
+  { type: 'video', src: '/videos/intro-heeyeol.mp4', title: '윤희열 소개', poster: '/images/poster-heeyeol.jpg' },
 ]
 
 export default function HomePage() {
@@ -758,3 +758,4 @@ export default function HomePage() {
     </div>
   )
 } 
+

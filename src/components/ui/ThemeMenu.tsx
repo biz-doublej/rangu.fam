@@ -39,6 +39,12 @@ export default function ThemeMenu() {
           >
             AMOLED 다크
           </button>
+          <button
+            className={`w-full text-left px-3 py-2 hover:bg-gray-700 ${theme === 'galaxy' ? 'text-white' : 'text-gray-200'}`}
+            onClick={() => { setTheme('galaxy'); setOpen(false) }}
+          >
+            움직이는 은하수
+          </button>
           <div className="border-t border-gray-700" />
           <button className="w-full text-left px-3 py-2 text-gray-200 hover:bg-gray-700" onClick={() => { toggleTheme(); setOpen(false) }}>
             토글

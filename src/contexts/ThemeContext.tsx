@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
-type Theme = 'dark' | 'amoled'
+type Theme = 'dark' | 'amoled' | 'galaxy'
 
 type ThemeContextType = {
   theme: Theme
@@ -10,13 +10,20 @@ type ThemeContextType = {
   toggleTheme: () => void
 }
 
+const THEME_ORDER: Theme[] = ['dark', 'amoled', 'galaxy']
+const DEFAULT_THEME: Theme = 'dark'
+
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
+const normalizeTheme = (value: string | null): Theme =>
+  THEME_ORDER.includes(value as Theme) ? (value as Theme) : DEFAULT_THEME
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark')
+  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME)
 
   useEffect(() => {
-    const saved = (typeof window !== 'undefined' && (localStorage.getItem('site-theme') as Theme)) || 'dark'
+    if (typeof window === 'undefined') return
+    const saved = normalizeTheme(localStorage.getItem('site-theme'))
     setThemeState(saved)
   }, [])
 
@@ -27,7 +34,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme])
 
   const setTheme = (t: Theme) => setThemeState(t)
-  const toggleTheme = () => setThemeState(prev => (prev === 'dark' ? 'amoled' : 'dark'))
+  const toggleTheme = () =>
+    setThemeState(prev => THEME_ORDER[(THEME_ORDER.indexOf(prev) + 1) % THEME_ORDER.length])
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
@@ -41,4 +49,3 @@ export function useTheme() {
   if (!ctx) throw new Error('useTheme must be used within ThemeProvider')
   return ctx
 }
-
