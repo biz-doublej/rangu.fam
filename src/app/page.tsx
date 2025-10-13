@@ -58,7 +58,7 @@ export default function HomePage() {
   const [isClient, setIsClient] = useState(false)
   const [savedVolume, setSavedVolume] = useState(50)
   const [videoVolume, setVideoVolume] = useState(50)
-  const [videoMuted, setVideoMuted] = useState(false)
+  const [videoMuted, setVideoMuted] = useState(true)
   const [members, setMembers] = useState<MemberWithActivity[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
   const [countdown, setCountdown] = useState(17) // 카운트다운 타이머
