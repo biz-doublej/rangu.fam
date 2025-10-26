@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Github, 
   Linkedin, 
@@ -10,6 +10,9 @@ import {
   Mail, 
   MapPin, 
   Calendar,
+  Clock,
+  Music,
+  BookOpen,
   Code,
   User,
   Heart,
@@ -22,6 +25,7 @@ import {
   Camera,
   Palette,
   Laptop,
+  Gamepad2,
   AlertCircle,
   Loader2,
   Edit,
@@ -31,11 +35,19 @@ import {
   UserPlus,
   UserMinus,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Menu,
+  Home,
+  Package,
+  LogIn,
+  LogOut
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { DDayWidget } from '@/components/ui'
-import { useParams } from 'next/navigation'
+import ThemeMenu from '@/components/ui/ThemeMenu'
+import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
+import { CardDropWidget } from '@/components/ui/CardDropWidget'
+import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface ProfileData {
@@ -154,10 +166,18 @@ interface ProfileData {
 
 function MemberPortfolio() {
   const params = useParams()
-  const { user } = useAuth()
+  const router = useRouter()
+  const { user, logout, isLoggedIn } = useAuth()
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isClient, setIsClient] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [times, setTimes] = useState({
+    seoul: new Date(),
+    vancouver: new Date(),
+    switzerland: new Date()
+  })
   const [activeTab, setActiveTab] = useState('about')
   const [likes, setLikes] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
@@ -198,6 +218,57 @@ function MemberPortfolio() {
   const [currentProjectSlide, setCurrentProjectSlide] = useState(0)
 
   // 브라우저 확장 프로그램의 속성 제거 (bis_skin_checked 경고 해결)
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isClient) return
+
+    const updateTimes = () => {
+      const now = new Date()
+      setTimes({
+        seoul: new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' })),
+        vancouver: new Date(now.toLocaleString('en-US', { timeZone: 'America/Vancouver' })),
+        switzerland: new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Zurich' }))
+      })
+    }
+
+    updateTimes()
+    const interval = setInterval(updateTimes, 1000)
+    return () => clearInterval(interval)
+  }, [isClient])
+
+  const navigationItems = [
+    { icon: Home, label: '홈', href: '/' },
+    { icon: User, label: '소개', href: '/about' },
+    { icon: User, label: '멤버 소개', href: '/members' },
+    { icon: Music, label: '음악 스테이션', href: '/music' },
+    { icon: BookOpen, label: '이랑위키', href: '/wiki' },
+    { icon: Calendar, label: '달력', href: '/calendar' },
+    { icon: Gamepad2, label: '게임', href: '/games' },
+    { icon: Package, label: '카드 관리', href: '/cards' }
+  ]
+
+  const avatarGradient = (() => {
+    switch (params.id) {
+      case 'seungchan':
+        return 'from-purple-600 to-indigo-600'
+      case 'heeyeol':
+        return 'from-green-600 to-teal-600'
+      case 'jaewon':
+        return 'from-purple-500 to-blue-500'
+      case 'minseok':
+        return 'from-red-500 to-pink-500'
+      case 'jingyu':
+        return 'from-emerald-500 to-emerald-700'
+      case 'hanul':
+        return 'from-sky-500 to-blue-600'
+      default:
+        return 'from-primary-500 to-primary-700'
+    }
+  })()
+
   useEffect(() => {
     const removeExtensionAttributes = () => {
       try {
@@ -775,24 +846,24 @@ function MemberPortfolio() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-16 h-16 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">포트폴리오를 불러오는 중...</p>
+      <div className="min-h-screen theme-surface flex items-center justify-center">
+        <div className="glass-card px-8 py-6 text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary-200 mx-auto" />
+          <p className="text-primary-100">프로필 정보를 불러오는 중입니다...</p>
         </div>
       </div>
     )
   }
 
-  if (error) {
+if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 mb-4">{error}</p>
-          <button 
+      <div className="min-h-screen theme-surface flex items-center justify-center">
+        <div className="glass-card px-8 py-6 text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-rose-300 mx-auto" />
+          <p className="text-rose-200">{error}</p>
+          <button
             onClick={fetchProfile}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="glass-button inline-flex items-center justify-center px-4 py-2 text-primary-100"
           >
             다시 시도
           </button>
@@ -801,42 +872,186 @@ function MemberPortfolio() {
     )
   }
 
-  if (!profile) {
+if (!profile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">프로필을 찾을 수 없습니다.</p>
+      <div className="min-h-screen theme-surface flex items-center justify-center">
+        <div className="glass-card px-8 py-6 text-center space-y-4">
+          <p className="text-primary-100">프로필을 찾을 수 없습니다.</p>
+          <button
+            onClick={() => router.push('/members')}
+            className="glass-button inline-flex items-center justify-center px-4 py-2 text-primary-100"
+          >
+            멤버 목록으로 돌아가기
+          </button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* 헤더 */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-lg font-bold">
+    <div className="min-h-screen relative overflow-hidden theme-surface">
+      {/* 메인 내비게이션 */}
+      <header className="glass-nav fixed top-0 left-0 right-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex justify-between items-center">
+            <motion.div
+              className="text-2xl font-bold text-gradient"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              Rangu.fam
+            </motion.div>
+
+            <div className="hidden md:flex items-center space-x-6">
+              {isClient ? (
+                <>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary-300" />
+                    <span className="text-primary-100/80">서울</span>
+                    <span className="font-mono text-primary-200">
+                      {times.seoul.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary-300" />
+                    <span className="text-primary-100/80">밴쿠버</span>
+                    <span className="font-mono text-primary-200">
+                      {times.vancouver.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary-300" />
+                    <span className="text-primary-100/80">취리히</span>
+                    <span className="font-mono text-primary-200">
+                      {times.switzerland.toLocaleTimeString()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center space-x-2 text-sm">
+                  <Clock className="w-4 h-4 text-primary-300" />
+                  <span className="text-primary-100/70">시간을 불러오는 중...</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-4">
+              {isLoggedIn ? (
+                <div className="flex items-center space-x-3">
+                  <div className="hidden md:block text-right">
+                    <p className="text-sm font-medium text-primary-100">{user?.username}</p>
+                    <p className="text-xs text-primary-200/70">{user?.role === 'member' ? '멤버' : '게스트'}</p>
+                  </div>
+                  <button
+                    className="glass-button p-2"
+                    onClick={() => logout()}
+                    title="로그아웃"
+                  >
+                    <LogOut className="w-5 h-5 text-primary-200" />
+                  </button>
+                  <ThemeMenu />
+                </div>
+              ) : (
+                <button
+                  className="glass-button p-2"
+                  onClick={() => router.push('/login')}
+                  title="로그인"
+                >
+                  <LogIn className="w-5 h-5 text-primary-200" />
+                </button>
+              )}
+              <button
+                className="glass-button p-2 md:hidden"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+              >
+                {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            className="md:hidden fixed inset-0 z-50 bg-gray-900/80 backdrop-blur-lg overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="pt-20 p-6 space-y-6">
+              <ul className="space-y-3">
+                {navigationItems.map((item, index) => (
+                  <motion.li
+                    key={item.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                  >
+                    <a
+                      href={item.href}
+                      className="glass-button flex items-center space-x-3 p-4 w-full text-left"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <item.icon className="w-5 h-5 text-primary-200" />
+                      <span className="text-gray-100 font-medium">{item.label}</span>
+                    </a>
+                  </motion.li>
+                ))}
+              </ul>
+
+              {isLoggedIn && user?.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.4 }}
+                >
+                  <CardDropWidget userId={user.id} />
+                </motion.div>
+              )}
+
+              {isLoggedIn && user?.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.45 }}
+                >
+                  <BookmarkWidget userId={user.id} />
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 프로필 요약 카드 */}
+      <section className="max-w-4xl mx-auto px-4 pt-24 md:pt-28">
+        <motion.div
+          className="glass-card p-6 md:p-8"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className={`w-16 h-16 bg-gradient-to-r ${avatarGradient} rounded-full flex items-center justify-center text-primary-50 text-xl font-bold relative overflow-hidden`}>
                 {profile.userId?.profileImage ? (
-                  <img src={profile.userId.profileImage} alt={profile.userId.username} className="w-full h-full rounded-full object-cover" />
+                  <img src={profile.userId.profileImage} alt={profile.userId.username} className="w-full h-full object-cover" />
                 ) : (
                   profile.userId?.username?.charAt(0).toUpperCase() || '👤'
                 )}
               </div>
               <div>
-                <h1 className="font-bold text-gray-900">{profile.userId?.username || '사용자'}</h1>
-                <p className="text-sm text-gray-500">@{profile.username}</p>
+                <h1 className="text-2xl font-bold text-primary-100">{profile.userId?.username || '사용자'}</h1>
+                <p className="text-sm text-primary-200/80">@{profile.username}</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2 justify-end">
               {canEdit && (
                 <button
                   onClick={() => setIsEditing(!isEditing)}
-                  className={`p-2 rounded-full transition-colors ${
-                    isEditing ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-100'
-                  }`}
+                  className={`glass-button p-2 ${isEditing ? 'text-primary-100 border border-primary-500/40 bg-primary-500/20' : 'text-primary-200 hover:border-primary-400/40'}`}
                   title="프로필 편집"
                 >
                   <Edit className="w-5 h-5" />
@@ -845,20 +1060,16 @@ function MemberPortfolio() {
               {user && !canEdit && (
                 <button
                   onClick={handleFollow}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                    isFollowing 
-                      ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' 
-                      : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                  }`}
+                  className={`glass-button px-3 py-1 text-sm flex items-center gap-1 ${isFollowing ? 'text-primary-200 border border-primary-500/40 bg-primary-500/10' : 'text-emerald-200 border border-emerald-500/40 bg-emerald-500/20'}`}
                 >
                   {isFollowing ? (
                     <>
-                      <UserMinus className="w-4 h-4 mr-1 inline" />
+                      <UserMinus className="w-4 h-4" />
                       언팔로우
                     </>
                   ) : (
                     <>
-                      <UserPlus className="w-4 h-4 mr-1 inline" />
+                      <UserPlus className="w-4 h-4" />
                       팔로우
                     </>
                   )}
@@ -866,24 +1077,22 @@ function MemberPortfolio() {
               )}
               <button
                 onClick={handleLike}
-                className={`p-2 rounded-full transition-colors ${
-                  isLiked ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:bg-gray-100'
-                }`}
+                className={`glass-button p-2 ${isLiked ? 'text-rose-300 border border-rose-500/40 bg-rose-500/20' : 'text-primary-200 hover:border-primary-400/40'}`}
               >
                 <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
               </button>
               <button
                 onClick={handleShare}
-                className="p-2 rounded-full text-gray-400 hover:bg-gray-100 transition-colors"
+                className="glass-button p-2 text-primary-200 hover:border-primary-400/40"
               >
                 <Share2 className="w-5 h-5" />
               </button>
             </div>
           </div>
-        </div>
-      </header>
+        </motion.div>
+      </section>
 
-      <main className="max-w-4xl mx-auto p-4">
+      <main className="max-w-4xl mx-auto px-4 pb-16">
         {/* 군대 테마 헤더 (정진규 전용) */}
         {params.id === 'jingyu' && profile?.militaryInfo && (
         <motion.div
@@ -2618,36 +2827,36 @@ function MemberPortfolio() {
 
       {/* 팔로워 모달 */}
       {showFollowersModal && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        <div
+          className="fixed inset-0 bg-primary-950/80 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => setShowFollowersModal(false)}
         >
-          <div 
-            className="bg-white rounded-lg p-6 w-full max-w-md max-h-96 overflow-y-auto"
+          <div
+            className="glass-card w-full max-w-md max-h-[24rem] overflow-y-auto p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">팔로워</h3>
-              <button 
+              <h3 className="text-lg font-semibold text-primary-100">팔로워</h3>
+              <button
                 onClick={() => setShowFollowersModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="glass-button p-2 text-primary-200"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-3">
               {followers.length > 0 ? followers.map((follower: any, index: number) => (
-                <div key={index} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                <div key={index} className="flex items-center space-x-3 p-2 hover:bg-primary-500/10 rounded-lg transition-colors">
+                  <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-bold">
                     {follower.username?.charAt(0).toUpperCase() || '👤'}
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">{follower.username}</div>
-                    <div className="text-sm text-gray-500">@{follower.username}</div>
+                    <div className="font-medium text-primary-100">{follower.username}</div>
+                    <div className="text-sm text-primary-200/80">@{follower.username}</div>
                   </div>
                 </div>
               )) : (
-                <p className="text-gray-500 text-center">아직 팔로워가 없습니다.</p>
+                <p className="text-primary-200/70 text-center">아직 팔로워가 없습니다.</p>
               )}
             </div>
           </div>
@@ -2656,36 +2865,36 @@ function MemberPortfolio() {
 
       {/* 팔로잉 모달 */}
       {showFollowingModal && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        <div
+          className="fixed inset-0 bg-primary-950/80 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => setShowFollowingModal(false)}
         >
-          <div 
-            className="bg-white rounded-lg p-6 w-full max-w-md max-h-96 overflow-y-auto"
+          <div
+            className="glass-card w-full max-w-md max-h-[24rem] overflow-y-auto p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">팔로잉</h3>
-              <button 
+              <h3 className="text-lg font-semibold text-primary-100">팔로잉</h3>
+              <button
                 onClick={() => setShowFollowingModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="glass-button p-2 text-primary-200"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-3">
               {following.length > 0 ? following.map((followed: any, index: number) => (
-                <div key={index} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                <div key={index} className="flex items-center space-x-3 p-2 hover:bg-primary-500/10 rounded-lg transition-colors">
+                  <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-bold">
                     {followed.username?.charAt(0).toUpperCase() || '👤'}
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">{followed.username}</div>
-                    <div className="text-sm text-gray-500">@{followed.username}</div>
+                    <div className="font-medium text-primary-100">{followed.username}</div>
+                    <div className="text-sm text-primary-200/80">@{followed.username}</div>
                   </div>
                 </div>
               )) : (
-                <p className="text-gray-500 text-center">아직 팔로잉 중인 사람이 없습니다.</p>
+                <p className="text-primary-200/70 text-center">아직 팔로잉 중인 사람이 없습니다.</p>
               )}
             </div>
           </div>
