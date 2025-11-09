@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { 
@@ -30,13 +30,29 @@ import {
   Zap,
   Shield
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { NotificationDropdown } from '@/components/ui/NotificationDropdown'
 import { BRANDING } from '@/config/branding'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
-import ThemeMenu from '@/components/ui/ThemeMenu'
+
+const IconButtonSkeleton = () => (
+  <div className="h-9 w-9 rounded-md border border-gray-700/70 bg-gray-700/40 animate-pulse" />
+)
+
+const ThemeMenu = dynamic(() => import('@/components/ui/ThemeMenu'), {
+  ssr: false,
+  loading: () => <IconButtonSkeleton />
+})
+
+const NotificationDropdown = dynamic(
+  () => import('@/components/ui/NotificationDropdown').then(mod => mod.NotificationDropdown),
+  {
+    ssr: false,
+    loading: () => <IconButtonSkeleton />
+  }
+)
 
 export default function WikiMainPage() {
   // 최근 변경 토글 상태
@@ -49,6 +65,7 @@ export default function WikiMainPage() {
     lastEditor: string;
     views: number;
   } | null>(null)
+  const [viewportSize, setViewportSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop')
   
   // 실시간 검색어 (DB에서 인기 문서 fetch)
   type TrendingItem = { title: string; slug: string; views: number }
@@ -118,6 +135,24 @@ export default function WikiMainPage() {
     fetchLatestEditData()
   }, [])
 
+  useEffect(() => {
+    const detectViewport = () => {
+      if (typeof window === 'undefined') return
+      const width = window.innerWidth
+      if (width < 640) {
+        setViewportSize('mobile')
+      } else if (width < 1024) {
+        setViewportSize('tablet')
+      } else {
+        setViewportSize('desktop')
+      }
+    }
+
+    detectViewport()
+    window.addEventListener('resize', detectViewport)
+    return () => window.removeEventListener('resize', detectViewport)
+  }, [])
+
   // 검색 처리
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -132,6 +167,47 @@ export default function WikiMainPage() {
     const randomPage = randomPages[Math.floor(Math.random() * randomPages.length)]
     router.push(`/wiki/${encodeURIComponent(randomPage)}`)
   }
+
+  const responsiveLayout = useMemo(() => {
+    switch (viewportSize) {
+      case 'mobile':
+        return {
+          containerWidth: 'max-w-full',
+          horizontalPadding: 'px-4',
+          sectionPadding: 'py-4',
+          gridGap: 'gap-4',
+          panelPadding: 'p-4',
+          heroPadding: 'p-6',
+          primaryStack: 'space-y-4',
+          sidebarStack: 'space-y-4',
+          sidebarPanelPadding: 'p-4'
+        }
+      case 'tablet':
+        return {
+          containerWidth: 'max-w-5xl',
+          horizontalPadding: 'px-6',
+          sectionPadding: 'py-5',
+          gridGap: 'gap-5',
+          panelPadding: 'p-5',
+          heroPadding: 'p-7',
+          primaryStack: 'space-y-5',
+          sidebarStack: 'space-y-5',
+          sidebarPanelPadding: 'p-4'
+        }
+      default:
+        return {
+          containerWidth: 'max-w-7xl',
+          horizontalPadding: 'px-8',
+          sectionPadding: 'py-6',
+          gridGap: 'gap-6',
+          panelPadding: 'p-6',
+          heroPadding: 'p-8',
+          primaryStack: 'space-y-6',
+          sidebarStack: 'space-y-6',
+          sidebarPanelPadding: 'p-5'
+        }
+    }
+  }, [viewportSize])
 
   // 편집 페이지로 이동 (관리자만 가능)
   const handleEditMainPage = () => {
@@ -152,7 +228,7 @@ export default function WikiMainPage() {
     <div className="min-h-screen theme-surface text-gray-100" suppressHydrationWarning>
       {/* 상단 네비게이션 */}
       <header className="border-b border-gray-700 bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className={`${responsiveLayout.containerWidth} mx-auto ${responsiveLayout.horizontalPadding}`}>
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center space-x-6">
               <motion.button
@@ -254,7 +330,7 @@ export default function WikiMainPage() {
 
       {/* 문서 타이틀 섹션 */}
       <div className="border-b border-gray-700 bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className={`${responsiveLayout.containerWidth} mx-auto ${responsiveLayout.horizontalPadding} py-3`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-gray-100">이랑위키:대문</h1>
@@ -286,14 +362,14 @@ export default function WikiMainPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className={`${responsiveLayout.containerWidth} mx-auto ${responsiveLayout.horizontalPadding} ${responsiveLayout.sectionPadding}`}>
+        <div className={`grid grid-cols-1 lg:grid-cols-4 ${responsiveLayout.gridGap}`}>
           {/* 메인 컨텐츠 */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className={`lg:col-span-3 ${responsiveLayout.primaryStack}`}>
             
             {/* 환영 메시지 */}
             <motion.div
-              className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center"
+              className={`bg-gray-800 rounded-lg border border-gray-700 text-center ${responsiveLayout.heroPadding}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
@@ -315,7 +391,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
-              <div className="p-6">
+              <div className={responsiveLayout.panelPadding}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
                     <HelpCircle className="w-5 h-5 text-white" />
@@ -335,7 +411,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <div className="p-6">
+              <div className={responsiveLayout.panelPadding}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
                     <MessageCircle className="w-5 h-5 text-white" />
@@ -364,7 +440,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
             >
-              <div className="p-6">
+              <div className={responsiveLayout.panelPadding}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center text-white font-bold">
                     3a
@@ -388,7 +464,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <div className="p-6">
+              <div className={responsiveLayout.panelPadding}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
                     <FileText className="w-5 h-5 text-white" />
@@ -408,7 +484,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
             >
-              <div className="p-6">
+              <div className={responsiveLayout.panelPadding}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
                     <HelpCircle className="w-5 h-5 text-white" />
@@ -428,7 +504,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
             >
-              <div className="p-6">
+              <div className={responsiveLayout.panelPadding}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center">
                     <Zap className="w-5 h-5 text-white" />
@@ -441,7 +517,7 @@ export default function WikiMainPage() {
           </div>
 
           {/* 우측 사이드바 */}
-          <div className="space-y-6">
+          <div className={responsiveLayout.sidebarStack}>
             
             {/* 실시간 검색어 */}
             <motion.div
@@ -450,13 +526,13 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <div className="p-4 border-b border-gray-700">
+              <div className={`${responsiveLayout.sidebarPanelPadding} border-b border-gray-700`}>
                 <h3 className="font-bold text-gray-200 flex items-center">
                   <TrendingUp className="w-4 h-4 text-red-400 mr-2" />
                   실시간 검색어
                 </h3>
               </div>
-              <div className="p-4">
+              <div className={responsiveLayout.sidebarPanelPadding}>
                 <div className="space-y-2">
                   {realtimeSearch.length === 0 ? (
                     <div className="text-xs text-gray-500">실시간 인기 검색어가 없습니다.</div>
@@ -485,7 +561,7 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
             >
-              <div className="p-4 border-b border-gray-700">
+              <div className={`${responsiveLayout.sidebarPanelPadding} border-b border-gray-700`}>
                 <h3 className="font-bold text-gray-200 flex items-center">
                   <Clock className="w-4 h-4 text-blue-400 mr-2" />
                   최근 변경
@@ -498,7 +574,7 @@ export default function WikiMainPage() {
                   </button>
                 </h3>
               </div>
-              <div className="p-4">
+              <div className={responsiveLayout.sidebarPanelPadding}>
                 <div className="space-y-3">
                   {recentChanges.length === 0 ? (
                     <div className="text-xs text-gray-500">최근 변경 내역이 없습니다.</div>
@@ -537,13 +613,13 @@ export default function WikiMainPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <div className="p-4 border-b border-gray-700">
+              <div className={`${responsiveLayout.sidebarPanelPadding} border-b border-gray-700`}>
                 <h3 className="font-bold text-gray-200 flex items-center">
                   <Bell className="w-4 h-4 text-yellow-400 mr-2" />
                   이랑뉴스
                 </h3>
               </div>
-              <div className="p-4">
+              <div className={responsiveLayout.sidebarPanelPadding}>
                 <div className="space-y-2">
                   {news.length === 0 ? (
                     <div className="text-xs text-gray-500">실시간 뉴스를 불러올 수 없습니다.</div>

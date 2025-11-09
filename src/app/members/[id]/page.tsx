@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Github, 
@@ -42,11 +42,8 @@ import {
   LogIn,
   LogOut
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { Card } from '@/components/ui/Card'
-import { DDayWidget } from '@/components/ui'
-import ThemeMenu from '@/components/ui/ThemeMenu'
-import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
-import { CardDropWidget } from '@/components/ui/CardDropWidget'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -164,6 +161,35 @@ interface ProfileData {
   likesReceived: number
 }
 
+const WidgetSkeleton = ({ label }: { label: string }) => (
+  <div className="glass-card p-4 sm:p-6 text-sm text-primary-200/80 animate-pulse">
+    {label}
+  </div>
+)
+
+const ThemeMenu = dynamic(() => import('@/components/ui/ThemeMenu'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-10 w-10 rounded-full bg-primary-900/30 animate-pulse border border-primary-800/40" />
+  )
+})
+
+const BookmarkWidget = dynamic(
+  () => import('@/components/ui/BookmarkWidget').then(mod => mod.BookmarkWidget),
+  {
+    ssr: false,
+    loading: () => <WidgetSkeleton label="Loading bookmarks..." />
+  }
+)
+
+const CardDropWidget = dynamic(
+  () => import('@/components/ui/CardDropWidget').then(mod => mod.CardDropWidget),
+  {
+    ssr: false,
+    loading: () => <WidgetSkeleton label="Preparing card drops..." />
+  }
+)
+
 function MemberPortfolio() {
   const params = useParams()
   const router = useRouter()
@@ -173,6 +199,7 @@ function MemberPortfolio() {
   const [error, setError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [viewportSize, setViewportSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop')
   const [times, setTimes] = useState({
     seoul: new Date(),
     vancouver: new Date(),
@@ -239,6 +266,25 @@ function MemberPortfolio() {
     return () => clearInterval(interval)
   }, [isClient])
 
+  useEffect(() => {
+    if (!isClient) return
+
+    const detectViewport = () => {
+      const width = window.innerWidth
+      if (width < 640) {
+        setViewportSize('mobile')
+      } else if (width < 1024) {
+        setViewportSize('tablet')
+      } else {
+        setViewportSize('desktop')
+      }
+    }
+
+    detectViewport()
+    window.addEventListener('resize', detectViewport)
+    return () => window.removeEventListener('resize', detectViewport)
+  }, [isClient])
+
   const navigationItems = [
     { icon: Home, label: '홈', href: '/' },
     { icon: User, label: '소개', href: '/about' },
@@ -249,6 +295,35 @@ function MemberPortfolio() {
     { icon: Gamepad2, label: '게임', href: '/games' },
     { icon: Package, label: '카드 관리', href: '/cards' }
   ]
+
+  const responsiveLayout = useMemo(() => {
+    switch (viewportSize) {
+      case 'mobile':
+        return {
+          maxWidth: 'max-w-full',
+          horizontalPadding: 'px-4',
+          stackSpacing: 'space-y-6',
+          panelPadding: 'p-4',
+          gridGap: 'gap-4'
+        }
+      case 'tablet':
+        return {
+          maxWidth: 'max-w-4xl',
+          horizontalPadding: 'px-6',
+          stackSpacing: 'space-y-8',
+          panelPadding: 'p-6',
+          gridGap: 'gap-6'
+        }
+      default:
+        return {
+          maxWidth: 'max-w-6xl',
+          horizontalPadding: 'px-8',
+          stackSpacing: 'space-y-10',
+          panelPadding: 'p-8',
+          gridGap: 'gap-8'
+        }
+    }
+  }, [viewportSize])
 
   const avatarGradient = (() => {
     switch (params.id) {
@@ -1026,9 +1101,9 @@ if (!profile) {
       </AnimatePresence>
 
       {/* 프로필 요약 카드 */}
-      <section className="max-w-4xl mx-auto px-4 pt-24 md:pt-28">
+      <section className={`${responsiveLayout.maxWidth} mx-auto ${responsiveLayout.horizontalPadding} pt-24 md:pt-28`}>
         <motion.div
-          className="glass-card p-6 md:p-8"
+          className="glass-card p-4 sm:p-6 md:p-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -1092,16 +1167,17 @@ if (!profile) {
         </motion.div>
       </section>
 
-      <main className="max-w-4xl mx-auto px-4 pb-16">
+      <main className={`w-full ${responsiveLayout.maxWidth} mx-auto ${responsiveLayout.horizontalPadding} pb-16`}>
+        <div className={`flex flex-col ${responsiveLayout.stackSpacing}`}>
         {/* 군대 테마 헤더 (정진규 전용) */}
         {params.id === 'jingyu' && profile?.militaryInfo && (
         <motion.div
-            className="bg-gradient-to-r from-green-800 to-green-600 rounded-2xl p-6 mb-6 text-white shadow-lg"
+            className={`bg-gradient-to-r from-green-800 to-green-600 rounded-2xl ${responsiveLayout.panelPadding} sm:p-6 lg:p-8 mb-6 text-white shadow-lg`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-3 ${responsiveLayout.gridGap}`}>
               {/* D-Day 카운터 */}
               <div className="text-center">
                 <div className="text-3xl font-bold mb-2">🎖️</div>
@@ -1178,8 +1254,8 @@ if (!profile) {
 
         {/* 군대 + 마법 테마 헤더 (이승찬 전용) */}
         {params.id === 'seungchan' && profile?.militaryInfo && (
-          <motion.div
-            className="bg-gradient-to-r from-purple-800 via-indigo-700 to-purple-600 rounded-2xl p-6 mb-6 text-white shadow-lg relative overflow-hidden"
+        <motion.div
+            className={`bg-gradient-to-r from-purple-800 via-indigo-700 to-purple-600 rounded-2xl ${responsiveLayout.panelPadding} sm:p-6 lg:p-8 mb-6 text-white shadow-lg relative overflow-hidden`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
@@ -1198,7 +1274,7 @@ if (!profile) {
                 <div className="text-lg opacity-90">LEE SEUNG CHAN</div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className={`grid grid-cols-1 md:grid-cols-3 ${responsiveLayout.gridGap}`}>
                 {/* D-Day 카운터 */}
                 <div className="text-center">
                   <div className="text-3xl font-bold mb-2">🎭</div>
@@ -1277,13 +1353,13 @@ if (!profile) {
 
         {/* 스위스 유학 테마 헤더 (정민석 전용) */}
         {params.id === 'minseok' && profile?.studyAbroadInfo && (
-          <motion.div
-            className="bg-gradient-to-r from-red-600 to-red-500 rounded-2xl p-6 mb-6 text-white shadow-lg"
+        <motion.div
+            className={`bg-gradient-to-r from-red-600 to-red-500 rounded-2xl ${responsiveLayout.panelPadding} sm:p-6 lg:p-8 mb-6 text-white shadow-lg`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-3 ${responsiveLayout.gridGap}`}>
               {/* D-Day 카운터 */}
               <div className="text-center">
                 <div className="text-3xl font-bold mb-2">🇨🇭</div>
@@ -1339,8 +1415,8 @@ if (!profile) {
 
         {/* 프로젝트 진행 상황 헤더 (정재원 전용) */}
         {params.id === 'jaewon' && profile?.activeProjects && (
-          <motion.div
-            className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-6 mb-6 text-white shadow-lg"
+        <motion.div
+            className={`bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl ${responsiveLayout.panelPadding} sm:p-6 lg:p-8 mb-6 text-white shadow-lg`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
@@ -1474,8 +1550,8 @@ if (!profile) {
 
         {/* 입시 준비 테마 헤더 (강한울 전용) */}
         {params.id === 'hanul' && profile?.examInfo && (
-          <motion.div
-            className="bg-gradient-to-r from-orange-600 to-yellow-500 rounded-2xl p-6 mb-6 text-white shadow-lg"
+        <motion.div
+            className={`bg-gradient-to-r from-orange-600 to-yellow-500 rounded-2xl ${responsiveLayout.panelPadding} sm:p-6 lg:p-8 mb-6 text-white shadow-lg`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
@@ -1483,7 +1559,7 @@ if (!profile) {
             <div className="text-center space-y-4">
               <h3 className="text-2xl font-bold mb-4">🎓 입시 준비 현황</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className={`grid grid-cols-1 md:grid-cols-2 ${responsiveLayout.gridGap}`}>
                 {/* D-Day */}
                 <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
                   <div className="text-sm opacity-90 mb-1">D-Day</div>
@@ -1521,7 +1597,7 @@ if (!profile) {
             params.id === 'hanul' ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200' :
             params.id === 'seungchan' ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200' :
             'bg-white'
-          } rounded-2xl p-6 mb-6 shadow-sm`}
+          } rounded-2xl ${responsiveLayout.panelPadding} sm:p-6 lg:p-8 mb-6 shadow-sm`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -1900,7 +1976,7 @@ if (!profile) {
             </div>
 
             {/* 통계 */}
-            <div className="grid grid-cols-2 md:grid-cols-1 gap-4 text-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
               <div>
                 <div className="text-xl font-bold text-gray-900">{profile.stats?.projects || 0}</div>
                 <div className="text-sm text-gray-500">프로젝트</div>
@@ -2822,6 +2898,7 @@ if (!profile) {
               </motion.div>
             )}
           </div>
+        </div>
         </div>
       </main>
 
