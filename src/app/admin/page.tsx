@@ -24,7 +24,7 @@ import {
   Globe,
   Music,
   Gamepad2,
-  Image,
+  Image as ImageIcon,
   AlertTriangle,
   CheckCircle,
   XCircle,
@@ -1133,7 +1133,7 @@ function DashboardOverview({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 flex items-center gap-1">
-                  <Image className="w-4 h-4" />
+                  <ImageIcon className="w-4 h-4" />
                   이미지
                 </span>
                 <span className="text-green-400 font-semibold">
@@ -1526,7 +1526,7 @@ function ContentManagement({ activeSubTab, dashboardStats }: {
           <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
             <CardHeader>
               <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-                <Image className="w-5 h-5 text-green-400" />
+                <ImageIcon className="w-5 h-5 text-green-400" />
                 이미지 관리
               </h3>
             </CardHeader>

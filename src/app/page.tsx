@@ -35,17 +35,25 @@ import { MediaPlayer } from '@/components/ui/MediaPlayer'
 import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
 import ThemeMenu from '@/components/ui/ThemeMenu'
 
-// 슬라이드 콘텐츠 (이미지와 영상 혼합)
-const slideContent = [
-  { type: 'video', src: '/videos/intro-jaewon.mp4', title: '정재원 소개', poster: '/images/poster-jaewon.jpg' },
-  { type: 'image', src: '/images/slide1.jpg', title: '추억의 사진 1' },
-  { type: 'video', src: '/videos/intro-minseok.mp4', title: '정민석 소개', poster: '/images/poster-minseok.jpg' },
-  { type: 'image', src: '/images/slide2.jpg', title: '추억의 사진 2' },
-  { type: 'video', src: '/videos/intro-jingyu.mp4', title: '정진규 소개', poster: '/images/poster-jingyu.jpg' },
-  { type: 'image', src: '/images/slide3.jpg', title: '추억의 사진 3' },
-  { type: 'video', src: '/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg' },
-  { type: 'video', src: '/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg' },
-  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4' }
+type SpotlightSlide = {
+  id?: string
+  type: 'video' | 'image'
+  src: string
+  title: string
+  poster?: string
+  durationSeconds?: number
+}
+
+const DEFAULT_SPOTLIGHT_SLIDES: SpotlightSlide[] = [
+  { type: 'video', src: '/videos/intro-jaewon.mp4', title: '정재원 소개', poster: '/images/poster-jaewon.jpg', durationSeconds: 17 },
+  { type: 'image', src: '/images/slide1.jpg', title: '추억의 사진 1', durationSeconds: 5 },
+  { type: 'video', src: '/videos/intro-minseok.mp4', title: '정민석 소개', poster: '/images/poster-minseok.jpg', durationSeconds: 17 },
+  { type: 'image', src: '/images/slide2.jpg', title: '추억의 사진 2', durationSeconds: 5 },
+  { type: 'video', src: '/videos/intro-jingyu.mp4', title: '정진규 소개', poster: '/images/poster-jingyu.jpg', durationSeconds: 17 },
+  { type: 'image', src: '/images/slide3.jpg', title: '추억의 사진 3', durationSeconds: 5 },
+  { type: 'video', src: '/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg', durationSeconds: 17 },
+  { type: 'video', src: '/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg', durationSeconds: 17 },
+  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4', durationSeconds: 5 }
 ]
 
 const quickActions = [
@@ -65,6 +73,7 @@ const featureHighlights = [
 export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [slideContent, setSlideContent] = useState<SpotlightSlide[]>(DEFAULT_SPOTLIGHT_SLIDES)
   const [times, setTimes] = useState({
     seoul: new Date(),
     vancouver: new Date(),
@@ -77,12 +86,16 @@ export default function HomePage() {
   const [isVolumeOpen, setIsVolumeOpen] = useState(true)
   const [members, setMembers] = useState<MemberWithActivity[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
-  const [countdown, setCountdown] = useState(17) // 카운트다운 타이머
+  const initialSlide = DEFAULT_SPOTLIGHT_SLIDES[0]
+  const [countdown, setCountdown] = useState(
+    initialSlide?.durationSeconds || (initialSlide?.type === 'video' ? 17 : 5) || 5
+  ) // 카운트다운 타이머
   const [isSlideHovered, setIsSlideHovered] = useState(false) // 슬라이드 호버 상태
   const { user, logout, isLoggedIn } = useAuth()
   const router = useRouter()
 
   const onlineCount = members.filter(member => member.userStatus === 'online').length
+  const slideCount = slideContent.length || 1
   const activeSlide = slideContent[currentSlide]
   const quickStats = [
     { label: '지금 온라인', value: `${onlineCount}명`, detail: '실시간 상태' },
@@ -135,6 +148,31 @@ export default function HomePage() {
     }
   }, [])
 
+  // 슬라이드 데이터를 서버에서 로드
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchSlides = async () => {
+      try {
+        const response = await fetch('/api/spotlight', { cache: 'no-store' })
+        if (!response.ok) return
+        const data = await response.json()
+        if (isMounted && Array.isArray(data.slides) && data.slides.length) {
+          setSlideContent(data.slides)
+          setCurrentSlide(0)
+        }
+      } catch (error) {
+        console.error('Failed to load spotlight slides:', error)
+      }
+    }
+
+    fetchSlides()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   // 시간 업데이트
   useEffect(() => {
     if (!isClient) return
@@ -156,17 +194,21 @@ export default function HomePage() {
   // 슬라이드 변경 시 카운트다운 초기화
   useEffect(() => {
     const currentContent = slideContent[currentSlide]
-    const initialTime = currentContent?.type === 'video' ? 17 : 5 // 영상 17초, 이미지 5초
+    if (!currentContent) return
+    const initialTime =
+      currentContent.durationSeconds || (currentContent.type === 'video' ? 17 : 5) // 영상 17초, 이미지 5초
     setCountdown(initialTime)
-  }, [currentSlide])
+  }, [currentSlide, slideContent])
 
   // 카운트다운 타이머
   useEffect(() => {
+    if (!slideContent.length) return
+
     const interval = setInterval(() => {
-      setCountdown((prev) => {
+      setCountdown(prev => {
         if (prev <= 1) {
           // 1초에서 다음 슬라이드로 전환
-          setCurrentSlide((current) => (current + 1) % slideContent.length)
+          setCurrentSlide(current => (current + 1) % slideContent.length)
           return prev // 다음 슬라이드로 넘어가면서 카운트다운은 useEffect에서 리셋됨
         }
         return prev - 1
@@ -174,7 +216,7 @@ export default function HomePage() {
     }, 1000)
     
     return () => clearInterval(interval)
-  }, [])
+  }, [slideContent.length])
 
   // 멤버 활동 상태 가져오기
   const fetchMembers = async () => {
@@ -557,14 +599,14 @@ export default function HomePage() {
                     <button
                       className="absolute left-4 top-1/2 -translate-y-1/2 slide-nav-button z-10 p-3"
                       onClick={() =>
-                        setCurrentSlide(currentSlide === 0 ? slideContent.length - 1 : currentSlide - 1)
+                        setCurrentSlide(currentSlide === 0 ? slideCount - 1 : currentSlide - 1)
                       }
                     >
                       <ChevronLeft className="w-5 h-5" />
                     </button>
                     <button
                       className="absolute right-4 top-1/2 -translate-y-1/2 slide-nav-button z-10 p-3"
-                      onClick={() => setCurrentSlide((currentSlide + 1) % slideContent.length)}
+                      onClick={() => setCurrentSlide((currentSlide + 1) % slideCount)}
                     >
                       <ChevronRight className="w-5 h-5" />
                     </button>

@@ -10,7 +10,7 @@ import {
   Clock,
   MapPin,
   Users,
-  Image,
+  Image as ImageIcon,
   Eye,
   Calendar as CalendarIcon,
   Search,
@@ -160,7 +160,7 @@ export default function CalendarPage() {
   const viewTabs: Array<{ key: typeof viewMode; label: string; icon: React.ReactNode }> = [
     { key: 'calendar', label: '캘린더', icon: <CalendarIcon className="mr-2 h-4 w-4" /> },
     { key: 'list', label: '타임라인', icon: <Clock className="mr-2 h-4 w-4" /> },
-    { key: 'gallery', label: '갤러리', icon: <Image className="mr-2 h-4 w-4" /> },
+    { key: 'gallery', label: '갤러리', icon: <ImageIcon className="mr-2 h-4 w-4" /> },
   ]
 
   return (
@@ -344,7 +344,7 @@ export default function CalendarPage() {
                           whileHover={{ scale: 1.03 }}
                         >
                           <div className="aspect-square rounded-xl bg-slate-800/60 flex items-center justify-center">
-                            <Image className="h-8 w-8 text-emerald-200" />
+                            <ImageIcon className="h-8 w-8 text-emerald-200" />
                           </div>
                           <div className="mt-3 space-y-1">
                             <p className="text-sm font-semibold text-white truncate">{image.title}</p>
