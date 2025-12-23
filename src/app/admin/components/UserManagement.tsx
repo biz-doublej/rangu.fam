@@ -318,7 +318,7 @@ export default function UserManagement({
               <p className="text-gray-400 text-lg">해당하는 사용자가 없습니다.</p>
               {searchTerm && (
                 <p className="text-gray-500 text-sm mt-2">
-                  "{searchTerm}"에 대한 검색 결과가 없습니다.
+                  &quot;{searchTerm}&quot;에 대한 검색 결과가 없습니다.
                 </p>
               )}
             </div>
