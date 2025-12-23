@@ -1,14 +1,12 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
-import { User, Member } from '@/types'
-import { storage } from '@/lib/utils'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import toast from 'react-hot-toast'
+import { User, Member } from '@/types'
 
-// 멤버 데이터는 이제 API에서 가져옴
 let MEMBERS: Member[] = []
 
-// 멤버 데이터 로드 함수
 async function loadMembers(): Promise<Member[]> {
   try {
     const response = await fetch('/api/members')
@@ -18,10 +16,9 @@ async function loadMembers(): Promise<Member[]> {
       return data
     }
   } catch (error) {
-    console.error('멤버 데이터 로딩 오류:', error)
+    console.error('멤버 목록을 불러오지 못했습니다:', error)
   }
-  
-  // 오류 시 기본 멤버 데이터 반환
+
   return [
     {
       id: 'jaewon',
@@ -33,7 +30,7 @@ async function loadMembers(): Promise<Member[]> {
       status: 'active',
       location: '서울, 대한민국',
       joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/jaewon'
+      personalPageUrl: '/members/jaewon',
     },
     {
       id: 'minseok',
@@ -45,7 +42,7 @@ async function loadMembers(): Promise<Member[]> {
       status: 'active',
       location: '취리히, 스위스',
       joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/minseok'
+      personalPageUrl: '/members/minseok',
     },
     {
       id: 'jingyu',
@@ -57,57 +54,35 @@ async function loadMembers(): Promise<Member[]> {
       status: 'active',
       location: '대한민국',
       joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/jingyu'
+      personalPageUrl: '/members/jingyu',
     },
     {
       id: 'seungchan',
       name: '이승찬',
-      role: '임시 멤버 (정진규 대체)',
-      description: '2025년 7월부터 임시로 합류한 새로운 멤버입니다.',
+      role: '임시 멤버 (마술사)',
+      description: '2025년 7월부터 임시로 합류한 마술사 멤버입니다.',
       avatar: '/images/seungchan.jpg',
       email: 'seungchan@rangu.fam',
       status: 'active',
       location: '대한민국',
       joinDate: new Date('2025-07-21'),
-      personalPageUrl: '/members/seungchan'
-    },
-    {
-      id: 'heeyeol',
-      name: '윤희열',
-      role: '임시 멤버 (예정)',
-      description: '2025년 9월부터 임시로 합류 예정인 새로운 멤버입니다.',
-      avatar: '/images/heeyeol.jpg',
-      email: 'heeyeol@rangu.fam',
-      status: 'active',
-      location: '대한민국',
-      joinDate: new Date('2025-09-01'),
-      personalPageUrl: '/members/heeyeol'
+      personalPageUrl: '/members/seungchan',
     },
     {
       id: 'hanul',
       name: '강한울',
-      role: '무직(편돌이)',
-      description: '자유로운 영혼으로 다양한 취미와 관심사를 탐구합니다.',
+      role: '크리에이터',
+      description: '다양한 취미와 관심사를 가진 크리에이터입니다.',
       avatar: '/images/hanul.jpg',
       email: 'hanul@rangu.fam',
       status: 'active',
       location: '서울, 대한민국',
       joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/hanul'
-    }
+      personalPageUrl: '/members/hanul',
+    },
   ]
 }
 
-// 더미 로그인 정보
-const DEMO_CREDENTIALS = {
-  jaewon: 'password123',
-  minseok: 'password123',
-  jingyu: 'password123',
-  hanul: 'password123',
-  guest: 'guest123'
-}
-
-// 상태별 기본 메시지 함수
 const getDefaultStatusMessage = (status: string): string => {
   switch (status) {
     case 'online':
@@ -116,8 +91,6 @@ const getDefaultStatusMessage = (status: string): string => {
       return '자리 비움'
     case 'dnd':
       return '방해금지'
-    case 'offline':
-      return '오프라인'
     default:
       return '오프라인'
   }
@@ -127,139 +100,30 @@ interface AuthContextType {
   user: User | null
   member: Member | null
   isLoading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  login: () => Promise<boolean>
   logout: () => Promise<void>
   isLoggedIn: boolean
   isMember: boolean
   canEdit: boolean
+  linkedWikiUsername: string | null
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession()
   const [user, setUser] = useState<User | null>(null)
   const [member, setMember] = useState<Member | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [syncedMemberId, setSyncedMemberId] = useState<string | null>(null)
+  const [linkedWikiUsername, setLinkedWikiUsername] = useState<string | null>(null)
 
   useEffect(() => {
-    // 페이지 로드 시 저장된 세션 확인 및 멤버 데이터 로드
-    const initializeAuth = async () => {
-      // 멤버 데이터 먼저 로드
-      await loadMembers()
-      
-      const savedUser = storage.get<User>('rangu_user')
-      if (savedUser) {
-        setUser(savedUser)
-        if (savedUser.memberId) {
-          const foundMember = MEMBERS.find(m => m.id === savedUser.memberId)
-          setMember(foundMember || null)
-        }
-      }
-      setIsLoading(false)
-    }
-    
-    initializeAuth()
+    loadMembers()
   }, [])
 
-  const login = async (username: string, password: string): Promise<boolean> => {
-    setIsLoading(true)
-    
-    try {
-      // 멤버 로그인 확인
-      const foundMember = MEMBERS.find(m => m.id === username || m.email === username)
-      
-      if (foundMember && DEMO_CREDENTIALS[username as keyof typeof DEMO_CREDENTIALS] === password) {
-        const newUser: User = {
-          id: foundMember.id,
-          username: foundMember.name,
-          email: foundMember.email!,
-          role: 'member',
-          memberId: foundMember.id,
-          isLoggedIn: true
-        }
-        
-        setUser(newUser)
-        setMember(foundMember)
-        storage.set('rangu_user', newUser)
-        
-        // 멤버 활동 상태를 온라인으로 업데이트 (로그인 시간 기록)
-        try {
-          await fetch('/api/members', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              memberId: foundMember.id,
-              action: 'login',
-              activity: '온라인'
-            })
-          })
-          
-          // 상태 시스템에서도 온라인으로 변경 (기존 설정이 있으면 유지, 없으면 온라인)
-          const statusResponse = await fetch(`/api/profiles/${foundMember.id}/status`)
-          let statusToSet = 'online'
-          
-          if (statusResponse.ok) {
-            const statusData = await statusResponse.json()
-            // 기존에 설정된 상태가 있고 오프라인이 아니면 그 상태 유지
-            if (statusData.status && statusData.status !== 'offline') {
-              statusToSet = statusData.status
-            }
-          }
-          
-          await fetch(`/api/profiles/${foundMember.id}/status`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              status: statusToSet,
-              customMessage: getDefaultStatusMessage(statusToSet)
-            })
-          })
-          
-          console.log(`Login activity updated for ${foundMember.name} - set to ${statusToSet}`)
-        } catch (error) {
-          console.error('Failed to update member activity on login:', error)
-        }
-        
-        toast.success(`환영합니다, ${foundMember.name}님!`)
-        return true
-      }
-      
-      // 게스트 로그인 확인
-      if (username === 'guest' && password === 'guest123') {
-        const guestUser: User = {
-          id: 'guest',
-          username: 'Guest',
-          email: 'guest@rangu.fam',
-          role: 'guest',
-          isLoggedIn: true
-        }
-        
-        setUser(guestUser)
-        setMember(null)
-        storage.set('rangu_user', guestUser)
-        
-        toast.success('게스트로 로그인했습니다!')
-        return true
-      }
-      
-      toast.error('아이디 또는 비밀번호가 올바르지 않습니다.')
-      return false
-      
-    } catch (error) {
-      toast.error('로그인 중 오류가 발생했습니다.')
-      return false
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const logout = async () => {
-    if (user?.memberId || user?.id) {
-      // 멤버 활동 상태를 오프라인으로 업데이트 (로그아웃 시간 기록)
+  const updateMemberPresence = useCallback(
+    async (memberId: string, action: 'login' | 'logout') => {
       try {
         await fetch('/api/members', {
           method: 'POST',
@@ -267,52 +131,159 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            memberId: user.memberId || user.id,
-            action: 'logout',
-            activity: '오프라인'
-          })
+            memberId,
+            action,
+            activity: action === 'login' ? '온라인' : '오프라인',
+          }),
         })
-        
-        // 상태 시스템에서도 오프라인으로 변경
-        await fetch(`/api/profiles/${user.memberId || user.id}/status`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            status: 'offline',
-            customMessage: '오프라인'
+
+        if (action === 'login') {
+          let statusToSet = 'online'
+          try {
+            const statusResponse = await fetch(`/api/profiles/${memberId}/status`)
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json()
+              if (statusData.status && statusData.status !== 'offline') {
+                statusToSet = statusData.status
+              }
+            }
+          } catch {
+            statusToSet = 'online'
+          }
+
+          await fetch(`/api/profiles/${memberId}/status`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: statusToSet,
+              customMessage: getDefaultStatusMessage(statusToSet),
+            }),
           })
-        })
-        
-        console.log(`Logout activity updated for ${user.username} - set to offline`)
+        } else {
+          await fetch(`/api/profiles/${memberId}/status`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: 'offline',
+              customMessage: getDefaultStatusMessage('offline'),
+            }),
+          })
+        }
       } catch (error) {
-        console.error('Failed to update member activity on logout:', error)
+        console.error('멤버 상태 동기화 실패:', error)
       }
+    },
+    []
+  )
+
+  const fetchAccountSession = useCallback(async () => {
+    if (status !== 'authenticated' || !session?.user?.discordId) {
+      setUser(null)
+      setMember(null)
+      setIsLoading(false)
+      return
     }
-    
-    setUser(null)
-    setMember(null)
-    storage.remove('rangu_user')
-    toast.success('로그아웃되었습니다.')
+
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/account/session', { cache: 'no-store' })
+      if (!response.ok) {
+        throw new Error('account session fetch failed')
+      }
+
+      const payload = await response.json()
+      const data = payload.data
+
+      const mappedUser: User = {
+        id: data.discordId,
+        username: data.discordUsername || session.user?.name || 'Discord 사용자',
+        email: session.user?.email || '',
+        role: data.memberId ? 'member' : 'guest',
+        memberId: data.memberId || undefined,
+        isLoggedIn: true,
+        discordId: data.discordId,
+        avatar: data.discordAvatar || session.user?.image,
+      }
+
+      setUser(mappedUser)
+      setMember(data.memberProfile || null)
+      setLinkedWikiUsername(data.wikiUsername || null)
+
+      if (data.memberId && data.memberId !== syncedMemberId) {
+        updateMemberPresence(data.memberId, 'login')
+        setSyncedMemberId(data.memberId)
+      }
+    } catch (error) {
+      console.error('Account 세션 확인 실패:', error)
+      if (session?.user) {
+        setUser({
+          id: session.user.discordId || session.user.email || 'discord-user',
+          username: session.user.name || 'Discord 사용자',
+          email: session.user.email || '',
+          role: 'guest',
+          isLoggedIn: true,
+          discordId: session.user.discordId,
+          avatar: session.user.image || undefined,
+        })
+      } else {
+        setUser(null)
+      }
+      setMember(null)
+      setLinkedWikiUsername(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [session, status, syncedMemberId, updateMemberPresence])
+
+  useEffect(() => {
+    fetchAccountSession()
+  }, [fetchAccountSession])
+
+  const login = async (): Promise<boolean> => {
+    try {
+      await signIn('discord', { callbackUrl: '/' })
+      return true
+    } catch (error) {
+      console.error('Discord 로그인 실패:', error)
+      toast.error('디스코드 로그인에 실패했습니다.')
+      return false
+    }
+  }
+
+  const logout = async (): Promise<void> => {
+    try {
+      if (user?.memberId) {
+        await updateMemberPresence(user.memberId, 'logout')
+      }
+      await signOut({ callbackUrl: '/' })
+      setUser(null)
+      setMember(null)
+      setLinkedWikiUsername(null)
+      setSyncedMemberId(null)
+      toast.success('로그아웃되었습니다.')
+    } catch (error) {
+      console.error('로그아웃 실패:', error)
+      toast.error('로그아웃 중 오류가 발생했습니다.')
+    }
   }
 
   const value: AuthContextType = {
     user,
     member,
-    isLoading,
+    isLoading: isLoading || status === 'loading',
     login,
     logout,
-    isLoggedIn: !!user,
-    isMember: user?.role === 'member',
-    canEdit: user?.role === 'member'
+    isLoggedIn: status === 'authenticated',
+    isMember: !!user?.memberId,
+    canEdit: !!member,
+    linkedWikiUsername,
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
@@ -323,4 +294,4 @@ export function useAuth() {
   return context
 }
 
-export { MEMBERS } 
+export { MEMBERS }

@@ -1,3 +1,6 @@
+import { createHash } from 'crypto'
+import fs from 'fs'
+import path from 'path'
 import { Card, CardType, CardRarity } from '@/models/Card'
 import { UserCard } from '@/models/UserCard'
 import { CardDrop } from '@/models/CardDrop'
@@ -20,12 +23,38 @@ export interface CraftingResult {
 }
 
 export class CardService {
+  // Normalize arbitrary user identifiers (e.g. Discord) into a stable ObjectId
+  static normalizeUserId(rawId: string): ObjectId {
+    if (rawId && ObjectId.isValid(rawId) && rawId.length === 24) {
+      return new ObjectId(rawId)
+    }
+    const seed = rawId || 'guest'
+    const hexId = createHash('md5').update(seed).digest('hex').slice(0, 24)
+    return new ObjectId(hexId)
+  }
+
+  // 이미지가 존재하지 않으면 공통 대체 이미지로 치환
+  static ensureImage(card: any) {
+    const fallback = '/images/default-music-cover.jpg'
+    if (!card?.imageUrl) {
+      return { ...card, imageUrl: fallback }
+    }
+    const relativePath = card.imageUrl.startsWith('/')
+      ? card.imageUrl.slice(1)
+      : card.imageUrl
+    const absolutePath = path.join(process.cwd(), 'public', relativePath)
+    if (!fs.existsSync(absolutePath)) {
+      return { ...card, imageUrl: fallback }
+    }
+    return card
+  }
+
   // 일일 카드 드랍 (5회 제한)
   static async dailyCardDrop(userId: string): Promise<CardDropResult> {
     await connectDB()
     
     try {
-      const userObjectId = new ObjectId(userId)
+      const userObjectId = this.normalizeUserId(userId)
       
       // 사용자 통계 조회/생성
       let userStats = await UserCardStats.findOne({ userId: userObjectId })
@@ -57,7 +86,7 @@ export class CardService {
       // }
       
       // 랜덤 카드 선택
-      const droppedCard = await this.selectRandomCard()
+      const droppedCard = this.ensureImage(await this.selectRandomCard())
       if (!droppedCard) {
         return {
           success: false,
@@ -127,7 +156,7 @@ export class CardService {
       if (totalWeight === 0) {
         // 모든 카드의 dropRate가 0인 경우 균등 확률로 선택
         const randomIndex = Math.floor(Math.random() * availableCards.length)
-        return availableCards[randomIndex]
+        return this.ensureImage(availableCards[randomIndex])
       }
       
       const random = Math.random() * totalWeight
@@ -136,12 +165,12 @@ export class CardService {
       for (const card of availableCards) {
         currentWeight += card.dropRate
         if (random <= currentWeight) {
-          return card
+          return this.ensureImage(card)
         }
       }
       
       // 폴백으로 첫 번째 카드 반환
-      return availableCards[0]
+      return this.ensureImage(availableCards[0])
       
     } catch (error) {
       console.error('Error selecting random card:', error)
@@ -202,7 +231,7 @@ export class CardService {
     await connectDB()
     
     try {
-      const userObjectId = new ObjectId(userId)
+      const userObjectId = this.normalizeUserId(userId)
       
       // 기존 카드 조회
       const existingCard = await UserCard.findOne({ 
@@ -240,7 +269,7 @@ export class CardService {
     await connectDB()
     
     try {
-      const userObjectId = new ObjectId(userId)
+      const userObjectId = this.normalizeUserId(userId)
       
       // 사용자 카드 집계
       const cardStats = await UserCard.aggregate([
@@ -346,7 +375,7 @@ export class CardService {
     await connectDB()
     
     try {
-      const userObjectId = new ObjectId(userId)
+      const userObjectId = this.normalizeUserId(userId)
       const skip = (page - 1) * limit
       
       const inventory = await UserCard.aggregate([
@@ -388,7 +417,7 @@ export class CardService {
     await connectDB()
     
     try {
-      const userObjectId = new ObjectId(userId)
+      const userObjectId = this.normalizeUserId(userId)
       
       // 사용자 인벤토리 조회
       const userCards = await UserCard.find({ userId: userObjectId }).lean()
@@ -509,14 +538,15 @@ export class CardService {
       if (isSuccess) {
         // 랜덤 프레스티지 카드 지급 (17.5% 멤버 카드, 나머지는 특별 프레스티지)
         const isPersonalCard = Math.random() < 0.175
-        const prestigeCardId = isPersonalCard ? 
-          `prestige_${['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan', 'heeyeol'][Math.floor(Math.random() * 6)]}` :
-          'prestige_group_special'
+        const prestigePool = ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan']
+        const prestigeCardId = isPersonalCard 
+          ? `prestige_${prestigePool[Math.floor(Math.random() * prestigePool.length)]}` 
+          : 'prestige_group_special'
         
         await this.addCardToInventory(userId, prestigeCardId, 'craft')
         
         // 프레스티지 카드 정보 조회
-        const prestigeCard = await Card.findOne({ cardId: prestigeCardId }).lean()
+        const prestigeCard = this.ensureImage(await Card.findOne({ cardId: prestigeCardId }).lean())
         
         return {
           success: true,

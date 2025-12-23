@@ -20,9 +20,7 @@ async function getUserStatus(userId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('API: Fetching members...')
     const members = await MemberService.getAllMembers()
-    console.log('API: Members found:', members.length)
     
     const membersWithActivity = await Promise.all(
       members.map(async (member: Member) => {
@@ -54,15 +52,6 @@ export async function GET(request: NextRequest) {
           currentActivity = statusData ? statusData.customMessage : activity.currentActivity
         }
         
-        console.log(`API: Activity for ${member.name}:`, {
-          isLoggedIn,
-          timeDiffMinutes: Math.round(timeDiffMinutes),
-          isOnline,
-          currentActivity,
-          userStatus,
-          lastSeen: activity.lastSeen
-        })
-        
         return {
           ...member,
           lastLogin: activity.lastLogin,
@@ -74,7 +63,6 @@ export async function GET(request: NextRequest) {
       })
     )
     
-    console.log('API: Returning members with activity')
     return NextResponse.json(membersWithActivity)
   } catch (error) {
     console.error('Error fetching members:', error)
@@ -95,7 +83,6 @@ export async function POST(request: NextRequest) {
         action: 'login'
       })
       
-      console.log(`API: Member ${memberId} logged in`)
       return NextResponse.json({ success: true })
     }
     
@@ -107,7 +94,6 @@ export async function POST(request: NextRequest) {
         action: 'logout'
       })
       
-      console.log(`API: Member ${memberId} logged out`)
       return NextResponse.json({ success: true })
     }
     
@@ -120,7 +106,6 @@ export async function POST(request: NextRequest) {
         currentActivity: body.activity || '온라인'
       })
       
-      console.log(`API: Updated activity for ${memberId}: ${body.activity} (online: ${!isOffline})`)
       return NextResponse.json({ success: true })
     }
     

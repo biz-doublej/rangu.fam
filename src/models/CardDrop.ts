@@ -49,8 +49,7 @@ const CardDropSchema = new mongoose.Schema<ICardDrop>({
   dailyDropCount: {
     type: Number,
     required: true,
-    min: 1,
-    max: 5
+    min: 1
   },
   craftingAttempt: {
     usedCards: [{

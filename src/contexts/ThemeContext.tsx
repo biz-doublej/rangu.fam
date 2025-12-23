@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
-type Theme = 'dark' | 'amoled' | 'galaxy'
+type Theme = 'dark' | 'amoled' | 'galaxy' | 'christmas'
 
 type ThemeContextType = {
   theme: Theme
@@ -10,7 +10,7 @@ type ThemeContextType = {
   toggleTheme: () => void
 }
 
-const THEME_ORDER: Theme[] = ['dark', 'amoled', 'galaxy']
+const THEME_ORDER: Theme[] = ['dark', 'amoled', 'galaxy', 'christmas']
 const DEFAULT_THEME: Theme = 'dark'
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -23,14 +23,47 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const saved = normalizeTheme(localStorage.getItem('site-theme'))
-    setThemeState(saved)
+    try {
+      const rawUser = localStorage.getItem('rangu_user')
+      let userId: string | null = null
+      if (rawUser) {
+        try {
+          const parsed = JSON.parse(rawUser)
+          userId = parsed?.id ?? null
+        } catch {
+          userId = null
+        }
+      }
+
+      const key = userId ? `rangu_theme_${userId}` : 'site-theme'
+      const saved = normalizeTheme(localStorage.getItem(key))
+      setThemeState(saved)
+    } catch {
+      const fallback = normalizeTheme(localStorage.getItem('site-theme'))
+      setThemeState(fallback)
+    }
   }, [])
 
   useEffect(() => {
     if (typeof document === 'undefined') return
     document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem('site-theme', theme) } catch {}
+    try {
+      const rawUser = typeof window !== 'undefined' ? localStorage.getItem('rangu_user') : null
+      let userId: string | null = null
+      if (rawUser) {
+        try {
+          const parsed = JSON.parse(rawUser)
+          userId = parsed?.id ?? null
+        } catch {
+          userId = null
+        }
+      }
+
+      const key = userId ? `rangu_theme_${userId}` : 'site-theme'
+      localStorage.setItem(key, theme)
+      // 기본값도 유지
+      localStorage.setItem('site-theme', theme)
+    } catch {}
   }, [theme])
 
   const setTheme = (t: Theme) => setThemeState(t)

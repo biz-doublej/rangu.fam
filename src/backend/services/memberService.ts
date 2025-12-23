@@ -167,18 +167,6 @@ export class MemberService {
         location: '호그와트 마법학교, 영국',
         joinDate: new Date('2025-01-21'),
         personalPageUrl: '/members/seungchan'
-      },
-      {
-        id: 'heeyeol',
-        name: '윤희열',
-        role: '임시멤버 (2025.09 합류 예정)',
-        description: '2025년 9월부터 임시 멤버로 합류할 예정입니다.',
-        avatar: '/images/heeyeol.jpg',
-        email: 'heeyeol@rangu.fam',
-        status: 'active',
-        location: '대한민국',
-        joinDate: new Date('2025-09-01'),
-        personalPageUrl: '/members/heeyeol'
       }
     ]
   }

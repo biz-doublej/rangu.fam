@@ -20,6 +20,8 @@ export interface User {
   role: 'member' | 'guest'
   memberId?: string // member 역할일 경우 연결된 Member ID
   isLoggedIn: boolean
+  discordId?: string
+  avatar?: string
 }
 
 // 음악 관련 타입
@@ -140,11 +142,30 @@ export interface CalendarEvent {
   startDate: Date
   endDate: Date
   allDay: boolean
-  createdBy: string
+  createdBy?: string
+  createdById?: string
+  createdByName?: string
   attendees: string[]
   location?: string
   color?: string
   isPrivate: boolean
+  gallery?: GalleryImage[]
+  capsulePrompt?: string
+  tags?: string[]
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface EventTimeCapsuleEntry {
+  id: string
+  eventId: string
+  authorId: string
+  authorName?: string
+  mood: 'happy' | 'excited' | 'nervous' | 'tired' | 'thoughtful' | 'custom'
+  memo: string | null
+  createdAt: Date
+  unlockDate: Date
+  isUnlocked?: boolean
 }
 
 // 갤러리 관련 타입
@@ -153,9 +174,9 @@ export interface GalleryImage {
   url: string
   title?: string
   description?: string
-  uploadedBy: string
+  uploadedBy?: string
   uploadDate: Date
-  tags: string[]
+  tags?: string[]
   eventId?: string // 달력 이벤트와 연결
 }
 

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 유효한 사용자 ID 확인
-    const validUserIds = ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan', 'heeyeol']
+    const validUserIds = ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan']
     if (!validUserIds.includes(userId)) {
       return NextResponse.json(
         { success: false, error: '유효하지 않은 사용자 ID입니다.' },

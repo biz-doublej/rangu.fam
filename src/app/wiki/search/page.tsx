@@ -85,7 +85,7 @@ function WikiSearchPageContent() {
                 {q.trim() && (
                   <div className="mt-3">
                     <Button onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)} className="bg-gray-700 hover:bg-gray-600 text-gray-200">
-                      "{q}" 새 문서 만들기
+                      &quot;{q}&quot; 새 문서 만들기
                     </Button>
                   </div>
                 )}
@@ -115,9 +115,9 @@ function WikiSearchPageContent() {
               {showCreate && (
                 <div className="bg-gray-900 rounded px-3 py-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-300">정확히 "{q}" 제목의 문서가 없습니다.</div>
+                    <div className="text-sm text-gray-300">정확히 &quot;{q}&quot; 제목의 문서가 없습니다.</div>
                     <Button onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)} className="bg-gray-700 hover:bg-gray-600 text-gray-200 h-8 px-3">
-                      "{q}" 새 문서 만들기
+                      &quot;{q}&quot; 새 문서 만들기
                     </Button>
                   </div>
                 </div>

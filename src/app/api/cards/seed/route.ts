@@ -91,20 +91,6 @@ export async function POST(request: NextRequest) {
         dropRate: 0.08,
         canBeUsedForCrafting: true
       },
-      {
-        cardId: 'heeyeol_2024_h1',
-        name: '희열 2024년 상반기',
-        type: CardType.YEAR,
-        rarity: CardRarity.BASIC,
-        description: '2024년 상반기 희열의 모습',
-        imageUrl: '/images/cards/year/heeyeol_2024_h1.jpg',
-        member: '희열',
-        year: 2024,
-        period: 'h1',
-        isGroupCard: false,
-        dropRate: 0.08,
-        canBeUsedForCrafting: true
-      },
       
       // 스페셜 카드 (레어)
       {
@@ -112,7 +98,7 @@ export async function POST(request: NextRequest) {
         name: '랑구 결성',
         type: CardType.SPECIAL,
         rarity: CardRarity.RARE,
-        description: '여섯 친구가 처음 만나 랑구를 결성한 순간',
+        description: '다섯 친구가 처음 만나 랑구를 결성한 순간',
         imageUrl: '/images/cards/special/formation.jpg',
         isGroupCard: true,
         dropRate: 0.15, // 15%

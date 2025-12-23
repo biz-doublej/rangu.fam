@@ -2,265 +2,224 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { LogIn, User, Eye, EyeOff, ArrowLeft } from 'lucide-react'
+import {
+  LogIn,
+  ArrowLeft,
+  Link2,
+  ShieldCheck,
+  Sparkles,
+  Activity,
+  Info,
+  UserCircle2,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
-import { useRouter } from 'next/navigation'
+
+const benefits = [
+  {
+    icon: Link2,
+    title: '기존 계정 연동',
+    description: '계정 설정 페이지에서 예전 Rangu 아이디와 위키 계정을 연결할 수 있어요.',
+  },
+  {
+    icon: ShieldCheck,
+    title: '이랑위키 인증',
+    description: '연동만 해두면 Discord 인증 한 번으로 위키 토큰을 바로 발급받을 수 있어요.',
+  },
+  {
+    icon: Sparkles,
+    title: '단일 로그인',
+    description: '이제는 비밀번호 대신 Discord만으로 Rangu.fam과 이랑위키를 모두 이용해요.',
+  },
+]
+
+const steps = [
+  'Discord 버튼을 눌러 나타나는 인증 창에서 승인을 완료하세요.',
+  '로그인 후 우측 상단의 이름을 눌러 계정 설정 페이지를 열 수 있어요.',
+  '계정 설정에서 예전 아이디나 위키 계정을 연결하면 끝!',
+]
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [rememberLogin, setRememberLogin] = useState(false)
-  const { login } = useAuth()
   const router = useRouter()
+  const { login, isLoading, isLoggedIn, user } = useAuth()
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
-  // 간단한 인코딩/디코딩 함수 (보안을 위한 기본적인 obfuscation)
-  const encodeCredentials = (username: string, password: string) => {
-    return btoa(JSON.stringify({ username, password }))
+  const handleDiscordLogin = async () => {
+    setIsRedirecting(true)
+    await login()
+    setIsRedirecting(false)
   }
 
-  const decodeCredentials = (encoded: string) => {
-    try {
-      return JSON.parse(atob(encoded))
-    } catch {
-      return null
-    }
-  }
-
-  // 컴포넌트 마운트 시 저장된 로그인 정보 불러오기
-  React.useEffect(() => {
-    const savedLoginInfo = localStorage.getItem('rangu_saved_login')
-    if (savedLoginInfo) {
-      const decoded = decodeCredentials(savedLoginInfo)
-      if (decoded) {
-        setUsername(decoded.username)
-        setPassword(decoded.password)
-        setRememberLogin(true)
-      } else {
-        console.error('저장된 로그인 정보 로드 실패')
-        localStorage.removeItem('rangu_saved_login')
-      }
-    }
-  }, [])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!username || !password) {
-      return
-    }
-
-    setIsLoading(true)
-    const success = await login(username, password)
-    
-    if (success) {
-      // 로그인 저장이 체크되어 있으면 로컬 스토리지에 저장
-      if (rememberLogin) {
-        const encoded = encodeCredentials(username, password)
-        localStorage.setItem('rangu_saved_login', encoded)
-      } else {
-        // 체크 해제 시 저장된 정보 삭제
-        localStorage.removeItem('rangu_saved_login')
-      }
-      
-      router.push('/')
-    }
-    setIsLoading(false)
-  }
-
-  const demoAccounts = [
-    { username: 'jaewon', name: '정재원', role: '멤버' },
-    { username: 'minseok', name: '정민석', role: '멤버' },
-    { username: 'jingyu', name: '정진규', role: '멤버' },
-    { username: 'hanul', name: '강한울', role: '멤버' },
-    { username: 'guest', name: '게스트', role: '비멤버' },
-  ]
+  const linkedMemberName = (user?.memberId && user?.username) ? user.username : (user?.username || null)
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      {/* 배경 돌아가기 버튼 */}
+    <div className="relative min-h-screen overflow-hidden bg-[#030617] text-white">
+      <div className="absolute inset-0 bg-gradient-to-b from-[#040920] via-[#050414] to-[#02030b]" />
+      <div className="absolute top-0 -right-10 w-[30rem] h-[30rem] bg-primary-500/30 blur-[120px]" />
+      <div className="absolute bottom-0 left-0 w-[28rem] h-[28rem] bg-purple-500/20 blur-[140px]" />
+
       <motion.button
-        className="fixed top-6 left-6 glass-button p-3 z-10"
+        className="fixed top-6 left-6 glass-button p-3 z-20"
         onClick={() => router.push('/')}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
-        <ArrowLeft className="w-5 h-5 text-primary-600" />
+        <ArrowLeft className="w-5 h-5 text-white" />
       </motion.button>
 
-      <div className="w-full max-w-md">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          {/* 헤더 */}
-          <div className="text-center mb-8">
-            <motion.div
-              className="w-20 h-20 bg-primary-100 rounded-full mx-auto mb-4 flex items-center justify-center"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-            >
-              <LogIn className="w-10 h-10 text-primary-600" />
-            </motion.div>
-            <h1 className="text-3xl font-bold text-gradient mb-2">로그인</h1>
-            <p className="text-gray-600">Rangu.fam에 오신 것을 환영합니다</p>
-          </div>
-
-          {/* 로그인 폼 */}
-          <Card>
-            <form onSubmit={handleSubmit}>
-              <CardHeader>
-                <h2 className="text-xl font-semibold text-center text-primary-700">
-                  계정 정보를 입력해주세요
-                </h2>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <Input
-                  label="아이디"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="아이디를 입력하세요"
-                  required
-                />
-
-                <div className="relative">
-                  <Input
-                    label="비밀번호"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="비밀번호를 입력하세요"
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-10 text-gray-400 hover:text-gray-600"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-
-                {/* 로그인 저장 체크박스 */}
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="rememberLogin"
-                      checked={rememberLogin}
-                      onChange={(e) => setRememberLogin(e.target.checked)}
-                      className="w-4 h-4 text-primary-600 bg-white border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
-                    />
-                    <label 
-                      htmlFor="rememberLogin" 
-                      className="text-sm text-gray-700 cursor-pointer select-none"
-                    >
-                      로그인 정보 저장
-                    </label>
-                  </div>
-                  {rememberLogin && (
-                    <motion.p 
-                      className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                    >
-                      💡 다음 방문 시 자동으로 로그인 정보가 입력됩니다. 공용 기기에서는 사용을 권장하지 않습니다.
-                    </motion.p>
-                  )}
-                </div>
-              </CardContent>
-
-              <CardFooter className="space-y-4">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  loading={isLoading}
-                  className="w-full"
-                >
-                  로그인
-                </Button>
-
-                <div className="text-center text-sm text-gray-500">
-                  <p>계정이 없으신가요? 게스트로 로그인하세요</p>
-                </div>
-              </CardFooter>
-            </form>
-          </Card>
-
-          {/* 데모 계정 정보 */}
+      <div className="relative z-10 px-4 py-16 lg:py-20">
+        <div className="max-w-5xl mx-auto grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
+          {/* Hero + CTA */}
           <motion.div
-            className="mt-8"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="space-y-6"
           >
-            <Card variant="glass">
+            <div className="space-y-4">
+              <motion.div
+                className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center shadow-2xl"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
+              >
+                <LogIn className="w-10 h-10 text-white" />
+              </motion.div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-white/60 mb-2">
+                  Rangu.fam x 이랑위키
+                </p>
+                <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
+                  디스코드 하나면
+                  <br />모든 공간에 <span className="text-primary-300">접속 완료</span>
+                </h1>
+                <p className="mt-4 text-base text-white/80 leading-relaxed">
+                  디스코드 인증을 통과하면 Rangu.fam과 이랑위키의 계정이 하나로 이어집니다. 인증 후에는
+                  오른쪽 상단의 이름을 눌러 언제든지 계정 설정을 열 수 있어요.
+                </p>
+              </div>
+            </div>
+
+            <Card className="bg-white/5 border-white/10 shadow-2xl backdrop-blur-xl">
               <CardHeader>
-                <h3 className="text-lg font-semibold text-primary-700 text-center">
-                  데모 계정 정보
-                </h3>
+                <h2 className="text-xl font-semibold text-white">Discord로 계속하기</h2>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {demoAccounts.map((account, index) => (
-                    <motion.div
-                      key={account.username}
-                      className="flex items-center justify-between p-3 glass-button cursor-pointer"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setUsername(account.username)
-                        setPassword(account.username === 'guest' ? 'guest123' : 'password123')
-                        // 데모 계정 클릭 시 저장된 정보가 있다면 체크박스도 업데이트
-                        const savedLoginInfo = localStorage.getItem('rangu_saved_login')
-                        if (savedLoginInfo) {
-                          const decoded = decodeCredentials(savedLoginInfo)
-                          if (decoded) {
-                            setRememberLogin(decoded.username === account.username)
-                          } else {
-                            setRememberLogin(false)
-                          }
-                        } else {
-                          setRememberLogin(false)
-                        }
-                      }}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 + index * 0.1 }}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-primary-200 rounded-full flex items-center justify-center">
-                          <User className="w-4 h-4 text-primary-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-700">{account.name}</p>
-                          <p className="text-sm text-gray-500">{account.role}</p>
-                        </div>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3">
+                  {benefits.map((item) => (
+                    <div key={item.title} className="flex items-start space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                        <item.icon className="w-5 h-5 text-primary-200" />
                       </div>
-                      <div className="text-xs text-gray-400">
-                        클릭하여 자동 입력
+                      <div>
+                        <p className="font-semibold text-white">{item.title}</p>
+                        <p className="text-sm text-white/70">{item.description}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
-                <div className="mt-4 p-3 bg-warm-50 rounded-xl">
-                  <p className="text-sm text-gray-600 text-center">
-                    💡 <strong>비밀번호:</strong> 멤버는 password123, 게스트는 guest123
+              </CardContent>
+              <CardFooter className="flex flex-col space-y-3">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
+                  loading={isLoading || isRedirecting}
+                  className="w-full"
+                  onClick={handleDiscordLogin}
+                >
+                  {isLoggedIn ? '다시 연결하기' : 'Discord로 계속하기'}
+                </Button>
+                <p className="text-sm text-white/60 text-center">
+                  인증 후 우측 상단의 이름을 눌러 <span className="text-white font-semibold">계정 설정</span>
+                  을 열 수 있어요.
+                </p>
+              </CardFooter>
+            </Card>
+          </motion.div>
+
+          {/* Status + Info */}
+          <motion.div
+            className="space-y-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <Card className="bg-gradient-to-b from-white/80 to-white text-gray-800 shadow-2xl border-white/70">
+              <CardHeader>
+                <div className="flex items-center space-x-2 text-sm font-medium text-primary-600">
+                  <Activity className="w-4 h-4" />
+                  <span>연결 상태</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {isLoggedIn ? '디스코드 인증 완료' : '아직 인증되지 않았어요'}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {isLoggedIn
+                      ? '이제 이름을 눌러 계정 설정으로 바로 이동할 수 있어요.'
+                      : '버튼을 눌러 디스코드 인증을 완료해 주세요.'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-gray-100 p-4 border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1">현재 연결된 멤버</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {linkedMemberName || '연결된 멤버가 아직 없어요'}
                   </p>
                 </div>
               </CardContent>
+              <CardFooter>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full border border-gray-200 text-gray-800 hover:bg-gray-100"
+                  onClick={() => router.push('/settings/account')}
+                >
+                  계정 설정으로 이동
+                </Button>
+              </CardFooter>
+            </Card>
+
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <Info className="w-4 h-4 text-primary-200" />
+                  <h3 className="text-lg font-semibold text-white">로그인 안내</h3>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <ul className="space-y-2 text-sm text-white/80">
+                  {steps.map((step, idx) => (
+                    <li key={step} className="flex items-start space-x-3">
+                      <span className="w-6 h-6 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs text-white">
+                        {idx + 1}
+                      </span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <UserCircle2 className="w-4 h-4 text-primary-200" />
+                  <h4 className="font-semibold text-white">도움말</h4>
+                </div>
+              </CardHeader>
+              <CardContent className="text-sm text-white/70 space-y-2">
+                <p>• 개인 계정 연동은 로그인 후 이름을 눌러 열리는 계정 설정에서 직접 진행하면 돼요.</p>
+                <p>• 다른 사용자의 계정 연동은 이랑위키 관리자 페이지에서만 처리할 수 있습니다.</p>
+                <p>• 계정 설정에서는 멤버 정보와 위키 계정을 한 번에 확인할 수 있어요.</p>
+              </CardContent>
             </Card>
           </motion.div>
-        </motion.div>
+        </div>
       </div>
     </div>
   )
-} 
+}

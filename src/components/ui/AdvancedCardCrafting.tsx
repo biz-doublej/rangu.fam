@@ -127,13 +127,19 @@ export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCra
 
   // 슬롯에 카드 추가
   const addCardToSlot = (slotId: string, card: UserCard) => {
-    setCraftingSlots(prev => 
-      prev.map(slot => 
+    setCraftingSlots(prev => {
+      const isAlreadyUsed = prev.some(
+        slot => slot.card?.cardId === card.cardId && slot.id !== slotId
+      )
+      if (isAlreadyUsed) {
+        return prev
+      }
+      return prev.map(slot => 
         slot.id === slotId 
           ? { ...slot, card }
           : slot
       )
-    )
+    })
     setShowInventory(false)
     setSelectedSlot(null)
   }
@@ -184,6 +190,9 @@ export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCra
       // 성공하면 슬롯 초기화
       if (result.success) {
         setCraftingSlots(prev => prev.map(slot => ({ ...slot, card: undefined })))
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('card-inventory-updated'))
+        }
       }
       
       // 데이터 새로고침

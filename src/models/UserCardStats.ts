@@ -63,7 +63,7 @@ const UserCardStatsSchema = new mongoose.Schema<IUserCardStats>({
     type: Number,
     default: 0,
     min: 0,
-    max: 5
+    max: 999
   },
   totalDropsUsed: {
     type: Number,

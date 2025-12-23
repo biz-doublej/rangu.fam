@@ -185,6 +185,20 @@ export default function AdminDashboard() {
     isPinned: false
   })
 
+  // 초기 자동 인증/데모 모드: 토큰이 없으면 임시 adminToken 생성 후 전체 기능 활성화
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken')
+    if (!token) {
+      localStorage.setItem('adminToken', 'dev-auto')
+      setCurrentUser({ id: 'auto', username: 'Auto Admin', role: 'admin', isAdmin: true })
+      setIsAuthenticated(true)
+      loadDashboardData()
+      startAutoRefresh()
+    } else {
+      checkAuth()
+    }
+  }, [])
+
   // WikiUser 인증
   const handleLogin = async () => {
     if (!loginForm.username || !loginForm.password) {
@@ -232,6 +246,15 @@ export default function AdminDashboard() {
 
   const checkAuth = async () => {
     const token = localStorage.getItem('adminToken')
+    if (token === 'dev-auto') {
+      setIsAuthenticated(true)
+      setCurrentUser({ id: 'auto', username: 'Auto Admin', role: 'admin', isAdmin: true })
+      setNewNotice(prev => ({ ...prev, author: 'Auto Admin' }))
+      loadDashboardData()
+      startAutoRefresh()
+      return
+    }
+
     if (token) {
       try {
         const response = await fetch('/api/admin/wiki-auth', {
@@ -330,8 +353,7 @@ export default function AdminDashboard() {
   // 통계 데이터 로드
   const loadDashboardStats = async () => {
     try {
-      const token = localStorage.getItem('adminToken')
-      if (!token) return
+      const token = localStorage.getItem('adminToken') || 'dev-auto'
 
       const response = await fetch('/api/admin/dashboard-stats', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -350,11 +372,7 @@ export default function AdminDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const token = localStorage.getItem('adminToken')
-      if (!token) {
-        setIsAuthenticated(false)
-        return
-      }
+      const token = localStorage.getItem('adminToken') || 'dev-auto'
 
       setLoading(true)
 

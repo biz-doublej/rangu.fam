@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CardService } from '@/services/cardService'
-import User from '@/models/User'
 import { UserCard } from '@/models/UserCard'
 import connectDB from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
 export const dynamic = 'force-dynamic'
 
 // GET: 사용자 카드 인벤토리 조회
@@ -27,16 +25,8 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    // 사용자 존재 확인
-    const user = await User.findById(userId)
-    if (!user) {
-      return NextResponse.json(
-        { success: false, message: '존재하지 않는 사용자입니다.' },
-        { status: 404 }
-      )
-    }
     
-    const userObjectId = new ObjectId(userId)
+    const userObjectId = CardService.normalizeUserId(userId)
     const skip = (page - 1) * limit
     
     // 매치 조건 구성
@@ -97,7 +87,11 @@ export async function GET(request: NextRequest) {
     )
     
     // 데이터 조회
-    const inventory = await UserCard.aggregate(pipeline)
+    let inventory = await UserCard.aggregate(pipeline)
+    inventory = inventory.map((item: any) => ({
+      ...item,
+      cardInfo: CardService.ensureImage(item.cardInfo)
+    }))
     
     // 전체 카운트 조회
     const countPipeline = [...pipeline.slice(0, -2)] // sort, skip, limit 제거
@@ -140,7 +134,7 @@ export async function PATCH(request: NextRequest) {
       )
     }
     
-    const userObjectId = new ObjectId(userId)
+    const userObjectId = CardService.normalizeUserId(userId)
     
     // 사용자 카드 조회
     const userCard = await UserCard.findOne({ 

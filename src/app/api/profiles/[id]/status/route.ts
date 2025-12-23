@@ -10,8 +10,7 @@ let userStatuses: { [userId: string]: { status: UserStatus, customMessage?: stri
   minseok: { status: 'offline', customMessage: '오프라인', lastUpdated: new Date() },
   jingyu: { status: 'offline', customMessage: '오프라인', lastUpdated: new Date() },
   hanul: { status: 'offline', customMessage: '오프라인', lastUpdated: new Date() },
-  seungchan: { status: 'offline', customMessage: '오프라인', lastUpdated: new Date() },
-  heeyeol: { status: 'offline', customMessage: '오프라인', lastUpdated: new Date() }
+  seungchan: { status: 'offline', customMessage: '오프라인', lastUpdated: new Date() }
 }
 
 // GET - 현재 상태 조회

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Package, 
@@ -18,6 +18,8 @@ import {
 import { Button } from './Button'
 import { Card, CardContent, CardHeader } from './Card'
 import { Input } from './Input'
+
+const FALLBACK_IMAGE = '/images/default-music-cover.jpg'
 
 interface CardCollectionProps {
   userId?: string
@@ -84,10 +86,16 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
   const [filterRarity, setFilterRarity] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    if (!img.src.includes(FALLBACK_IMAGE)) {
+      img.src = FALLBACK_IMAGE
+    }
+  }
   const [selectedCard, setSelectedCard] = useState<UserCard | null>(null)
 
-  // 카드 인벤토리 조회
-  const fetchInventory = async () => {
+  // ī�� �κ��丮 ��ȸ
+  const fetchInventory = useCallback(async () => {
     if (!userId) return
 
     setIsLoading(true)
@@ -95,7 +103,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
       const params = new URLSearchParams({
         userId,
         page: '1',
-        limit: '100', // 전체 카드 가져오기
+        limit: '100', // ��ü ī�� ��������
         ...(filterType && { type: filterType }),
         ...(filterRarity && { rarity: filterRarity }),
         ...(favoritesOnly && { favorites: 'true' })
@@ -112,11 +120,19 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [userId, filterType, filterRarity, favoritesOnly])
+
 
   useEffect(() => {
     fetchInventory()
-  }, [userId, filterType, filterRarity, favoritesOnly])
+  }, [fetchInventory])
+
+  useEffect(() => {
+    const handleInventoryUpdate = () => fetchInventory()
+    window.addEventListener('card-inventory-updated', handleInventoryUpdate)
+    return () => window.removeEventListener('card-inventory-updated', handleInventoryUpdate)
+  }, [fetchInventory])
+
 
   // 카드 상태 업데이트 (즐겨찾기, 잠금)
   const updateCardState = async (cardId: string, updates: { isFavorite?: boolean; isLocked?: boolean }) => {
@@ -192,6 +208,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
                       src={card.cardInfo.imageUrl} 
                       alt={card.cardInfo.name}
                       className="w-full h-full object-cover"
+                      onError={handleImageError}
                     />
                   ) : (
                     <div className="text-xl">
@@ -408,6 +425,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
                         src={selectedCard.cardInfo.imageUrl} 
                         alt={selectedCard.cardInfo.name}
                         className="w-full h-full object-cover"
+                        onError={handleImageError}
                       />
                     ) : (
                       <div className="text-4xl">

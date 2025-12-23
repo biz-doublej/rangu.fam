@@ -1,13 +1,14 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter, useParams, notFound } from 'next/navigation'
 import { 
   Search, Edit, History, MessageSquare, Eye, Star,
   ArrowLeft, Settings, Share2, Bookmark, Clock,
   Users, Shield, Lock, AlertCircle, ExternalLink,
-  BookOpen, Home, Menu, User, LogIn, LogOut, ChevronDown
+  BookOpen, Home, Menu, User, LogIn, LogOut, ChevronDown,
+  Sparkles, Calculator, BarChart3, X
 } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -83,18 +84,15 @@ export default function WikiDocumentPage() {
   const [protectLevel, setProtectLevel] = useState<'none' | 'semi' | 'full' | 'admin'>('none')
   const [protectReason, setProtectReason] = useState('')
   const [templateType, setTemplateType] = useState<string>('')
-  const [templateCommand, setTemplateCommand] = useState<string>('')
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
-  const userMenuRef = useRef<HTMLDivElement>(null)
-
+  const [templateCommand, setTemplateCommand] = useState<string>('') 
+  const [showDocumentFunctionsModal, setShowDocumentFunctionsModal] = useState(false)
+  const [pageError, setPageError] = useState<string | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (!userMenuRef.current) return
-      if (!userMenuRef.current.contains(e.target as Node)) setIsUserMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [])
+    if (!actionFeedback) return
+    const timer = setTimeout(() => setActionFeedback(null), 2800)
+    return () => clearTimeout(timer)
+  }, [actionFeedback])
 
   const canShowProtectUI = isLoggedIn && (
     wikiUser?.permissions?.canProtect ||
@@ -129,13 +127,12 @@ export default function WikiDocumentPage() {
 
       try {
         setIsLoading(true)
-        
-        // API 호출하여 페이지 데이터 가져오기 (이미 디코딩된 slug 사용)
+        setPageError(null)
+
         const response = await fetch(`/api/wiki/pages?title=${encodeURIComponent(slug)}`)
         const data = await response.json()
-        
+
         if (data.success && data.page) {
-          // 첫 줄이 #REDIRECT [[...]] 라면 대상 문서로 이동
           if (typeof data.page.content === 'string') {
             const firstLine = data.page.content.split('\n')[0].trim()
             const m = firstLine.match(/^#REDIRECT\s+\[\[([^\]]+)\]\]/i)
@@ -147,22 +144,24 @@ export default function WikiDocumentPage() {
           setCurrentPage(data.page)
           setEditContent(data.page.content)
           setCurrentRevision(data.page.currentRevision)
+          setPageError(null)
         } else {
-          // 페이지가 없으면 새 문서 생성 모드 (빈 상태에서 템플릿을 선택/명령으로 불러오도록 유도)
           setCurrentPage(null)
           setActiveTab('edit')
           setEditContent('')
+          setPageError(data.error || '문서를 찾을 수 없습니다. 새 문서를 작성해 보세요.')
         }
       } catch (error) {
-        console.error('페이지 로드 오류:', error)
+        console.error('문서 로딩 실패:', error)
         setCurrentPage(null)
+        setPageError('문서를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.')
       } finally {
         setIsLoading(false)
       }
     }
 
     loadPage()
-  }, [slug])
+  }, [slug, router])
 
   // 리비전 목록 로드
   const loadRevisions = async () => {
@@ -177,6 +176,56 @@ export default function WikiDocumentPage() {
     } finally {
       setIsLoadingRevisions(false)
     }
+  }
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard?.writeText(window.location.href)
+      setActionFeedback('문서 링크가 복사되었습니다.')
+    } catch (error) {
+      console.error('copy failed', error)
+      setActionFeedback('링크 복사에 실패했습니다. 브라우저 권한을 확인해 주세요.')
+    }
+  }
+
+  const extractCategoriesFromContent = (value: string) => {
+    const names = new Set<string>()
+    const regex = /\[\[분류:([^\]]+)\]\]/gi
+    let match: RegExpExecArray | null = null
+    while ((match = regex.exec(value)) !== null) {
+      match[1].trim().split('|').forEach((part) => {
+        const cleaned = part.replace(/^\{?|\}?$/g, '').trim()
+        if (cleaned) {
+          names.add(cleaned)
+        }
+      })
+    }
+    return Array.from(names)
+  }
+
+  const handleScrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleScrollToDocumentFunctions = () => {
+    if (typeof window !== 'undefined') {
+      const target = document.getElementById('document-function-panel')
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        const originalBoxShadow = target.style.boxShadow
+        target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.8)'
+        setTimeout(() => {
+          target.style.boxShadow = originalBoxShadow
+        }, 1200)
+      }
+    }
+    if (currentPage?.content) {
+      setShowDocumentFunctionsModal(true)
+    }
+  }
+
+  const handleOpenHistory = () => {
+    setActiveTab('history')
   }
 
   // 편집 모드로 전환
@@ -202,13 +251,15 @@ export default function WikiDocumentPage() {
 
     try {
       const method = currentPage ? 'PUT' : 'POST'
+      const categories = extractCategoriesFromContent(editContent)
       const body = {
         title: currentPage?.title || slug,
         content: editContent,
         summary: editSummary || '문서 편집',
         editSummary: editSummary || '문서 편집',
         namespace: currentPage?.namespace || 'main',
-        expectedRevision: currentPage ? currentRevision : undefined
+        expectedRevision: currentPage ? currentRevision : undefined,
+        categories: categories.length > 0 ? categories : undefined,
       }
 
       const response = await fetch('/api/wiki/pages', {
@@ -350,7 +401,19 @@ export default function WikiDocumentPage() {
                 <NamuWikiRenderer
                   content={currentPage.content}
                   generateTableOfContents={true}
-                  onLinkClick={(link) => router.push(`/wiki/${encodeURIComponent(link)}`)}
+                  onLinkClick={(link) => {
+                    const normalized = (link || '').trim()
+                    if (normalized) {
+                      if (/^(분류|category):/i.test(normalized)) {
+                        const categoryName = normalized.split(':').slice(1).join(':').trim()
+                        if (categoryName) {
+                          router.push(`/wiki/category/${encodeURIComponent(categoryName)}`)
+                          return
+                        }
+                      }
+                      router.push(`/wiki/${encodeURIComponent(normalized)}`)
+                    }
+                  }}
                 />
               </motion.div>
 
@@ -428,6 +491,15 @@ export default function WikiDocumentPage() {
             {/* 사이드바 (좌측) */}
             <div className="lg:col-span-1">
               <div className="sticky top-24 space-y-6">
+                {currentPage?.content && (
+                  <DocumentFunctionPanel
+                    content={currentPage.content}
+                    title={currentPage.title}
+                    tableOfContents={currentPage.tableOfContents}
+                    withAnchor
+                  />
+                )}
+
                 {/* 문서 정보 */}
                 <Card className="bg-gray-800 border-gray-700">
                   <CardHeader>
@@ -673,10 +745,10 @@ export default function WikiDocumentPage() {
   return (
     <div className="min-h-screen theme-surface text-gray-100" suppressHydrationWarning>
       {/* 헤더 */}
-      <header className="border-b border-gray-700 bg-gray-800 sticky top-0 z-50" onClick={() => setIsUserMenuOpen(false)}>
+      <header className="border-b border-gray-700 bg-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-2 sm:px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-3 justify-between sm:h-16 py-3 sm:py-0">
+            <div className="flex items-center space-x-3 sm:space-x-4 flex-shrink-0">
               <motion.button
                 className="flex items-center space-x-2 text-gray-100 hover:text-white"
                 onClick={() => router.push('/')}
@@ -699,7 +771,7 @@ export default function WikiDocumentPage() {
               </motion.button>
             </div>
 
-            <div className="flex-1 max-w-md mx-4">
+            <div className="w-full order-3 sm:order-none sm:flex-1 sm:max-w-md sm:mx-4">
               <form onSubmit={handleSearch} className="relative">
                 <Input
                   type="text"
@@ -717,7 +789,7 @@ export default function WikiDocumentPage() {
               </form>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-shrink-0 ml-auto">
 
               {/* 운영자 대시보드 버튼 (운영자만 표시) */}
               {isLoggedIn && isModerator && (
@@ -734,41 +806,25 @@ export default function WikiDocumentPage() {
 
 
               {isLoggedIn ? (
-                <div className="flex items-center space-x-3 relative" ref={userMenuRef}>
+                <div className="flex items-center space-x-3">
                   <ThemeMenu />
                   <button
                     type="button"
-                    onClick={() => setIsUserMenuOpen((v) => !v)}
-                    className="text-sm text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-md border border-gray-600 cursor-pointer transition-colors"
-                    title="사용자 메뉴"
+                    onClick={() => router.push('/settings/account')}
+                    className="text-sm text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-md border border-gray-600 transition-colors"
+                    title="계정 설정 열기"
                   >
-                    {wikiUser?.displayName}
+                    {wikiUser?.displayName || wikiUser?.username}
                   </button>
-                  {isUserMenuOpen && (
-                    <div className="absolute right-0 top-6 w-44 bg-gray-800 border border-gray-700 rounded shadow-lg z-50">
-                      {/* 디버깅을 위한 사용자 정보 표시 */}
-                      <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-600">
-                        역할: {wikiUser?.role || '없음'}<br/>
-                        권한: {wikiUser?.permissions?.canManageUsers ? '관리자' : '일반'}
-                      </div>
-                      
-                      {((wikiUser?.role === 'moderator') || (wikiUser?.role === 'admin') || (wikiUser?.role === 'owner') || wikiUser?.permissions?.canManageUsers) && (
-                        <button
-                          className="block w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                          onClick={() => { setIsUserMenuOpen(false); router.push('/admin') }}
-                        >
-                          운영자 대시보드
-                        </button>
-                      )}
-                      <button
-                        className="block w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                        onClick={() => { setIsUserMenuOpen(false); logout() }}
-                      >
-                        로그아웃
-                      </button>
-                    </div>
-                  )}
-                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={logout}
+                    className="text-gray-300 hover:text-white border border-gray-600 h-9 px-3"
+                    title="로그아웃"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
                 </div>
               ) : (
                 <Button
@@ -786,13 +842,13 @@ export default function WikiDocumentPage() {
 
           {/* 페이지 제목 및 액션 */}
           <div className="py-4 border-t border-gray-700">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-bold text-gray-200">
+                <h1 className="text-2xl font-bold text-gray-200 break-words">
                   {currentPage?.title || slug}
                 </h1>
                 {currentPage && (
-                  <div className="flex items-center space-x-4 text-sm text-gray-400 mt-1">
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 mt-1">
                     <div className="flex items-center space-x-1">
                       <Eye className="w-4 h-4" />
                       <span>{currentPage.views.toLocaleString()}</span>
@@ -806,7 +862,7 @@ export default function WikiDocumentPage() {
               </div>
               
               {/* 탭 네비게이션 */}
-              <div className="flex space-x-1">
+              <div className="flex flex-wrap gap-1">
                 {[
                   { id: 'document', label: '문서', icon: Eye },
                   { id: 'edit', label: '편집', icon: Edit },
@@ -849,12 +905,79 @@ export default function WikiDocumentPage() {
                 )}
               </div>
             </div>
+            {currentPage && (
+              <div className="mt-4 flex flex-wrap gap-2 text-xs sm:text-sm text-gray-300">
+                <button
+                  onClick={handleCopyLink}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md border border-gray-600 bg-gray-700/60 hover:bg-gray-700 transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>링크 복사</span>
+                </button>
+                <button
+                  onClick={handleOpenHistory}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md border border-gray-600 hover:bg-gray-700 transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                  <span>역사 보기</span>
+                </button>
+                <button
+                  onClick={handleScrollToTop}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md border border-gray-600 hover:bg-gray-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4 rotate-90" />
+                  <span>맨 위로</span>
+                </button>
+                <button
+                  onClick={handleScrollToDocumentFunctions}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md border border-gray-600 hover:bg-gray-700 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4 text-yellow-300" />
+                  <span>문서 기능</span>
+                </button>
+                <button
+                  onClick={handleEditMode}
+                  disabled={!isLoggedIn}
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md border ${isLoggedIn ? 'border-gray-500 hover:bg-gray-700' : 'border-gray-800 cursor-not-allowed text-gray-500'}`}
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>바로 편집</span>
+                </button>
+              </div>
+            )}
+            {actionFeedback && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-emerald-300">
+                <Sparkles className="w-3 h-3" />
+                <span>{actionFeedback}</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       {/* 메인 컨텐츠 */}
       <main className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+        {pageError && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-100">
+            <span>{pageError}</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-md border border-red-500 px-3 py-1 hover:bg-red-800/40 transition-colors"
+              >
+                새로고침
+              </button>
+              {activeTab !== 'edit' && (
+                <button
+                  onClick={() => setActiveTab('edit')}
+                  className="rounded-md border border-red-500 px-3 py-1 hover:bg-red-800/40 transition-colors"
+                >
+                  새 문서 작성
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {/* 퀵 액션 버튼 (문서 탭에서만) */}
         {activeTab === 'document' && currentPage && (
           <motion.div
@@ -971,9 +1094,384 @@ export default function WikiDocumentPage() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {showDocumentFunctionsModal && currentPage?.content && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8">
+          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setShowDocumentFunctionsModal(false)}
+              className="absolute -top-3 -right-3 bg-gray-900 border border-gray-700 text-gray-300 hover:text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg"
+              aria-label="문서 기능 닫기"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <DocumentFunctionPanel
+              content={currentPage.content}
+              title={currentPage.title}
+              tableOfContents={currentPage.tableOfContents}
+              withAnchor={false}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
+
+type DocumentHeading = {
+  title: string
+  anchor: string
+  level: number
+}
+
+type DocumentFunctionResult = {
+  summary: string
+  metrics?: Array<{ label: string; value: string }>
+  matches?: Array<{ label: string; anchor?: string }>
+}
+
+type DocumentFunctionContext = {
+  rawContent: string
+  plainText: string
+  headings: DocumentHeading[]
+  wordCount: number
+  title: string
+}
+
+type DocumentFunctionDefinition = {
+  id: string
+  label: string
+  description: string
+  placeholder?: string
+  requiresInput?: boolean
+  icon: React.ComponentType<{ className?: string }>
+  run: (context: DocumentFunctionContext, input?: string) => DocumentFunctionResult
+}
+
+type DocumentFunctionPanelProps = {
+  content: string
+  title: string
+  tableOfContents?: Array<{ [key: string]: any }>
+  withAnchor?: boolean
+}
+
+function DocumentFunctionPanel({ content, title, tableOfContents, withAnchor = true }: DocumentFunctionPanelProps) {
+  const headings = useMemo<DocumentHeading[]>(() => {
+    if (!Array.isArray(tableOfContents)) return []
+    return tableOfContents.map((item: any) => ({
+      title: item?.title || item?.text || '제목 없음',
+      anchor: (item?.anchor || item?.slug || item?.id || '').replace(/^#/, ''),
+      level: item?.level || item?.depth || 1
+    }))
+  }, [tableOfContents])
+
+  const plainText = useMemo(() => sanitizeWikiText(content), [content])
+  const words = useMemo(() => (plainText ? plainText.split(/\s+/).filter(Boolean) : []), [plainText])
+
+  const context = useMemo<DocumentFunctionContext>(() => ({
+    rawContent: content,
+    plainText,
+    headings,
+    wordCount: words.length,
+    title
+  }), [content, plainText, headings, words.length, title])
+
+  const functionDefinitions = useMemo<DocumentFunctionDefinition[]>(() => [
+    {
+      id: 'word-count',
+      label: '분량 요약',
+      description: '단어, 문자, 문단 수를 한 눈에 확인합니다.',
+      icon: Calculator,
+      run: (ctx) => {
+        const charCount = ctx.plainText.replace(/\s+/g, '').length
+        const paragraphCount = ctx.rawContent.split(/\n{2,}/).filter(Boolean).length || 1
+        return {
+          summary: `${ctx.wordCount.toLocaleString()}개의 단어와 ${charCount.toLocaleString()}개의 문자로 구성되어 있습니다.`,
+          metrics: [
+            { label: '단어 수', value: ctx.wordCount.toLocaleString() },
+            { label: '문단 수', value: paragraphCount.toLocaleString() },
+            { label: '본문 길이', value: `${ctx.rawContent.length.toLocaleString()} chars` }
+          ]
+        }
+      }
+    },
+    {
+      id: 'reading-time',
+      label: '예상 읽기 시간',
+      description: '분당 320단어 기준으로 읽기 시간을 추정합니다.',
+      icon: Clock,
+      run: (ctx) => {
+        const wordsPerMinute = 320
+        const minutes = ctx.wordCount / wordsPerMinute
+        const minutePart = Math.floor(minutes)
+        const seconds = Math.round((minutes - minutePart) * 60)
+        const display =
+          minutePart > 0
+            ? `${minutePart}분 ${seconds.toString().padStart(2, '0')}초`
+            : `${Math.max(seconds, 15)}초 내외`
+        return {
+          summary: `${display} 정도면 이 문서를 모두 읽을 수 있습니다.`,
+          metrics: [
+            { label: '단어 수', value: ctx.wordCount.toLocaleString() },
+            { label: '분당 단어 수', value: wordsPerMinute.toLocaleString() },
+            { label: '읽기 속도', value: minutePart > 0 ? `${minutePart + (seconds / 60).toFixed(2)}분` : `${seconds}초` }
+          ]
+        }
+      }
+    },
+    {
+      id: 'keyword-density',
+      label: '키워드 밀도',
+      description: '특정 키워드가 얼마나 자주 등장하는지 분석합니다.',
+      icon: BarChart3,
+      requiresInput: true,
+      placeholder: '키워드 (예: 역사)',
+      run: (ctx, keyword = '') => {
+        const term = keyword.trim()
+        if (!term) {
+          return { summary: '키워드를 입력해 주세요.' }
+        }
+        const regex = new RegExp(escapeRegExp(term), 'gi')
+        const matches = ctx.plainText.match(regex)?.length || 0
+        const density = ctx.wordCount ? ((matches / ctx.wordCount) * 100).toFixed(2) : '0'
+        return {
+          summary: `"${term}" 키워드는 ${matches.toLocaleString()}회 등장하며 전체의 ${density}%를 차지합니다.`,
+          metrics: [
+            { label: '등장 횟수', value: `${matches.toLocaleString()}회` },
+            { label: '밀도', value: `${density}%` },
+            { label: '전체 단어', value: ctx.wordCount.toLocaleString() }
+          ]
+        }
+      }
+    },
+    {
+      id: 'section-finder',
+      label: '섹션 찾기',
+      description: '목차 제목을 검색하고 바로 이동합니다.',
+      icon: Search,
+      requiresInput: true,
+      placeholder: '섹션 키워드',
+      run: (ctx, keyword = '') => {
+        const term = keyword.trim().toLowerCase()
+        if (!term) {
+          return { summary: '검색할 섹션 키워드를 입력하세요.' }
+        }
+        const matches = ctx.headings.filter((heading) =>
+          (heading.title || '').toLowerCase().includes(term)
+        )
+        if (matches.length === 0) {
+          return { summary: `"${keyword}"에 해당하는 섹션을 찾을 수 없습니다.` }
+        }
+        return {
+          summary: `${matches.length}개의 섹션이 검색되었습니다.`,
+          matches: matches.slice(0, 8).map((match) => ({
+            label: match.title,
+            anchor: match.anchor
+          }))
+        }
+      }
+    }
+  ], [])
+
+  const [selectedFunction, setSelectedFunction] = useState<string>(functionDefinitions[0]?.id || '')
+  const [inputValue, setInputValue] = useState('')
+  const [result, setResult] = useState<DocumentFunctionResult | null>(null)
+  const [isRunning, setIsRunning] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+
+  const selectedDefinition = functionDefinitions.find((def) => def.id === selectedFunction)
+
+  useEffect(() => {
+    if (!selectedDefinition) return
+    if (!selectedDefinition.requiresInput) {
+      runFunction('', selectedDefinition)
+    } else {
+      setResult(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDefinition, context])
+
+  useEffect(() => {
+    if (!feedback) return
+    const timer = setTimeout(() => setFeedback(null), 2000)
+    return () => clearTimeout(timer)
+  }, [feedback])
+
+  const runFunction = (overrideInput?: string, overrideDefinition?: DocumentFunctionDefinition) => {
+    const fn = overrideDefinition || selectedDefinition
+    if (!fn) return
+    const value = (overrideInput ?? inputValue).trim()
+    if (fn.requiresInput && !value) {
+      setResult({ summary: '필요한 값을 입력해 주세요.' })
+      return
+    }
+    try {
+      setIsRunning(true)
+      const output = fn.run(context, value)
+      setResult(output)
+    } catch (error) {
+      console.error('document function failed', error)
+      setResult({
+        summary: error instanceof Error ? error.message : '함수 실행 중 오류가 발생했습니다.'
+      })
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  const handleRun = (e?: React.FormEvent<HTMLFormElement>) => {
+    e?.preventDefault()
+    runFunction()
+  }
+
+  const handleCopyResult = async () => {
+    if (!result) return
+    const lines = [result.summary]
+    if (result.metrics) {
+      lines.push(...result.metrics.map((metric) => `${metric.label}: ${metric.value}`))
+    }
+    if (result.matches) {
+      lines.push('섹션 목록:')
+      lines.push(...result.matches.map((match) => `- ${match.label}`))
+    }
+    try {
+      await navigator.clipboard?.writeText(lines.join('\n'))
+      setFeedback('결과를 복사했습니다.')
+    } catch {
+      setFeedback('클립보드 복사에 실패했습니다.')
+    }
+  }
+
+  const handleMatchClick = (anchor?: string) => {
+    if (!anchor) return
+    const target = document.getElementById(anchor) || document.querySelector(`[id='${anchor}']`)
+    if (target instanceof HTMLElement) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  return (
+    <Card
+      id={withAnchor ? 'document-function-panel' : undefined}
+      aria-label={withAnchor ? '문서 기능 패널' : undefined}
+      className="bg-gray-800 border-gray-700 scroll-mt-24"
+    >
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <h4 className="font-semibold text-gray-200">문서 함수</h4>
+          {result && (
+            <button
+              onClick={handleCopyResult}
+              className="text-xs text-blue-300 hover:text-blue-200"
+              type="button"
+            >
+              결과 복사
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-1">콘텐츠를 실시간으로 분석하는 도구입니다.</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400">함수 선택</label>
+          <select
+            value={selectedFunction}
+            onChange={(e) => setSelectedFunction(e.target.value)}
+            className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-200"
+          >
+            {functionDefinitions.map((fn) => (
+              <option key={fn.id} value={fn.id}>
+                {fn.label}
+              </option>
+            ))}
+          </select>
+          {selectedDefinition && (
+            <p className="text-xs text-gray-500">{selectedDefinition.description}</p>
+          )}
+        </div>
+
+        {selectedDefinition?.requiresInput && (
+          <form onSubmit={handleRun} className="flex flex-col gap-2">
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={selectedDefinition.placeholder || '값을 입력하세요.'}
+              className="bg-gray-900 border-gray-600 text-gray-200"
+            />
+            <Button type="submit" disabled={isRunning} className="bg-gray-700 hover:bg-gray-600 text-gray-200">
+              {isRunning ? '실행 중...' : '함수 실행'}
+            </Button>
+          </form>
+        )}
+
+        {!selectedDefinition?.requiresInput && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={isRunning}
+            onClick={() => runFunction('', selectedDefinition)}
+            className="text-gray-300 hover:text-gray-100"
+          >
+            {isRunning ? '업데이트 중...' : '다시 계산'}
+          </Button>
+        )}
+
+        <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-3 text-sm text-gray-300">
+          {result ? (
+            <>
+              <p>{result.summary}</p>
+              {result.metrics && (
+                <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:text-sm">
+                  {result.metrics.map((metric) => (
+                    <div key={metric.label} className="flex items-center justify-between rounded bg-gray-800/60 px-2 py-1">
+                      <span className="text-gray-400">{metric.label}</span>
+                      <span className="text-gray-100 font-semibold">{metric.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {result.matches && (
+                <div className="mt-3 space-y-2">
+                  {result.matches.map((match) => (
+                    <button
+                      key={match.label}
+                      onClick={() => handleMatchClick(match.anchor)}
+                      className="flex w-full items-center justify-between rounded-md border border-gray-700 px-2 py-1 text-left text-xs hover:bg-gray-800/60"
+                    >
+                      <span>{match.label}</span>
+                      <Search className="w-3 h-3 text-gray-400" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-gray-500 text-sm">실행할 함수를 선택해 주세요.</p>
+          )}
+        </div>
+        {feedback && <p className="text-xs text-emerald-300">{feedback}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function sanitizeWikiText(value: string) {
+  return value
+    .replace(/`{3}[\\s\\S]*?`{3}/g, ' ')
+    .replace(/<!--[\\s\\S]*?-->/g, ' ')
+    .replace(/\\{\\{[\\s\\S]*?\\}\\}/g, ' ')
+    .replace(/\\[\\[[^\\]]+\\]\\]/g, ' ')
+    .replace(/==+[^=]+==+/g, ' ')
+    .replace(/'''|''/g, ' ')
+    .replace(/\\|/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim()
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
+}
 
 function DiffViewer({ oldText, newText }: { oldText: string; newText: string }) {
   const oldLines = (oldText || '').split('\n')

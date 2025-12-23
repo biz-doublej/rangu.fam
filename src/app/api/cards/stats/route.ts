@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UserCardStats } from '@/models/UserCardStats'
-import User from '@/models/User'
+import { CardService } from '@/services/cardService'
 import connectDB from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
 export const dynamic = 'force-dynamic'
 
 // GET: 사용자 카드 통계 조회
@@ -20,16 +19,7 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    // 사용자 존재 확인
-    const user = await User.findById(userId)
-    if (!user) {
-      return NextResponse.json(
-        { success: false, message: '존재하지 않는 사용자입니다.' },
-        { status: 404 }
-      )
-    }
-    
-    const userObjectId = new ObjectId(userId)
+    const userObjectId = CardService.normalizeUserId(userId)
     
     // 사용자 통계 조회
     let userStats = await UserCardStats.findOne({ userId: userObjectId })

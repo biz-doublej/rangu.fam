@@ -805,30 +805,6 @@ let dummyProfiles: { [key: string]: any } = {
     following: [],
     viewCount: 0,
     likesReceived: 0
-  },
-  heeyeol: {
-    _id: '507f1f77bcf86cd799439016',
-    userId: {
-      _id: '507f1f77bcf86cd799439016',
-      username: 'heeyeol',
-      email: 'heeyeol@rangu.fam',
-      role: '임시멤버 윤희열',
-      profileImage: null
-    },
-    username: 'heeyeol',
-    intro: '임시멤버 윤희열',
-    bio: '임시멤버 윤희열입니다.',
-    location: '대한민국',
-    website: '',
-    skills: [],
-    projects: [],
-    experience: [],
-    socialLinks: {},
-    recentPosts: [],
-    followers: [],
-    following: [],
-    viewCount: 0,
-    likesReceived: 0
   }
 }
 
@@ -942,7 +918,7 @@ export async function PUT(
     console.log('PUT 요청 받음:', { id, body })
     
     // 더미 데이터 사용 중인지 확인 (임시로 더미 프로필 ID들)
-    const dummyProfileIds = ['jaewon', 'minseok', 'jingyu', 'hanul', 'seungchan', 'heeyeol']
+    const dummyProfileIds = ['jaewon', 'minseok', 'jingyu', 'hanul', 'seungchan']
     
     if (dummyProfileIds.includes(id)) {
       // 더미 데이터 실제 업데이트

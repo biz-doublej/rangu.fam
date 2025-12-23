@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { 
   ArrowLeft, Play, Pause, RotateCw, ArrowDown,
@@ -11,6 +11,8 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+
+const MULTI_API_ENABLED = true
 
 // Tetris types
 interface JtrisPiece {
@@ -216,6 +218,13 @@ const BOARD_WIDTH = 10
 const BOARD_HEIGHT = 20
 const NEXT_QUEUE_SIZE = 5
 
+const BOT_CONFIG = {
+  easy: { interval: 1100, mistakeRate: 0.35, aggression: 0.7 },
+  medium: { interval: 750, mistakeRate: 0.18, aggression: 1.0 },
+  hard: { interval: 480, mistakeRate: 0.06, aggression: 1.25 },
+  extreme: { interval: 320, mistakeRate: 0.02, aggression: 1.5 }
+} as const
+
 // SRS rotation system kick tests
 const KICK_TESTS = {
   '0->1': [[-1, 0], [-1, -1], [0, 2], [-1, 2]],
@@ -273,6 +282,7 @@ export default function TetrisPage() {
   const [isRecordingKey, setIsRecordingKey] = useState<string | null>(null)
   const [selectedSkin, setSelectedSkin] = useState<string>('classic')
   const [showBotSelection, setShowBotSelection] = useState(false)
+  const [selectedMode, setSelectedMode] = useState<'normal' | 'hard' | 'timeAttack' | 'bot' | 'friend'>('normal')
   
   // Game timing
   const [dropTime, setDropTime] = useState<number | null>(null)
@@ -314,7 +324,7 @@ export default function TetrisPage() {
       id: 'bot-easy',
       name: 'Tetris Rookie',
       difficulty: 'easy',
-      avatar: '🤖',
+      avatar: ':)',
       personality: 'Friendly beginner bot that makes occasional mistakes.',
       gameState: { ...gameState, totalPieces: 0, score: 0 },
       isBot: true
@@ -323,7 +333,7 @@ export default function TetrisPage() {
       id: 'bot-medium', 
       name: 'Block Master',
       difficulty: 'medium',
-      avatar: '🚀',
+      avatar: ':/',
       personality: 'Balanced bot with good fundamentals.',
       gameState: { ...gameState, totalPieces: 0, score: 0 },
       isBot: true
@@ -332,23 +342,13 @@ export default function TetrisPage() {
       id: 'bot-hard',
       name: 'Tetris Pro',
       difficulty: 'hard',
-      avatar: '⚡',
-      personality: 'Advanced bot with aggressive gameplay.',
-      gameState: { ...gameState, totalPieces: 0, score: 0 },
-      isBot: true
-    },
-    {
-      id: 'bot-extreme',
-      name: 'The Architect',
-      difficulty: 'extreme',
-      avatar: '🧠', 
-      personality: 'Master-level bot with perfect technique.',
+      avatar: ':D',
+      personality: 'Aggressive bot that favors fast stacks.',
       gameState: { ...gameState, totalPieces: 0, score: 0 },
       isBot: true
     }
   ]
-
-  // Generate bag of 7 pieces (7-bag system)
+// Generate bag of 7 pieces (7-bag system)
   const generateBag = useCallback((): string[] => {
     const bag = [...PIECE_TYPES]
     for (let i = bag.length - 1; i > 0; i--) {
@@ -357,6 +357,49 @@ export default function TetrisPage() {
     }
     return bag
   }, [])
+
+  const modeOptions = useMemo(
+    () => [
+      { id: 'normal', label: '노말', desc: '기본 속도 · 연습용', icon: Play },
+      { id: 'hard', label: '하드', desc: '낮은 락딜레이 · 빠른 다운', icon: Zap },
+      { id: 'timeAttack', label: '타임어택', desc: '제한 시간 내 점수 경쟁', icon: Clock },
+      { id: 'bot', label: '봇전', desc: 'AI와 1:1 연습', icon: Bot },
+      { id: 'friend', label: '친구 초대', desc: '랑구 멤버 전용 방', icon: User }
+    ],
+    []
+  )
+
+  const handleModeSelect = (mode: 'normal' | 'hard' | 'timeAttack' | 'bot' | 'friend') => {
+    setSelectedMode(mode)
+    switch (mode) {
+      case 'normal':
+        setGameMode('single')
+        setDropTime(800)
+        setLockDelay(500)
+        initGame()
+        break
+      case 'hard':
+        setGameMode('single')
+        setDropTime(500)
+        setLockDelay(380)
+        initGame()
+        break
+      case 'timeAttack':
+        setGameMode('single')
+        setDropTime(650)
+        setLockDelay(420)
+        initGame()
+        break
+      case 'bot':
+        setGameMode('bot')
+        setShowBotSelection(true)
+        break
+      case 'friend':
+        setGameMode('multiplayer')
+        setShowMemberInvite(true)
+        break
+    }
+  }
 
   // Create piece from type
   const createPiece = useCallback((type: string): JtrisPiece => {
@@ -428,6 +471,31 @@ export default function TetrisPage() {
     setPerfectFinesse(0)
     setTotalFinesse(0)
     setPiecesPerSecond([])
+  }, [fillNextQueue])
+
+  const createBotGameState = useCallback((): JtrisGameState => {
+    const initialQueue = fillNextQueue([])
+    const firstPiece = initialQueue[0]
+    return {
+      board: Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)),
+      currentPiece: firstPiece,
+      nextPieces: initialQueue.slice(1),
+      holdPiece: null,
+      canHold: true,
+      score: 0,
+      level: 1,
+      lines: 0,
+      attack: 0,
+      finesse: 0,
+      pps: 0,
+      kpp: 0,
+      totalPieces: 1,
+      totalKeys: 0,
+      gameTime: 0,
+      isGameOver: false,
+      isPaused: false,
+      lastAction: ''
+    }
   }, [fillNextQueue])
 
   // Check if piece position is valid
@@ -923,6 +991,22 @@ export default function TetrisPage() {
   const createGameSession = useCallback(async () => {
     if (!user) return
     
+    // 로컬/임시 세션 생성 (API 비활성 시)
+    if (!MULTI_API_ENABLED) {
+      const fallbackSession: MultiplayerGameState = {
+        gameId: `local-${Date.now()}`,
+        players: [],
+        gameStatus: 'waiting',
+        hostId: user.id,
+        createdAt: Date.now()
+      }
+      setCurrentGameSession(fallbackSession)
+      setGameInviteLink('')
+      setGameMode('multiplayer')
+      setShowGameLobby(true)
+      return
+    }
+
     try {
       const response = await fetch('/api/games/tetris/sessions', {
         method: 'POST',
@@ -942,11 +1026,27 @@ export default function TetrisPage() {
       }
     } catch (error) {
       console.error('Failed to create game session:', error)
+      const fallbackSession: MultiplayerGameState = {
+        gameId: `local-${Date.now()}`,
+        players: [],
+        gameStatus: 'waiting',
+        hostId: user.id,
+        createdAt: Date.now()
+      }
+      setCurrentGameSession(fallbackSession)
+      setGameInviteLink('')
+      setGameMode('multiplayer')
+      setShowGameLobby(true)
     }
   }, [user])
 
   const inviteMember = useCallback(async (memberId: string) => {
     if (!currentGameSession || !user) return
+    
+    if (!MULTI_API_ENABLED) {
+      console.log('Invite skipped (API disabled).', memberId)
+      return
+    }
     
     try {
       const response = await fetch('/api/games/tetris/invite', {
@@ -972,22 +1072,12 @@ export default function TetrisPage() {
   const startBotGame = useCallback((botId: string) => {
     const selectedBot = botOpponents.find(bot => bot.id === botId)
     if (selectedBot) {
-      setOpponent(selectedBot)
+      const botState = createBotGameState()
+      initGame() // Reset player state
       setGameMode('bot')
-      initGame() // Reset game state for both players
-      
-      // Initialize bot's game state
-      const botGameState = {
-        ...gameState,
-        totalPieces: 0,
-        score: 0,
-        lines: 0,
-        level: 1,
-        gameTime: 0
-      }
-      setOpponent(prev => prev ? { ...prev, gameState: botGameState } : null)
+      setOpponent({ ...selectedBot, gameState: botState })
     }
-  }, [botOpponents, gameState, initGame])
+  }, [botOpponents, createBotGameState, initGame])
 
   const copyInviteLink = useCallback(() => {
     if (gameInviteLink) {
@@ -1002,55 +1092,125 @@ export default function TetrisPage() {
   }, [gameInviteLink])
 
   // Bot AI Logic
-  const updateBotGameState = useCallback(() => {
-    if (gameMode !== 'bot' || !opponent || opponent.isBot !== true) return
-    
-    const bot = opponent as BotOpponent
-    const difficulty = bot.difficulty
-    
-    // Simulate bot gameplay based on difficulty
-    const botSpeed = {
-      easy: 0.3,
-      medium: 0.6, 
-      hard: 0.9,
-      extreme: 1.2
-    }[difficulty]
-    
-    const botAccuracy = {
-      easy: 0.4,
-      medium: 0.7,
-      hard: 0.9,
-      extreme: 0.95
-    }[difficulty]
-    
-    // Update bot's game state to simulate realistic gameplay
+  const runBotTick = useCallback(() => {
+    if (gameMode !== 'bot') return
     setOpponent(prev => {
-      if (!prev || !prev.gameState) return prev
-      
-      const timeRatio = gameState.gameTime / Math.max(prev.gameState.gameTime, 1)
-      const performanceMultiplier = botSpeed * (0.8 + Math.random() * 0.4) // Add some variance
-      
-      return {
-        ...prev,
-        gameState: {
-          ...prev.gameState,
-          score: Math.floor(gameState.score * performanceMultiplier * botAccuracy),
-          lines: Math.floor(gameState.lines * performanceMultiplier),
-          level: Math.min(prev.gameState.level + Math.floor(prev.gameState.lines / 10), gameState.level + 1),
-          totalPieces: Math.floor(gameState.totalPieces * performanceMultiplier),
-          gameTime: gameState.gameTime,
-          attack: Math.floor(gameState.attack * performanceMultiplier * botAccuracy),
-          pps: performanceMultiplier * 2,
-          kpp: 3 - (botAccuracy * 1.5),
-          finesse: botAccuracy * 100
-        }
-      }
-    })
-  }, [gameMode, opponent, gameState])
+      if (!prev || !prev.isBot) return prev
+      const bot = prev as BotOpponent
+      const config = BOT_CONFIG[bot.difficulty]
+      const botState = { ...bot.gameState }
 
-  // Real-time sync for multiplayer (WebSocket would be ideal, polling for now)
+      if (botState.isGameOver || botState.isPaused) {
+        return prev
+      }
+
+      // Ensure current piece is ready
+      let currentPiece = botState.currentPiece
+      let nextPieces = botState.nextPieces
+      if (!currentPiece) {
+        const filled = fillNextQueue(nextPieces)
+        currentPiece = filled[0]
+        nextPieces = filled.slice(1)
+      }
+
+      const rotations = TETROMINOS[currentPiece.type as keyof typeof TETROMINOS].rotations
+      const candidates: any[] = []
+
+      rotations.forEach((shape, rotIndex) => {
+        for (let x = -3; x < BOARD_WIDTH + 3; x++) {
+          let candidatePiece: JtrisPiece = { ...currentPiece!, shape, x, y: -2 }
+          // Drop to the lowest valid row
+          while (isValidPosition(candidatePiece, botState.board, 0, 1)) {
+            candidatePiece = { ...candidatePiece, y: candidatePiece.y + 1 }
+          }
+          if (candidatePiece.y < 0) continue
+          if (!isValidPosition(candidatePiece, botState.board)) continue
+
+          const placedBoard = placePiece(candidatePiece, botState.board)
+          const { newBoard, linesCleared, attack } = clearLines(placedBoard)
+
+          // Heuristic scoring
+          const heights = Array.from({ length: BOARD_WIDTH }, (_, col) => {
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+              if (newBoard[y][col]) return BOARD_HEIGHT - y
+            }
+            return 0
+          })
+          const heightSum = heights.reduce((a, b) => a + b, 0)
+          const bumpiness = heights.slice(1).reduce((acc, h, idx) => acc + Math.abs(h - heights[idx]), 0)
+          let holes = 0
+          for (let y = 1; y < BOARD_HEIGHT; y++) {
+            for (let x2 = 0; x2 < BOARD_WIDTH; x2++) {
+              if (!newBoard[y][x2] && newBoard[y - 1][x2]) holes += 1
+            }
+          }
+
+          let score = (linesCleared * 14 * config.aggression)
+            - (holes * 7)
+            - (heightSum * 0.6)
+            - (bumpiness * 0.5)
+            + (attack * 2)
+
+          if (Math.random() < config.mistakeRate) {
+            score -= 8 + Math.random() * 6
+          }
+
+          candidates.push({
+            score,
+            piece: candidatePiece,
+            newBoard,
+            linesCleared,
+            attack,
+            dropDistance: candidatePiece.y - (-2),
+            nextPieces
+          })
+        }
+      })
+
+      if (!candidates.length) {
+        return { ...bot, gameState: { ...botState, isGameOver: true } }
+      }
+
+      candidates.sort((a, b) => b.score - a.score)
+      const choice = candidates[0]
+      const lineScoreTable: Record<number, number> = { 0: 0, 1: 100, 2: 300, 3: 500, 4: 800 }
+      const lines = choice.linesCleared
+      const newLines = botState.lines + lines
+      const newLevel = Math.floor(newLines / 10) + 1
+      const newTotalPieces = botState.totalPieces + 1
+      const nextQueue = fillNextQueue(choice.nextPieces.slice(1))
+      const nextCurrent = nextQueue[0] || null
+      const remainingQueue = nextQueue.slice(1)
+
+      const updatedState: JtrisGameState = {
+        ...botState,
+        board: choice.newBoard,
+        currentPiece: nextCurrent,
+        nextPieces: remainingQueue,
+        canHold: true,
+        score: botState.score + (lineScoreTable[lines] || 0) * botState.level + (choice.dropDistance * 2),
+        lines: newLines,
+        level: newLevel,
+        attack: botState.attack + choice.attack,
+        totalPieces: newTotalPieces,
+        gameTime: botState.gameTime + config.interval / 1000,
+        pps: newTotalPieces / Math.max(botState.gameTime + config.interval / 1000, 1),
+        kpp: 2.2,
+        finesse: 85,
+        isGameOver: !nextCurrent ? true : false
+      }
+
+      if (nextCurrent && !isValidPosition(nextCurrent, updatedState.board)) {
+        updatedState.isGameOver = true
+      }
+
+      return { ...bot, gameState: updatedState }
+    })
+  }, [gameMode, clearLines, fillNextQueue, isValidPosition, placePiece])
+
+// Real-time sync for multiplayer (WebSocket would be ideal, polling for now)
   const syncMultiplayerState = useCallback(async () => {
-    if (gameMode !== 'multiplayer' || !currentGameSession) return
+    if (gameMode !== 'multiplayer' || !currentGameSession || !MULTI_API_ENABLED) return
     
     try {
       const response = await fetch(`/api/games/tetris/sessions/${currentGameSession.gameId}`)
@@ -1095,13 +1255,15 @@ export default function TetrisPage() {
 
   // Bot AI update loop
   useEffect(() => {
-    if (gameMode === 'bot' && !gameState.isGameOver && !gameState.isPaused) {
-      const interval = setInterval(updateBotGameState, 200)
+    if (gameMode === 'bot' && opponent && opponent.isBot && !gameState.isGameOver && !gameState.isPaused) {
+      const bot = opponent as BotOpponent
+      const config = BOT_CONFIG[bot.difficulty]
+      const interval = setInterval(runBotTick, config.interval)
       return () => clearInterval(interval)
     }
-  }, [gameMode, gameState.isGameOver, gameState.isPaused, updateBotGameState])
+  }, [gameMode, opponent, gameState.isGameOver, gameState.isPaused, runBotTick])
 
-  // Multiplayer sync loop
+// Multiplayer sync loop
   useEffect(() => {
     if (gameMode === 'multiplayer' && currentGameSession) {
       const interval = setInterval(syncMultiplayerState, 1000) // Sync every second
@@ -1585,58 +1747,44 @@ export default function TetrisPage() {
   const displayBoard = renderBoard()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* Header */}
-      <header className="glass-nav fixed top-0 left-0 right-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-900/90 via-indigo-900/70 to-slate-900/90 backdrop-blur-xl border-b border-white/10 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
           <div className="flex items-center justify-between">
             <motion.button
-              className="glass-button p-2"
+              className="glass-button flex items-center space-x-2 rounded-full px-3 py-2 text-slate-100"
               onClick={() => router.push('/games')}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <ArrowLeft className="w-5 h-5 text-primary-600" />
+              <ArrowLeft className="w-5 h-5" />
+              <span className="text-sm font-semibold">게임 센터</span>
             </motion.button>
-            <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold text-gradient">Jtris 테트리스</h1>
-              
-              {/* Game Mode Indicator */}
-              {gameMode !== 'single' && (
-                <div className="flex items-center space-x-2 px-3 py-1 bg-blue-100 rounded-full">
-                  {gameMode === 'bot' ? (
-                    <>
-                      <Bot className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-600">봇 대전</span>
-                    </>
-                  ) : (
-                    <>
-                      <User className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-600">라이브 대전</span>
-                    </>
-                  )}
-                </div>
-              )}
+
+            <div className="flex flex-col items-center">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Jtris</p>
+              <h1 className="text-lg font-bold text-white">테트리스 아케이드</h1>
+              <p className="text-[11px] text-slate-400">Neon HUD · 공통 컨트롤 세트</p>
             </div>
-            
+
             <div className="flex items-center space-x-2">
-              {/* Multiplayer Actions */}
               {gameMode === 'single' && (
                 <>
                   <Button
-                    variant="glass"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setShowBotSelection(true)}
-                    className="hidden sm:flex"
+                    className="border-white/20 text-slate-100 hover:bg-white/10"
                   >
                     <Bot className="w-4 h-4 mr-1" />
                     봇 대전
                   </Button>
                   <Button
-                    variant="glass"
+                    variant="ghost"
                     size="sm"
                     onClick={createGameSession}
-                    className="hidden sm:flex"
+                    className="border-white/20 text-slate-100 hover:bg-white/10"
                   >
                     <User className="w-4 h-4 mr-1" />
                     친구 초대
@@ -1644,23 +1792,32 @@ export default function TetrisPage() {
                 </>
               )}
               <Button
-                variant="glass"
+                variant="ghost"
                 size="sm"
                 onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
+                className="border-white/20 text-slate-100 hover:bg-white/10"
               >
                 {gameState.isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </Button>
-              <Button variant="glass" size="sm" onClick={initGame}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={initGame}
+                className="border-white/20 text-slate-100 hover:bg-white/10"
+              >
                 <RefreshCw className="w-4 h-4" />
               </Button>
-              <Button variant="glass" size="sm" onClick={() => setShowSettings(true)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSettings(true)}
+                className="border-white/20 text-slate-100 hover:bg-white/10"
+              >
                 <Settings className="w-4 h-4" />
               </Button>
-              
-              {/* Exit Multiplayer */}
               {gameMode !== 'single' && (
                 <Button
-                  variant="glass"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     setGameMode('single')
@@ -1668,19 +1825,78 @@ export default function TetrisPage() {
                     setCurrentGameSession(null)
                     initGame()
                   }}
-                  className="text-red-600 hover:text-red-700"
+                  className="border-red-300/40 text-red-200 hover:bg-red-500/10"
                 >
                   나가기
                 </Button>
               )}
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 flex items-center justify-between">
+              <span className="text-slate-300">모드</span>
+              <span className="font-semibold text-white">
+                {selectedMode === 'normal' && '노말'}
+                {selectedMode === 'hard' && '하드'}
+                {selectedMode === 'timeAttack' && '타임어택'}
+                {selectedMode === 'bot' && '봇전'}
+                {selectedMode === 'friend' && '친구 초대'}
+              </span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 flex items-center justify-between">
+              <span className="text-slate-300">드랍 속도</span>
+              <span className="font-semibold text-white">{dropTime ? `${dropTime}ms` : '자동'}</span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 flex items-center justify-between">
+              <span className="text-slate-300">락 딜레이</span>
+              <span className="font-semibold text-white">{lockDelay}ms</span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 flex items-center justify-between">
+              <span className="text-slate-300">레벨 / 라인</span>
+              <span className="font-semibold text-white">
+                {gameState.level} / {gameState.lines}
+              </span>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 flex items-center justify-between">
+              <span className="text-slate-300">타이머</span>
+              <span className="font-semibold text-white">{formatTime(gameState.gameTime)}</span>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="pt-20 pb-12">
-        <div className="max-w-7xl mx-auto p-6">
+      <main className="pb-12">
+        <div className="max-w-7xl mx-auto p-6 pt-32 md:pt-36">
+          {/* Modes & invites */}
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {modeOptions.map((mode) => {
+              const isActive = selectedMode === mode.id
+              return (
+                <motion.button
+                  key={mode.id}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    isActive
+                      ? 'border-amber-300/70 bg-amber-200/10 shadow-[0_10px_30px_-12px_rgba(251,191,36,0.6)]'
+                      : 'border-white/10 bg-white/5 hover:border-amber-200/40'
+                  }`}
+                  onClick={() => handleModeSelect(mode.id as any)}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ y: 0 }}
+                >
+                  <div className="flex items-center space-x-2">
+                    <mode.icon className="h-5 w-5 text-amber-200" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">{mode.label}</p>
+                      <p className="text-[12px] text-slate-300">{mode.desc}</p>
+                    </div>
+                  </div>
+                </motion.button>
+              )
+            })}
+          </div>
+
           {/* Mobile Multiplayer Action Buttons */}
           {gameMode === 'single' && (
             <div className="sm:hidden mb-4 flex space-x-2">
@@ -1721,7 +1937,7 @@ export default function TetrisPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 bg-slate-900/80 border border-slate-800 text-slate-100">
                   <h3 className="text-sm font-bold mb-3 text-gray-700">HOLD</h3>
                   <div className="flex justify-center">
                     {renderPiece(gameState.holdPiece)}
@@ -1735,7 +1951,7 @@ export default function TetrisPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 bg-slate-900/80 border border-slate-800 text-slate-100">
                   <h3 className="text-sm font-bold mb-3 text-gray-700">NEXT</h3>
                   <div className="space-y-3">
                     {gameState.nextPieces.slice(0, 5).map((piece, index) => (
@@ -1758,7 +1974,7 @@ export default function TetrisPage() {
                 transition={{ duration: 0.5 }}
                 className="relative"
               >
-                <Card className="p-4">
+                <Card className="p-4 bg-slate-900/80 border border-slate-800 text-slate-100">
                   <div className="relative">
                     <div 
                       className="grid gap-px bg-gray-800 p-2 rounded-lg shadow-2xl"
@@ -1830,7 +2046,7 @@ export default function TetrisPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  <Card className="p-4 bg-gray-900 text-white">
+                  <Card className="p-4 bg-slate-900/90 text-slate-100">
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-gray-400">라운드 시간</p>
@@ -1910,7 +2126,7 @@ export default function TetrisPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 bg-slate-900/80 border border-slate-800 text-slate-100">
                   <h3 className="text-lg font-bold mb-4 flex items-center">
                     <Target className="w-5 h-5 mr-2 text-blue-600" />
                     게임 정보
@@ -1942,54 +2158,54 @@ export default function TetrisPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 bg-slate-900/80 border border-slate-800 text-slate-100">
                   <h3 className="text-lg font-bold mb-4">컨트롤</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between items-center">
                       <span>왼쪽으로 이동:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.moveLeft === 'ArrowLeft' ? '←' : keySettings.moveLeft.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>오른쪽으로 이동:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.moveRight === 'ArrowRight' ? '→' : keySettings.moveRight.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>소프트드랍:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.softDrop === 'ArrowDown' ? '↓' : keySettings.softDrop.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>하드드랍:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.hardDrop === ' ' ? 'Space' : keySettings.hardDrop.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>왼쪽으로 회전:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.rotateLeft.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>오른쪽으로 회전:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.rotateRight.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>180도 회전:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.rotate180.toUpperCase()}
                       </kbd>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>홀드:</span>
-                      <kbd className="px-2 py-1 bg-gray-200 rounded text-xs font-mono">
+                      <kbd className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs font-mono text-white">
                         {keySettings.hold.toUpperCase()}
                       </kbd>
                     </div>
@@ -2003,7 +2219,7 @@ export default function TetrisPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 bg-slate-900/80 border border-slate-800 text-slate-100">
                   <h3 className="text-lg font-bold mb-3">스킨</h3>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{currentSkin.name}</span>

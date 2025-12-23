@@ -49,6 +49,12 @@ export default function WordChainPage() {
   const router = useRouter()
   const { user } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
+  const hostId = user?.memberId || user?.id || ''
+  const isRanguMember = Boolean(
+    user &&
+    (user.role === 'member' ||
+      MEMBERS.some(m => m.id === user.memberId || m.id === user.id))
+  )
   
   const [gameState, setGameState] = useState<WordChainGame>({
     id: '1',
@@ -76,6 +82,13 @@ export default function WordChainPage() {
   // 점수 저장 관련
   const [gameStartTime, setGameStartTime] = useState<Date | null>(null)
   const [isSavingScore, setIsSavingScore] = useState(false)
+
+  // 호스트 자동 포함
+  useEffect(() => {
+    if (hostId && isRanguMember) {
+      setSelectedPlayers(prev => (prev.includes(hostId) ? prev : [hostId, ...prev]))
+    }
+  }, [hostId, isRanguMember])
 
   // 점수 저장
   const saveScore = useCallback(async (finalGameState: WordChainGame, winner: string) => {
@@ -196,38 +209,37 @@ export default function WordChainPage() {
 
   // 봇 AI 로직
   const findBotWord = useCallback((lastChar: string): string | null => {
-    const possibleWords = Array.from(KOREAN_WORDS).filter(word => 
-      word.charAt(0) === lastChar && !gameState.usedWords.has(word)
+    const candidates = Array.from(KOREAN_WORDS).filter(
+      word => word.startsWith(lastChar) && !gameState.usedWords.has(word)
     )
-    
-    if (possibleWords.length === 0) return null
-    
-    // 난이도별 단어 선택 전략
-    switch (botDifficulty) {
-      case 'easy':
-        // 쉬운 단어 우선 (짧은 단어)
-        const easyWords = possibleWords.filter(word => word.length <= 3)
-        return easyWords.length > 0 
-          ? easyWords[Math.floor(Math.random() * easyWords.length)]
-          : possibleWords[Math.floor(Math.random() * possibleWords.length)]
-      
-      case 'normal':
-        // 랜덤 선택
-        return possibleWords[Math.floor(Math.random() * possibleWords.length)]
-      
-      case 'hard':
-        // 어려운 단어 우선 (긴 단어, 끝말잇기가 어려운 단어)
-        const hardWords = possibleWords.filter(word => 
-          word.length >= 4 || 
-          Array.from(KOREAN_WORDS).filter(w => w.charAt(0) === word.charAt(word.length - 1)).length <= 3
-        )
-        return hardWords.length > 0
-          ? hardWords[Math.floor(Math.random() * hardWords.length)]
-          : possibleWords[Math.floor(Math.random() * possibleWords.length)]
-      
-      default:
-        return possibleWords[Math.floor(Math.random() * possibleWords.length)]
+    if (!candidates.length) return null
+
+    const branchScore = (word: string) => {
+      const nextChar = word.slice(-1)
+      const options = Array.from(KOREAN_WORDS).filter(
+        w => w.startsWith(nextChar) && !gameState.usedWords.has(w) && w !== word
+      )
+      return options.length
     }
+
+    if (botDifficulty === 'easy') {
+      const easy = candidates.filter(w => w.length <= 3)
+      return (easy.length ? easy : candidates)[Math.floor(Math.random() * (easy.length ? easy.length : candidates.length))]
+    }
+
+    if (botDifficulty === 'normal') {
+      const mid = candidates
+        .map(word => ({ word, score: branchScore(word) }))
+        .sort((a, b) => a.score - b.score)
+      const pick = mid[Math.floor(Math.random() * Math.min(3, mid.length))]
+      return pick?.word || candidates[0]
+    }
+
+    // hard: choose word that leaves opponent with least options
+    const scored = candidates
+      .map(word => ({ word, score: branchScore(word) }))
+      .sort((a, b) => a.score - b.score)
+    return scored[0]?.word || candidates[0]
   }, [gameState.usedWords, botDifficulty])
 
   // 봇 플레이
@@ -318,12 +330,20 @@ export default function WordChainPage() {
 
   // 게임 초기화 (수정)
   const initGame = (players: string[]) => {
-    if (players.length < 1) {
-      setErrorMessage('최소 1명의 플레이어가 필요합니다.')
+    if (!hostId) {
+      setErrorMessage('로그인 후 진행해주세요.')
+      return
+    }
+
+    if (!isRanguMember) {
+      setErrorMessage('랑구팸 멤버만 참여할 수 있습니다.')
       return
     }
 
     let finalPlayers = [...players]
+    if (!finalPlayers.includes(hostId)) {
+      finalPlayers.unshift(hostId)
+    }
     
     // 봇 모드일 때 봇 플레이어 추가
     if (botEnabled && !finalPlayers.includes(BOT_PLAYER_ID)) {
@@ -554,8 +574,44 @@ export default function WordChainPage() {
     </motion.div>
   )
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white flex items-center justify-center px-6">
+        <div className="max-w-lg w-full bg-white/5 border border-white/10 backdrop-blur-lg rounded-3xl p-8 space-y-4 shadow-2xl">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">끝말잇기 아레나</h1>
+            <span className="px-3 py-1 text-xs rounded-full bg-amber-500/20 text-amber-100 border border-amber-300/50">멤버 전용</span>
+          </div>
+          <p className="text-slate-200">로그인이 필요합니다. 랑구팸 계정으로 로그인하면 멀티·AI 봇 기능이 활성화됩니다.</p>
+          <div className="flex gap-2">
+            <Button className="flex-1 bg-white text-slate-900 hover:bg-slate-100" onClick={() => router.push('/login')}>
+              로그인하기
+            </Button>
+            <Button variant="ghost" className="flex-1 border-white/20 text-white hover:bg-white/10" onClick={() => router.push('/')}>
+              홈으로
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isRanguMember) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white flex items-center justify-center px-6">
+        <div className="max-w-lg w-full bg-white/5 border border-white/10 backdrop-blur-lg rounded-3xl p-8 space-y-4 shadow-2xl text-center">
+          <h1 className="text-2xl font-bold">멤버 전용 모드</h1>
+          <p className="text-slate-200">끝말잇기는 랑구팸 멤버만 참여할 수 있습니다. 멤버 권한이 있는 계정으로 로그인해주세요.</p>
+          <Button className="bg-white text-slate-900 hover:bg-slate-100 w-full" onClick={() => router.push('/login')}>
+            계정 변경 / 로그인
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       {/* 헤더 */}
       <header className="glass-nav fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3">
@@ -742,8 +798,8 @@ export default function WordChainPage() {
                           </p>
                           {gameState.words.length > 0 && (
                             <p className="text-sm text-gray-600 mt-1">
-                              '{gameState.words[gameState.words.length - 1]}'의 
-                              '{gameState.words[gameState.words.length - 1].slice(-1)}'로 시작하는 단어
+                              &apos;{gameState.words[gameState.words.length - 1]}&apos;의 
+                              &apos;{gameState.words[gameState.words.length - 1].slice(-1)}&apos;로 시작하는 단어
                             </p>
                           )}
                         </div>

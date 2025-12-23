@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Github, 
@@ -32,17 +32,19 @@ import {
   Plus,
   Save,
   X,
-  UserPlus,
-  UserMinus,
   ChevronLeft,
   ChevronRight,
   Menu,
   Home,
   Package,
   LogIn,
-  LogOut
+  LogOut,
+  Eye,
+  Activity,
+  Sparkles
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { Card } from '@/components/ui/Card'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -206,14 +208,7 @@ function MemberPortfolio() {
     switzerland: new Date()
   })
   const [activeTab, setActiveTab] = useState('about')
-  const [likes, setLikes] = useState(0)
-  const [isLiked, setIsLiked] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [showFollowersModal, setShowFollowersModal] = useState(false)
-  const [showFollowingModal, setShowFollowingModal] = useState(false)
-  const [followers, setFollowers] = useState([])
-  const [following, setFollowing] = useState([])
   const [editingSocialLinks, setEditingSocialLinks] = useState(false)
   const [socialLinksForm, setSocialLinksForm] = useState({
     github: '',
@@ -296,6 +291,71 @@ function MemberPortfolio() {
     { icon: Package, label: '카드 관리', href: '/cards' }
   ]
 
+  const formatNumber = (num?: number | null) => {
+    if (typeof num !== 'number' || Number.isNaN(num)) return '0'
+    return num.toLocaleString('ko-KR')
+  }
+
+  const profileHighlights = useMemo(() => {
+    if (!profile) return []
+    const websiteLink = profile.socialLinks?.website || profile.website
+    const featuredProject =
+      profile.activeProjects?.[0]?.name ||
+      profile.projects?.find(project => project.featured)?.title ||
+      profile.projects?.[0]?.title
+
+    return [
+      {
+        label: '현재 상태',
+        value: statusMessage || '상태 메시지를 설정해보세요',
+        icon: Activity,
+      },
+      {
+        label: '위치',
+        value: profile.location || '비공개',
+        icon: MapPin,
+      },
+      {
+        label: '대표 프로젝트',
+        value: featuredProject || '등록된 프로젝트 없음',
+        icon: Star,
+      },
+      {
+        label: '웹사이트',
+        value: websiteLink || '연결된 사이트 없음',
+        icon: Globe,
+        href: websiteLink,
+      },
+    ]
+  }, [profile, statusMessage])
+
+  const statsOverview = useMemo(() => {
+    if (!profile) return []
+    const stats = profile.stats || {}
+    return [
+      {
+        label: '프로젝트',
+        value: formatNumber(stats.projects ?? profile.projects?.length ?? 0),
+        icon: Code,
+      },
+      {
+        label: '포스트',
+        value: formatNumber(stats.posts ?? profile.recentPosts?.length ?? 0),
+        icon: MessageCircle,
+      },
+      {
+        label: '조회수',
+        value: formatNumber(stats.views ?? profile.viewCount ?? 0),
+        icon: Eye,
+      },
+      {
+        label: '받은 칭찬',
+        value: formatNumber(profile.likesReceived ?? 0),
+        icon: Sparkles,
+      },
+    ]
+  }, [profile])
+
   const responsiveLayout = useMemo(() => {
     switch (viewportSize) {
       case 'mobile':
@@ -329,8 +389,6 @@ function MemberPortfolio() {
     switch (params.id) {
       case 'seungchan':
         return 'from-purple-600 to-indigo-600'
-      case 'heeyeol':
-        return 'from-green-600 to-teal-600'
       case 'jaewon':
         return 'from-purple-500 to-blue-500'
       case 'minseok':
@@ -376,7 +434,7 @@ function MemberPortfolio() {
     ((user.username === '정진규' || user.id === 'jingyu') && params.id === 'jingyu') ||
     ((user.username === '강한울' || user.id === 'hanul') && params.id === 'hanul') ||
     ((user.username === '이승찬' || user.id === 'mushbit') && params.id === 'seungchan') ||
-    ((user.username === '임시멤버 이승찬' || user.id === 'seungchan') && (params.id === 'seungchan' || params.id === 'heeyeol'))
+    ((user.username === '임시멤버 이승찬' || user.id === 'seungchan') && params.id === 'seungchan')
   )
 
   // 디버깅용 로그
@@ -389,7 +447,7 @@ function MemberPortfolio() {
   })
 
   // 프로필 데이터 로드 함수
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
@@ -417,7 +475,6 @@ function MemberPortfolio() {
       
       if (data.success && data.profile) {
         setProfile(data.profile)
-        setLikes(data.profile.likesReceived || 0)
         // 소셜 링크 폼 초기화
         setSocialLinksForm({
           github: data.profile.socialLinks?.github || '',
@@ -453,14 +510,30 @@ function MemberPortfolio() {
     } finally {
       setIsLoading(false)
     }
-  }
+  
+  }, [params.id])
+
+  // 사용자 상태 조회
+  const fetchUserStatus = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/profiles/${params.id}/status`)
+      if (response.ok) {
+        const data = await response.json()
+        setUserStatus(data.status)
+        setStatusMessage(data.customMessage)
+      }
+    } catch (error) {
+      console.error('상태 조회 오류:', error)
+    }
+  }, [params.id])
+
 
   useEffect(() => {
     if (params.id) {
       fetchProfile()
       fetchUserStatus()
     }
-  }, [params.id])
+  }, [params.id, fetchProfile, fetchUserStatus])
 
   // 외부 클릭 시 상태 메뉴 닫기
   useEffect(() => {
@@ -484,11 +557,6 @@ function MemberPortfolio() {
     }
   }, [showStatusMenu])
 
-  const handleLike = () => {
-    setIsLiked(!isLiked)
-    setLikes(prev => isLiked ? prev - 1 : prev + 1)
-  }
-
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
@@ -499,76 +567,6 @@ function MemberPortfolio() {
     } else {
       navigator.clipboard.writeText(window.location.href)
       alert('링크가 클립보드에 복사되었습니다!')
-    }
-  }
-
-  const handleFollow = async () => {
-    if (!user) {
-      alert('로그인이 필요합니다.')
-      return
-    }
-    
-    try {
-      const response = await fetch(`/api/profiles/${params.id}/follow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          action: isFollowing ? 'unfollow' : 'follow'
-        })
-      })
-      
-      if (response.ok) {
-        setIsFollowing(!isFollowing)
-        // 프로필 데이터 다시 로드하여 팔로워 수 업데이트
-        fetchProfile()
-      }
-    } catch (error) {
-      console.error('팔로우 처리 오류:', error)
-    }
-  }
-
-  const fetchFollowers = async () => {
-    try {
-      const response = await fetch(`/api/profiles/${params.id}/followers`)
-      if (response.ok) {
-        const data = await response.json()
-        setFollowers(data.followers || [])
-        setShowFollowersModal(true)
-      } else {
-        // API 실패 시에도 빈 배열로 모달 열기
-        console.log('팔로워 API 응답 실패, 빈 목록으로 표시')
-        setFollowers([])
-        setShowFollowersModal(true)
-      }
-    } catch (error) {
-      console.error('팔로워 목록 로딩 오류:', error)
-      // 에러 발생 시에도 빈 배열로 모달 열기
-      setFollowers([])
-      setShowFollowersModal(true)
-    }
-  }
-
-  const fetchFollowing = async () => {
-    try {
-      const response = await fetch(`/api/profiles/${params.id}/following`)
-      if (response.ok) {
-        const data = await response.json()
-        setFollowing(data.following || [])
-        setShowFollowingModal(true)
-      } else {
-        // API 실패 시에도 빈 배열로 모달 열기
-        console.log('팔로잉 API 응답 실패, 빈 목록으로 표시')
-        setFollowing([])
-        setShowFollowingModal(true)
-      }
-    } catch (error) {
-      console.error('팔로잉 목록 로딩 오류:', error)
-      // 에러 발생 시에도 빈 배열로 모달 열기
-      setFollowing([])
-      setShowFollowingModal(true)
     }
   }
 
@@ -830,23 +828,7 @@ function MemberPortfolio() {
       console.error('프로필 정보 저장 오류:', error)
       alert('저장 중 오류가 발생했습니다.')
     }
-  }
-
-  // 사용자 상태 조회
-  const fetchUserStatus = async () => {
-    try {
-      const response = await fetch(`/api/profiles/${params.id}/status`)
-      if (response.ok) {
-        const data = await response.json()
-        setUserStatus(data.status)
-        setStatusMessage(data.customMessage)
-      }
-    } catch (error) {
-      console.error('상태 조회 오류:', error)
-    }
-  }
-
-  // 사용자 상태 변경
+  }  // 사용자 상태 변경
   const changeUserStatus = async (newStatus: 'online' | 'idle' | 'dnd' | 'offline', customMessage?: string) => {
     console.log('🚀 상태 변경 시도:', { 
       newStatus, 
@@ -1014,10 +996,15 @@ if (!profile) {
             <div className="flex items-center space-x-4">
               {isLoggedIn ? (
                 <div className="flex items-center space-x-3">
-                  <div className="hidden md:block text-right">
-                    <p className="text-sm font-medium text-primary-100">{user?.username}</p>
-                    <p className="text-xs text-primary-200/70">{user?.role === 'member' ? '멤버' : '게스트'}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/settings/account')}
+                    className="hidden md:block text-right group focus:outline-none"
+                    title="계정 설정 열기"
+                  >
+                    <p className="text-sm font-medium text-primary-100 group-hover:text-white transition-colors">{user?.username}</p>
+                    <p className="text-xs text-primary-200/70 group-hover:text-primary-100">{user?.role === 'member' ? '멤버' : '게스트'}</p>
+                  </button>
                   <button
                     className="glass-button p-2"
                     onClick={() => logout()}
@@ -1108,11 +1095,17 @@ if (!profile) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <div className={`w-16 h-16 bg-gradient-to-r ${avatarGradient} rounded-full flex items-center justify-center text-primary-50 text-xl font-bold relative overflow-hidden`}>
                 {profile.userId?.profileImage ? (
-                  <img src={profile.userId.profileImage} alt={profile.userId.username} className="w-full h-full object-cover" />
+                  <Image
+                    src={profile.userId.profileImage}
+                    alt={profile.userId.username || 'avatar'}
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                  />
                 ) : (
                   profile.userId?.username?.charAt(0).toUpperCase() || '👤'
                 )}
@@ -1120,42 +1113,31 @@ if (!profile) {
               <div>
                 <h1 className="text-2xl font-bold text-primary-100">{profile.userId?.username || '사용자'}</h1>
                 <p className="text-sm text-primary-200/80">@{profile.username}</p>
+                {profile.intro && (
+                  <p className="text-sm text-primary-100/70 mt-1 max-w-xl">{profile.intro}</p>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 justify-end">
               {canEdit && (
                 <button
                   onClick={() => setIsEditing(!isEditing)}
-                  className={`glass-button p-2 ${isEditing ? 'text-primary-100 border border-primary-500/40 bg-primary-500/20' : 'text-primary-200 hover:border-primary-400/40'}`}
+                  className={`glass-button px-3 py-2 text-sm flex items-center gap-2 ${isEditing ? 'text-primary-100 border border-primary-500/40 bg-primary-500/20' : 'text-primary-200 hover:border-primary-400/40'}`}
                   title="프로필 편집"
                 >
-                  <Edit className="w-5 h-5" />
+                  <Edit className="w-4 h-4" />
+                  {isEditing ? '편집 중' : '편집하기'}
                 </button>
               )}
-              {user && !canEdit && (
-                <button
-                  onClick={handleFollow}
-                  className={`glass-button px-3 py-1 text-sm flex items-center gap-1 ${isFollowing ? 'text-primary-200 border border-primary-500/40 bg-primary-500/10' : 'text-emerald-200 border border-emerald-500/40 bg-emerald-500/20'}`}
+              {profile.userId?.email && (
+                <a
+                  href={`mailto:${profile.userId.email}`}
+                  className="glass-button p-2 text-primary-200 hover:border-primary-400/40"
+                  title="이메일 보내기"
                 >
-                  {isFollowing ? (
-                    <>
-                      <UserMinus className="w-4 h-4" />
-                      언팔로우
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-4 h-4" />
-                      팔로우
-                    </>
-                  )}
-                </button>
+                  <Mail className="w-5 h-5" />
+                </a>
               )}
-              <button
-                onClick={handleLike}
-                className={`glass-button p-2 ${isLiked ? 'text-rose-300 border border-rose-500/40 bg-rose-500/20' : 'text-primary-200 hover:border-primary-400/40'}`}
-              >
-                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              </button>
               <button
                 onClick={handleShare}
                 className="glass-button p-2 text-primary-200 hover:border-primary-400/40"
@@ -1166,6 +1148,36 @@ if (!profile) {
           </div>
         </motion.div>
       </section>
+
+      {profile && profileHighlights.length > 0 && (
+        <section className={`${responsiveLayout.maxWidth} mx-auto ${responsiveLayout.horizontalPadding} mt-6`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {profileHighlights.map(card => (
+              <div
+                key={card.label}
+                className="rounded-2xl border border-white/10 bg-gradient-to-r from-primary-900/40 to-primary-800/20 px-4 py-4 flex items-start gap-3 shadow-lg"
+              >
+                <card.icon className="w-5 h-5 mt-1 text-primary-200" />
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-primary-200/70">{card.label}</p>
+                  {card.href ? (
+                    <a
+                      href={card.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-lg font-semibold text-white hover:underline break-words"
+                    >
+                      {card.value}
+                    </a>
+                  ) : (
+                    <p className="text-lg font-semibold text-white break-words">{card.value}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <main className={`w-full ${responsiveLayout.maxWidth} mx-auto ${responsiveLayout.horizontalPadding} pb-16`}>
         <div className={`flex flex-col ${responsiveLayout.stackSpacing}`}>
@@ -1247,7 +1259,7 @@ if (!profile) {
             <div className="mt-4 text-center">
               <div className="text-lg font-semibold">{profile.militaryInfo.unit}</div>
               <div className="text-sm opacity-90">{profile.militaryInfo.rank} | {profile.militaryInfo.branch}</div>
-              <div className="text-xs mt-2 italic opacity-80">"{profile.militaryInfo.motto}"</div>
+              <div className="text-xs mt-2 italic opacity-80">&ldquo;{profile.militaryInfo.motto}&rdquo;</div>
             </div>
           </motion.div>
         )}
@@ -1345,7 +1357,7 @@ if (!profile) {
                 <div className="text-lg font-semibold">{profile.militaryInfo.unit}</div>
                 <div className="text-sm opacity-90">{profile.militaryInfo.rank} | {profile.militaryInfo.branch}</div>
                 <div className="text-sm mt-1 text-yellow-300">🏰 호그와트 마법학교 고급 마법반 재학 중</div>
-                <div className="text-xs mt-2 italic opacity-80">"{profile.militaryInfo.motto}"</div>
+                <div className="text-xs mt-2 italic opacity-80">&ldquo;{profile.militaryInfo.motto}&rdquo;</div>
               </div>
             </div>
           </motion.div>
@@ -1408,7 +1420,7 @@ if (!profile) {
             <div className="mt-4 text-center">
               <div className="text-lg font-semibold">{profile.studyAbroadInfo.city}, {profile.studyAbroadInfo.country}</div>
               <div className="text-sm opacity-90">{profile.studyAbroadInfo.program} | {profile.studyAbroadInfo.duration}</div>
-              <div className="text-xs mt-2 italic opacity-80">"{profile.studyAbroadInfo.motto}"</div>
+              <div className="text-xs mt-2 italic opacity-80">&ldquo;{profile.studyAbroadInfo.motto}&rdquo;</div>
             </div>
           </motion.div>
         )}
@@ -1604,16 +1616,22 @@ if (!profile) {
         >
           <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
             {/* 프로필 이미지 */}
-            <div className="relative">
+              <div className="relative">
               <div className={`w-24 h-24 ${
                 params.id === 'jingyu' ? 'bg-gradient-to-r from-green-600 to-green-500' :
                 params.id === 'minseok' ? 'bg-gradient-to-r from-red-600 to-red-500' :
                 params.id === 'jaewon' ? 'bg-gradient-to-r from-purple-600 to-blue-600' :
                 params.id === 'seungchan' ? 'bg-gradient-to-r from-purple-600 to-indigo-600' :
                 'bg-gradient-to-r from-blue-500 to-purple-500'
-              } rounded-full flex items-center justify-center text-white text-3xl font-bold`}>
+              } rounded-full flex items-center justify-center text-white text-3xl font-bold relative overflow-hidden`}>
                 {profile.userId?.profileImage ? (
-                  <img src={profile.userId.profileImage} alt={profile.userId.username} className="w-full h-full rounded-full object-cover" />
+                  <Image
+                    src={profile.userId.profileImage}
+                    alt={profile.userId.username || 'avatar'}
+                    fill
+                    sizes="96px"
+                    className="rounded-full object-cover"
+                  />
                 ) : params.id === 'jingyu' ? (
                   '🪖'
                 ) : params.id === 'minseok' ? (
@@ -1976,38 +1994,24 @@ if (!profile) {
             </div>
 
             {/* 통계 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-              <div>
-                <div className="text-xl font-bold text-gray-900">{profile.stats?.projects || 0}</div>
-                <div className="text-sm text-gray-500">프로젝트</div>
+            {statsOverview.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {statsOverview.map(stat => (
+                  <div
+                    key={stat.label}
+                    className="rounded-2xl border border-gray-200/60 bg-white/80 px-4 py-5 flex items-center gap-3 shadow-sm"
+                  >
+                    <div className="p-2 rounded-full bg-gray-900/5 text-blue-600">
+                      <stat.icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                      <p className="text-sm text-gray-500">{stat.label}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <button 
-                onClick={(e) => {
-                  e.preventDefault()
-                  console.log('팔로워 버튼 클릭됨')
-                  fetchFollowers()
-                }} 
-                className="hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
-              >
-                <div className="text-xl font-bold text-gray-900">{profile.stats?.followers || 0}</div>
-                <div className="text-sm text-gray-500">팔로워</div>
-              </button>
-              <button 
-                onClick={(e) => {
-                  e.preventDefault()
-                  console.log('팔로잉 버튼 클릭됨')
-                  fetchFollowing()
-                }} 
-                className="hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
-              >
-                <div className="text-xl font-bold text-gray-900">{profile.stats?.following || 0}</div>
-                <div className="text-sm text-gray-500">팔로잉</div>
-              </button>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{profile.stats?.posts || 0}</div>
-                <div className="text-sm text-gray-500">포스트</div>
-              </div>
-            </div>
+            )}
           </div>
         </motion.div>
 
@@ -2834,12 +2838,18 @@ if (!profile) {
                   </div>
                 ) : (
                   <>
-                {profile.recentPosts && profile.recentPosts.length > 0 ? profile.recentPosts.map((post: any, index: number) => (
+                    {profile.recentPosts && profile.recentPosts.length > 0 ? profile.recentPosts.map((post: any, index: number) => (
                   <div key={index} className="bg-gray-50 rounded-lg p-6">
                     <div className="flex items-start space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 relative overflow-hidden">
                         {profile.userId?.profileImage ? (
-                          <img src={profile.userId.profileImage} alt={profile.userId.username} className="w-full h-full rounded-full object-cover" />
+                          <Image
+                            src={profile.userId.profileImage}
+                            alt={profile.userId.username || 'avatar'}
+                            fill
+                            sizes="40px"
+                            className="rounded-full object-cover"
+                          />
                         ) : (
                           profile.userId?.username?.charAt(0).toUpperCase() || '👤'
                         )}
@@ -2902,81 +2912,6 @@ if (!profile) {
         </div>
       </main>
 
-      {/* 팔로워 모달 */}
-      {showFollowersModal && (
-        <div
-          className="fixed inset-0 bg-primary-950/80 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => setShowFollowersModal(false)}
-        >
-          <div
-            className="glass-card w-full max-w-md max-h-[24rem] overflow-y-auto p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-primary-100">팔로워</h3>
-              <button
-                onClick={() => setShowFollowersModal(false)}
-                className="glass-button p-2 text-primary-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              {followers.length > 0 ? followers.map((follower: any, index: number) => (
-                <div key={index} className="flex items-center space-x-3 p-2 hover:bg-primary-500/10 rounded-lg transition-colors">
-                  <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-bold">
-                    {follower.username?.charAt(0).toUpperCase() || '👤'}
-                  </div>
-                  <div>
-                    <div className="font-medium text-primary-100">{follower.username}</div>
-                    <div className="text-sm text-primary-200/80">@{follower.username}</div>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-primary-200/70 text-center">아직 팔로워가 없습니다.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 팔로잉 모달 */}
-      {showFollowingModal && (
-        <div
-          className="fixed inset-0 bg-primary-950/80 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => setShowFollowingModal(false)}
-        >
-          <div
-            className="glass-card w-full max-w-md max-h-[24rem] overflow-y-auto p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-primary-100">팔로잉</h3>
-              <button
-                onClick={() => setShowFollowingModal(false)}
-                className="glass-button p-2 text-primary-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              {following.length > 0 ? following.map((followed: any, index: number) => (
-                <div key={index} className="flex items-center space-x-3 p-2 hover:bg-primary-500/10 rounded-lg transition-colors">
-                  <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white font-bold">
-                    {followed.username?.charAt(0).toUpperCase() || '👤'}
-                  </div>
-                  <div>
-                    <div className="font-medium text-primary-100">{followed.username}</div>
-                    <div className="text-sm text-primary-200/80">@{followed.username}</div>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-primary-200/70 text-center">아직 팔로잉 중인 사람이 없습니다.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { DiscordWebhookService } from '@/services/discordWebhookService'
 
 export const dynamic = 'force-dynamic'
 import { WikiPage, WikiUser, WikiSubmission } from '@/models/Wiki'
+import { extractCategoriesFromContent } from '@/lib/wikiCategories'
 import { canEditPage, canProtectPage, isRateLimited, isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
 import { appendAuditLog } from '@/app/api/wiki/_utils/audit'
 import { createCaptchaChallenge, hasValidCaptchaPass, issueCaptchaPassCookie, verifyCaptchaChallenge } from '@/app/api/wiki/_utils/captcha'
@@ -287,6 +288,11 @@ export async function GET(request: NextRequest) {
       page.uniqueViews += 1 // 실제로는 IP 기반으로 체크해야 함
       await page.save()
       
+      const derivedCategories =
+        page.categories && page.categories.length > 0
+          ? page.categories
+          : extractCategoriesFromContent(page.content)
+
       return NextResponse.json({
         success: true,
         page: {
@@ -296,7 +302,7 @@ export async function GET(request: NextRequest) {
           namespace: page.namespace,
           content: page.content,
           summary: page.summary,
-          categories: page.categories,
+          categories: derivedCategories,
           tags: page.tags,
           creator: page.creator,
           creatorId: page.creatorId,

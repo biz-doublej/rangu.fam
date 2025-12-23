@@ -1,10 +1,44 @@
+/* eslint-disable @next/next/no-img-element */
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import python from 'highlight.js/lib/languages/python'
+import bash from 'highlight.js/lib/languages/bash'
+import json from 'highlight.js/lib/languages/json'
+import css from 'highlight.js/lib/languages/css'
+import xml from 'highlight.js/lib/languages/xml'
+import yaml from 'highlight.js/lib/languages/yaml'
+import 'highlight.js/styles/github-dark.css'
 import { motion } from 'framer-motion'
-import { ExternalLink, ArrowUpRight, Quote, AlertCircle, Info, CheckCircle, XCircle } from 'lucide-react'
+import { ExternalLink, ArrowUpRight, Quote, AlertCircle, Info, CheckCircle, XCircle, Star } from 'lucide-react'
 import { WikiIcon, parseIconSyntax } from './WikiIcon'
 import { parseTableColorAttributes, getTableCellStyles, normalizeColor } from '@/lib/tableColors'
+
+const registerHighlightLanguages = (() => {
+  let registered = false
+  return () => {
+    if (registered) return
+    hljs.registerLanguage('javascript', javascript)
+    hljs.registerLanguage('js', javascript)
+    hljs.registerLanguage('typescript', typescript)
+    hljs.registerLanguage('ts', typescript)
+    hljs.registerLanguage('python', python)
+    hljs.registerLanguage('py', python)
+    hljs.registerLanguage('bash', bash)
+    hljs.registerLanguage('shell', bash)
+    hljs.registerLanguage('json', json)
+    hljs.registerLanguage('css', css)
+    hljs.registerLanguage('html', xml)
+    hljs.registerLanguage('xml', xml)
+    hljs.registerLanguage('yaml', yaml)
+    hljs.registerLanguage('yml', yaml)
+    registered = true
+  }
+})()
 
 interface NamuWikiRendererProps {
   content: string
@@ -17,6 +51,122 @@ interface TableOfContentsItem {
   level: number
   title: string
   anchor: string
+}
+
+// 역할 배너 매핑
+const ROLE_BANNERS: Record<string, { title: string; desc: string; color: string; icon: typeof Info }> = {
+  developer: {
+    title: '이랑위키 개발자',
+    desc: '이 사람은 이랑위키의 개발자 입니다.',
+    color: 'from-emerald-500/20 via-emerald-400/15 to-emerald-600/20',
+    icon: Info
+  },
+  admin: {
+    title: '이랑위키 운영자',
+    desc: '이 사람은 이랑위키 운영자 입니다.',
+    color: 'from-sky-500/20 via-sky-400/15 to-indigo-600/20',
+    icon: AlertCircle
+  },
+  rangu: {
+    title: '랑구팸 멤버',
+    desc: '이 사람은 랑구팸 입니다.',
+    color: 'from-amber-500/20 via-orange-400/15 to-rose-500/20',
+    icon: Star
+  },
+  workshop: {
+    title: '작업공작소 운영자',
+    desc: '이 사람은 작업공작소 운영자 입니다.',
+    color: 'from-purple-500/20 via-fuchsia-400/15 to-blue-500/20',
+    icon: CheckCircle
+  }
+}
+
+
+// 간단한 인라인 파서 (위키 내부 링크 전용)
+function renderInlineLinks(value: string): React.ReactNode {
+  if (typeof value !== 'string') return value
+  const parts: React.ReactNode[] = []
+  const wikiLinkRegex = /\[\[([^\]]+)\]\]/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = wikiLinkRegex.exec(value)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(value.slice(lastIndex, match.index))
+    }
+    const linkContent = match[1]
+    const [page, display] = linkContent.split('|')
+    const href = `/wiki/${encodeURIComponent(page.trim())}`
+    parts.push(
+      <a
+        key={`${page}-${match.index}`}
+        href={href}
+        className="text-blue-300 hover:text-blue-100 underline"
+      >
+        {display?.trim() || page.trim()}
+      </a>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < value.length) {
+    parts.push(value.slice(lastIndex))
+  }
+
+  return <>{parts}</>
+}
+
+const RoleBanner = ({ role }: { role: string }) => {
+  const banner = ROLE_BANNERS[role]
+  if (!banner) return null
+  const Icon = banner.icon
+
+  // rangu 전용 추가 메타
+  const ranguMeta = role === 'rangu'
+    ? [
+        { label: '그룹명', value: '랑구' },
+        { label: '메인제목', value: 'Rang-Gu' },
+        { label: '메인멤버', value: 'R27 [[정재원]], R7 [[정진규]], R20 [[정민석]], R17 [[강한울]], R1 [[이승찬]]' },
+        { label: '서브제목', value: '랑구 객원' },
+      ]
+    : []
+
+  return (
+    <motion.div
+      className="relative mb-4 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-white shadow-lg"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+    >
+      <div className={`absolute inset-0 bg-gradient-to-r ${banner.color} opacity-80`} />
+      <div className="relative flex items-start gap-3">
+        <div className="mt-1">
+          <Icon className="h-5 w-5 text-white" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm uppercase tracking-[0.2em] text-white/80">Role</p>
+          <h4 className="text-lg font-semibold">{banner.title}</h4>
+          <p className="text-sm text-white/85">{banner.desc}</p>
+        </div>
+      </div>
+
+      {ranguMeta.length > 0 && (
+        <div className="relative mt-4 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-r from-white/5 via-white/0 to-white/5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 text-sm divide-y divide-white/10 sm:divide-y-0 sm:divide-x">
+            {ranguMeta.map((item) => (
+              <div key={item.label} className="flex min-h-[64px]">
+                <div className="w-28 flex-shrink-0 bg-white/5 px-3 py-2 text-white/70 text-xs uppercase tracking-[0.14em] flex items-center">
+                  {item.label}
+                </div>
+                <div className="flex-1 px-4 py-2 text-white leading-relaxed">
+                  {renderInlineLinks(item.value)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
 }
 
 export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false }: NamuWikiRendererProps): JSX.Element {
@@ -296,21 +446,69 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             )
           }
         },
-        // 8. 취소선 ~~텍스트~~
+        // 8. 굵은 글씨 '''텍스트'''
+        {
+          regex: /'''([^']+?)'''/g,
+          render: (match: RegExpMatchArray, key: number) => renderInlineElement('bold', match)
+        },
+        // 9. 이탤릭 ''텍스트''
+        {
+          regex: /''([^']+?)''/g,
+          render: (match: RegExpMatchArray, key: number) => renderInlineElement('italic', match)
+        },
+        // 8. 인라인 코드 ```텍스트``` (라인 내부)
+        {
+          regex: /```([^`]+)```/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <code key={key} className="bg-gray-700 text-gray-200 px-1 py-0.5 rounded text-sm font-mono">
+              {match[1]}
+            </code>
+          )
+        },
+        // 9. 인라인 코드 ``텍스트`` (라인 내부)
+        {
+          regex: /``([^`]+)``/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <code key={key} className="bg-gray-700 text-gray-200 px-1 py-0.5 rounded text-sm font-mono">
+              {match[1]}
+            </code>
+          )
+        },
+        // 10. 굵게 '''텍스트''' (나무위키 스타일)
+        {
+          regex: /(?<!')'''([^']+?)'''/g,
+          render: (match: RegExpMatchArray, key: number) => renderInlineElement('bold', match)
+        },
+        // 11. 굵게 **텍스트** (마크다운)
+        {
+          regex: /(?<!\*)\*\*(?!\s)(.+?)(?<!\s)\*\*(?!\*)/g,
+          render: (match: RegExpMatchArray, key: number) => renderInlineElement('bold', match)
+        },
+        // 12. 이탤릭 ''텍스트'' (나무위키 스타일)
+        {
+          regex: /(?<!')''([^'`]+?)''(?!')/g,
+          render: (match: RegExpMatchArray, key: number) => renderInlineElement('italic', match)
+        },
+        // 13. 이탤릭 *텍스트* (마크다운)
+        {
+          regex: /(?<![\*`])\*(?!\s)(.+?)(?<!\s)\*(?![\*`])/g,
+          render: (match: RegExpMatchArray, key: number) => renderInlineElement('italic', match)
+        },
+        // 14. 취소선 ~~텍스트~~
         {
           regex: /~~([^~]+)~~/g,
           render: (match: RegExpMatchArray, key: number) => (
             <del key={key} className="line-through text-gray-400">{match[1]}</del>
           )
         },
-        // 9. 밑줄 __텍스트__
+        // 13. 밑줄 __텍스트__
         {
           regex: /__([^_]+)__/g,
           render: (match: RegExpMatchArray, key: number) => (
             <u key={key} className="underline text-gray-300">{match[1]}</u>
           )
         },
-        // 10. 색상 텍스트 {{{#색상 텍스트}}}
+        // 14. 색상 텍스트 {{{#색상 텍스트}}}
         {
           regex: /\{\{\{#([a-fA-F0-9]{6}|[a-zA-Z]+)\s+([^}]+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => {
@@ -323,7 +521,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             )
           }
         },
-        // 11. 큰 텍스트 {{{+숫자 텍스트}}}
+        // 15. 큰 텍스트 {{{+숫자 텍스트}}}
         {
           regex: /\{\{\{\+(\d+)\s+([^}]+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => {
@@ -336,14 +534,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             )
           }
         },
-        // 12. 작은 텍스트 {{{-숫자 텍스트}}}
+        // 16. 작은 텍스트 {{{-숫자 텍스트}}}
         {
           regex: /\{\{\{-(\d+)\s+([^}]+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => (
             <span key={key} className="text-sm text-gray-400">{match[2]}</span>
           )
         },
-        // 13. 인라인 코드 `코드`
+        // 17. 인라인 코드 `코드`
         {
           regex: /`([^`]+)`/g,
           render: (match: RegExpMatchArray, key: number) => (
@@ -352,7 +550,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             </code>
           )
         },
-        // 14. 아이콘 !icon:{name} - 단독 아이콘 처리
+        // 18. 아이콘 !icon:{name} - 단독 아이콘 처리
         {
           regex: /!icon:\{([^}]+)\}/g,
           render: (match: RegExpMatchArray, key: number) => {
@@ -385,7 +583,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             )
           }
         },
-        // 15. URL 자동 링크
+        // 19. URL 자동 링크
         {
           regex: /(https?:\/\/[^\s]+)/g,
           render: (match: RegExpMatchArray, key: number) => (
@@ -455,7 +653,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
     }
     
-    return elements.length > 0 ? elements : text
+    if (elements.length === 0) return text
+    return elements.map((el, idx) => (
+      <React.Fragment key={`inline-${idx}`}>{el}</React.Fragment>
+    ))
   }
 
   function renderGroupInfoboxElement(params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key, colorAttribs?: string) {
@@ -518,14 +719,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     )
   }
 
-  useEffect(() => {
-    if (generateTableOfContents) {
-      generateTOC(content)
-    }
-    extractFootnotes(content)
-  }, [content, generateTableOfContents])
-
-  const generateTOC = (text: string) => {
+  const generateTOC = useCallback((text: string) => {
     const headings: TableOfContentsItem[] = []
     const lines = text.split('\n')
     
@@ -553,7 +747,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     }
     
     setToc(headings)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (generateTableOfContents) {
+      generateTOC(content)
+    }
+    extractFootnotes(content)
+  }, [content, generateTableOfContents, generateTOC])
 
   const extractFootnotes = (text: string) => {
     const footnoteMap: {[key: string]: string} = {}
@@ -598,17 +799,27 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
   // 인라인 각주 정의를 각주 참조로 변환하는 전처리 함수
   const preprocessInlineFootnotes = (text: string): string => {
-    // [*1] 각주내용 → [*1] (각주내용은 extractFootnotes에서 추출됨)
-    // [*] 각주내용 → [*] (자동 번호 각주)
-    return text.replace(/\[\*(\d*)\]\s+([^[\n\r]+)/g, '[*$1]')
+    // [*1] ??????? ?? [*1] (????????? extractFootnotes???? ?????)
+    // [*] ??????? ?? [*] (??? ??? ????)
+    return (text || '').replace(/\[\*(\d*)\]\s+([^[[\n\r]+)/g, '[*$1]')
   }
 
   const parseContent = (originalText: string): React.ReactNode => {
   // 인라인 각주 전처리
-  const text = preprocessInlineFootnotes(originalText)
-  const lines = text.split('\n')
-  const elements: React.ReactNode[] = []
-  let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
+    const text = preprocessInlineFootnotes(originalText)
+    const lines = text.split('\n')
+    const elements: React.ReactNode[] = []
+    let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
+
+    const parseMarkdownTableRow = (row: string) => {
+      const parts = row.split('|')
+      parts.shift()
+      parts.pop()
+      return parts.map((cell) => cell.trim())
+    }
+
+    const isMarkdownTableLine = (value: string) => /^\|.*\|\s*$/.test(value)
+    const isSeparatorRow = (cells: string[]) => cells.length > 0 && cells.every((cell) => /^:?-{2,}:?$/.test(cell))
 
     const renderPersonInfoboxElement = (params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key, colorAttribs?: string) => {
       const templateColors = parseTemplateColorAttributes(colorAttribs)
@@ -786,19 +997,39 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
       // 분류 태그 렌더링 (예: 분류: A | B | C)
       if (trimmed.startsWith('분류:')) {
-        const cats = trimmed.substring(3).replace(/^:/, '').split('|').map(s => s.trim()).filter(Boolean)
+        const rawSegment = trimmed.substring(3).replace(/^:/, '')
+        const categories = rawSegment
+          .split('|')
+          .map((value) => value.replace(/^\{?|\}?$/g, '').trim())
+          .filter(Boolean)
+
         elements.push(
           <div key={i} className="my-3 text-xs text-gray-300">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-gray-400">분류:</span>
-              {cats.map((c, idx) => (
-                <span key={idx} className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded">
-                  {c}
-                </span>
-              ))}
+              {categories.map((category, idx) => {
+                const href = `/wiki/category/${encodeURIComponent(category)}`
+                return (
+                  <a
+                    key={`${category}-${idx}`}
+                    href={href}
+                    className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded hover:border-blue-400 hover:text-blue-200 transition-colors"
+                  >
+                    {category}
+                  </a>
+                )
+              })}
             </div>
           </div>
         )
+        continue
+      }
+
+      // 역할 배너: {{role:developer}} 등
+      const roleMatch = trimmed.match(/^\{\{\s*role\s*:\s*([a-zA-Z0-9_-]+)\s*\}\}$/i)
+      if (roleMatch) {
+        const roleKey = roleMatch[1].toLowerCase()
+        elements.push(<RoleBanner key={`role-${i}`} role={roleKey} />)
         continue
       }
 
@@ -846,8 +1077,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           <div key={i} className="my-6 border border-gray-700 rounded-lg overflow-hidden bg-gray-900">
             {(
               <div className="w-full bg-gray-800 border-b border-gray-700 text-center">
-                <img src={resolvedImage} className="w-full h-auto max-h-[420px] object-cover" 
-                     onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+                <img
+                  src={resolvedImage}
+                  alt={title || '문서 이미지'}
+                  className="w-full h-auto max-h-[420px] object-cover"
+                  onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }}
+                />
               </div>
             )}
             {title && (
@@ -1020,8 +1255,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const src = imageMatch[1].trim()
         elements.push(
           <div key={i} className="my-4 text-center">
-            <img src={src} className="max-w-full h-auto rounded border border-gray-700 inline-block"
-                 onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+            <img
+              src={src}
+              alt="문서 이미지"
+              className="max-w-full h-auto rounded border border-gray-700 inline-block"
+              onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }}
+            />
           </div>
         )
         continue
@@ -1141,6 +1380,76 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
       
       // 표 렌더링 (나무위키 스타일: || 셀1 || 셀2 ||)
+      if (isMarkdownTableLine(trimmed)) {
+        const tableLines: string[] = []
+        let j = i
+        while (j < lines.length) {
+          const candidate = lines[j].trim()
+          if (!isMarkdownTableLine(candidate)) break
+          tableLines.push(candidate)
+          j++
+        }
+        if (tableLines.length >= 2) {
+          const headerCells = parseMarkdownTableRow(tableLines[0])
+          const separatorCells = parseMarkdownTableRow(tableLines[1])
+          if (headerCells.length > 0 && isSeparatorRow(separatorCells)) {
+            const alignments = separatorCells.map((cell) => {
+              const starts = cell.startsWith(':')
+              const ends = cell.endsWith(':')
+              if (starts && ends) return 'center'
+              if (ends) return 'right'
+              if (starts) return 'left'
+              return 'left'
+            })
+            const bodyRows = tableLines.slice(2).map(parseMarkdownTableRow)
+            const tableElement = (
+              <div key={i} className="my-4 overflow-x-auto flex justify-center">
+                <table className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 w-full">
+                  <thead>
+                    <tr>
+                      {headerCells.map((cell, idx) => (
+                        <th
+                          key={idx}
+                          className="border border-gray-600 px-3 py-2 text-sm font-semibold bg-gray-800"
+                          style={{ textAlign: alignments[idx] || 'left' }}
+                        >
+                          {parseInlineElements(cell)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bodyRows.length === 0 && (
+                      <tr>
+                        {headerCells.map((_, idx) => (
+                          <td key={idx} className="border border-gray-600 px-3 py-2 text-sm text-gray-300" />
+                        ))}
+                      </tr>
+                    )}
+                    {bodyRows.map((cells, rowIndex) => (
+                      <tr key={rowIndex} className="border-b border-gray-600">
+                        {headerCells.map((_, cellIndex) => (
+                          <td
+                            key={cellIndex}
+                            className="border border-gray-600 px-3 py-2 text-sm text-gray-300"
+                            style={{ textAlign: alignments[cellIndex] || 'left' }}
+                          >
+                            {parseInlineElements(cells[cellIndex] || '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+            elements.push(tableElement)
+            i = j - 1
+            continue
+          }
+        }
+      }
+
       if (trimmed.startsWith('||') && trimmed.endsWith('||')) {
         // 연속된 표 행들을 수집
         const tableRows: string[] = []
@@ -1221,6 +1530,48 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         elements.push(<hr key={i} className="my-6 border-gray-600" />)
         continue
       }
+
+      if (trimmed.startsWith('```')) {
+        const lang = trimmed.slice(3).trim().toLowerCase()
+        const codeLines: string[] = []
+        let j = i + 1
+        while (j < lines.length && !lines[j].trim().startsWith('```')) {
+          codeLines.push(lines[j])
+          j++
+        }
+        const rawCode = codeLines.join('\n')
+        i = j
+
+        registerHighlightLanguages()
+        let highlightedCode = rawCode
+        let usedLanguage = lang
+        try {
+          if (lang && hljs.getLanguage(lang)) {
+            highlightedCode = hljs.highlight(rawCode, { language: lang }).value
+          } else {
+            const auto = hljs.highlightAuto(rawCode)
+            highlightedCode = auto.value
+            usedLanguage = auto.language || lang
+          }
+        } catch (error) {
+          console.warn('코드 하이라이트 오류:', error)
+        }
+
+        elements.push(
+          <div key={`code-${i}`} className="my-4 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+            <div className="px-3 py-1 text-xs text-gray-400 border-b border-gray-800 bg-gray-800/60 uppercase tracking-wide">
+              {usedLanguage ? usedLanguage.toUpperCase() : 'CODE'}
+            </div>
+            <pre className="overflow-x-auto p-4 text-sm bg-gray-900 whitespace-pre hljs rounded-none">
+              <code
+                className="hljs"
+                dangerouslySetInnerHTML={{ __html: highlightedCode || rawCode.replace(/</g, '&lt;').replace(/>/g, '&gt;') }}
+              />
+            </pre>
+          </div>
+        )
+        continue
+      }
       
       // 일반 텍스트 라인 - 연속된 라인들을 하나의 문단으로 묶기 위해 수집
       const paragraphLines: string[] = [line]
@@ -1299,8 +1650,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       case 'inline-image':
         const src = groups[1]
         return (
-          <img src={src} className="inline-block max-h-64 align-middle rounded border border-gray-700"
-               onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+          <img
+            src={src}
+            alt="인라인 이미지"
+            className="inline-block max-h-64 align-middle rounded border border-gray-700"
+            onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }}
+          />
         )
         
       case 'footnote':

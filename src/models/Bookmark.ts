@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 // 북마크 인터페이스 정의
 export interface IBookmark {
   _id?: string
-  userId: string  // 사용자 ID (jaewon, minseok, jinkyu, hanul, seungchan, heeyeol)
+  userId: string  // 사용자 ID (jaewon, minseok, jinkyu, hanul, seungchan)
   title: string   // 북마크 제목
   url: string     // 외부 사이트 URL
   description?: string  // 설명 (선택사항)
@@ -18,7 +18,7 @@ const BookmarkSchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true,
-    enum: ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan', 'heeyeol']
+    enum: ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan']
     // index는 복합 인덱스에서 처리됨
   },
   title: {

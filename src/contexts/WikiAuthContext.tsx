@@ -39,7 +39,7 @@ interface WikiUser {
 interface WikiAuthContextType {
   wikiUser: WikiUser | null
   isLoading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  login: () => Promise<boolean>
   register: (userData: {
     username: string
     email: string
@@ -85,61 +85,41 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (): Promise<boolean> => {
     try {
-      const response = await fetch('/api/wiki/auth/login', {
+      const response = await fetch('/api/wiki/auth/discord-login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         credentials: 'include',
-        body: JSON.stringify({ username, password })
       })
 
-      // 응답이 비어있거나 잘못된 경우 체크
       if (!response.ok) {
-        console.error('HTTP 오류:', response.status, response.statusText)
-        toast.error(`서버 오류 (${response.status})`)
+        const errorBody = await response.json().catch(() => ({}))
+        toast.error(errorBody.error || '위키 로그인에 실패했습니다.')
         return false
       }
 
-      const text = await response.text()
-      if (!text) {
-        console.error('빈 응답 받음')
-        toast.error('서버에서 빈 응답을 받았습니다.')
-        return false
-      }
-
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch (parseError) {
-        console.error('JSON 파싱 오류:', parseError, '응답 텍스트:', text)
-        toast.error('서버 응답 형식이 올바르지 않습니다.')
-        return false
-      }
+      const data = await response.json()
 
       if (data.success) {
         setWikiUser(data.user)
-        
-        // 로그인 알림 추가
+
         if (data.loginNotification) {
           addNotification({
             type: data.loginNotification.type,
             title: data.loginNotification.title,
             message: data.loginNotification.message,
-            data: data.loginNotification.data
+            data: data.loginNotification.data,
           })
         }
-        
-        toast.success('위키에 로그인했습니다!')
+
+        toast.success('디스코드로 위키에 입장했습니다!')
         return true
-      } else {
-        toast.error(data.error || '로그인에 실패했습니다.')
-        return false
       }
+
+      toast.error(data.error || '위키 로그인에 실패했습니다.')
+      return false
     } catch (error) {
-      console.error('위키 로그인 오류:', error)
+      console.error('디스코드 위키 로그인 오류:', error)
       toast.error('로그인 중 오류가 발생했습니다.')
       return false
     }

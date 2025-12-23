@@ -11,6 +11,9 @@ const WikiUserSchema = new mongoose.Schema({
   avatar: { type: String },
   bio: { type: String },
   signature: { type: String }, // 서명
+  discordId: { type: String, unique: true, sparse: true },
+  discordUsername: { type: String },
+  discordAvatar: { type: String },
   
   // 위키 권한
   role: { 
@@ -390,6 +393,9 @@ export interface IWikiUser extends mongoose.Document {
   avatar?: string
   bio?: string
   signature?: string
+  discordId?: string
+  discordUsername?: string
+  discordAvatar?: string
   role: 'viewer' | 'editor' | 'moderator' | 'admin' | 'owner'
   permissions: {
     canEdit: boolean

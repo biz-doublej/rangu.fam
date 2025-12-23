@@ -583,7 +583,7 @@ export default function UploadPage() {
               </div>
               <h3 className="text-3xl font-bold text-gray-800 mb-4">Upload Complete!</h3>
               <p className="text-gray-600 text-xl mb-6">
-                Your track "{uploadForm.title}" has been uploaded successfully.
+                Your track &quot;{uploadForm.title}&quot; has been uploaded successfully.
               </p>
               <p className="text-gray-500 mb-8">
                 Redirecting to music page...

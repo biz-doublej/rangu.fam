@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CardService } from '@/services/cardService'
-import User from '@/models/User'
 import connectDB from '@/lib/mongodb'
 export const dynamic = 'force-dynamic'
 
@@ -21,14 +20,6 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // 사용자 존재 확인
-    const user = await User.findById(userId)
-    if (!user) {
-      return NextResponse.json(
-        { success: false, message: '존재하지 않는 사용자입니다.' },
-        { status: 404 }
-      )
-    }
     
     // 카드 드랍 실행
     const result = await CardService.dailyCardDrop(userId)

@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  ArrowLeft, Play, Pause, Music, Album, User, Search, Filter, Plus, 
+  ArrowLeft, Play, Pause, Music, Album, User, Users, Search, Filter, Plus, ChevronDown, 
   Heart, Download, Share2, MessageCircle, MoreVertical, Edit, Trash2,
   Volume2, VolumeX, Repeat, Shuffle, Clock, TrendingUp, Star,
   Youtube, ExternalLink, Upload, Eye, ThumbsUp, ThumbsDown, X
@@ -74,6 +74,7 @@ export default function MusicPage() {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'tracks' | 'playlists' | 'trending' | 'favorites'>('all')
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'alphabetical'>('recent')
   const [selectedGenre, setSelectedGenre] = useState<string>('all')
+  const [selectedMood, setSelectedMood] = useState<string>('all')
   
   // 모달 및 폼 상태
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
@@ -153,11 +154,264 @@ export default function MusicPage() {
     { id: 'all', label: '전체', icon: Music },
     { id: 'tracks', label: '트랙', icon: Music },
     { id: 'playlists', label: '플레이리스트', icon: Album },
-    { id: 'trending', label: '인기', icon: TrendingUp },
+    { id: 'trending', label: '트렌딩', icon: TrendingUp },
     { id: 'favorites', label: '즐겨찾기', icon: Heart }
   ]
 
   const genres = ['all', 'Lo-fi Hip Hop', 'Ambient', 'Rock', 'Chiptune', 'Pop', 'Electronic']
+
+  const moodFilters = [
+    {
+      id: 'all',
+      label: '모든 바이브',
+      description: '모든 라디오/커뮤니티',
+      gradient: 'from-gray-100 to-gray-50',
+      textColor: 'text-gray-700',
+      matchers: [] as string[]
+    },
+    {
+      id: 'night-drive',
+      label: 'Night Drive',
+      description: '새벽 감성 드라이브',
+      gradient: 'from-gray-900 via-gray-800 to-gray-700',
+      textColor: 'text-white',
+      matchers: ['night', 'drive', 'dark', 'midnight', '밤']
+    },
+    {
+      id: 'study-focus',
+      label: 'Focus Lab',
+      description: '집중을 위한 lo-fi/ambient',
+      gradient: 'from-sky-500 to-indigo-500',
+      textColor: 'text-white',
+      matchers: ['lofi', 'focus', 'study', 'ambient']
+    },
+    {
+      id: 'sunset-pop',
+      label: 'Sunset Pop',
+      description: '노을빛 synth/pop',
+      gradient: 'from-orange-400 to-pink-500',
+      textColor: 'text-white',
+      matchers: ['pop', 'sunset', 'summer', 'bright']
+    },
+    {
+      id: '8bit',
+      label: '8bit Arcade',
+      description: '레트로/chiptune/gaming',
+      gradient: 'from-purple-600 to-fuchsia-500',
+      textColor: 'text-white',
+      matchers: ['chiptune', '8bit', 'game', 'arcade']
+    },
+    {
+      id: 'rainy-day',
+      label: 'Rainy Day',
+      description: '빗소리와 어울리는 발라드',
+      gradient: 'from-blue-900 to-blue-600',
+      textColor: 'text-white',
+      matchers: ['rain', 'ballad', 'calm', 'acoustic']
+    }
+  ]
+
+  const discoverGradients = [
+    'from-orange-500 to-pink-500',
+    'from-indigo-500 via-purple-500 to-pink-500',
+    'from-emerald-500 to-teal-500',
+    'from-amber-500 to-orange-600'
+  ]
+
+  const featuredTrack = useMemo<DbTrack | null>(() => {
+    if (currentTrack) return currentTrack
+    if (!tracks.length) return null
+    return [...tracks].sort((a, b) => (b.likes + b.plays) - (a.likes + a.plays))[0]
+  }, [tracks, currentTrack])
+
+  const isFeaturedActive = featuredTrack ? currentTrack?._id === featuredTrack._id : false
+  const featuredWaveProgress = featuredTrack && isFeaturedActive && (featuredTrack.duration || 0)
+    ? Math.min(1, currentTime / (featuredTrack.duration || 1))
+    : 0
+
+  const totalStationPlays = useMemo(
+    () => tracks.reduce((sum, track) => sum + (track.plays || 0), 0),
+    [tracks]
+  )
+
+  const totalRuntimeMinutes = useMemo(
+    () => Math.floor(tracks.reduce((sum, track) => sum + (track.duration || 0), 0) / 60),
+    [tracks]
+  )
+
+  const uniqueCreators = useMemo(
+    () => Array.from(new Set(tracks.map((track) => track.uploadedBy))).length,
+    [tracks]
+  )
+
+  const discoverCollections = useMemo(() => {
+    if (!tracks.length) return []
+    return [...tracks]
+      .sort((a, b) => (b.likes + b.plays * 0.5) - (a.likes + a.plays * 0.5))
+      .slice(0, 4)
+      .map((track, index) => ({
+        id: track._id,
+        title: track.title,
+        description: `${track.genre || '장르 미정'} · ${track.uploadedBy}`,
+        gradient: discoverGradients[index % discoverGradients.length],
+        coverImage: track.coverImage,
+        meta: `${track.plays.toLocaleString()}회 재생`,
+        track
+      }))
+  }, [tracks])
+
+  const liveStations = useMemo(() => {
+    if (!tracks.length) return []
+    const gradients = [
+      'from-orange-500/90 via-pink-500/80 to-red-500/80',
+      'from-indigo-600/90 via-purple-600/80 to-fuchsia-500/80',
+      'from-emerald-500/90 via-teal-500/80 to-cyan-500/80'
+    ]
+    return [...tracks]
+      .sort((a, b) => (b.plays + b.likes) - (a.plays + a.likes))
+      .slice(0, 3)
+      .map((track, index) => ({
+        id: track._id,
+        title: track.title,
+        dj: track.uploadedBy,
+        listeners: Math.max(1, track.plays + track.likes),
+        genre: track.genre || 'Indie',
+        gradient: gradients[index % gradients.length],
+        coverImage: track.coverImage
+      }))
+  }, [tracks])
+
+  const communityActivity = useMemo(() => {
+    const source = recentlyPlayed.length ? recentlyPlayed : tracks.slice(0, 5)
+    if (!source.length) return []
+    return source.map((track, index) => ({
+      id: `${track._id}-${index}`,
+      user: track.uploadedBy,
+      action: recentlyPlayed.length ? '방금 재생을 공유했어요' : '첫 재생을 기다리고 있어요',
+      time: formatDate.relative(new Date(track.createdAt)),
+      trackTitle: track.title,
+      coverImage: track.coverImage
+    }))
+  }, [recentlyPlayed, tracks])
+
+  const trendingTracks = useMemo(
+    () => [...tracks].sort((a, b) => (b.likes + b.plays) - (a.likes + a.plays)).slice(0, 5),
+    [tracks]
+  )
+
+  const playlistsPreview = useMemo(() => playlists.slice(0, 3), [playlists])
+
+  const selectedMoodInfo = moodFilters.find((filter) => filter.id === selectedMood)
+
+  const showTrackList = ['all', 'tracks', 'favorites'].includes(selectedCategory)
+  const showPlaylistMain = selectedCategory === 'playlists'
+  const showTrendingMain = selectedCategory === 'trending'
+  const showSidebarPlaylists = selectedCategory === 'all'
+  const showSidebarTrending = selectedCategory === 'all'
+  const selectBaseClass = 'appearance-none bg-white/90 text-gray-800 font-semibold px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#f50] focus:border-transparent transition w-44'
+
+  const renderTrendingPanel = (delay = 0.6) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+    >
+      <div className="p-6 border-b border-gray-100">
+        <h2 className="text-xl.font-bold text-gray-900 flex items-center">
+          <TrendingUp className="w-5 h-5 mr-2 text-[#f50]" />
+          Trending
+        </h2>
+      </div>
+      <div className="p-4">
+        {trendingTracks.length === 0 ? (
+          <p className="text-sm text-gray-500">아직 트렌딩 데이터가 없습니다.</p>
+        ) : (
+          <div className="space-y-3">
+            {trendingTracks.map((track, index) => (
+              <div
+                key={track._id}
+                className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                onClick={() => handlePlay(track)}
+              >
+                <div className="w-6 h-6 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                  {index + 1}
+                </div>
+                <div className="w-10 h-10">
+                  <img src={track.coverImage} alt={track.title} className="w-10 h-10 rounded object-cover" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate hover:text-[#f50] transition-colors">{track.title}</p>
+                  <p className="text-xs text-gray-500 truncate">{track.uploadedBy}</p>
+                </div>
+                <div className="text-xs text-gray-400 flex items-center">
+                  <Heart className="w-3 h-3 mr-1" />
+                  {track.likes + track.plays}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+
+  const renderPlaylistPanel = (delay = 0.7) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+    >
+      <div className="p-6 border-b border-gray-100">
+        <h2 className="text-xl font-bold text-gray-900 flex items-center">
+          <Album className="w-5 h-5 mr-2 text-[#f50]" />
+          Playlists
+        </h2>
+      </div>
+      <div className="p-4">
+        {playlistsPreview.length === 0 ? (
+          <p className="text-sm text-gray-500">아직 생성된 플레이리스트가 없습니다.</p>
+        ) : (
+          <div className="space-y-4">
+            {playlistsPreview.map((playlist, index) => (
+              <motion.div
+                key={playlist._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: delay + index * 0.05 }}
+                className="p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+              >
+                <h4 className="font-semibold text-gray-800 mb-1 hover:text-[#f50] transition-colors">{playlist.name}</h4>
+                <p className="text-sm text-gray-600 mb-2 line-clamp-2">{playlist.description || '설명 없음'}</p>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{playlist.tracksIds.length}곡</span>
+                  <span className="flex items-center">
+                    <Heart className="w-3 h-3 mr-1" />
+                    {playlist.likes}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: delay + 0.2 }}
+          className="mt-4"
+        >
+          <button
+            onClick={() => setShowCreatePlaylist(true)}
+            className="w-full p-3 border-2 border-dashed border-gray-200 rounded-lg text-center hover:border-[#f50] hover:text-[#f50] transition-colors"
+          >
+            <Plus className="w-4 h-4 mx-auto mb-1" />
+            <span className="text-sm">새 플레이리스트</span>
+          </button>
+        </motion.div>
+      </div>
+    </motion.div>
+  )
 
   // 데이터 로딩
   useEffect(() => {
@@ -167,7 +421,7 @@ export default function MusicPage() {
   // 필터링 및 정렬 적용
   useEffect(() => {
     loadFilteredTracks()
-  }, [searchQuery, selectedGenre, sortBy, selectedCategory])
+  }, [searchQuery, selectedGenre, sortBy, selectedCategory, selectedMood])
 
   // 트랙 변경 시 시간 초기화
   useEffect(() => {
@@ -234,6 +488,20 @@ export default function MusicPage() {
           )
         }
         
+        if (selectedMood !== 'all') {
+          const moodMeta = moodFilters.find(filter => filter.id === selectedMood)
+          if (moodMeta) {
+            filteredTracks = filteredTracks.filter(track => {
+              const tags = (track.tags || []).map(tag => tag.toLowerCase())
+              const genre = (track.genre || '').toLowerCase()
+              if (!moodMeta.matchers.length) return true
+              return moodMeta.matchers.some(keyword => 
+                genre.includes(keyword) || tags.some(tag => tag.includes(keyword))
+              )
+            })
+          }
+        }
+
         setTracks(filteredTracks)
       }
     } catch (error) {
@@ -298,6 +566,15 @@ export default function MusicPage() {
     const prevIndex = currentTrackIndex === 0 ? currentPlaylist.length - 1 : currentTrackIndex - 1
     setCurrentTrackIndex(prevIndex)
     setCurrentTrack(currentPlaylist[prevIndex])
+  }
+
+  const addToQueue = (track: DbTrack) => {
+    setCurrentPlaylist(prev => {
+      if (prev.some(t => t._id === track._id)) {
+        return prev
+      }
+      return [...prev, track]
+    })
   }
 
   // 재생 시간 업데이트 (handleNext 선언 후)
@@ -424,7 +701,6 @@ export default function MusicPage() {
       <header className="bg-[#f50] shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            {/* 로고 */}
             <div className="flex items-center space-x-4">
               <motion.button
                 className="p-2 text-white hover:bg-orange-600 rounded-lg transition-colors"
@@ -442,13 +718,12 @@ export default function MusicPage() {
               </div>
             </div>
 
-            {/* 검색바 */}
             <div className="flex-1 max-w-xl mx-8">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
-                  placeholder="음악, 아티스트 검색..."
+                  placeholder="트랙, 플레이리스트 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-white rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-orange-300"
@@ -456,7 +731,6 @@ export default function MusicPage() {
               </div>
             </div>
 
-            {/* 우측 버튼들 */}
             <div className="flex items-center space-x-4">
               <Button 
                 className="bg-white text-[#f50] hover:bg-gray-100 border-0 rounded-full px-6"
@@ -466,18 +740,19 @@ export default function MusicPage() {
                 업로드
               </Button>
               {user && (
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-[#f50] font-bold">
+                <button
+                  onClick={() => router.push('/settings')}
+                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-[#f50] font-bold border border-transparent hover:border-white/60 transition"
+                >
                   {user.username[0].toUpperCase()}
-                </div>
+                </button>
               )}
             </div>
           </div>
         </div>
       </header>
 
-      {/* 메인 콘텐츠 */}
       <main className="pt-0 pb-32">
-        {/* SoundCloud 스타일 Hero 섹션 */}
         <div className="bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 relative overflow-hidden">
           <div className="absolute inset-0 bg-black bg-opacity-20"></div>
           <div className="relative max-w-7xl mx-auto px-6 py-16">
@@ -491,14 +766,12 @@ export default function MusicPage() {
                 Discover & Share
               </h1>
               <p className="text-xl mb-8 opacity-90">
-                네 친구가 만든 음악과 좋아하는 곡들을 함께 나누는 공간
+                친구들과 직접 만든 사운드를 한곳에서 발견하고 공유하세요
               </p>
-              
-              {/* 통계 카드 */}
               <div className="flex justify-center space-x-8">
                 <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 min-w-[100px]">
                   <div className="text-3xl font-bold">{tracks.length}</div>
-                  <div className="text-sm opacity-80">트랙</div>
+                  <div className="text-sm opacity-80">등록된 트랙</div>
                 </div>
                 <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 min-w-[100px]">
                   <div className="text-3xl font-bold">{playlists.length}</div>
@@ -506,7 +779,7 @@ export default function MusicPage() {
                 </div>
                 <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4 min-w-[100px]">
                   <div className="text-3xl font-bold">{tracks.reduce((sum, track) => sum + track.plays, 0)}</div>
-                  <div className="text-sm opacity-80">재생수</div>
+                  <div className="text-sm opacity-80">총 재생수</div>
                 </div>
               </div>
             </motion.div>
@@ -514,7 +787,6 @@ export default function MusicPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 -mt-8 relative z-10">
-          {/* 네비게이션 탭 */}
           <motion.div
             className="mb-8"
             initial={{ opacity: 0, y: 20 }}
@@ -542,44 +814,266 @@ export default function MusicPage() {
               </div>
             </div>
 
-            {/* 필터 및 정렬 */}
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center space-x-3">
-                <select
-                  value={selectedGenre}
-                  onChange={(e) => setSelectedGenre(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-                >
-                  {genres.map(genre => (
-                    <option key={genre} value={genre}>
-                      {genre === 'all' ? '모든 장르' : genre}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-                >
-                  <option value="recent">최신순</option>
-                  <option value="popular">인기순</option>
-                  <option value="alphabetical">가나다순</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedGenre}
+                    onChange={(e) => setSelectedGenre(e.target.value)}
+                    className={selectBaseClass}
+                    aria-label="장르 선택"
+                  >
+                    {genres.map(genre => (
+                      <option key={genre} value={genre}>
+                        {genre === 'all' ? '모든 장르' : genre}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                <div className="relative">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className={selectBaseClass}
+                    aria-label="정렬 순서"
+                  >
+                    <option value="recent">최신순</option>
+                    <option value="popular">인기순</option>
+                    <option value="alphabetical">이름순</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
-              
               <div className="text-sm text-gray-500">
                 {tracks.length}개의 트랙
               </div>
             </div>
           </motion.div>
 
+          {featuredTrack && (
+            <motion.div
+              className="mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="relative overflow-hidden rounded-3xl bg-gray-900 text-white shadow-2xl border border-gray-800">
+                <img
+                  src={featuredTrack.coverImage}
+                  alt={featuredTrack.title}
+                  className="absolute inset-0 h-full w-full object-cover opacity-40"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent"></div>
+                <div className="relative grid gap-8 px-8 py-10 lg:grid-cols-[1.5fr_1fr]">
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-3 text-xs uppercase tracking-[0.35em] text-white/60">
+                      <div className="h-2 w-2 rounded-full bg-[#f50] animate-pulse" />
+                      Featured Station
+                      {isFeaturedActive && (
+                        <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-[11px] font-semibold tracking-wide">
+                          Now Playing
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-3xl md:text-4xl font-bold leading-tight">{featuredTrack.title}</h2>
+                      <p className="mt-2 text-lg text-white/80">
+                        {featuredTrack.uploadedBy} · {featuredTrack.genre || 'Indie'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-white/80">
+                      <span className="flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        {featuredTrack.plays.toLocaleString()}회 재생
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Heart className="h-4 w-4" />
+                        {featuredTrack.likes.toLocaleString()}개의 좋아요
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        {Math.floor((featuredTrack.duration || 0) / 60)}:{((featuredTrack.duration || 0) % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <motion.button
+                        className="flex items-center gap-2 rounded-full bg-white px-6 py-3 font-semibold text-gray-900 shadow-lg transition hover:bg-gray-100"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handlePlay(featuredTrack)}
+                      >
+                        {isFeaturedActive && isPlaying ? (
+                          <>
+                            <Pause className="h-4 w-4" />
+                            일시정지
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4" />
+                            지금 재생
+                          </>
+                        )}
+                      </motion.button>
+                      <button className="rounded-full border border-white/40 px-5 py-3 text-sm font-medium text-white/80 hover:bg-white/10 transition">
+                        세트 소개 보기
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-left md:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                        <p className="text-xs uppercase tracking-wide text-white/60">총 트랙</p>
+                        <p className="text-2xl font-bold">{tracks.length}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                        <p className="text-xs uppercase tracking-wide text-white/60">총 재생수</p>
+                        <p className="text-2xl font-bold">{totalStationPlays.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                        <p className="text-xs uppercase tracking-wide text-white/60">참여 크루</p>
+                        <p className="text-2xl font-bold">{uniqueCreators}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4 md:col-span-3">
+                        <p className="text-xs uppercase tracking-wide text-white/60">누적 재생 시간</p>
+                        <p className="text-2xl font-bold">{totalRuntimeMinutes.toLocaleString()} min</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur-xl shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={featuredTrack.coverImage}
+                        alt={featuredTrack.title}
+                        className="h-16 w-16 rounded-xl object-cover"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-white">{featuredTrack.uploadedBy}</p>
+                        <p className="text-xs text-white/70">{featuredTrack.genre || '장르 미정'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-5">
+                      <div className="flex items-center justify-between text-xs text-white/70">
+                        <span>Waveform Preview</span>
+                        <span>
+                          {Math.floor((featuredTrack.duration || 0) / 60)}:
+                          {((featuredTrack.duration || 0) % 60).toString().padStart(2, '0')}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex h-24 items-end gap-[2px]">
+                        {Array.from({ length: 90 }).map((_, index) => {
+                          const waveHeight = generateWaveHeight(index, featuredTrack._id)
+                          const isActiveBar = featuredWaveProgress > 0 && index / 90 <= featuredWaveProgress
+                          return (
+                            <span
+                              key={index}
+                              className={`w-1 rounded-full ${isActiveBar ? 'bg-[#f50]' : 'bg-white/35'}`}
+                              style={{ height: `${waveHeight}px`, opacity: isActiveBar ? 1 : 0.5 }}
+                            ></span>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          <motion.div
+            className="mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
+            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-400">Stations by vibe</p>
+                  <h3 className="text-xl font-semibold text-gray-900">감정 바이브 Zapping</h3>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {selectedMoodInfo?.label || '모든 바이브'} · {selectedMoodInfo?.description || '모든 라디오/커뮤니티'}
+                </div>
+              </div>
+              <div className="mt-5 flex gap-4 overflow-x-auto pb-2">
+                {moodFilters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setSelectedMood(filter.id)}
+                    className={`flex min-w-[180px] flex-col rounded-2xl border transition shadow-sm ${
+                      selectedMood === filter.id
+                        ? 'border-transparent ring-2 ring-[#f50]/70'
+                        : 'border-gray-200 hover:border-[#f50]/40'
+                    }`}
+                  >
+                    <div className={`h-full rounded-2xl bg-gradient-to-r ${filter.gradient} p-4 ${filter.textColor}`}>
+                      <p className="text-sm font-semibold">{filter.label}</p>
+                      <p className="mt-1 text-xs opacity-80">{filter.description}</p>
+                      <div className="mt-4 flex items-center gap-1 text-[11px] uppercase tracking-wide opacity-80">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
+                        {filter.id === selectedMood ? 'Live mix' : 'Tune in'}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="mb-10"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">SoundCloud 감성 Discover Sets</h3>
+              <span className="text-sm text-gray-500">Community Curated</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {discoverCollections.map((collection, index) => {
+                const isQueued = currentPlaylist.some(track => track._id === collection.track._id)
+                return (
+                <motion.div
+                  key={collection.id}
+                  className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${collection.gradient} p-5 text-white`}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  {collection.coverImage && (
+                    <img
+                      src={collection.coverImage}
+                      alt={collection.title}
+                      className="absolute inset-0 h-full w-full object-cover opacity-30"
+                    />
+                  )}
+                  <div className="relative">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/70">#{index + 1} Station</p>
+                    <h4 className="mt-2 text-2xl font-bold">{collection.title}</h4>
+                    <p className="mt-1 text-sm text-white/80">{collection.description}</p>
+                    <div className="mt-4 flex items-center justify-between text-xs text-white/80">
+                      <span>{collection.meta}</span>
+                      <button
+                        onClick={() => addToQueue(collection.track)}
+                        disabled={isQueued}
+                        className={`inline-flex items-center rounded-full border border-white/40 px-3 py-1 transition ${
+                          isQueued ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/20'
+                        }`}
+                      >
+                        <Play className="mr-1 h-3.5 w-3.5" /> {isQueued ? 'Queued' : 'Queue'}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+                )
+              })}
+            </div>
+          </motion.div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* 메인 콘텐츠 */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-8">
               {/* 최근 재생 */}
               {recentlyPlayed.length > 0 && selectedCategory === 'all' && (
                 <motion.div
-                  className="mb-8"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
@@ -892,6 +1386,99 @@ export default function MusicPage() {
 
             {/* 사이드바 */}
             <div className="space-y-6">
+              {/* Live Stations */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden"
+              >
+                <div className="border-b border-gray-100 p-6">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <Volume2 className="w-5 h-5 mr-2 text-[#f50]" />
+                    Now On Air
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">지금 커뮤니티가 듣는 바이브</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  {liveStations.map((station) => (
+                    <div
+                      key={station.id}
+                      className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${station.gradient} p-4 text-white shadow`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-white/70">Live Station</p>
+                          <h4 className="text-lg font-semibold">{station.title}</h4>
+                          <p className="text-sm text-white/80">{station.dj} · {station.genre}</p>
+                        </div>
+                        <div className="text-right text-sm">
+                          <p className="font-semibold">{station.listeners}명</p>
+                          <p className="text-white/70">tuned in</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center justify-between text-xs text-white/80">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-white animate-pulse"></div>
+                          LIVE set
+                        </div>
+                        <button
+                          onClick={() => {
+                            const matched = tracks.find((track) => track._id === station.id)
+                            if (matched) handlePlay(matched)
+                          }}
+                          className="inline-flex items-center gap-1 rounded-full border border-white/60 px-3 py-1 font-medium leading-none"
+                        >
+                          <Play className="w-3 h-3" /> 재생
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Community Activity */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
+                className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden"
+              >
+                <div className="border-b border-gray-100 p-6">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <Users className="w-5 h-5 mr-2 text-[#f50]" />
+                    Community Feed
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">우리 커뮤의 실시간 소식</p>
+                </div>
+                <div className="p-4 space-y-3">
+                  {communityActivity.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3">
+                      {item.coverImage ? (
+                        <img src={item.coverImage} alt={item.trackTitle} className="h-12 w-12 rounded-lg object-cover" />
+                      ) : (
+                        <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-semibold">
+                          {item.user[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">{item.user}</p>
+                        <p className="text-xs text-gray-500">{item.action}</p>
+                        <p className="text-xs text-gray-400 mt-1 truncate">&quot;{item.trackTitle}&quot; · {item.time}</p>
+                      </div>
+                      <button
+                        className="text-xs text-[#f50] font-medium hover:text-orange-600"
+                        onClick={() => {
+                          const matched = tracks.find((track) => track._id === item.id)
+                          if (matched) handlePlay(matched)
+                        }}
+                      >
+                        재생
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
               {/* 인기 차트 */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -907,10 +1494,7 @@ export default function MusicPage() {
                 </div>
                 <div className="p-4">
                   <div className="space-y-3">
-                    {tracks
-                      .sort((a, b) => (b.likes + b.plays) - (a.likes + a.plays))
-                      .slice(0, 5)
-                      .map((track, index) => (
+                    {trendingTracks.map((track, index) => (
                         <div
                           key={track._id}
                           className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
@@ -951,7 +1535,7 @@ export default function MusicPage() {
                 </div>
                 <div className="p-4">
                   <div className="space-y-4">
-                    {playlists.slice(0, 3).map((playlist, index) => (
+                    {playlistsPreview.map((playlist, index) => (
                       <motion.div
                         key={playlist._id}
                         initial={{ opacity: 0, y: 20 }}

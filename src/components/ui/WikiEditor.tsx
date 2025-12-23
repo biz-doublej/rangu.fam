@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Bold, Italic, Underline, Strikethrough, Link, 
-  Image, Code, Quote, List, ListOrdered, 
+  Image as ImageIcon, Code, Quote, List, ListOrdered, 
   Heading1, Heading2, Heading3, Eye, EyeOff,
   Save, Undo, Redo, HelpCircle, Palette,
   Plus, Minus, Hash, Type, Link2, FileText, 
@@ -39,6 +39,24 @@ interface ToolbarButton {
   shortcut?: string
 }
 
+const WIKI_EDITOR_PLACEHOLDER = `문서 내용을 작성하세요...
+
+나무위키 문법을 사용할 수 있습니다:
+- **굵게** 또는 '''굵게'''
+- *기울임* 또는 ''기울임''
+- ~~취소선~~ __밑줄__
+- ^^상첨자^^ ,,하첨자,,
+- [[내부 링크]] [링크텍스트](URL)
+- [*1] 각주 (자동 번호: [*])
+- {{{#ff0000 빨간 글씨}}} {{{+1 큰 글씨}}}
+- !icon:{home} [!icon:{insta}](URL)
+- ||<bgcolor:#ff0000> 색상 표 ||
+
+단축키:
+- Ctrl+B: 굵게, Ctrl+I: 기울임  
+- Ctrl+S: 저장, Ctrl+Enter: 미리보기 토글"
+`
+
 export default function WikiEditor({ 
   content, 
   onChange, 
@@ -47,34 +65,13 @@ export default function WikiEditor({
   showPreview: initialShowPreview = false,
   className = ''
 }: WikiEditorProps) {
-  const { wikiUser, login } = useWikiAuth()
+  const { wikiUser } = useWikiAuth()
   const [showPreview, setShowPreview] = useState(initialShowPreview)
   const [selectedText, setSelectedText] = useState('')
   const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [isMinorEdit, setIsMinorEdit] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [showTableOfContents, setShowTableOfContents] = useState(false)
-
-  // 로그인 체크
-  if (!wikiUser) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] p-8 bg-gray-900 rounded-lg border border-gray-700">
-        <div className="text-center">
-          <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-200 mb-2">로그인이 필요합니다</h3>
-          <p className="text-gray-400 mb-6">문서를 편집하려면 먼저 로그인해주세요.</p>
-          <Button 
-            onClick={() => window.location.href = '/wiki/login'}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
-          >
-            로그인하기
-          </Button>
-        </div>
-      </div>
-    )
-  }
   const [tableOfContents, setTableOfContents] = useState<Array<{level: number, title: string, anchor: string}>>([])
   const [showTableTools, setShowTableTools] = useState(false)
   const [spellCheckResults, setSpellCheckResults] = useState<Array<{word: string, suggestions: string[], position: number}>>([])
@@ -88,8 +85,13 @@ export default function WikiEditor({
     borderColor?: string
   }>({})
   const [customColor, setCustomColor] = useState('')
+  const [highlightColor, setHighlightColor] = useState('#ffeb3b')
+  const [formattingMessage, setFormattingMessage] = useState<string | null>(null)
+  const highlightPresets = ['#ffeb3b', '#ffe082', '#ff8a80', '#80deea', '#b388ff', '#1de9b6']
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showTableOfContents, setShowTableOfContents] = useState(false)
 
-  // 편집 잠금 상태
+  // Document lock tracking
   const [isLocked, setIsLocked] = useState(false)
   const [lockedBy, setLockedBy] = useState<string | null>(null)
   const [lockCheckInterval, setLockCheckInterval] = useState<NodeJS.Timeout | null>(null)
@@ -214,7 +216,7 @@ export default function WikiEditor({
     [
       { icon: Link2, label: '내부 링크', action: () => insertText('[[', ']]') },
       { icon: Link, label: '외부 링크', action: () => insertText('[', '](https://)') },
-      { icon: Image, label: '이미지', action: () => {
+      { icon: ImageIcon, label: '이미지', action: () => {
         const info = getImageInsertionInfo()
         if (info.insertionType === 'table') {
           insertText('[이미지:', ']')
@@ -407,7 +409,7 @@ export default function WikiEditor({
   }
 
   // 목차 생성 함수
-  const generateTableOfContents = () => {
+  const generateTableOfContents = useCallback(() => {
     const lines = content.split('\n')
     const toc: Array<{level: number, title: string, anchor: string}> = []
     
@@ -443,7 +445,7 @@ export default function WikiEditor({
     
     setTableOfContents(toc)
     setShowTableOfContents(true)
-  }
+  }, [content])
 
   // 목차 삽입 함수
   const insertTableOfContents = () => {
@@ -839,10 +841,10 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
     if (showTableOfContents) {
       generateTableOfContents()
     }
-  }, [content, showTableOfContents])
+  }, [content, showTableOfContents, generateTableOfContents])
 
   // 문서 편집 잠금 획득
-  const acquireEditLock = async (): Promise<boolean> => {
+  const acquireEditLock = useCallback(async (): Promise<boolean> => {
     if (!title || title === '문서 편집') return true
     
     try {
@@ -872,10 +874,10 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
       console.error('편집 잠금 획득 오류:', error)
       return false
     }
-  }
+  }, [title, wikiUser?.username])
 
   // 문서 편집 잠금 해제
-  const releaseEditLock = async (): Promise<void> => {
+  const releaseEditLock = useCallback(async (): Promise<void> => {
     if (!title || title === '문서 편집') return
     
     try {
@@ -890,7 +892,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
     } catch (error) {
       console.error('편집 잠금 해제 오류:', error)
     }
-  }
+  }, [title])
 
   // 문서 편집 잠금 상태 확인
   useEffect(() => {
@@ -922,7 +924,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
         clearInterval(interval)
       }
     }
-  }, [title])
+  }, [title, acquireEditLock, releaseEditLock])
 
   // 편집 잠금 획득 및 해제
   useEffect(() => {
@@ -944,7 +946,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
     return () => {
       releaseEditLock()
     }
-  }, [title])
+  }, [title, acquireEditLock, releaseEditLock])
 
   return (
     <div className={`wiki-editor ${className}`}>
@@ -961,7 +963,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                 className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
                 title="사진 선택 후 커서 위치에 삽입"
               >
-                <Image className="w-4 h-4" />
+                <ImageIcon className="w-4 h-4" aria-hidden="true" />
                 <span>사진 선택</span>
               </Button>
               <Button
@@ -1419,22 +1421,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                       onScroll={handleTextareaScroll}
                       className="flex-1 p-4 font-mono text-sm resize-none bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none leading-5"
                       style={{ lineHeight: '1.25rem' }}
-                      placeholder="문서 내용을 작성하세요...
-
-나무위키 문법을 사용할 수 있습니다:
-- **굵게** 또는 '''굵게'''
-- *기울임* 또는 ''기울임''
-- ~~취소선~~ __밑줄__
-- ^^상첨자^^ ,,하첨자,,
-- [[내부 링크]] [링크텍스트](URL)
-- [*1] 각주 (자동 번호: [*])
-- {{{#ff0000 빨간 글씨}}} {{{+1 큰 글씨}}}
-- !icon:{home} [!icon:{insta}](URL)
-- ||<bgcolor:#ff0000> 색상 표 ||
-
-단축키:
-- Ctrl+B: 굵게, Ctrl+I: 기울임  
-- Ctrl+S: 저장, Ctrl+Enter: 미리보기 토글"
+                      placeholder={WIKI_EDITOR_PLACEHOLDER}
                     />
                   </div>
                   
@@ -1486,23 +1473,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     onScroll={handleTextareaScroll}
                     className="flex-1 p-4 font-mono text-sm resize-none bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none leading-5"
                     style={{ lineHeight: '1.25rem' }}
-                    placeholder="문서 내용을 작성하세요...
-
-나무위키 문법을 사용할 수 있습니다:
-- **굵게** 또는 '''굵게'''
-- *기울임* 또는 ''기울임''
-- ~~취소선~~ __밑줄__
-- ^^상첨자^^ ,,하첨자,,
-- [[내부 링크]] [링크텍스트](URL)
-- [*1] 각주 (자동 번호: [*])
-- {{{#ff0000 빨간 글씨}}} {{{+1 큰 글씨}}}
-- !icon:{home} [!icon:{insta}](URL)
-- ||<bgcolor:#ff0000> 색상 표 ||
-- `인라인 코드` ```코드 블록```
-
-단축키:
-- Ctrl+B: 굵게, Ctrl+I: 기울임  
-- Ctrl+S: 저장, Ctrl+Enter: 미리보기 토글"
+                    placeholder={WIKI_EDITOR_PLACEHOLDER}
                   />
                 </div>
                 
@@ -1522,8 +1493,8 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                   <div>
                     <p className="font-medium mb-1 text-gray-300">기본 서식:</p>
                     <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">**굵게**</code> 또는 <code className="bg-gray-700 px-1 rounded">'''굵게'''</code> → <strong>굵게</strong></li>
-                      <li><code className="bg-gray-700 px-1 rounded">*기울임*</code> 또는 <code className="bg-gray-700 px-1 rounded">''기울임''</code> → <em>기울임</em></li>
+                      <li><code className="bg-gray-700 px-1 rounded">**굵게**</code> 또는 <code className="bg-gray-700 px-1 rounded">{"'''굵게'''"}</code> → <strong>굵게</strong></li>
+                      <li><code className="bg-gray-700 px-1 rounded">*기울임*</code> 또는 <code className="bg-gray-700 px-1 rounded">{"''기울임''"}</code> → <em>기울임</em></li>
                       <li><code className="bg-gray-700 px-1 rounded">~~취소선~~</code> → <del>취소선</del></li>
                       <li><code className="bg-gray-700 px-1 rounded">__밑줄__</code> → <u>밑줄</u></li>
                       <li><code className="bg-gray-700 px-1 rounded">^^상첨자^^</code> → x<sup>2</sup></li>
@@ -1621,7 +1592,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     return (
                       <div key={index} className="p-3 bg-gray-800 rounded border border-gray-600">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-red-400 font-medium">"{result.word}"</span>
+                          <span className="text-red-400 font-medium">&quot;{result.word}&quot;</span>
                           <span className="text-xs text-gray-400">{lineInfo.lineNumber}줄</span>
                         </div>
                         

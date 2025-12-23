@@ -4,13 +4,16 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 export interface Notification {
   id: string
-  type: 'login' | 'logout' | 'edit' | 'warning' | 'info' | 'success'
+  type: 'login' | 'logout' | 'edit' | 'warning' | 'info' | 'success' | 'wiki' | 'system' | 'alert'
   title: string
   message: string
   isRead: boolean
   createdAt: Date
   data?: any // Additional data like IP address, etc.
   uniqueKey?: string // 중복 방지를 위한 고유 키
+  category?: 'wiki' | 'system' | 'auth' | 'security' | 'general'
+  severity?: 'info' | 'success' | 'warning' | 'critical'
+  link?: string // 이동할 페이지
 }
 
 interface NotificationContextType {

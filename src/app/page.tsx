@@ -23,14 +23,16 @@ import {
   Play,
   Pause,
   Volume2,
-  VolumeX
+  VolumeX,
+  Sparkles,
+  Palette,
+  Radio
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { MemberWithActivity } from '@/backend/types'
 import { MediaPlayer } from '@/components/ui/MediaPlayer'
 import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
-import { CardDropWidget } from '@/components/ui/CardDropWidget'
 import ThemeMenu from '@/components/ui/ThemeMenu'
 
 // 슬라이드 콘텐츠 (이미지와 영상 혼합)
@@ -43,8 +45,21 @@ const slideContent = [
   { type: 'image', src: '/images/slide3.jpg', title: '추억의 사진 3' },
   { type: 'video', src: '/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg' },
   { type: 'video', src: '/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg' },
-  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4' },
-  { type: 'video', src: '/videos/intro-heeyeol.mp4', title: '윤희열 소개', poster: '/images/poster-heeyeol.jpg' },
+  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4' }
+]
+
+const quickActions = [
+  { title: '음악 스테이션', description: '밤 감성 라디오 & 믹스', href: '/music', icon: Music },
+  { title: '달력', description: '약속과 돌아오는 일정', href: '/calendar', icon: Calendar },
+  { title: '게임 라운지', description: '미니 게임 아케이드', href: '/games', icon: Gamepad2 },
+  { title: '카드 드랍', description: '랜덤 미션 & 수집 카드', href: '/cards', icon: Package },
+]
+
+const featureHighlights = [
+  { title: '밤샘 라디오', description: '새벽 감성 사연과 실시간 믹스', href: '/music', icon: Radio, badge: 'LIVE' },
+  { title: '테마 커스터마이즈', description: '크리스마스부터 갤럭시까지 무드 선택', href: '/members', icon: Palette, badge: 'NEW' },
+  { title: '게임 아케이드', description: '테트리스 · 카드 · 퀴즈로 승부!', href: '/games', icon: Gamepad2, badge: 'PLAY' },
+  { title: '카드 드랍', description: '하루 한 번의 서프라이즈 카드', href: '/cards', icon: Sparkles, badge: 'DAILY' },
 ]
 
 export default function HomePage() {
@@ -66,6 +81,32 @@ export default function HomePage() {
   const [isSlideHovered, setIsSlideHovered] = useState(false) // 슬라이드 호버 상태
   const { user, logout, isLoggedIn } = useAuth()
   const router = useRouter()
+
+  const onlineCount = members.filter(member => member.userStatus === 'online').length
+  const activeSlide = slideContent[currentSlide]
+  const quickStats = [
+    { label: '지금 온라인', value: `${onlineCount}명`, detail: '실시간 상태' },
+    { label: '등록 멤버', value: `${members.length || 0}명`, detail: '우리만의 팀원' },
+    { label: '오늘의 스포트라이트', value: activeSlide?.title || '준비 중', detail: activeSlide?.type === 'video' ? '멤버 인사 영상' : '추억의 사진' },
+  ]
+  const worldTimeItems = [
+    { label: '서울', value: isClient ? format(times.seoul, 'HH:mm:ss') : '--:--:--', zone: 'KST' },
+    { label: '밴쿠버', value: isClient ? format(times.vancouver, 'HH:mm:ss') : '--:--:--', zone: 'PST' },
+    { label: '스위스', value: isClient ? format(times.switzerland, 'HH:mm:ss') : '--:--:--', zone: 'CET' },
+  ]
+
+  const getStatusStyles = (status: string) => {
+    switch (status) {
+      case 'online':
+        return { pill: 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40', text: 'text-emerald-300' }
+      case 'idle':
+        return { pill: 'bg-amber-500/20 text-amber-200 border border-amber-500/40', text: 'text-amber-300' }
+      case 'dnd':
+        return { pill: 'bg-rose-500/20 text-rose-200 border border-rose-500/40', text: 'text-rose-300' }
+      default:
+        return { pill: 'bg-slate-600/30 text-slate-200 border border-slate-500/40', text: 'text-slate-300' }
+    }
+  }
 
   // 모든 비디오 요소들의 볼륨 제어
   const updateAllVideosVolume = (volume: number, muted: boolean) => {
@@ -173,7 +214,7 @@ export default function HomePage() {
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [user])
+  }, [user, membersLoading])
 
   const navigationItems = [
     { icon: Home, label: '홈', href: '/' },
@@ -189,7 +230,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen relative overflow-hidden theme-surface">
       {/* 상단 시간 표시 */}
-      <header className="glass-nav fixed top-0 left-0 right-0 z-50">
+      <header className="glass-nav fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/40 via-black/20 to-transparent backdrop-blur-xl border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
             {/* 로고 */}
@@ -240,10 +281,15 @@ export default function HomePage() {
             <div className="flex items-center space-x-4">
               {isLoggedIn ? (
                 <div className="flex items-center space-x-3">
-                  <div className="hidden md:block text-right">
-                    <p className="text-sm font-medium text-primary-700">{user?.username}</p>
-                    <p className="text-xs text-gray-500">{user?.role === 'member' ? '멤버' : '게스트'}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/settings/account')}
+                    className="hidden md:block text-right group focus:outline-none"
+                    title="계정 설정 열기"
+                  >
+                    <p className="text-sm font-medium text-primary-100 group-hover:text-white transition-colors">{user?.username}</p>
+                    <p className="text-xs text-primary-200/70 group-hover:text-primary-100">{user?.role === 'member' ? '멤버' : '게스트'}</p>
+                  </button>
                   <button 
                     className="glass-button p-2"
                     onClick={() => logout()}
@@ -298,18 +344,6 @@ export default function HomePage() {
             ))}
           </ul>
 
-          {/* 카드 드랍 위젯 - 로그인한 사용자만 표시 */}
-          {isLoggedIn && user?.id && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
-              className="mb-4"
-            >
-              <CardDropWidget userId={user.id} />
-            </motion.div>
-          )}
-
           {/* 개인 바로가기 위젯 - 로그인한 사용자만 표시 */}
           {isLoggedIn && user?.id && (
             <motion.div
@@ -354,18 +388,6 @@ export default function HomePage() {
                 ))}
               </ul>
 
-              {/* 카드 드랍 위젯 - 로그인한 사용자만 표시 */}
-              {isLoggedIn && user?.id && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.6 }}
-                  className="mb-4"
-                >
-                  <CardDropWidget userId={user.id} />
-                </motion.div>
-              )}
-
               {/* 개인 바로가기 위젯 - 로그인한 사용자만 표시 */}
               {isLoggedIn && user?.id && (
                 <motion.div
@@ -382,284 +404,309 @@ export default function HomePage() {
       </AnimatePresence>
 
       {/* 메인 콘텐츠 */}
-      <main className="md:ml-64 pt-20 min-h-screen">
-        <div className="max-w-6xl mx-auto p-6">
-          {/* 환영 메시지 */}
-          <motion.div 
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 30 }}
+      <main className="md:ml-64 pt-24 pb-24 min-h-screen">
+        <div className="max-w-6xl mx-auto px-6 space-y-12">
+          <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-indigo-900/30 to-purple-900/20 p-8 text-white shadow-2xl">
+            <div
+              className="absolute inset-0 opacity-70 pointer-events-none blur-3xl"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 20% 20%, rgba(129, 140, 248, 0.25), transparent 55%), radial-gradient(circle at 70% 0%, rgba(14, 165, 233, 0.25), transparent 45%)',
+              }}
+            />
+            <div className="relative grid gap-8 lg:grid-cols-[2fr,1fr]">
+              <div className="space-y-6">
+                <span className="accent-chip">Rangu.fam 2025</span>
+                <div className="space-y-3">
+                  <h1 className="text-4xl md:text-5xl font-semibold leading-tight">추억과 지금을 한 장에서</h1>
+                  <p className="text-base text-slate-200">
+                    각자의 이야기, 각자의 시간. 그리고 한 곳에 모이는 우리만의 기록. 오늘도 감성 가득한 무드를 켜고,
+                    Rangu.fam에서 만나요.
+                  </p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {quickStats.map(stat => (
+                    <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs uppercase text-gray-400">{stat.label}</p>
+                      <p className="text-2xl font-semibold text-white mt-1">{stat.value}</p>
+                      <p className="text-xs text-gray-300 mt-2">{stat.detail}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {quickActions.map(action => {
+                    const Icon = action.icon
+                    return (
+                      <button
+                        key={action.title}
+                        onClick={() => router.push(action.href)}
+                        className="rounded-2xl border border-white/10 bg-white/5 p-4 flex items-start gap-3 text-left hover:border-[var(--accent-border)] hover:bg-white/10 transition"
+                      >
+                        <span className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
+                          <Icon className="w-5 h-5" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-white">{action.title}</span>
+                          <span className="text-xs text-gray-300">{action.description}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 flex flex-col gap-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">현재 접속</p>
+                    <p className="text-xl font-semibold text-white">{onlineCount}명</p>
+                  </div>
+                  {isLoggedIn ? (
+                    <div className="text-right">
+                      <p className="text-sm text-white font-semibold">{user?.username}</p>
+                      <p className="text-xs text-gray-400">{user?.role === 'member' ? '멤버' : '게스트'}</p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => router.push('/login')}
+                      className="glass-button px-4 py-1 text-xs text-white"
+                    >
+                      로그인
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {worldTimeItems.map(item => (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-2"
+                    >
+                      <div>
+                        <p className="text-xs text-gray-400">{item.label}</p>
+                        <p className="text-sm font-mono text-white">{item.value}</p>
+                      </div>
+                      <span className="text-[11px] text-gray-500 uppercase tracking-[0.3em]">{item.zone}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                  <div>
+                    <p className="text-xs text-gray-400">테마 커스터마이즈</p>
+                    <p className="text-sm text-gray-200">기분에 따라 무드 변경</p>
+                  </div>
+                  <ThemeMenu />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <motion.section
+            className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#1f2937] p-6 shadow-2xl"
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <h1 className="text-4xl md:text-6xl font-bold text-gradient mb-4">
-              환영합니다
-            </h1>
-            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
-              네 친구의 특별한 온라인 공간, Rangu.fam에 오신 것을 환영합니다. 
-              우정과 추억이 가득한 이곳에서 함께 시간을 보내세요.
-            </p>
-          </motion.div>
-
-          {/* 중앙 슬라이드 (이미지 + 영상) - 와이드 직사각형 */}
-          <motion.div 
-            className="glass-card relative h-[400px] md:h-[500px] lg:h-[550px] w-full max-w-5xl mx-auto overflow-hidden mb-12 cursor-pointer"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            onMouseEnter={() => setIsSlideHovered(true)}
-            onMouseLeave={() => setIsSlideHovered(false)}
-            onClick={() => setIsSlideHovered(!isSlideHovered)}
-            style={{ aspectRatio: '16/9' }}
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentSlide}
-                className="absolute inset-0"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1 }}
+            <div className="grid gap-8 lg:grid-cols-[2fr,1fr] items-center">
+              <div
+                className="relative rounded-2xl border border-white/10 overflow-hidden min-h-[320px]"
+                onMouseEnter={() => setIsSlideHovered(true)}
+                onMouseLeave={() => setIsSlideHovered(false)}
               >
-                {slideContent[currentSlide]?.type === 'video' ? (
-                  <video
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    loop
-                    playsInline
-                    muted={videoMuted}
-                    poster={slideContent[currentSlide].poster}
-                    onCanPlay={(e) => {
-                      // 영상이 로드되면 자동 재생 시도하고 볼륨 설정
-                      const video = e.target as HTMLVideoElement;
-                      video.volume = videoVolume / 100;
-                      video.muted = videoMuted;
-                      video.play().catch(console.log);
-                    }}
-                    onLoadedData={(e) => {
-                      // 비디오 데이터가 로드되면 볼륨 설정
-                      const video = e.target as HTMLVideoElement;
-                      video.volume = videoVolume / 100;
-                      video.muted = videoMuted;
-                    }}
-                  >
-                    <source src={slideContent[currentSlide].src} type="video/mp4" />
-                    <div className="w-full h-full bg-gradient-to-br from-primary-100 to-warm-100 flex items-center justify-center">
-                      <div className="text-center text-gray-500">
-                        <div className="w-24 h-24 bg-primary-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-                          <span className="text-3xl">🎬</span>
-                        </div>
-                        <p className="text-lg">{slideContent[currentSlide].title}</p>
-                        <p className="text-sm mt-2">브라우저가 비디오를 지원하지 않습니다</p>
-                      </div>
-                    </div>
-                  </video>
-                ) : slideContent[currentSlide]?.type === 'image' ? (
-                  <Image
-                    src={slideContent[currentSlide].src}
-                    alt={slideContent[currentSlide].title}
-                    fill
-                    className="object-cover object-top"
-                    onError={() => {
-                      // 이미지 로드 실패 시 플레이스홀더 표시
-                    }}
-                  />
-                ) : (
-                  // 플레이스홀더 (파일이 없을 때)
-                  <div className="w-full h-full bg-gradient-to-br from-primary-100 to-warm-100 flex items-center justify-center">
-                    <div className="text-center text-gray-500">
-                      <div className="w-24 h-24 bg-primary-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-                        <span className="text-3xl">
-                          {slideContent[currentSlide]?.type === 'video' ? '🎬' : '📸'}
-                        </span>
-                      </div>
-                      <p className="text-lg">{slideContent[currentSlide]?.title || `슬라이드 ${currentSlide + 1}`}</p>
-                      <p className="text-sm mt-2">
-                        {slideContent[currentSlide]?.type === 'video' 
-                          ? '멤버 소개 영상이 여기에 표시됩니다' 
-                          : '추억의 사진이 여기에 표시됩니다'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-
-              </motion.div>
-            </AnimatePresence>
-
-            {/* 좌우 네비게이션 버튼 - 호버 시에만 표시 */}
-            <AnimatePresence>
-              {isSlideHovered && (
-                <>
-                  <motion.button
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 slide-nav-button z-15 p-3"
-                    onClick={() => setCurrentSlide(currentSlide === 0 ? slideContent.length - 1 : currentSlide - 1)}
-                    title="이전 슬라이드"
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -30 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  >
-                    <ChevronLeft className="w-6 h-6 text-primary-600" />
-                  </motion.button>
-                  
-                  <motion.button
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 slide-nav-button z-15 p-3"
-                    onClick={() => setCurrentSlide((currentSlide + 1) % slideContent.length)}
-                    title="다음 슬라이드"
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 30 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  >
-                    <ChevronRight className="w-6 h-6 text-primary-600" />
-                  </motion.button>
-                </>
-              )}
-            </AnimatePresence>
-
-
-          </motion.div>
-
-                            {/* 멤버 소개 카드 */}
+                <AnimatePresence mode="wait">
                   <motion.div
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.4 }}
+                    key={currentSlide}
+                    className="absolute inset-0"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.8 }}
                   >
-                    {membersLoading ? (
-                      // 로딩 상태
-                      Array.from({ length: 4 }).map((_, index) => (
-                        <motion.div
-                          key={index}
-                          className="glass-card p-6 text-center"
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.6, delay: 0.6 + index * 0.1 }}
-                        >
-                          <div className="animate-pulse">
-                            <div className="text-4xl mb-4">⏳</div>
-                            <div className="h-6 bg-gray-200 rounded mb-2"></div>
-                            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
-                          </div>
-                        </motion.div>
-                      ))
+                    {activeSlide?.type === 'video' ? (
+                      <video
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        loop
+                        playsInline
+                        muted={videoMuted}
+                        poster={activeSlide.poster}
+                        onCanPlay={e => {
+                          const video = e.target as HTMLVideoElement
+                          video.volume = videoVolume / 100
+                          video.muted = videoMuted
+                          video.play().catch(console.log)
+                        }}
+                        onLoadedData={e => {
+                          const video = e.target as HTMLVideoElement
+                          video.volume = videoVolume / 100
+                          video.muted = videoMuted
+                        }}
+                      >
+                        <source src={activeSlide.src} type="video/mp4" />
+                      </video>
+                    ) : activeSlide?.type === 'image' ? (
+                      <Image src={activeSlide.src} alt={activeSlide.title} fill className="object-cover object-top" />
                     ) : (
-                      // 실제 멤버 데이터
-                      members.map((member, index) => {
-                        // 상태별 색상 반환
-                        const getStatusColor = (status: string) => {
-                          switch (status) {
-                            case 'online':
-                              return 'text-green-500'
-                            case 'idle':
-                              return 'text-yellow-500'
-                            case 'dnd':
-                              return 'text-red-500'
-                            case 'offline':
-                              return 'text-gray-500'
-                            default:
-                              return 'text-green-500'
-                          }
-                        }
-
-                        // 상태별 텍스트 반환
-                        const getStatusText = (status: string) => {
-                          switch (status) {
-                            case 'online':
-                              return '온라인'
-                            case 'idle':
-                              return '자리 비움'
-                            case 'dnd':
-                              return '방해금지'
-                            case 'offline':
-                              return '오프라인'
-                            default:
-                              return '온라인'
-                          }
-                        }
-
-                        // 상태별 배경색 반환 (상태 점용)
-                        const getStatusBgColor = (status: string) => {
-                          switch (status) {
-                            case 'online':
-                              return 'bg-green-500'
-                            case 'idle':
-                              return 'bg-yellow-500'
-                            case 'dnd':
-                              return 'bg-red-500'
-                            case 'offline':
-                              return 'bg-gray-500'
-                            default:
-                              return 'bg-green-500'
-                          }
-                        }
-
-                        const getEmoji = (name: string) => {
-                          const emojiMap: { [key: string]: string } = {
-                            '정재원': '👨‍💻',
-                            '정민석': '🏔️',
-                            '정진규': '🪖',
-                            '강한울': '🎮',
-                            '이승찬': '🌟',
-                            '윤희열': '🔮'
-                          }
-                          return emojiMap[name] || '👤'
-                        }
-
-                        return (
-                          <motion.div
-                            key={member.id}
-                            className="glass-card p-6 text-center hover:shadow-glass transition-all duration-300 cursor-pointer"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.6 + index * 0.1 }}
-                            whileHover={{ y: -5 }}
-                            onClick={() => router.push(member.personalPageUrl || `/members/${member.id}`)}
-                          >
-                            <div className="relative">
-                              <div className="text-4xl mb-3">{getEmoji(member.name)}</div>
-                              {/* 새로운 상태 표시 시스템 */}
-                              <div className={`absolute top-0 right-0 w-4 h-4 ${getStatusBgColor(member.userStatus || 'offline')} rounded-full border-2 border-white ${
-                                member.userStatus === 'online' ? 'animate-pulse' : ''
-                              }`}></div>
-                            </div>
-                            <h3 className="text-xl font-bold text-primary-700 mb-2">{member.name}</h3>
-                            <p className={`text-sm font-medium ${getStatusColor(member.userStatus || 'offline')}`}>
-                              {getStatusText(member.userStatus || 'offline')}
-                            </p>
-                          </motion.div>
-                        )
-                      })
+                      <div className="w-full h-full bg-gradient-to-br from-slate-800 to-indigo-900 flex items-center justify-center text-gray-200">
+                        준비 중인 콘텐츠
+                      </div>
                     )}
                   </motion.div>
+                </AnimatePresence>
 
-                  {/* 주요 기능 소개 */}
-                  <motion.div
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.8 }}
+                {isSlideHovered && (
+                  <>
+                    <button
+                      className="absolute left-4 top-1/2 -translate-y-1/2 slide-nav-button z-10 p-3"
+                      onClick={() =>
+                        setCurrentSlide(currentSlide === 0 ? slideContent.length - 1 : currentSlide - 1)
+                      }
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      className="absolute right-4 top-1/2 -translate-y-1/2 slide-nav-button z-10 p-3"
+                      onClick={() => setCurrentSlide((currentSlide + 1) % slideContent.length)}
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="text-white space-y-6">
+                <div>
+                  <span className="accent-chip mb-3">오늘의 스포트라이트</span>
+                  <h3 className="text-3xl font-semibold">{activeSlide?.title || 'Spotlight'}</h3>
+                  <p className="text-sm text-gray-300 mt-3">
+                    {activeSlide?.type === 'video'
+                      ? '멤버가 직접 인사하는 짧은 영상을 감상해 보세요.'
+                      : '현장의 분위기가 담긴 사진으로 추억을 이어갑니다.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs text-gray-400">다음 전환까지</p>
+                    <p className="text-3xl font-mono">{countdown}s</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs text-gray-400">콘텐츠 타입</p>
+                    <p className="text-xl font-semibold">{activeSlide?.type === 'video' ? '영상' : '이미지'}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {slideContent.map((slide, index) => (
+                    <button
+                      key={slide.title}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`px-3 py-1 text-xs rounded-full border ${
+                        currentSlide === index
+                          ? 'border-white text-white bg-white/10'
+                          : 'border-white/20 text-gray-300 hover:border-white/40'
+                      }`}
+                    >
+                      {index + 1}. {slide.type === 'video' ? '영상' : '사진'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.section>
+
+          <section className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="accent-chip">멤버 활동</span>
+                <h2 className="text-3xl font-semibold text-white mt-3">오늘의 상태</h2>
+                <p className="text-sm text-gray-400">누가 온라인인지, 무엇을 하고 있는지 한눈에.</p>
+              </div>
+              <button className="glass-button px-4 py-2 text-sm text-white" onClick={() => router.push('/members')}>
+                전체 멤버 보기
+              </button>
+            </div>
+            {membersLoading ? (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="rounded-2xl border border-white/10 bg-white/5 h-36 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : members.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {members.map(member => {
+                  const styles = getStatusStyles(member.userStatus || 'offline')
+                  return (
+                    <div
+                      key={member.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-5 hover:border-[var(--accent-border)] hover:bg-white/10 transition cursor-pointer"
+                      onClick={() => router.push(member.personalPageUrl || `/members/${member.id}`)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-xs text-gray-400">{member.role || 'Rangu 멤버'}</p>
+                          <p className="text-xl font-semibold text-white">{member.name}</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-semibold ${styles.pill}`}>
+                          {member.userStatus || 'offline'}
+                        </span>
+                      </div>
+                      <p className={`text-sm mt-2 line-clamp-2 ${styles.text}`}>
+                        {member.description || '지금 순간을 기록하는 중'}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-3">
+                        {member.location || '어딘가에서'} · {member.currentActivity || (member.userStatus === 'online' ? '활동 중' : '스텔스 모드')}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/20 p-8 text-center text-gray-400">
+                아직 등록된 멤버가 없어요. 첫 번째 순간을 기록해볼까요?
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-6">
+            <div>
+              <span className="accent-chip">즐길 거리</span>
+              <h2 className="text-3xl font-semibold text-white mt-3">모듈 & 하이라이트</h2>
+              <p className="text-sm text-gray-400">마법 같은 기능을 골라 빠르게 이동하세요.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {featureHighlights.map(card => {
+                const Icon = card.icon
+                return (
+                  <div
+                    key={card.title}
+                    className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-5 text-white"
                   >
-                    {[
-                      { title: '🎵 음악 스테이션', desc: '친구들과 함께 만든 음악 감상', link: '/music' },
-                      { title: '📚 이랑위키', desc: '우리만의 지식 백과사전', link: '/wiki' },
-                      { title: '🎮 게임센터', desc: '테트리스, 끝말잇기, 카드게임', link: '/games' },
-                    ].map((feature, index) => (
-                      <motion.div
-                        key={feature.title}
-                        className="glass-card p-6 text-center hover:shadow-glass transition-all duration-300 cursor-pointer"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, delay: 1.0 + index * 0.1 }}
-                        whileHover={{ y: -5 }}
-                        onClick={() => router.push(feature.link)}
-                      >
-                        <h3 className="text-lg font-bold text-primary-300 mb-2">{feature.title}</h3>
-                        <p className="text-sm text-gray-300">{feature.desc}</p>
-                      </motion.div>
-                    ))}
-                  </motion.div>
+                    <div className="absolute inset-0 opacity-30 pointer-events-none bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_transparent)]" />
+                    <div className="relative flex items-start gap-4">
+                      <div className="h-12 w-12 rounded-2xl bg-white/15 flex items-center justify-center">
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-semibold">{card.title}</h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/15 text-white">
+                            {card.badge}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-200 mt-1">{card.description}</p>
+                        <button
+                          onClick={() => router.push(card.href)}
+                          className="mt-4 text-sm text-white/80 underline underline-offset-4 hover:text-white"
+                        >
+                          바로가기
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
         </div>
       </main>
 

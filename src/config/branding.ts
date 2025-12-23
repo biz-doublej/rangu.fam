@@ -1,7 +1,7 @@
 export const BRANDING = {
   // Site-level names
   brandSite: 'Rangu.fam',
-  brandWiki: '랑구팸 위키',
+  brandWiki: '이랑위키',
   brandShort: 'Rangu',
 
   // Common Tailwind class tokens for accents

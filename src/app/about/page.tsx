@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { 
@@ -20,7 +20,10 @@ import {
   LogIn,
   LogOut,
   Menu,
-  X
+  X,
+  Activity,
+  Sparkles,
+  Globe
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import ThemeMenu from '@/components/ui/ThemeMenu'
@@ -289,7 +292,7 @@ export default function AboutPage() {
   const members = [
     {
       name: '정재원',
-      emoji: '👨‍💻',
+      emoji: '🚀',
       role: '개발자',
       description: '코딩과 기술에 열정을 가진 랑구팸의 기술 리더',
       specialty: '풀스택 개발',
@@ -297,7 +300,7 @@ export default function AboutPage() {
     },
     {
       name: '정민석',
-      emoji: '🏔️',
+      emoji: '✈️',
       role: '모험가',
       description: '새로운 경험과 도전을 즐기는 자유로운 영혼',
       specialty: '여행 & 탐험',
@@ -305,7 +308,7 @@ export default function AboutPage() {
     },
     {
       name: '정진규',
-      emoji: '🪖',
+      emoji: '🛡️',
       role: '수호자 (군 복무 중)',
       description: '든든한 믿음직한 랑구팸의 보호자 (현재 군 복무 중)',
       specialty: '리더십 & 책임감',
@@ -321,48 +324,164 @@ export default function AboutPage() {
     },
     {
       name: '이승찬',
-      emoji: '🌟',
+      emoji: '🪄',
       role: '임시 멤버',
       description: '2025년 7월부터 합류한 새로운 에너지',
       specialty: '신선한 아이디어',
       color: 'from-yellow-400 to-yellow-600'
-    },
-    {
-      name: '윤희열',
-      emoji: '🔮',
-      role: '임시 멤버 (예정)',
-      description: '2025년 9월부터 합류 예정인 미래의 동료',
-      specialty: '새로운 가능성',
-      color: 'from-indigo-400 to-indigo-600'
     }
   ]
 
-  const features = [
+  const baseFeatures = [
     {
       icon: Music,
       title: '음악 스테이션',
       description: '함께 듣고 싶은 음악을 공유하는 공간',
-      link: '/music'
+      link: '/music',
+      accent: 'from-rose-500/15 via-rose-500/5 to-transparent',
+      statKey: 'totalMusicPlays',
+      metricLabel: '누적 감상',
+      metricFallback: '재생 128회'
     },
     {
       icon: BookOpen,
       title: '이랑위키',
       description: '우리만의 지식과 추억을 기록하는 백과사전',
-      link: '/wiki'
+      link: '/wiki',
+      accent: 'from-amber-400/15 via-amber-400/5 to-transparent',
+      statKey: 'totalPages',
+      metricLabel: '등록 문서',
+      metricFallback: '문서 42개'
     },
     {
       icon: Gamepad2,
       title: '게임센터',
       description: '테트리스, 끝말잇기 등 다양한 게임을 즐기는 곳',
-      link: '/games'
+      link: '/games',
+      accent: 'from-indigo-500/15 via-indigo-500/5 to-transparent',
+      statKey: 'totalGameScores',
+      metricLabel: '기록된 경기',
+      metricFallback: '도전 300회'
     },
     {
       icon: Calendar,
       title: '달력',
       description: '중요한 일정과 기념일을 함께 관리',
-      link: '/calendar'
+      link: '/calendar',
+      accent: 'from-emerald-500/15 via-emerald-500/5 to-transparent',
+      metricLabel: '공유 일정',
+      metricFallback: '다가오는 일정 준비중'
     }
   ]
+
+
+
+  const ritualHighlights = [
+    {
+      title: 'Night Sync',
+      description: '하루를 마무리하며 음악과 감정을 나누는 시간',
+      schedule: '매주 금요일 22:30',
+      focus: '감정 공유',
+      icon: Coffee,
+      accent: 'from-amber-500/10 to-amber-600/20'
+    },
+    {
+      title: 'Remote Drive',
+      description: '각자의 도시를 느끼며 진행하는 드라이브 라이브',
+      schedule: '격주 토요일 오후',
+      focus: '거리 두지 않는 연결',
+      icon: Plane,
+      accent: 'from-blue-500/10 to-blue-600/20'
+    },
+    {
+      title: 'Project Stand-up',
+      description: '진행중인 프로젝트를 공유하고 서로 피드백하는 루틴',
+      schedule: '매주 수요일 21:00',
+      focus: '협업 & 성장',
+      icon: Shield,
+      accent: 'from-purple-500/10 to-purple-600/20'
+    }
+  ]
+
+  const formatNumber = (value?: number | null) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '0'
+    return value.toLocaleString('ko-KR')
+  }
+
+  const heroStats = useMemo(() => [
+    {
+      label: '함께한 시간',
+      value: `D+${formatNumber(timeStats.formationDays)}`,
+      detail: timeStats.formationYears > 0 ? `${timeStats.formationYears}년째 여정` : '막 시작했어요',
+      icon: Activity
+    },
+    {
+      label: '완전체 여정',
+      value: `D+${formatNumber(timeStats.completeDays)}`,
+      detail: timeStats.completeYears > 0 ? `완전체 ${timeStats.completeYears}년차` : '따끈따끈한 완전체',
+      icon: Users
+    },
+    {
+      label: '타임라인 이벤트',
+      value: formatNumber(historyEvents.length),
+      detail: '기록된 순간들',
+      icon: Calendar
+    },
+    {
+      label: '운영 중인 기능',
+      value: formatNumber(baseFeatures.length),
+      detail: '랩에서 계속 확장 중',
+      icon: Sparkles
+    }
+  ], [timeStats, historyEvents.length, baseFeatures.length])
+
+  const siteStatsCards = useMemo(() => {
+    const stats = siteHistory?.stats || {}
+    return [
+      {
+        label: '누적 방문',
+        value: formatNumber(stats.totalVisits || 1280),
+        detail: '우리 공간을 찾은 횟수',
+        icon: Globe,
+        accent: 'from-sky-500/20 to-indigo-600/10'
+      },
+      {
+        label: '등록 문서',
+        value: formatNumber(stats.totalPages || 8),
+        detail: '이랑위키 컨텐츠',
+        icon: BookOpen,
+        accent: 'from-amber-500/20 to-amber-600/10'
+      },
+      {
+        label: '함께한 멤버',
+        value: formatNumber(stats.totalUsers || members.length),
+        detail: '현재 & 임시 멤버',
+        icon: Users,
+        accent: 'from-emerald-500/20 to-emerald-600/10'
+      },
+      {
+        label: '누적 플레이',
+        value: formatNumber((stats.totalMusicPlays || 0) + (stats.totalGameScores || 0)),
+        detail: '음악 + 게임 기록',
+        icon: Music,
+        accent: 'from-rose-500/20 to-rose-600/10'
+      }
+    ]
+  }, [siteHistory, members.length])
+
+  const projectHighlights = useMemo(() => {
+    const stats = siteHistory?.stats || {}
+    return baseFeatures.map(feature => {
+      let metric = feature.metricFallback
+      if (feature.statKey && stats[feature.statKey as keyof typeof stats] !== undefined) {
+        const statValue = stats[feature.statKey as keyof typeof stats] as number
+        metric = feature.metricLabel
+          ? `${feature.metricLabel} ${formatNumber(statValue)}`
+          : formatNumber(statValue)
+      }
+      return { ...feature, metric }
+    })
+  }, [baseFeatures, siteHistory])
 
   const navigationItems = [
     { icon: Home, label: '홈', href: '/' },
@@ -387,105 +506,94 @@ export default function AboutPage() {
 
     return (
       <>
-        {/* 헤더 섹션 */}
-        <motion.div
-          className="text-center mb-16"
+        <motion.section
+          className="mb-16"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <h1 className="text-5xl md:text-6xl font-bold text-gradient mb-6">Rangu.fam 소개</h1>
-          <p className="text-xl text-gray-200/80 max-w-3xl mx-auto leading-relaxed">
-            네 명의 특별한 친구들이 만든 온라인 공간, <br />
-            랑구팸에서 우정과 추억을 함께 만들어가고 있습니다.
-          </p>
-        </motion.div>
+          <div className="glass-card p-8 md:p-12 lg:p-14">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-4 max-w-3xl">
+                <p className="text-sm uppercase tracking-[0.3em] text-primary-200/70">Our Story</p>
+                <h1 className="text-4xl md:text-5xl font-bold text-gradient">Rangu.fam 소개</h1>
+                <p className="text-lg text-gray-200/80 leading-relaxed">
+                  네 명의 친구가 서로 다른 도시에서 같은 하늘을 바라보며 만든 커뮤니티.
+                  음악, 게임, 기록, 그리고 일상 속 소소한 감정을 공유하며 특별한 우정을 쌓아갑니다.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <span className="px-4 py-2 rounded-full text-sm bg-primary-300/20 text-primary-100">Remote-first Crew</span>
+                  <span className="px-4 py-2 rounded-full text-sm bg-emerald-300/20 text-emerald-100">Since 2023.06.06</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4 w-full lg:w-auto justify-end">
+                {heroStats.map(stat => (
+                  <div
+                    key={stat.label}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 flex items-start gap-3 min-w-[9.5rem]"
+                  >
+                    <div className="p-2 rounded-full bg-white/10">
+                      <stat.icon className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.25em] text-white/60">{stat.label}</p>
+                      <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
+                      <p className="text-sm text-primary-100/70">{stat.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.section>
 
-        {/* 랑구팸이란? */}
         <motion.section
           className="mb-20"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <div className="glass-card p-8 md:p-12">
-            <div className="flex items-center justify-center mb-8">
-              <Star className="w-12 h-12 text-pink-400 mr-4" />
-              <h2 className="text-4xl font-bold text-primary-200">랑구팸이란?</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="glass-card p-8 md:p-10">
+              <div className="flex items-center gap-3 mb-6">
+                <Star className="w-10 h-10 text-pink-300" />
+                <h2 className="text-3xl font-bold text-primary-100">랑구팸이란?</h2>
+              </div>
+              <p className="text-lg text-gray-200/80 leading-relaxed mb-4">
+                <strong className="text-primary-100">Rangu.fam</strong>은 서로 다른 도시에서 살아가는 네 명의 친구들이 만든 독립 커뮤니티입니다.
+                실시간 통화, 협업 프로젝트, 기록 문화가 자연스럽게 이어지도록 직접 서비스와 툴을 구축해 나가는 실험실이기도 합니다.
+              </p>
+              <p className="text-lg text-gray-200/70 leading-relaxed">
+                우리는 “함께 있는 감각”을 온라인으로 재현하기 위해 음악, 위키, 게임, 일정 관리 등 다양한 기능을 직접 만들고 다듬어 가고 있어요.
+              </p>
             </div>
-            <div className="text-lg text-gray-200/80 space-y-4 max-w-4xl mx-auto text-center leading-relaxed">
-              <p>
-                <strong className="text-primary-200">랑구팸(Rangu.fam)</strong>은 네 명의 소중한 친구들이 만든 특별한 온라인 커뮤니티입니다.
-              </p>
-              <p>
-                서로 다른 길을 걸어가면서도 변하지 않는 우정을 바탕으로, 함께 추억을 만들고 즐거운 시간을 보내는 공간입니다.
-              </p>
-              <p>
-                각자의 개성과 재능을 살려 음악, 게임, 지식 공유 등 다양한 활동을 통해 더욱 끈끈한 관계를 만들어가고 있습니다.
-              </p>
+            <div className="glass-card p-8 md:p-10">
+              <div className="flex items-center gap-3 mb-6">
+                <Clock className="w-10 h-10 text-blue-300" />
+                <h2 className="text-3xl font-bold text-primary-100">기념일 타임라인</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="rounded-2xl border border-pink-400/30 bg-pink-400/10 p-5">
+                  <p className="text-sm text-white/70 mb-2">Rangu.fam 결성</p>
+                  <p className="text-3xl font-bold text-white">D+{formatNumber(timeStats.formationDays)}</p>
+                  <p className="text-sm text-white/60 mt-1">
+                    {timeStats.formationYears > 0 && `${timeStats.formationYears}년 `}
+                    {timeStats.formationDays % 365}일째
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-blue-400/30 bg-blue-400/10 p-5">
+                  <p className="text-sm text-white/70 mb-2">완전체 구성</p>
+                  <p className="text-3xl font-bold text-white">D+{formatNumber(timeStats.completeDays)}</p>
+                  <p className="text-sm text-white/60 mt-1">
+                    {timeStats.completeYears > 0 && `${timeStats.completeYears}년 `}
+                    {timeStats.completeDays % 365}일째
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </motion.section>
 
-        {/* 함께한 시간 통계 */}
-        <motion.section
-          className="mb-20"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-        >
-          <div className="glass-card p-8 md:p-12">
-            <div className="flex items-center justify-center mb-8">
-              <Clock className="w-12 h-12 text-blue-400 mr-4" />
-              <h2 className="text-4xl font-bold text-primary-200">함께한 시간</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-              <div className="text-center">
-                <div className="bg-gradient-to-br from-pink-200/20 to-pink-500/20 rounded-2xl p-6 mb-4 border border-pink-300/30">
-                  <Star className="w-12 h-12 text-pink-400 mx-auto mb-3" />
-                  <h3 className="text-xl font-bold text-primary-100 mb-2">랑구팸 결성</h3>
-                  <p className="text-sm text-primary-200/70 mb-4">2023년 6월 6일 오전 11:45</p>
-                  <div className="space-y-2">
-                    <p className="text-3xl font-bold text-pink-300">D+{timeStats.formationDays.toLocaleString()}일</p>
-                    <p className="text-lg text-pink-200">
-                      {timeStats.formationYears > 0 && `${timeStats.formationYears}주년 `}
-                      {timeStats.formationDays % 365}일
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-200/70">인스타 그룹방이 생성된 날부터</p>
-              </div>
-
-              <div className="text-center">
-                <div className="bg-gradient-to-br from-blue-200/20 to-blue-500/20 rounded-2xl p-6 mb-4 border border-blue-300/30">
-                  <Users className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-                  <h3 className="text-xl font-bold text-primary-100 mb-2">완전체 구성</h3>
-                  <p className="text-sm text-primary-200/70 mb-4">2023년 6월 11일 오전 1:10</p>
-                  <div className="space-y-2">
-                    <p className="text-3xl font-bold text-blue-300">D+{timeStats.completeDays.toLocaleString()}일</p>
-                    <p className="text-lg text-blue-200">
-                      {timeStats.completeYears > 0 && `${timeStats.completeYears}주년 `}
-                      {timeStats.completeDays % 365}일
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-200/70">정민석이 합류한 날부터</p>
-              </div>
-            </div>
-
-            {timeStats.formationYears >= 1 && (
-              <div className="mt-8 text-center">
-                <div className="inline-flex items-center bg-gradient-to-r from-yellow-300/30 to-yellow-500/30 text-yellow-200 px-5 py-3 rounded-full text-sm font-medium space-x-2">
-                  <Star className="w-4 h-4 text-yellow-300" />
-                  <span>{timeStats.formationYears}주년을 함께 축하했어요!</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </motion.section>
-
-        {/* 다가오는 기념일 */}
         <motion.section
           className="mb-20"
           initial={{ opacity: 0, y: 30 }}
@@ -493,9 +601,15 @@ export default function AboutPage() {
           transition={{ duration: 0.8, delay: 0.5 }}
         >
           <div className="glass-card p-8 md:p-12">
-            <div className="flex items-center justify-center mb-8">
-              <Calendar className="w-12 h-12 text-purple-400 mr-4" />
-              <h2 className="text-4xl font-bold text-primary-200">다가오는 기념일</h2>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-12 h-12 text-purple-400" />
+                <div>
+                  <h2 className="text-3xl font-bold text-primary-200">다가오는 기념일</h2>
+                  <p className="text-sm text-gray-200/70">다음 만남을 기다리는 설렘</p>
+                </div>
+              </div>
+              <div className="text-sm text-primary-200/70">업데이트: {new Date().toLocaleString()}</div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -516,7 +630,7 @@ export default function AboutPage() {
                       </div>
                     </div>
                     <div className={`px-3 py-1 rounded-full text-sm ${event.type === 'formation' ? 'bg-pink-300/20 text-pink-200' : 'bg-blue-300/20 text-blue-200'}`}>
-                      {event.type === 'formation' ? '결성 기념일' : '완전체 기념일'}
+                      {event.type === 'formation' ? '결성' : '완전체'}
                     </div>
                   </div>
                   <div className="bg-gradient-to-r from-primary-300/10 to-primary-500/20 rounded-xl p-4 flex items-center justify-between border border-primary-400/20">
@@ -534,7 +648,37 @@ export default function AboutPage() {
           </div>
         </motion.section>
 
-        {/* 히스토리 타임라인 */}
+        <motion.section
+          className="mb-20"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.55 }}
+        >
+          <div className="glass-card p-8 md:p-10">
+            <div className="flex items-center gap-3 mb-8">
+              <Activity className="w-10 h-10 text-emerald-300" />
+              <h2 className="text-3xl font-bold text-primary-100">커뮤니티 스냅샷</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              {siteStatsCards.map(card => (
+                <div
+                  key={card.label}
+                  className={`rounded-2xl border border-white/10 bg-gradient-to-br ${card.accent} p-5 shadow-xl`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 rounded-full bg-white/10">
+                      <card.icon className="w-5 h-5 text-white" />
+                    </div>
+                    <p className="text-sm text-white/70">{card.label}</p>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{card.value}</p>
+                  <p className="text-sm text-white/70 mt-1">{card.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.section>
+
         <motion.section
           className="mb-20"
           initial={{ opacity: 0, y: 30 }}
@@ -542,12 +686,21 @@ export default function AboutPage() {
           transition={{ duration: 0.8, delay: 0.6 }}
         >
           <div className="glass-card p-8 md:p-12">
-            <div className="flex items-center justify-center mb-8">
-              <BookOpen className="w-12 h-12 text-emerald-400 mr-4" />
-              <h2 className="text-4xl font-bold text-primary-200">랑구팸 히스토리</h2>
+            <div className="flex items-center justify-between mb-8 flex-col md:flex-row gap-4">
+              <div className="flex items-center gap-3">
+                <BookOpen className="w-10 h-10 text-emerald-300" />
+                <div>
+                  <h2 className="text-3xl font-bold text-primary-100">랑구팸 히스토리</h2>
+                  <p className="text-sm text-gray-200/70">우리가 기록한 순간들</p>
+                </div>
+              </div>
+              <div className="text-sm text-primary-100/70">{historyEvents.length}개의 이벤트</div>
             </div>
 
-            <div className="relative">
+            <div
+              className="relative max-h-[32rem] overflow-y-auto pr-2"
+              onScroll={handleTimelineScroll}
+            >
               <div className="absolute left-1/2 transform -translate-x-1/2 h-full w-1 bg-gradient-to-b from-primary-400/40 via-primary-500/40 to-primary-400/40"></div>
               <div className="space-y-8">
                 {historyEvents.map((event, index) => {
@@ -601,7 +754,7 @@ export default function AboutPage() {
                       className="relative space-y-4 md:space-y-0"
                       initial={{ opacity: 0, y: 24 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.6, delay: 0.7 + index * 0.08 }}
+                      transition={{ duration: 0.6, delay: 0.65 + index * 0.08 }}
                     >
                       <div className="md:hidden">{isLeft ? primaryCard : accentCard}</div>
 
@@ -637,12 +790,68 @@ export default function AboutPage() {
           </div>
         </motion.section>
 
-        {/* 멤버 소개 */}
         <motion.section
           className="mb-20"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
+          transition={{ duration: 0.8, delay: 0.75 }}
+        >
+          <h2 className="text-4xl font-bold text-primary-200 text-center mb-12">Rangu Lab</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {projectHighlights.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                className="glass-card p-6 text-center hover:shadow-glass transition-all duration-300 cursor-pointer"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.9 + index * 0.1 }}
+                whileHover={{ y: -5 }}
+                onClick={() => router.push(feature.link)}
+              >
+                <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${feature.accent} flex items-center justify-center`}>
+                  <feature.icon className="w-8 h-8 text-primary-100" />
+                </div>
+                <h3 className="text-lg font-bold text-primary-100 mb-2">{feature.title}</h3>
+                <p className="text-sm text-gray-200/70 mb-4">{feature.description}</p>
+                <div className="text-xs uppercase tracking-[0.3em] text-primary-200/70">{feature.metric}</div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+
+        <motion.section
+          className="mb-20"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.85 }}
+        >
+          <h2 className="text-4xl font-bold text-primary-200 text-center mb-12">우리의 의식</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {ritualHighlights.map((ritual, index) => (
+              <motion.div
+                key={ritual.title}
+                className="glass-card p-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 1 + index * 0.08 }}
+              >
+                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${ritual.accent} flex items-center justify-center mb-4`}>
+                  <ritual.icon className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-primary-100 mb-2">{ritual.title}</h3>
+                <p className="text-sm text-primary-200/70 mb-4 leading-relaxed">{ritual.description}</p>
+                <div className="text-sm text-gray-200/70 mb-2">{ritual.schedule}</div>
+                <div className="inline-flex px-3 py-1 rounded-full text-xs border border-white/20 text-white/70">{ritual.focus}</div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+
+        <motion.section
+          className="mb-20"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 1 }}
         >
           <h2 className="text-4xl font-bold text-primary-200 text-center mb-12">랑구팸 멤버들</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -652,7 +861,7 @@ export default function AboutPage() {
                 className="glass-card p-8 text-center hover:shadow-glass transition-all duration-300"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 1.0 + index * 0.1 }}
+                transition={{ duration: 0.6, delay: 1.1 + index * 0.1 }}
                 whileHover={{ y: -5 }}
               >
                 <div className={`w-20 h-20 mx-auto mb-4 bg-gradient-to-br ${member.color} rounded-full flex items-center justify-center text-3xl shadow-lg`}>
@@ -669,51 +878,17 @@ export default function AboutPage() {
           </div>
         </motion.section>
 
-        {/* 주요 기능 소개 */}
-        <motion.section
-          className="mb-20"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.2 }}
-        >
-          <h2 className="text-4xl font-bold text-primary-200 text-center mb-12">Rangu.fam 주요 기능</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                className="glass-card p-6 text-center hover:shadow-glass transition-all duration-300 cursor-pointer"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 1.4 + index * 0.1 }}
-                whileHover={{ y: -5 }}
-                onClick={() => router.push(feature.link)}
-              >
-                <div className="w-16 h-16 mx-auto mb-4 bg-primary-300/20 rounded-full flex items-center justify-center">
-                  <feature.icon className="w-8 h-8 text-primary-200" />
-                </div>
-                <h3 className="text-lg font-bold text-primary-100 mb-2">{feature.title}</h3>
-                <p className="text-sm text-gray-200/70">{feature.description}</p>
-                <div className="mt-3 flex items-center justify-center text-primary-200 text-sm">
-                  <span>페이지로 이동 →</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* 마무리 메시지 */}
         <motion.div
           className="text-center"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.6 }}
+          transition={{ duration: 0.8, delay: 1.1 }}
         >
           <div className="glass-card p-8">
             <h3 className="text-3xl font-bold text-primary-100 mb-4">함께 만들어가는 이야기</h3>
             <p className="text-lg text-gray-200/80 max-w-3xl mx-auto leading-relaxed">
-              랑구팸은 단순한 웹사이트가 아닙니다. <br />
-              네 명의 친구들이 함께 만들어가는 특별한 추억의 공간이며, <br />
-              앞으로도 계속해서 새로운 이야기를 써나갈 예정입니다.
+              Rangu.fam은 “우정이 멀어지지 않도록”이라는 목표로 시작된 실험입니다.
+              계속되는 업데이트와 새로운 의식으로 더 많은 순간을 기록할 예정이에요.
             </p>
             <div className="mt-6 flex justify-center">
               <div className="flex items-center space-x-2 text-yellow-400">
@@ -772,10 +947,15 @@ export default function AboutPage() {
             <div className="flex items-center space-x-4">
               {isLoggedIn ? (
                 <div className="flex items-center space-x-3">
-                  <div className="hidden md:block text-right">
-                    <p className="text-sm font-medium text-primary-100">{user?.username}</p>
-                    <p className="text-xs text-primary-200/70">{user?.role === 'member' ? '멤버' : '게스트'}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/settings/account')}
+                    className="hidden md:block text-right group focus:outline-none"
+                    title="계정 설정 열기"
+                  >
+                    <p className="text-sm font-medium text-primary-100 group-hover:text-white transition-colors">{user?.username}</p>
+                    <p className="text-xs text-primary-200/70 group-hover:text-primary-100">{user?.role === 'member' ? '멤버' : '게스트'}</p>
+                  </button>
                   <button
                     className="glass-button p-2"
                     onClick={() => logout()}

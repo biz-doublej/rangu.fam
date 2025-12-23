@@ -35,6 +35,8 @@ interface DiscordWebhookPayload {
 
 export class DiscordWebhookService {
   private static readonly WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || ''
+  private static readonly ADMIN_WEBHOOK_URL = process.env.DISCORD_ADMIN_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || ''
+  private static readonly USER_WEBHOOK_URL = process.env.DISCORD_USER_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || ''
   
   // Available style variants for webhook embeds
   static readonly STYLES = {
@@ -125,13 +127,19 @@ export class DiscordWebhookService {
   /**
    * Send a message to Discord webhook
    */
-  private static async sendWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
+  private static async sendWebhook(payload: DiscordWebhookPayload, channel: 'admin' | 'user' | 'default' = 'default'): Promise<boolean> {
     try {
-      if (!this.WEBHOOK_URL) {
-        console.error('Discord webhook URL is not configured (DISCORD_WEBHOOK_URL)')
+      const targetUrl = channel === 'admin'
+        ? this.ADMIN_WEBHOOK_URL
+        : channel === 'user'
+          ? this.USER_WEBHOOK_URL
+          : this.WEBHOOK_URL
+
+      if (!targetUrl) {
+        console.error('Discord webhook URL is not configured (DISCORD_WEBHOOK_URL / ADMIN / USER)')
         return false
       }
-      const response = await fetch(this.WEBHOOK_URL, {
+      const response = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,10 +197,11 @@ export class DiscordWebhookService {
     username: string,
     avatarUrl: string | undefined,
     baseEmbed: DiscordEmbed,
-    style: string = 'standard'
+    style: string = 'standard',
+    channel: 'admin' | 'user' | 'default' = 'default'
   ): Promise<boolean> {
     const embed = this.applyStyle(baseEmbed, style)
-    return this.sendWebhook({ username, avatar_url: avatarUrl, embeds: [embed] })
+    return this.sendWebhook({ username, avatar_url: avatarUrl, embeds: [embed] }, channel)
   }
 
   /**
@@ -256,7 +265,7 @@ export class DiscordWebhookService {
       username: '이랑위키 봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
-    })
+    }, 'admin')
   }
 
   /**
@@ -320,7 +329,7 @@ export class DiscordWebhookService {
       username: '이랑위키 봇',
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
-    })
+    }, 'admin')
   }
 
   /**
