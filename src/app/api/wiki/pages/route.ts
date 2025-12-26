@@ -111,45 +111,84 @@ export async function GET(request: NextRequest) {
       console.log('위키 페이지 검색:', { title, namespace, query: { title, namespace, isDeleted: { $ne: true } } })
       
       // 먼저 정확한 제목으로 검색
-      let page = await WikiPage.findOne({ 
-        title: title, 
-        namespace: namespace,
-        isDeleted: { $ne: true }
-      }).populate('creatorId', 'username displayName')
+      let page: any = null
+      try {
+        page = await WikiPage.findOne({ 
+          title: title, 
+          namespace: namespace,
+          isDeleted: { $ne: true }
+        }).populate('creatorId', 'username displayName')
+      } catch (populateError) {
+        console.warn('Populate failed for creatorId (title search), retrying without populate:', (populateError as any)?.message || populateError)
+        page = await WikiPage.findOne({ 
+          title: title, 
+          namespace: namespace,
+          isDeleted: { $ne: true }
+        })
+      }
       
       console.log('제목 검색 결과:', page ? '찾음' : '없음')
       
       // 찾지 못했으면 슬러그로 검색
       if (!page) {
-        page = await WikiPage.findOne({
-          slug: title,
-          namespace: namespace,
-          isDeleted: { $ne: true }
-        }).populate('creatorId', 'username displayName')
+        try {
+          page = await WikiPage.findOne({
+            slug: title,
+            namespace: namespace,
+            isDeleted: { $ne: true }
+          }).populate('creatorId', 'username displayName')
+        } catch (populateError) {
+          console.warn('Populate failed for creatorId (slug search), retrying without populate:', (populateError as any)?.message || populateError)
+          page = await WikiPage.findOne({
+            slug: title,
+            namespace: namespace,
+            isDeleted: { $ne: true }
+          })
+        }
         console.log('슬러그 검색 결과:', page ? '찾음' : '없음')
       }
       // 여전히 못 찾으면 title을 규칙에 맞춰 슬러그화하여 검색
       if (!page) {
         const canonicalSlug = toSlug(title)
         if (canonicalSlug && canonicalSlug !== title) {
-          page = await WikiPage.findOne({
-            slug: canonicalSlug,
-            namespace: namespace,
-            isDeleted: { $ne: true }
-          }).populate('creatorId', 'username displayName')
+          try {
+            page = await WikiPage.findOne({
+              slug: canonicalSlug,
+              namespace: namespace,
+              isDeleted: { $ne: true }
+            }).populate('creatorId', 'username displayName')
+          } catch (populateError) {
+            console.warn('Populate failed for creatorId (canonical slug search), retrying without populate:', (populateError as any)?.message || populateError)
+            page = await WikiPage.findOne({
+              slug: canonicalSlug,
+              namespace: namespace,
+              isDeleted: { $ne: true }
+            })
+          }
           console.log('정규화된 슬러그 검색 결과:', page ? '찾음' : '없음')
         }
       }
       
       // 여전히 찾지 못했으면 부분 매칭 시도 (도움말 관련 페이지)
       if (!page && (title === '도움말' || title.includes('도움말'))) {
-        page = await WikiPage.findOne({
-          $or: [
-            { title: { $regex: '도움말', $options: 'i' } },
-            { title: '이랑위키:도움말' }
-          ],
-          isDeleted: { $ne: true }
-        }).populate('creatorId', 'username displayName')
+        try {
+          page = await WikiPage.findOne({
+            $or: [
+              { title: { $regex: '도움말', $options: 'i' } },
+              { title: '이랑위키:도움말' }
+            ],
+            isDeleted: { $ne: true }
+          }).populate('creatorId', 'username displayName')
+        } catch (populateError) {
+          console.warn('Populate failed for creatorId (help page search), retrying without populate:', (populateError as any)?.message || populateError)
+          page = await WikiPage.findOne({
+            $or: [
+              { title: { $regex: '도움말', $options: 'i' } },
+              { title: '이랑위키:도움말' }
+            ],
+            isDeleted: { $ne: true }
+          })
+        }
         console.log('부분 매칭 검색 결과:', page ? '찾음' : '없음')
       }
       

@@ -21,19 +21,30 @@ export async function GET(request: NextRequest) {
     const query: any = {}
     if (namespace) query.namespace = namespace
 
-    // 우선 텍스트 인덱스 검색
-    let docs = await WikiPage.find({
-      ...query,
-      $text: { $search: q },
-      isDeleted: { $ne: true }
-    }, { score: { $meta: 'textScore' } })
-      .sort({ score: { $meta: 'textScore' } })
-      .skip(skip)
-      .limit(limit)
-      .select('title slug namespace summary categories lastEditDate lastEditor edits views')
-      .lean()
+    let docs: any[] = []
+    let total = 0
 
-    let total = await WikiPage.countDocuments({ ...query, $text: { $search: q }, isDeleted: { $ne: true } })
+    // 1) 텍스트 인덱스 검색 시도
+    try {
+      docs = await WikiPage.find(
+        {
+          ...query,
+          $text: { $search: q },
+          isDeleted: { $ne: true }
+        },
+        { score: { $meta: 'textScore' } }
+      )
+        .sort({ score: { $meta: 'textScore' } })
+        .skip(skip)
+        .limit(limit)
+        .select('title slug namespace summary categories lastEditDate lastEditor edits views')
+        .lean()
+
+      total = await WikiPage.countDocuments({ ...query, $text: { $search: q }, isDeleted: { $ne: true } })
+    } catch (err) {
+      // 텍스트 인덱스가 없거나 오류일 경우 바로 정규식 검색으로 폴백
+      console.warn('Text search failed, falling back to regex search:', (err as any)?.message || err)
+    }
 
     // 텍스트 인덱스가 결과 없으면 부분 매칭 fallback
     if (docs.length === 0) {
@@ -68,5 +79,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: '검색 처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 }
-
 
