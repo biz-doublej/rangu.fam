@@ -63,7 +63,6 @@ const NoticeSchema = new mongoose.Schema<INotice>({
 })
 
 // 인덱스 설정
-NoticeSchema.index({ id: 1 })
 NoticeSchema.index({ date: -1 })
 NoticeSchema.index({ isPinned: -1 })
 NoticeSchema.index({ type: 1 })

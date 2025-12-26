@@ -74,7 +74,6 @@ const MediaAssetSchema = new Schema<IMediaAsset>(
 
 MediaAssetSchema.index({ category: 1, createdAt: -1 })
 MediaAssetSchema.index({ tags: 1 })
-MediaAssetSchema.index({ originalPath: 1 }, { unique: true })
 
 const MediaAsset =
   mongoose.models.MediaAsset || mongoose.model<IMediaAsset>('MediaAsset', MediaAssetSchema)
