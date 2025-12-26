@@ -95,21 +95,54 @@ export async function GET() {
       }
     ]
 
-    const portals = namespacesRaw.map((ns: any, index: number) => ({
-      title: ns.displayName,
-      description: ns.description || `${ns.displayName} 문서를 탐색해 보세요.`,
-      accent: accentPalette[index % accentPalette.length],
-      icon: iconPalette[index % iconPalette.length],
-      chips: [
+    const staticPortals = [
+      {
+        title: '이랑위키 허브',
+        description: '주요 기능과 안내서를 한 곳에서 빠르게 찾아보세요.',
+        accent: accentPalette[0],
+        icon: 'Sparkles',
+        chips: ['가이드', '검색', '도움말'],
+        links: [
+          { label: '검색', href: '/wiki/search' },
+          { label: '도움말', href: '/wiki/도움말' },
+          { label: '최근 편집', href: '/wiki/recent' }
+        ]
+      }
+    ]
+
+    const portals = [
+      ...staticPortals,
+      ...namespacesRaw.map((ns: any, index: number) => ({
+        title: ns.displayName,
+        description: ns.description || `${ns.displayName} 문서를 탐색해 보세요.`,
+        accent: accentPalette[index % accentPalette.length],
+        icon: iconPalette[index % iconPalette.length],
+        chips: [
         ns.prefix,
         ns.allowSubpages ? '하위 문서 허용' : '단일 문서',
         `${ns.pageCount?.toLocaleString?.() || 0}문서`
       ],
-      links: [
-        { label: '문서 찾기', href: `/wiki/search?namespace=${encodeURIComponent(ns.name)}` },
-        { label: '최근 편집', href: `/wiki/recent?namespace=${encodeURIComponent(ns.name)}` }
-      ]
-    }))
+          links: [
+            { label: '문서 찾기', href: `/wiki/search?namespace=${encodeURIComponent(ns.name)}` },
+            { label: '최근 편집', href: `/wiki/recent?namespace=${encodeURIComponent(ns.name)}` }
+          ]
+      }))
+    ]
+
+    const staticProjects = [
+      {
+        title: '이랑위키 프로젝트 보드',
+        description: '전체 프로젝트와 진행 상황을 한눈에 보기',
+        slug: '프로젝트:목록',
+        status: '안내',
+        progress: 100,
+        color: accentPalette[1].replace('/40', ''),
+        views: 0,
+        tags: ['허브', '가이드'],
+        lastEdited: null,
+        icon: 'Layers'
+      }
+    ]
 
     const projects = projectPagesRaw.map((page: any, index: number) => {
       const changeBasis = page.edits || page.currentRevision || 1
@@ -142,11 +175,36 @@ export async function GET() {
       }
     })
 
-    const supportLinks = helpPagesRaw.map((help: any) => ({
-      title: help.title,
-      description: help.summary || `${help.views?.toLocaleString?.() || 0}명이 열람`,
-      href: `/wiki/${encodeURIComponent(help.slug)}`
-    }))
+    const staticSupportLinks = [
+      {
+        title: '이랑 서비스',
+        description: '이랑 관련 서비스로 바로 이동',
+        href: '/rangi',
+        icon: 'Sparkles'
+      },
+      {
+        title: '랑구팸',
+        description: '랑구팸 메인으로 돌아가기',
+        href: '/',
+        icon: 'Home'
+      },
+      {
+        title: 'DoubleJ',
+        description: 'DoubleJ 회사 소개 보기',
+        href: '/about/company',
+        icon: 'Building2'
+      }
+    ]
+
+    const supportLinks = [
+      ...staticSupportLinks,
+      ...helpPagesRaw.map((help: any) => ({
+        title: help.title,
+        description: help.summary || `${help.views?.toLocaleString?.() || 0}명이 열람`,
+        href: `/wiki/${encodeURIComponent(help.slug)}`,
+        icon: 'HelpCircle'
+      }))
+    ]
 
     return NextResponse.json({
       success: true,
@@ -154,7 +212,7 @@ export async function GET() {
         stats: derivedStats,
         quickActions,
         portals,
-        projects,
+        projects: [...staticProjects, ...projects],
         communitySignals,
         supportLinks
       }

@@ -30,7 +30,9 @@ import {
   Layers,
   CalendarClock,
   Lock,
-  Eye
+  Eye,
+  Home,
+  Building2
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/Button'
@@ -72,7 +74,9 @@ const iconLibrary = {
   Activity,
   Eye,
   Star,
-  BookOpen
+  BookOpen,
+  Home,
+  Building2
 }
 
 const resolveIcon = (name?: string) => {
@@ -145,6 +149,7 @@ type DashboardSupportLink = {
   title: string
   description: string
   href: string
+  icon?: string
 }
 
 type CategoryOverview = {
@@ -1117,11 +1122,32 @@ export default function WikiMainPage() {
                 {supportLinks.map((link) => (
                   <button
                     key={link.title}
-                    onClick={() => router.push(link.href)}
+                    onClick={() => {
+                      const isExternal = link.href.startsWith('http')
+                      if (isExternal) {
+                        window.open(link.href, '_blank', 'noopener,noreferrer')
+                        return
+                      }
+                      router.push(link.href)
+                    }}
                     className="w-full rounded-xl border border-gray-800 bg-gray-900/40 p-4 text-left hover:border-gray-600 transition-colors"
                   >
-                    <p className="text-white font-semibold">{link.title}</p>
-                    <p className="text-sm text-gray-400">{link.description}</p>
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-gray-800/80 text-primary-200">
+                        {React.createElement(resolveIcon(link.icon), { className: 'h-5 w-5' })}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-white font-semibold">{link.title}</p>
+                        <p className="text-sm text-gray-400">{link.description}</p>
+                      </div>
+                      <div className="text-gray-500">
+                        {link.href.startsWith('http') ? (
+                          <ExternalLink className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </div>
+                    </div>
                   </button>
                 ))}
                 {!dashboardLoading && supportLinks.length === 0 && (
