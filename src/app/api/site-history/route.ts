@@ -73,6 +73,16 @@ export async function GET(request: NextRequest) {
             color: 'secondary',
             importance: 4,
             isPublic: true
+          },
+          {
+            title: '이승찬 정식멤버 합류',
+            description: '임시 활동을 마치고 이승찬이 랑구팸 정식 멤버로 승격되었습니다.',
+            date: new Date('2025-12-27T00:00:00+09:00'),
+            type: 'member',
+            icon: '👋',
+            color: 'secondary',
+            importance: 4,
+            isPublic: true
           }
         ],
         milestones: [
@@ -157,7 +167,7 @@ export async function GET(request: NextRequest) {
           totalVisits: 0,
           uniqueVisitors: 0,
           totalPages: 8,
-          totalUsers: 4,
+          totalUsers: 5,
           totalPosts: 0,
           totalComments: 0,
           totalLikes: 0,

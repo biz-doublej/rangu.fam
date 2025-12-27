@@ -129,24 +129,32 @@ async function importFile(source: SourceConfig, filePath: string) {
     return { updated: true }
   }
 
-  const result = await uploadToGridFs(filePath, {
-    originalPath,
-    category: source.category,
-    mimeType,
-  })
+  try {
+    const result = await uploadToGridFs(filePath, {
+      originalPath,
+      category: source.category,
+      mimeType,
+    })
 
-  await MediaAsset.create({
-    originalPath,
-    filename: path.basename(filePath),
-    mimeType,
-    size: stats.size,
-    category: source.category,
-    gridFsId: result.id,
-    checksum,
-    metadata: { lastImportedAt: new Date() },
-  })
+    await MediaAsset.create({
+      originalPath,
+      filename: path.basename(filePath),
+      mimeType,
+      size: stats.size,
+      category: source.category,
+      gridFsId: result.id,
+      checksum,
+      metadata: { lastImportedAt: new Date() },
+    })
 
-  return { created: true }
+    return { created: true }
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      console.warn(`Duplicate entry detected for ${originalPath}, treating as existing record.`)
+      return { skipped: true }
+    }
+    throw error
+  }
 }
 
 async function walkAndImport(source: SourceConfig) {
