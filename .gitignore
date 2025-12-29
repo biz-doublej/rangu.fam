@@ -132,3 +132,6 @@ scripts/videos/
 
 .env*.local
 public/videos/*.mp4
+
+# Local Netlify folder
+.netlify
