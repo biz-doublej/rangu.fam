@@ -23,7 +23,7 @@ async function loadMembers(): Promise<Member[]> {
     {
       id: 'jaewon',
       name: '정재원',
-      role: '소프트웨어 엔지니어, 패션 모델',
+      role: '소프트웨어 엔지니어, DoubleJ CEO',
       description: '코딩과 패션을 사랑하는 다재다능한 개발자입니다.',
       avatar: '/images/jaewon.jpg',
       email: 'jaewon@rangu.fam',
@@ -35,7 +35,7 @@ async function loadMembers(): Promise<Member[]> {
     {
       id: 'minseok',
       name: '정민석',
-      role: '스위스 거주',
+      role: 'IMI 재학생',
       description: '스위스에서 새로운 꿈을 키워가고 있습니다.',
       avatar: '/images/minseok.jpg',
       email: 'minseok@rangu.fam',
@@ -47,7 +47,7 @@ async function loadMembers(): Promise<Member[]> {
     {
       id: 'jingyu',
       name: '정진규',
-      role: '군 입대 중',
+      role: '군 복무 중',
       description: '현재 군 복무 중이며, 전역 후 새로운 도전을 계획하고 있습니다.',
       avatar: '/images/jingyu.jpg',
       email: 'jingyu@rangu.fam',
@@ -83,19 +83,6 @@ async function loadMembers(): Promise<Member[]> {
   ]
 }
 
-const getDefaultStatusMessage = (status: string): string => {
-  switch (status) {
-    case 'online':
-      return '온라인'
-    case 'idle':
-      return '자리 비움'
-    case 'dnd':
-      return '방해금지'
-    default:
-      return '오프라인'
-  }
-}
-
 interface AuthContextType {
   user: User | null
   member: Member | null
@@ -115,70 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [member, setMember] = useState<Member | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [syncedMemberId, setSyncedMemberId] = useState<string | null>(null)
   const [linkedWikiUsername, setLinkedWikiUsername] = useState<string | null>(null)
 
   useEffect(() => {
     loadMembers()
   }, [])
-
-  const updateMemberPresence = useCallback(
-    async (memberId: string, action: 'login' | 'logout') => {
-      try {
-        await fetch('/api/members', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            memberId,
-            action,
-            activity: action === 'login' ? '온라인' : '오프라인',
-          }),
-        })
-
-        if (action === 'login') {
-          let statusToSet = 'online'
-          try {
-            const statusResponse = await fetch(`/api/profiles/${memberId}/status`)
-            if (statusResponse.ok) {
-              const statusData = await statusResponse.json()
-              if (statusData.status && statusData.status !== 'offline') {
-                statusToSet = statusData.status
-              }
-            }
-          } catch {
-            statusToSet = 'online'
-          }
-
-          await fetch(`/api/profiles/${memberId}/status`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              status: statusToSet,
-              customMessage: getDefaultStatusMessage(statusToSet),
-            }),
-          })
-        } else {
-          await fetch(`/api/profiles/${memberId}/status`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              status: 'offline',
-              customMessage: getDefaultStatusMessage('offline'),
-            }),
-          })
-        }
-      } catch (error) {
-        console.error('멤버 상태 동기화 실패:', error)
-      }
-    },
-    []
-  )
 
   const fetchAccountSession = useCallback(async () => {
     if (status !== 'authenticated' || !session?.user?.discordId) {
@@ -212,11 +140,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(mappedUser)
       setMember(data.memberProfile || null)
       setLinkedWikiUsername(data.wikiUsername || null)
-
-      if (data.memberId && data.memberId !== syncedMemberId) {
-        updateMemberPresence(data.memberId, 'login')
-        setSyncedMemberId(data.memberId)
-      }
     } catch (error) {
       console.error('Account 세션 확인 실패:', error)
       if (session?.user) {
@@ -237,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [session, status, syncedMemberId, updateMemberPresence])
+  }, [session, status])
 
   useEffect(() => {
     fetchAccountSession()
@@ -256,14 +179,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async (): Promise<void> => {
     try {
-      if (user?.memberId) {
-        await updateMemberPresence(user.memberId, 'logout')
-      }
       await signOut({ callbackUrl: '/' })
       setUser(null)
       setMember(null)
       setLinkedWikiUsername(null)
-      setSyncedMemberId(null)
       toast.success('로그아웃되었습니다.')
     } catch (error) {
       console.error('로그아웃 실패:', error)

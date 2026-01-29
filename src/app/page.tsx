@@ -9,10 +9,7 @@ import {
   Clock, 
   Home, 
   User, 
-  Music, 
   BookOpen, 
-  Calendar,
-  Gamepad2,
   Package,
   LogIn,
   LogOut,
@@ -25,12 +22,10 @@ import {
   Volume2,
   VolumeX,
   Sparkles,
-  Palette,
-  Radio
+  Palette
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { MemberWithActivity } from '@/backend/types'
 import { MediaPlayer } from '@/components/ui/MediaPlayer'
 import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
 import ThemeMenu from '@/components/ui/ThemeMenu'
@@ -57,17 +52,14 @@ const DEFAULT_SPOTLIGHT_SLIDES: SpotlightSlide[] = [
 ]
 
 const quickActions = [
-  { title: '음악 스테이션', description: '밤 감성 라디오 & 믹스', href: '/music', icon: Music },
-  { title: '달력', description: '약속과 돌아오는 일정', href: '/calendar', icon: Calendar },
-  { title: '게임 라운지', description: '미니 게임 아케이드', href: '/games', icon: Gamepad2 },
   { title: '카드 드랍', description: '랜덤 미션 & 수집 카드', href: '/cards', icon: Package },
+  { title: '이랑위키', description: '우리만의 기록을 모으는 공간', href: '/wiki', icon: BookOpen },
 ]
 
 const featureHighlights = [
-  { title: '밤샘 라디오', description: '새벽 감성 사연과 실시간 믹스', href: '/music', icon: Radio, badge: 'LIVE' },
   { title: '테마 커스터마이즈', description: '크리스마스부터 갤럭시까지 무드 선택', href: '/members', icon: Palette, badge: 'NEW' },
-  { title: '게임 아케이드', description: '테트리스 · 카드 · 퀴즈로 승부!', href: '/games', icon: Gamepad2, badge: 'PLAY' },
   { title: '카드 드랍', description: '하루 한 번의 서프라이즈 카드', href: '/cards', icon: Sparkles, badge: 'DAILY' },
+  { title: '이랑위키', description: '추억과 지식을 모으는 위키', href: '/wiki', icon: BookOpen, badge: 'WIKI' },
 ]
 
 export default function HomePage() {
@@ -84,8 +76,33 @@ export default function HomePage() {
   const [videoVolume, setVideoVolume] = useState(50)
   const [videoMuted, setVideoMuted] = useState(true)
   const [isVolumeOpen, setIsVolumeOpen] = useState(true)
-  const [members, setMembers] = useState<MemberWithActivity[]>([])
-  const [membersLoading, setMembersLoading] = useState(true)
+  const [showDepartureModal, setShowDepartureModal] = useState(true)
+  const departureImageSrc = '/images/minseok-farewell.jpg'
+  const departureHideKey = 'rangu_departure_hide_until_v2'
+  const [nowTick, setNowTick] = useState(0)
+  const departureEvents = [
+    {
+      title: 'ICN → AUH',
+      date: '2026.02.05',
+      time: '17:50 ~ 23:25',
+      startUtc: Date.UTC(2026, 1, 5, 8, 50, 0),
+      endUtc: Date.UTC(2026, 1, 5, 14, 25, 0)
+    },
+    {
+      title: 'AUH 대기 (3시간 10분)',
+      date: '2026.02.05 ~ 2026.02.06',
+      time: '23:25 ~ 02:35',
+      startUtc: Date.UTC(2026, 1, 5, 14, 25, 0),
+      endUtc: Date.UTC(2026, 1, 5, 17, 35, 0)
+    },
+    {
+      title: 'AUH → ZRH',
+      date: '2026.02.06',
+      time: '02:35 ~ 06:30',
+      startUtc: Date.UTC(2026, 1, 5, 17, 35, 0),
+      endUtc: Date.UTC(2026, 1, 5, 21, 30, 0)
+    }
+  ]
   const initialSlide = DEFAULT_SPOTLIGHT_SLIDES[0]
   const [countdown, setCountdown] = useState(
     initialSlide?.durationSeconds || (initialSlide?.type === 'video' ? 17 : 5) || 5
@@ -94,32 +111,18 @@ export default function HomePage() {
   const { user, logout, isLoggedIn } = useAuth()
   const router = useRouter()
 
-  const onlineCount = members.filter(member => member.userStatus === 'online').length
   const slideCount = slideContent.length || 1
   const activeSlide = slideContent[currentSlide]
   const quickStats = [
-    { label: '지금 온라인', value: `${onlineCount}명`, detail: '실시간 상태' },
-    { label: '등록 멤버', value: `${members.length || 0}명`, detail: '우리만의 팀원' },
+    { label: '등록 멤버', value: '5명', detail: '우리만의 팀원' },
     { label: '오늘의 스포트라이트', value: activeSlide?.title || '준비 중', detail: activeSlide?.type === 'video' ? '멤버 인사 영상' : '추억의 사진' },
+    { label: '위키 문서', value: '업데이트 중', detail: '새 기록 준비' },
   ]
   const worldTimeItems = [
     { label: '서울', value: isClient ? format(times.seoul, 'HH:mm:ss') : '--:--:--', zone: 'KST' },
     { label: '밴쿠버', value: isClient ? format(times.vancouver, 'HH:mm:ss') : '--:--:--', zone: 'PST' },
     { label: '스위스', value: isClient ? format(times.switzerland, 'HH:mm:ss') : '--:--:--', zone: 'CET' },
   ]
-
-  const getStatusStyles = (status: string) => {
-    switch (status) {
-      case 'online':
-        return { pill: 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40', text: 'text-emerald-300' }
-      case 'idle':
-        return { pill: 'bg-amber-500/20 text-amber-200 border border-amber-500/40', text: 'text-amber-300' }
-      case 'dnd':
-        return { pill: 'bg-rose-500/20 text-rose-200 border border-rose-500/40', text: 'text-rose-300' }
-      default:
-        return { pill: 'bg-slate-600/30 text-slate-200 border border-slate-500/40', text: 'text-slate-300' }
-    }
-  }
 
   // 모든 비디오 요소들의 볼륨 제어
   const updateAllVideosVolume = (volume: number, muted: boolean) => {
@@ -147,6 +150,25 @@ export default function HomePage() {
       setVideoMuted(savedMuted === 'true')
     }
   }, [])
+
+  useEffect(() => {
+    if (!isClient) return
+    setNowTick(Date.now())
+    const timer = setInterval(() => setNowTick(Date.now()), 60 * 1000)
+    return () => clearInterval(timer)
+  }, [isClient])
+
+  useEffect(() => {
+    if (!isClient) return
+    const hiddenUntilRaw = localStorage.getItem(departureHideKey)
+    if (!hiddenUntilRaw) return
+    const hiddenUntil = Number(hiddenUntilRaw)
+    if (Number.isNaN(hiddenUntil)) {
+      localStorage.removeItem(departureHideKey)
+      return
+    }
+    if (hiddenUntil > Date.now()) setShowDepartureModal(false)
+  }, [isClient])
 
   // 슬라이드 데이터를 서버에서 로드
   useEffect(() => {
@@ -218,59 +240,64 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [slideContent.length])
 
-  // 멤버 활동 상태 가져오기
-  const fetchMembers = async () => {
-    try {
-      console.log('Frontend: Fetching members...')
-      const response = await fetch('/api/members')
-      console.log('Frontend: API response status:', response.status)
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log('Frontend: Received data:', data)
-        setMembers(data)
-      } else {
-        console.error('Failed to fetch members:', response.status, response.statusText)
-      }
-    } catch (error) {
-      console.error('Error fetching members:', error)
-    } finally {
-      setMembersLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchMembers()
-    
-    // 30초마다 멤버 상태 업데이트
-    const interval = setInterval(fetchMembers, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // 로그인/로그아웃 시 멤버 목록 새로고침
-  useEffect(() => {
-    if (!membersLoading) {
-      // 약간의 지연을 두고 멤버 상태 새로고침 (API 업데이트 반영 시간)
-      const timer = setTimeout(() => {
-        fetchMembers()
-      }, 500)
-      return () => clearTimeout(timer)
-    }
-  }, [user, membersLoading])
-
   const navigationItems = [
     { icon: Home, label: '홈', href: '/' },
     { icon: User, label: '소개', href: '/about' },
-    { icon: User, label: '개인 페이지', href: '/members' },
-    { icon: Music, label: '음악 스테이션', href: '/music' },
+    { icon: User, label: '멤버 카드', href: '/members' },
     { icon: BookOpen, label: '이랑위키', href: '/wiki' },
-    { icon: Calendar, label: '달력', href: '/calendar' },
-    { icon: Gamepad2, label: '게임', href: '/games' },
     { icon: Package, label: '카드 드랍', href: '/cards' },
   ]
 
   return (
     <div className="min-h-screen relative overflow-hidden theme-surface">
+      {showDepartureModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setShowDepartureModal(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl overflow-hidden rounded-[2.5rem] border border-white/15 bg-slate-950/90 p-10 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-emerald-500/20 blur-3xl" />
+            <div className="absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-indigo-500/20 blur-3xl" />
+            <div className="relative space-y-4">
+              <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-black/20">
+                <Image
+                  src={departureImageSrc}
+                  alt="민석 이별 이미지"
+                  width={1280}
+                  height={720}
+                  priority
+                  className="h-auto w-full object-cover"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex items-center gap-2 text-xs text-white/70">
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs text-white/80 hover:text-white"
+                    onClick={() => {
+                      localStorage.setItem(departureHideKey, String(Date.now() + 24 * 60 * 60 * 1000))
+                      setShowDepartureModal(false)
+                    }}
+                  >
+                    하루 안보기
+                  </button>
+                  <span className="text-white/40">|</span>
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs text-white/80 hover:text-white"
+                    onClick={() => setShowDepartureModal(false)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 상단 시간 표시 */}
       <header className="glass-nav fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/40 via-black/20 to-transparent backdrop-blur-xl border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-3">
@@ -290,31 +317,31 @@ export default function HomePage() {
               {isClient ? (
                 <>
                   <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <span className="text-gray-700">서울</span>
-                    <span className="font-mono text-primary-700">
+                    <Clock className="w-4 h-4 text-white/90" />
+                    <span className="text-white/80">서울</span>
+                    <span className="font-mono text-white">
                       {format(times.seoul, 'HH:mm:ss')}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <span className="text-gray-700">밴쿠버</span>
-                    <span className="font-mono text-primary-700">
+                    <Clock className="w-4 h-4 text-white/90" />
+                    <span className="text-white/80">밴쿠버</span>
+                    <span className="font-mono text-white">
                       {format(times.vancouver, 'HH:mm:ss')}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="w-4 h-4 text-primary-600" />
-                    <span className="text-gray-700">스위스</span>
-                    <span className="font-mono text-primary-700">
+                    <Clock className="w-4 h-4 text-white/90" />
+                    <span className="text-white/80">스위스</span>
+                    <span className="font-mono text-white">
                       {format(times.switzerland, 'HH:mm:ss')}
                     </span>
                   </div>
                 </>
               ) : (
                 <div className="flex items-center space-x-2 text-sm">
-                  <Clock className="w-4 h-4 text-primary-600" />
-                  <span className="text-gray-700">시간 로딩중...</span>
+                  <Clock className="w-4 h-4 text-white/90" />
+                  <span className="text-white/80">시간 로딩중...</span>
                 </div>
               )}
             </div>
@@ -448,6 +475,50 @@ export default function HomePage() {
       {/* 메인 콘텐츠 */}
       <main className="md:ml-64 pt-24 pb-24 min-h-screen">
         <div className="max-w-6xl mx-auto px-6 space-y-12">
+          <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-emerald-900/20 to-slate-950/40 p-6 text-white shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/70">현재 상황</p>
+                <h2 className="text-2xl font-semibold">민석 이동 일정</h2>
+                <p className="mt-1 text-sm text-slate-300">한국 시간 기준</p>
+              </div>
+              <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-100">
+                2026.02.05 ~ 2026.02.06
+              </div>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {departureEvents.map((event) => {
+                const isPast = isClient && nowTick > event.endUtc
+                const isActive = isClient && nowTick >= event.startUtc && nowTick <= event.endUtc
+                const statusLabel = isActive ? '진행중' : isPast ? '완료' : '예정'
+                return (
+                  <div
+                    key={event.title}
+                    className={`rounded-2xl border border-white/10 bg-slate-950/50 px-5 py-4 text-sm transition ${
+                      isPast ? 'text-slate-400 line-through' : 'text-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-white">{event.title}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          isActive
+                            ? 'bg-emerald-500/20 text-emerald-200'
+                            : isPast
+                              ? 'bg-white/10 text-slate-400'
+                              : 'bg-sky-500/20 text-sky-200'
+                        }`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-300">{event.date}</p>
+                    <p className="mt-1 text-xs text-emerald-200">{event.time}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
           <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-indigo-900/30 to-purple-900/20 p-8 text-white shadow-2xl">
             <div
               className="absolute inset-0 opacity-70 pointer-events-none blur-3xl"
@@ -458,7 +529,7 @@ export default function HomePage() {
             />
             <div className="relative grid gap-8 lg:grid-cols-[2fr,1fr]">
               <div className="space-y-6">
-                <span className="accent-chip">Rangu.fam 2025</span>
+                <span className="accent-chip">Rangu.fam 2026</span>
                 <div className="space-y-3">
                   <h1 className="text-4xl md:text-5xl font-semibold leading-tight">추억과 지금을 한 장에서</h1>
                   <p className="text-base text-slate-200">
@@ -496,26 +567,26 @@ export default function HomePage() {
                   })}
                 </div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 flex flex-col gap-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-400">현재 접속</p>
-                    <p className="text-xl font-semibold text-white">{onlineCount}명</p>
-                  </div>
-                  {isLoggedIn ? (
-                    <div className="text-right">
-                      <p className="text-sm text-white font-semibold">{user?.username}</p>
-                      <p className="text-xs text-gray-400">{user?.role === 'member' ? '멤버' : '게스트'}</p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => router.push('/login')}
-                      className="glass-button px-4 py-1 text-xs text-white"
-                    >
-                      로그인
-                    </button>
-                  )}
+            <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 flex flex-col gap-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400">접속 안내</p>
+                  <p className="text-xl font-semibold text-white">현재 시간</p>
                 </div>
+                {isLoggedIn ? (
+                  <div className="text-right">
+                    <p className="text-sm text-white font-semibold">{user?.username}</p>
+                    <p className="text-xs text-gray-400">{user?.role === 'member' ? '멤버' : '게스트'}</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => router.push('/login')}
+                    className="glass-button px-4 py-1 text-xs text-white"
+                  >
+                    로그인
+                  </button>
+                )}
+              </div>
                 <div className="space-y-3">
                   {worldTimeItems.map(item => (
                     <div
@@ -656,57 +727,19 @@ export default function HomePage() {
           <section className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="accent-chip">멤버 활동</span>
-                <h2 className="text-3xl font-semibold text-white mt-3">오늘의 상태</h2>
-                <p className="text-sm text-gray-400">누가 온라인인지, 무엇을 하고 있는지 한눈에.</p>
+                <span className="accent-chip">멤버 카드</span>
+                <h2 className="text-3xl font-semibold text-white mt-3">Rangu.fam 카드 모음</h2>
+                <p className="text-sm text-gray-400">개인 카드 컬렉션에서 멤버 정보를 확인하세요.</p>
               </div>
               <button className="glass-button px-4 py-2 text-sm text-white" onClick={() => router.push('/members')}>
-                전체 멤버 보기
+                카드 보러가기
               </button>
             </div>
-            {membersLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="rounded-2xl border border-white/10 bg-white/5 h-36 animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : members.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {members.map(member => {
-                  const styles = getStatusStyles(member.userStatus || 'offline')
-                  return (
-                    <div
-                      key={member.id}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-5 hover:border-[var(--accent-border)] hover:bg-white/10 transition cursor-pointer"
-                      onClick={() => router.push(member.personalPageUrl || `/members/${member.id}`)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-xs text-gray-400">{member.role || 'Rangu 멤버'}</p>
-                          <p className="text-xl font-semibold text-white">{member.name}</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-semibold ${styles.pill}`}>
-                          {member.userStatus || 'offline'}
-                        </span>
-                      </div>
-                      <p className={`text-sm mt-2 line-clamp-2 ${styles.text}`}>
-                        {member.description || '지금 순간을 기록하는 중'}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-3">
-                        {member.location || '어딘가에서'} · {member.currentActivity || (member.userStatus === 'online' ? '활동 중' : '스텔스 모드')}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/20 p-8 text-center text-gray-400">
-                아직 등록된 멤버가 없어요. 첫 번째 순간을 기록해볼까요?
-              </div>
-            )}
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <p className="text-sm text-gray-300">
+                실시간 접속 상태 대신, 멤버별 카드로 한눈에 정리된 정보를 제공합니다.
+              </p>
+            </div>
           </section>
 
           <section className="space-y-6">

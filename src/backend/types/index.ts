@@ -1,12 +1,3 @@
-export interface MemberActivity {
-  memberId: string
-  lastLogin: Date | null
-  lastSeen: Date
-  isOnline: boolean
-  currentActivity: string
-  sessionDuration?: number
-}
-
 export interface MemberWithActivity {
   id: string
   name: string
@@ -18,25 +9,4 @@ export interface MemberWithActivity {
   location?: string
   joinDate: Date
   personalPageUrl?: string
-  // Activity fields
-  lastLogin: Date | null
-  lastSeen: Date
-  isOnline: boolean
-  currentActivity: string
-  userStatus: 'online' | 'idle' | 'dnd' | 'offline'
 }
-
-export interface ActivityUpdate {
-  lastSeen: Date
-  isOnline: boolean
-  currentActivity: string
-  action?: 'login' | 'logout'
-}
-
-export interface ActivityLog {
-  id: string
-  memberId: string
-  action: 'login' | 'logout' | 'page_visit' | 'activity_update'
-  timestamp: Date
-  details?: string
-} 

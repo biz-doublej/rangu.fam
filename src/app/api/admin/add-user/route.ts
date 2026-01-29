@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
       followingIds: [],
       followersIds: [],
       lastLogin: new Date(),
-      isOnline: false,
       totalPlays: 0,
       totalLikes: 0
     })

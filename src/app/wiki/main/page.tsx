@@ -6,7 +6,7 @@ import {
   Search, Edit, History, MessageSquare, Star, Clock, 
   Users, FileText, Settings, AlertCircle, HelpCircle,
   Shield, Gavel, CheckCircle, TrendingUp,
-  BookOpen, Archive, Folder, BarChart3, Bell, Globe,
+  BookOpen, Archive, Folder, BarChart3, Globe,
   ArrowLeft, ChevronRight, ExternalLink, Hash, Zap,
   User, UserPlus, LogIn, LogOut, MessageCircle
 } from 'lucide-react'
@@ -32,14 +32,6 @@ const TRENDING_SEARCHES = [
   'BIRDBRAIN', '2025-26 AFC 여자 챔피언스 리그', '라바넬 대마스/신수 김명/2025년', 
   '프레야 비헤인드 시원', 'DORIDORI', '첫 번째 키스', '순준호(축구선수)', 
   '유코', '메킨 더 게더링/용량', '만 나이'
-]
-
-const WIKI_NEWS = [
-  '"실제 지연에 가해자 승진···서울교통공"',
-  '"내가 고라니," 김명화, 밥상만 한 광고 전···',
-  '"여다의 근건에 기도 식당 뒤···주폭"',
-  '"혁신 수습기, 일몰 발굴 식닥부 전황···"',
-  '"고준 수습기, 일몰 발굴 식닥부 전황···"'
 ]
 
 export default function WikiMainPage() {
@@ -306,8 +298,7 @@ export default function WikiMainPage() {
                     <h3 className="text-lg font-semibold text-white mb-2">나무위키 게시판</h3>
                     <div className="text-sm space-y-1">
                       <div>
-                        <span className="text-green-400">🟢 공지</span> · 
-                        <span className="text-green-400"> 🟢 자유게시판</span> · 
+                        <span className="text-green-400">🟢 자유게시판</span> · 
                         <span className="text-green-400"> 🟢 문의</span> · 
                         <span className="text-green-400"> 🟢 신고</span> · 
                         <span className="text-green-400"> 🟢 편집 요청</span> · 
@@ -319,33 +310,6 @@ export default function WikiMainPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-
-            {/* 나무위키 프로젝트 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-            >
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold">3a</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">나무위키 프로젝트</h3>
-                    <p className="text-gray-400 text-sm">프로젝트에 참여해서 관련 문서에 기여의 손길을 보내주세요!</p>
-                  </div>
-                </div>
-                
-                <div className="text-sm text-gray-300 mb-4">
-                  <span className="text-blue-400">나무위키 학술지 프로젝트</span>, <span className="text-blue-400">나무위키 틀 개선 프로젝트</span>, <span className="text-blue-400">나무위키 인터넷 방송인 프로젝트</span>, <span className="text-blue-400">나무위키 블루 아카이브 프로젝트</span>
-                </div>
-                
-                <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300">
-                  프로젝트 목록
-                </Button>
               </div>
             </motion.div>
 
@@ -420,7 +384,7 @@ export default function WikiMainPage() {
                   <h3 className="text-lg font-semibold text-white">나무위키의 분류</h3>
                 </div>
                 <div className="text-sm text-gray-300">
-                  <span className="text-blue-400">프로젝트</span> · <span className="text-blue-400">주요 페이지 링크</span> · <span className="text-blue-400">보존문서</span> · <span className="text-blue-400">파일</span> · <span className="text-blue-400">틀</span> · <span className="text-blue-400">템플릿</span>
+                  <span className="text-blue-400">주요 페이지 링크</span> · <span className="text-blue-400">보존문서</span> · <span className="text-blue-400">파일</span> · <span className="text-blue-400">틀</span> · <span className="text-blue-400">템플릿</span>
                 </div>
               </div>
             </motion.div>
@@ -519,35 +483,6 @@ export default function WikiMainPage() {
               </div>
             </motion.div>
 
-            {/* 이랑뉴스 */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-            >
-              <div className="bg-gray-800 border border-gray-700 rounded-lg">
-                <div className="px-4 py-3 border-b border-gray-700">
-                  <div className="flex items-center space-x-2">
-                    <Bell className="w-4 h-4 text-blue-400" />
-                    <h3 className="font-semibold text-white">이랑뉴스</h3>
-                  </div>
-                </div>
-                <div className="p-3">
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <div className="text-blue-400 font-medium mb-2">
-                        {WIKI_NEWS[0]}
-                      </div>
-                      {WIKI_NEWS.slice(1).map((news, index) => (
-                        <div key={index} className="text-orange-400 text-xs mb-1">
-                          {news}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
           </div>
         </div>
       </main>

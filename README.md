@@ -9,39 +9,46 @@ Rangu.fam은 우정과 추억을 담은 네 친구만의 특별한 웹 애플리
 ## ✨ 주요 기능
 
 ### 🏠 메인 화면
+
 - 중앙 자동 슬라이드 사진 갤러리
 - 상단 시간 표시 (서울, 밴쿠버, 스위스)
 - 반응형 네비게이션 메뉴
 
 ### 👥 개인 페이지
-- **정재원**: 소프트웨어 엔지니어, 패션 모델
-- **정민석**: 스위스 거주
-- **정진규**: 군 입대 중
+
+- **정재원**: 소프트웨어 엔지니어, DoubleJ CEO
+- **정민석**: IMI 재학생
+- **정진규**: 군 복무 중
 - **강한울**: 무직(편돌이)
 
 각 멤버별 개인 소개 및 일상 기록, 커리어 상태 표시
 
 ### 🎵 음악 스테이션
+
 - 멤버가 만든 음악 및 개인 활동 음악 재생
 - 앨범, 작곡가, 가수 기준 탐색
 - 웹 버전 중앙 스피커 음파 파동 효과
 
 ### 📚 위키 페이지
+
 - 나무위키 스타일 위키 시스템
 - '이랑위키' 산하 운영
 - 멤버 로그인 시 내용 수정 가능
 
 ### 📅 달력
+
 - 일정 및 갤러리 등록/수정/삭제
 - 개인별 일정 공유
 - 위젯 설정 기능
 
 ### 🔐 로그인 시스템
+
 - 멤버/비멤버 로그인 구분
 - 멤버 권한: 위키 수정, 개인 페이지 관리, 달력 일정 관리
 - 위젯에 외부 링크 등록 가능
 
 ### 🔗 개인 바로가기 위젯
+
 - **개인 맞춤형**: 각 멤버(정재원/정민석/정진규/강한울/이승찬)만 본인의 바로가기 관리 가능
 - **외부 링크 연결**: 자주 사용하는 웹사이트를 버튼 형태로 빠르게 접근
 - **편집 기능**: 바로가기 추가/수정/삭제 및 순서 조정
@@ -51,6 +58,7 @@ Rangu.fam은 우정과 추억을 담은 네 친구만의 특별한 웹 애플리
 ## 🎨 디자인 컨셉
 
 ### iOS Liquid Glass 스타일
+
 - 미래지향적이지 않고 AI 느낌을 배제한 자연스럽고 따뜻한 디자인
 - 파란색 계열 색상을 기본으로 한 색상 팔레트
 - 글래스모피즘 효과와 부드러운 애니메이션
@@ -58,6 +66,7 @@ Rangu.fam은 우정과 추억을 담은 네 친구만의 특별한 웹 애플리
 ## 🚀 시작하기
 
 ### 필수 요구사항
+
 - Node.js 18.0 이상
 - npm 또는 yarn
 - MongoDB (로컬 설치 또는 MongoDB Atlas)
@@ -65,33 +74,38 @@ Rangu.fam은 우정과 추억을 담은 네 친구만의 특별한 웹 애플리
 ### 설치 및 실행
 
 1. **프로젝트 클론**
+
 ```bash
 git clone <repository-url>
 cd rangu-fam
 ```
 
-2. **의존성 설치**
+1. **의존성 설치**
+
 ```bash
 npm install
 ```
 
-3. **환경 변수 설정** (선택사항)
-   
+1. **환경 변수 설정** (선택사항)
+
    `.env.local` 파일을 프로젝트 루트에 생성하고 MongoDB URI를 설정:
+
    ```bash
    MONGODB_URI=mongodb://localhost:27017/rangu-fam
    # 또는 MongoDB Atlas URI
    # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/rangu-fam
    ```
-   
+
    **주의**: 환경 변수가 설정되지 않으면 기본값(`mongodb://localhost:27017/rangu-fam`)을 사용합니다.
 
-4. **개발 서버 실행**
+2. **개발 서버 실행**
+
 ```bash
 npm run dev
 ```
 
-5. **브라우저에서 확인**
+1. **브라우저에서 확인**
+
 ```
 http://localhost:3000
 ```
@@ -121,6 +135,7 @@ npm start
 ## 🛠 기술 스택
 
 ### 프론트엔드
+
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
@@ -130,6 +145,7 @@ npm start
 - **UI Components**: Custom Glass UI Components
 
 ### 디자인 시스템
+
 - **Color Palette**: Primary (Blue), Warm (Orange)
 - **Typography**: Apple System Font Stack
 - **Effects**: Backdrop Blur, Glass Morphism
@@ -160,11 +176,13 @@ src/
 ## 🌟 핵심 컴포넌트
 
 ### Glass UI Components
+
 - **Button**: 다양한 variant와 애니메이션
 - **Card**: 글래스모피즘 효과가 적용된 카드
 - **Input**: 글래스 스타일 입력 필드
 
 ### 기능별 컴포넌트
+
 - **WorldClock**: 세계 시간 표시
 - **ImageSlider**: 자동 슬라이드 이미지 갤러리
 - **MemberCard**: 멤버 소개 카드
@@ -212,8 +230,9 @@ src/
 ## 👥 개발팀
 
 **Rangu.fam Team**
+
 - 네 친구의 우정으로 만들어진 특별한 프로젝트
 
 ---
 
-*"우정과 추억이 가득한 온라인 공간에 오신 것을 환영합니다."* 
+*"우정과 추억이 가득한 온라인 공간에 오신 것을 환영합니다."*

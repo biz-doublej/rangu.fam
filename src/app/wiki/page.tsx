@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import {
@@ -104,7 +105,6 @@ type DashboardStats = {
   lastEditor: string | null
   lastEditDate: string | null
   activeContributors: number
-  projectCount: number
   helpCount: number
 }
 
@@ -122,19 +122,6 @@ type DashboardPortal = {
   accent: string
   chips: string[]
   links: PortalLink[]
-}
-
-type DashboardProject = {
-  title: string
-  description: string
-  slug: string
-  status: string
-  progress: number
-  color: string
-  views: number
-  tags: string[]
-  lastEdited?: string
-  icon?: string
 }
 
 type DashboardCommunitySignal = {
@@ -162,7 +149,6 @@ type DashboardPayload = {
   stats: DashboardStats
   quickActions: DashboardQuickAction[]
   portals: DashboardPortal[]
-  projects: DashboardProject[]
   communitySignals: DashboardCommunitySignal[]
   supportLinks: DashboardSupportLink[]
 }
@@ -170,6 +156,10 @@ type DashboardPayload = {
 export default function WikiMainPage() {
   const router = useRouter()
   const { wikiUser, isLoggedIn, logout, isModerator } = useWikiAuth()
+  const [isClient, setIsClient] = useState(false)
+  const [showDepartureModal, setShowDepartureModal] = useState(true)
+  const departureImageSrc = '/images/minseok-farewell.jpg'
+  const departureHideKey = 'rangu_departure_hide_until_v2'
   const [searchQuery, setSearchQuery] = useState('')
   const [mainPageData, setMainPageData] = useState<{
     lastEditDate: string
@@ -180,6 +170,22 @@ export default function WikiMainPage() {
   const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null)
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isClient) return
+    const hiddenUntilRaw = localStorage.getItem(departureHideKey)
+    if (!hiddenUntilRaw) return
+    const hiddenUntil = Number(hiddenUntilRaw)
+    if (Number.isNaN(hiddenUntil)) {
+      localStorage.removeItem(departureHideKey)
+      return
+    }
+    if (hiddenUntil > Date.now()) setShowDepartureModal(false)
+  }, [isClient])
 
   interface TrendingItem { title: string; slug: string; views: number }
   const [realtimeSearch, setRealtimeSearch] = useState<TrendingItem[]>([])
@@ -236,17 +242,6 @@ export default function WikiMainPage() {
     return () => {
       isMounted = false
     }
-  }, [])
-
-  type NewsItem = { title: string; url: string }
-  const [news, setNews] = useState<NewsItem[]>([])
-  useEffect(() => {
-    fetch('/api/news')
-      .then(res => res.json())
-      .then(data => {
-        if (data.news) setNews(data.news)
-      })
-      .catch(() => setNews([]))
   }, [])
 
   useEffect(() => {
@@ -328,12 +323,6 @@ export default function WikiMainPage() {
 
   const handleCategoryNavigate = (categoryName: string) => {
     router.push(`/wiki/category/${encodeURIComponent(categoryName)}`)
-  }
-
-  const goToRandomPage = () => {
-    const randomPages = ['RANGU.FAM', 'Next.js', 'React', 'TypeScript']
-    const randomPage = randomPages[Math.floor(Math.random() * randomPages.length)]
-    router.push(`/wiki/${encodeURIComponent(randomPage)}`)
   }
 
   const responsiveLayout = useMemo(() => {
@@ -436,7 +425,7 @@ export default function WikiMainPage() {
       {
         label: '누적 문서',
         value: `${resolvedStats.totalPages.toLocaleString()}개`,
-        description: `${resolvedStats.projectCount.toLocaleString()}개의 프로젝트`,
+        description: '위키 문서 총합',
         icon: BookOpen
       },
       {
@@ -468,7 +457,6 @@ export default function WikiMainPage() {
   }, [dashboardData, viewportSize])
 
   const portalCards = dashboardData?.portals ?? []
-  const projectCampaigns = dashboardData?.projects ?? []
   const supportLinks = dashboardData?.supportLinks ?? []
 
   const insightCards: InsightCard[] = useMemo(() => {
@@ -503,15 +491,56 @@ export default function WikiMainPage() {
     ]
   }, [resolvedStats, pageViews])
 
-  const newsFeed = news.length
-    ? news
-    : [
-        { title: '새로운 문서 동시 편집 잠금 기능이 적용되었습니다.', url: '/wiki/도움말' },
-        { title: '이달의 프로젝트 스프린트 참가 신청이 열렸습니다.', url: '/wiki/프로젝트:목록' },
-        { title: '위키 검색 인덱스가 새로 고침되었습니다.', url: '/wiki/이랑위키:공지' }
-      ]
   return (
     <div className="min-h-screen theme-surface text-gray-100" suppressHydrationWarning>
+      {showDepartureModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setShowDepartureModal(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl overflow-hidden rounded-[2.5rem] border border-white/15 bg-slate-950/90 p-10 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-emerald-500/20 blur-3xl" />
+            <div className="absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-indigo-500/20 blur-3xl" />
+            <div className="relative space-y-4">
+              <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-black/20">
+                <Image
+                  src={departureImageSrc}
+                  alt="민석 이별 이미지"
+                  width={1280}
+                  height={720}
+                  priority
+                  className="h-auto w-full object-cover"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex items-center gap-2 text-xs text-white/70">
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs text-white/80 hover:text-white"
+                    onClick={() => {
+                      localStorage.setItem(departureHideKey, String(Date.now() + 24 * 60 * 60 * 1000))
+                      setShowDepartureModal(false)
+                    }}
+                  >
+                    하루 안보기
+                  </button>
+                  <span className="text-white/40">|</span>
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs text-white/80 hover:text-white"
+                    onClick={() => setShowDepartureModal(false)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur supports-[backdrop-filter]:bg-gray-950/70 sticky top-0 z-30">
         <div className={`${responsiveLayout.containerWidth} mx-auto ${responsiveLayout.horizontalPadding} py-3`}>
           <div className="flex items-center justify-between gap-4">
@@ -536,12 +565,6 @@ export default function WikiMainPage() {
                 </button>
                 <button onClick={() => router.push('/wiki/recent')} className="px-3 py-1 rounded-full hover:bg-gray-800/60">
                   최근 변경
-                </button>
-                <button onClick={() => router.push('/wiki/프로젝트:목록')} className="px-3 py-1 rounded-full hover:bg-gray-800/60">
-                  프로젝트
-                </button>
-                <button onClick={goToRandomPage} className="px-3 py-1 rounded-full hover:bg-gray-800/60">
-                  임의 문서
                 </button>
               </nav>
             </div>
@@ -656,13 +679,13 @@ export default function WikiMainPage() {
             <div>
               <p className="inline-flex items-center text-xs uppercase tracking-[0.3em] text-sky-300">
                 <Sparkles className="w-3 h-3 mr-2" />
-                이랑위키 v4.0.1
+                이랑위키 v4.1.0
               </p>
               <h1 className="mt-3 text-3xl font-bold text-white md:text-4xl">
                 모두가 만드는 지식 아카이브, 실시간으로 진화 중입니다.
               </h1>
               <p className="mt-4 text-lg text-gray-300">
-                새 문서를 제안하고, 프로젝트에 참여하고, 빠르게 검수 요청을 남기세요. 이제 대문에서
+                새 문서를 제안하고, 빠르게 검수 요청을 남기세요. 이제 대문에서
                 주요 작업 흐름을 한눈에 확인할 수 있습니다.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -908,37 +931,7 @@ export default function WikiMainPage() {
             </motion.div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="rounded-2xl border border-gray-800 bg-gray-900/60 p-6"
-            >
-              <div className="flex items-center space-x-2 mb-4">
-                <Bell className="w-4 h-4 text-yellow-400" />
-                <h3 className="text-lg font-semibold text-white">공지 & 소식</h3>
-              </div>
-              <div className="space-y-3">
-                {newsFeed.map((item) => (
-                  <a
-                    key={item.title}
-                    href={item.url}
-                    target={item.url.startsWith('http') ? '_blank' : '_self'}
-                    rel="noopener noreferrer"
-                    className="flex items-start justify-between rounded-xl border border-gray-800/50 bg-gray-900/40 px-4 py-3 hover:border-gray-600"
-                  >
-                    <div>
-                      <p className="text-white text-sm font-semibold">{item.title}</p>
-                      <p className="text-xs text-gray-400">운영팀</p>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-gray-500" />
-                  </a>
-                ))}
-              </div>
-            </motion.div>
-
+          <div className="grid gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -961,69 +954,6 @@ export default function WikiMainPage() {
                 ))}
               </div>
             </motion.div>
-          </div>
-        </section>
-        <section className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-gray-400">projects</p>
-              <h2 className="text-2xl font-semibold text-white">이랑위키 프로젝트 보드</h2>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => router.push('/wiki/프로젝트:목록')}
-              className="text-gray-300 hover:text-white"
-            >
-              전체 보기
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </Button>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {projectCampaigns.length === 0 && dashboardLoading && (
-              <div className="col-span-full text-sm text-gray-500">프로젝트 정보를 불러오는 중입니다.</div>
-            )}
-            {projectCampaigns.map((project) => {
-              const ProjectIcon = resolveIcon(project.icon)
-              return (
-                <motion.button
-                  key={project.slug}
-                  onClick={() => router.push(`/wiki/${encodeURIComponent(project.slug)}`)}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="rounded-2xl border border-gray-800 bg-gray-900/60 p-6 text-left hover:border-gray-600 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="rounded-xl bg-gray-800 p-3">
-                      <ProjectIcon className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-white">{project.status}</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">{project.title}</h3>
-                  <p className="text-sm text-gray-400 mt-1">{project.description}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {project.tags.map((tag) => (
-                      <span key={tag} className="text-xs rounded-full bg-gray-800 px-2 py-0.5 text-gray-300">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                      <span>진행률</span>
-                      <span>{project.progress}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
-                      <div className={`h-full rounded-full bg-gradient-to-r ${project.color}`} style={{ width: `${project.progress}%` }} />
-                    </div>
-                  </div>
-                </motion.button>
-              )
-            })}
-            {!dashboardLoading && projectCampaigns.length === 0 && (
-              <div className="col-span-full text-sm text-gray-500">현재 등록된 프로젝트가 없습니다.</div>
-            )}
           </div>
         </section>
         <section className="space-y-6" id="wiki-category-section">

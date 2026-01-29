@@ -6,8 +6,7 @@ import {
   Info, 
   FileText, 
   Shield, 
-  Users, 
-  Bell,
+  Users,
   ExternalLink
 } from 'lucide-react'
 
@@ -17,11 +16,6 @@ const Footer: React.FC = () => {
       icon: Info,
       label: '회사소개',
       href: '/about/company'
-    },
-    {
-      icon: Bell,
-      label: '공지사항',
-      href: '/notices'
     },
     {
       icon: FileText,

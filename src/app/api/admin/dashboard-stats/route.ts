@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '@/lib/mongodb'
 import { WikiUser, WikiSubmission } from '@/models/Wiki'
-import User, { IUser } from '@/models/User'
-import Track, { ITrack } from '@/models/Track'
-import { GameScore } from '@/models/Game'
+import User from '@/models/User'
+import Image from '@/models/Image'
 import { UserCardStats } from '@/models/UserCardStats'
 import jwt from 'jsonwebtoken'
 
@@ -71,15 +70,13 @@ export async function GET(request: NextRequest) {
       wikiUsers,
       regularUsers,
       wikiSubmissions,
-      tracks,
-      gameScores,
+      images,
       cardStats
     ] = await Promise.all([
       WikiUser.find({}).lean(),
       User.find({}).lean(),
       WikiSubmission.find({}).lean(),
-      Track.find({}).lean(),
-      GameScore.find({}).lean(),
+      Image.find({}).lean(),
       UserCardStats.find({}).lean()
     ])
 
@@ -87,8 +84,7 @@ export async function GET(request: NextRequest) {
     const typedWikiUsers = wikiUsers as any[]
     const typedRegularUsers = regularUsers as any[]
     const typedWikiSubmissions = wikiSubmissions as any[]
-    const typedTracks = tracks as any[]
-    const typedGameScores = gameScores as any[]
+    const typedImages = images as any[]
     const typedCardStats = cardStats as any[]
 
     // 사용자 통계
@@ -110,26 +106,6 @@ export async function GET(request: NextRequest) {
       onhold: typedWikiSubmissions.filter((s: any) => s.status === 'onhold').length
     }
 
-    // 게임 통계
-    const gameStats = {
-      totalScores: typedGameScores.length,
-      todayPlayers: new Set(
-        typedGameScores
-          .filter((score: any) => new Date(score.createdAt) >= today)
-          .map((score: any) => score.playerId)
-      ).size,
-      topScore: typedGameScores.length > 0 ? Math.max(...typedGameScores.map((s: any) => s.score)) : 0
-    }
-
-    // 음악 통계
-    const musicStats = {
-      totalTracks: typedTracks.length,
-      totalPlays: typedTracks.reduce((sum: number, track: any) => sum + (track.playCount || track.plays || 0), 0),
-      uploadsToday: typedTracks.filter((t: any) => 
-        new Date(t.createdAt) >= today
-      ).length
-    }
-
     // 카드 통계
     const cardStatsData = {
       totalDrops: typedCardStats.reduce((sum: number, stat: any) => sum + (stat.totalDrops || 0), 0),
@@ -139,18 +115,18 @@ export async function GET(request: NextRequest) {
       rareCards: typedCardStats.reduce((sum: number, stat: any) => sum + (stat.rareCardCount || 0), 0)
     }
 
-    // 이미지 통계 (트랙 표지 기준으로 단순 집계)
+    // 이미지 통계
     const imageStats = {
-      totalImages: typedTracks.filter((t: any) => t.coverImage).length,
-      uploadsToday: typedTracks.filter((t: any) => t.coverImage && new Date(t.createdAt) >= today).length,
-      storageUsed: `${(typedTracks.length * 0.02).toFixed(2)} GB` // 트랙당 20MB 가정
+      totalImages: typedImages.length,
+      uploadsToday: typedImages.filter((img: any) => new Date(img.createdAt) >= today).length,
+      storageUsed: `${(typedImages.reduce((sum: number, img: any) => sum + (img.size || 0), 0) / (1024 * 1024 * 1024)).toFixed(2)} GB`
     }
 
     // 시스템 통계 (임의 값 제거: 로그인/최근활동 기반 산출)
     const recentLogins = typedWikiUsers.filter((u: any) => u.lastLogin && new Date(u.lastLogin) >= yesterday).length
-    const activeConnections = Math.max(recentLogins, typedGameScores.length > 0 ? 10 : 0)
-    const responseTime = Math.max(20, Math.min(120, 30 + Math.floor(typedWikiSubmissions.length / 5) + Math.floor(typedTracks.length / 10)))
-    const serverLoad = Math.min(95, Math.floor((activeConnections * 3 + typedGameScores.length * 2 + typedTracks.length) / 2))
+    const activeConnections = Math.max(recentLogins, 5)
+    const responseTime = Math.max(20, Math.min(120, 30 + Math.floor(typedWikiSubmissions.length / 5) + Math.floor(typedImages.length / 10)))
+    const serverLoad = Math.min(95, Math.floor((activeConnections * 3 + typedImages.length) / 2))
     const uptimeHours = Math.max(1, Math.floor((Date.now() - today.getTime()) / (1000 * 60 * 60)))
 
     const systemStats = {
@@ -161,13 +137,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 최근 활동 데이터
-    const recentActivity = await generateRecentActivity(typedWikiSubmissions, typedWikiUsers, typedTracks, typedGameScores)
+    const recentActivity = await generateRecentActivity(typedWikiSubmissions, typedWikiUsers)
 
     const dashboardStats = {
       users: userStats,
       wiki: wikiStats,
-      games: gameStats,
-      music: musicStats,
       cards: cardStatsData,
       images: imageStats,
       system: systemStats
@@ -202,9 +176,7 @@ function formatUptime(hours: number): string {
 
 async function generateRecentActivity(
   submissions: any[],
-  users: any[],
-  tracks: any[],
-  gameScores: any[]
+  users: any[]
 ): Promise<any[]> {
   const activities: any[] = []
   
@@ -238,38 +210,6 @@ async function generateRecentActivity(
       action: '로그인',
       timestamp: user.lastLogin,
       details: { userId: user._id }
-    })
-  })
-
-  // 최근 음악 업로드
-  const recentTracks = tracks
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 2)
-  
-  recentTracks.forEach(track => {
-    activities.push({
-      id: `music-${track._id}`,
-      type: 'upload',
-      user: track.uploadedBy,
-      action: `${track.title} 음악 업로드`,
-      timestamp: track.createdAt,
-      details: { trackId: track._id }
-    })
-  })
-
-  // 최근 게임 점수
-  const recentGameScores = gameScores
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 2)
-  
-  recentGameScores.forEach(score => {
-    activities.push({
-      id: `game-${score._id}`,
-      type: 'game',
-      user: score.playerName,
-      action: `${score.gameType} 게임에서 ${score.score}점 기록`,
-      timestamp: score.createdAt,
-      details: { scoreId: score._id }
     })
   })
 

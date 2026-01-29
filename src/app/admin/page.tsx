@@ -22,15 +22,12 @@ import {
   TrendingUp,
   Database,
   Globe,
-  Music,
-  Gamepad2,
   Image as ImageIcon,
   AlertTriangle,
   CheckCircle,
   XCircle,
   Pause,
   Eye,
-  Calendar,
   PieChart,
   Zap,
   Heart,
@@ -44,7 +41,6 @@ import {
 // 컴포넌트 임포트
 import DocumentManagement from './components/DocumentManagement'
 import UserManagement from './components/UserManagement'
-import NoticeManagement from './components/NoticeManagement'
 import PageManagement from './components/PageManagement'
 
 interface DashboardStats {
@@ -60,16 +56,6 @@ interface DashboardStats {
     approved: number
     rejected: number
     onhold: number
-  }
-  games: {
-    totalScores: number
-    todayPlayers: number
-    topScore: number
-  }
-  music: {
-    totalTracks: number
-    totalPlays: number
-    uploadsToday: number
   }
   cards: {
     totalDrops: number
@@ -87,17 +73,6 @@ interface DashboardStats {
     activeConnections: number
     serverLoad: number
   }
-}
-
-interface Notice {
-  id: number
-  title: string
-  content: string
-  type: string
-  category: string
-  author: string
-  isPinned: boolean
-  date: Date
 }
 
 interface PageData {
@@ -168,7 +143,6 @@ export default function AdminDashboard() {
   // 데이터 상태들
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-  const [notices, setNotices] = useState<Notice[]>([])
   const [pageData, setPageData] = useState<PageData | null>(null)
   const [submissions, setSubmissions] = useState<WikiSubmission[]>([])
   const [users, setUsers] = useState<WikiUser[]>([])
@@ -176,15 +150,6 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null)
   
-  const [newNotice, setNewNotice] = useState({
-    title: '',
-    content: '',
-    type: 'announcement',
-    category: '',
-    author: '',
-    isPinned: false
-  })
-
   // 초기 자동 인증/데모 모드: 토큰이 없으면 임시 adminToken 생성 후 전체 기능 활성화
   useEffect(() => {
     const token = localStorage.getItem('adminToken')
@@ -221,7 +186,6 @@ export default function AdminDashboard() {
         localStorage.setItem('adminToken', result.token)
         setCurrentUser(result.user)
         setIsAuthenticated(true)
-        setNewNotice(prev => ({ ...prev, author: result.user.username }))
         loadDashboardData()
         startAutoRefresh()
       } else {
@@ -249,7 +213,6 @@ export default function AdminDashboard() {
     if (token === 'dev-auto') {
       setIsAuthenticated(true)
       setCurrentUser({ id: 'auto', username: 'Auto Admin', role: 'admin', isAdmin: true })
-      setNewNotice(prev => ({ ...prev, author: 'Auto Admin' }))
       loadDashboardData()
       startAutoRefresh()
       return
@@ -265,7 +228,6 @@ export default function AdminDashboard() {
           const result = await response.json()
           setCurrentUser(result.user)
           setIsAuthenticated(true)
-          setNewNotice(prev => ({ ...prev, author: result.user.username }))
           loadDashboardData()
           startAutoRefresh()
           setInitialLoading(false)
@@ -300,7 +262,6 @@ export default function AdminDashboard() {
             localStorage.setItem('adminToken', wikiToken)
             setCurrentUser(result.user)
             setIsAuthenticated(true)
-            setNewNotice(prev => ({ ...prev, author: result.user.username }))
             loadDashboardData()
             startAutoRefresh()
             return
@@ -330,7 +291,6 @@ export default function AdminDashboard() {
             isAdmin: true
           })
           setIsAuthenticated(true)
-          setNewNotice(prev => ({ ...prev, author: user.username }))
           
           // 임시 토큰 생성
           localStorage.setItem('adminToken', 'wiki-authenticated')
@@ -377,10 +337,7 @@ export default function AdminDashboard() {
       setLoading(true)
 
       // 기존 데이터 로드
-      const [noticesRes, pagesRes, submissionsRes, usersRes] = await Promise.all([
-        fetch('/api/admin/notices', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).catch(() => null),
+      const [pagesRes, submissionsRes, usersRes] = await Promise.all([
         fetch('/api/admin/pages', {
           headers: { 'Authorization': `Bearer ${token}` }
         }).catch(() => null),
@@ -391,11 +348,6 @@ export default function AdminDashboard() {
           headers: { 'Authorization': `Bearer ${token}` }
         }).catch(() => null)
       ])
-
-      if (noticesRes?.ok) {
-        const noticesData = await noticesRes.json()
-        setNotices(noticesData.notices || [])
-      }
 
       if (pagesRes?.ok) {
         const pagesData = await pagesRes.json()
@@ -526,8 +478,6 @@ export default function AdminDashboard() {
       label: '콘텐츠 관리',
       icon: Database,
       subItems: [
-        { id: 'music', label: '음악 관리' },
-        { id: 'games', label: '게임 관리' },
         { id: 'cards', label: '카드 관리' },
         { id: 'images', label: '이미지 관리' }
       ]
@@ -537,7 +487,6 @@ export default function AdminDashboard() {
       label: '시스템 관리',
       icon: Settings,
       subItems: [
-        { id: 'notices', label: '공지사항 관리', count: notices.length },
         { id: 'pages', label: '페이지 관리' },
         { id: 'server', label: '서버 상태' }
       ]
@@ -687,12 +636,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 
-                {/* 실시간 상태 표시기 */}
                 <div className="flex items-center gap-2 ml-8">
-                  <div className="flex items-center gap-1 px-2 py-1 bg-green-600/20 rounded-full">
-                    <Wifi className="w-3 h-3 text-green-400" />
-                    <span className="text-xs text-green-400">온라인</span>
-                  </div>
                   <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/20 rounded-full">
                     <Zap className="w-3 h-3 text-blue-400" />
                     <span className="text-xs text-blue-400">
@@ -834,7 +778,6 @@ export default function AdminDashboard() {
                     recentActivity={recentActivity}
                     submissions={submissions}
                     users={users}
-                    notices={notices}
                   />
                 )}
 
@@ -877,15 +820,6 @@ export default function AdminDashboard() {
                 )}
 
                 {/* 시스템 관리 */}
-                {activeTab === 'system' && activeSubTab === 'notices' && !loading && (
-                  <NoticeManagement 
-                    notices={notices}
-                    setNotices={setNotices}
-                    newNotice={newNotice}
-                    setNewNotice={setNewNotice}
-                  />
-                )}
-
                 {activeTab === 'system' && activeSubTab === 'pages' && !loading && pageData && (
                   <PageManagement pageData={pageData} />
                 )}
@@ -907,21 +841,18 @@ function DashboardOverview({
   dashboardStats, 
   recentActivity, 
   submissions, 
-  users, 
-  notices 
+  users
 }: {
   dashboardStats: DashboardStats | null
   recentActivity: RecentActivity[]
   submissions: WikiSubmission[]
   users: WikiUser[]
-  notices: Notice[]
 }) {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'login': return <LogIn className="w-4 h-4" />
       case 'edit': return <FileText className="w-4 h-4" />
-      case 'upload': return <Music className="w-4 h-4" />
-      case 'game': return <Gamepad2 className="w-4 h-4" />
+      case 'upload': return <ImageIcon className="w-4 h-4" />
       case 'card': return <Star className="w-4 h-4" />
       case 'admin': return <Shield className="w-4 h-4" />
       default: return <Activity className="w-4 h-4" />
@@ -933,7 +864,6 @@ function DashboardOverview({
       case 'login': return 'text-green-400 bg-green-400/20'
       case 'edit': return 'text-blue-400 bg-blue-400/20'
       case 'upload': return 'text-purple-400 bg-purple-400/20'
-      case 'game': return 'text-yellow-400 bg-yellow-400/20'
       case 'card': return 'text-pink-400 bg-pink-400/20'
       case 'admin': return 'text-red-400 bg-red-400/20'
       default: return 'text-gray-400 bg-gray-400/20'
@@ -1115,20 +1045,11 @@ function DashboardOverview({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 flex items-center gap-1">
-                  <Music className="w-4 h-4" />
-                  음악 트랙
+                  <Star className="w-4 h-4" />
+                  카드 드랍
                 </span>
-                <span className="text-purple-400 font-semibold">
-                  {dashboardStats?.music.totalTracks || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <Gamepad2 className="w-4 h-4" />
-                  게임 점수
-                </span>
-                <span className="text-yellow-400 font-semibold">
-                  {dashboardStats?.games.totalScores || 0}
+                <span className="text-pink-400 font-semibold">
+                  {dashboardStats?.cards.totalDrops || 0}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -1167,9 +1088,9 @@ function DashboardOverview({
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">오늘 게임 플레이어</span>
-                <span className="text-yellow-400 font-semibold">
-                  {dashboardStats?.games.todayPlayers || 0}
+                <span className="text-gray-400">오늘 카드 수집</span>
+                <span className="text-pink-400 font-semibold">
+                  {dashboardStats?.cards.activeCollectors || 0}
                 </span>
               </div>
             </div>
@@ -1344,15 +1265,15 @@ function AnalyticsDashboard({ dashboardStats, activeSubTab }: {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-400">
-                    {dashboardStats?.music.totalTracks || 0}
+                    {dashboardStats?.cards.totalDrops || 0}
                   </div>
-                  <div className="text-sm text-gray-400">음악 트랙</div>
+                  <div className="text-sm text-gray-400">카드 드랍</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-yellow-400">
-                    {dashboardStats?.games.totalScores || 0}
+                    {dashboardStats?.cards.rareCards || 0}
                   </div>
-                  <div className="text-sm text-gray-400">게임 점수</div>
+                  <div className="text-sm text-gray-400">희귀 카드</div>
                 </div>
               </div>
             </CardContent>
@@ -1415,76 +1336,6 @@ function ContentManagement({ activeSubTab, dashboardStats }: {
           콘텐츠 관리
         </h2>
       </div>
-
-      {activeSubTab === 'music' && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-                <Music className="w-5 h-5 text-purple-400" />
-                음악 라이브러리
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-400">
-                    {dashboardStats?.music.totalTracks || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">총 트랙 수</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-400">
-                    {dashboardStats?.music.totalPlays || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">총 재생 수</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-400">
-                    {dashboardStats?.music.uploadsToday || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">오늘 업로드</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {activeSubTab === 'games' && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-                <Gamepad2 className="w-5 h-5 text-yellow-400" />
-                게임 시스템
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-400">
-                    {dashboardStats?.games.totalScores || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">총 점수 기록</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-400">
-                    {dashboardStats?.games.todayPlayers || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">오늘 플레이어</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-400">
-                    {dashboardStats?.games.topScore || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">최고 점수</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {activeSubTab === 'cards' && (
         <div className="grid grid-cols-1 gap-6">

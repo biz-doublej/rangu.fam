@@ -5,11 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { 
   Star,
-  Calendar,
   Users,
   Code,
-  Music,
-  Gamepad2,
   BookOpen,
   Coffee,
   Plane,
@@ -259,8 +256,8 @@ export default function AboutPage() {
       case '⭐': return Star
       case '🌟': return Star
       case '💻': return Code
-      case '🎵': return Music
-      case '🎮': return Gamepad2
+      case '🎵': return Sparkles
+      case '🎮': return Sparkles
       case '📚': return BookOpen
       case '✈️': return Plane
       case '☕': return Coffee
@@ -270,7 +267,7 @@ export default function AboutPage() {
           case 'member': return Shield
           case 'anniversary': return Star
           case 'feature': return Code
-          case 'milestone': return Calendar
+          case 'milestone': return Clock
           default: return Star
         }
     }
@@ -334,16 +331,6 @@ export default function AboutPage() {
 
   const baseFeatures = [
     {
-      icon: Music,
-      title: '음악 스테이션',
-      description: '함께 듣고 싶은 음악을 공유하는 공간',
-      link: '/music',
-      accent: 'from-rose-500/15 via-rose-500/5 to-transparent',
-      statKey: 'totalMusicPlays',
-      metricLabel: '누적 감상',
-      metricFallback: '재생 128회'
-    },
-    {
       icon: BookOpen,
       title: '이랑위키',
       description: '우리만의 지식과 추억을 기록하는 백과사전',
@@ -354,23 +341,12 @@ export default function AboutPage() {
       metricFallback: '문서 42개'
     },
     {
-      icon: Gamepad2,
-      title: '게임센터',
-      description: '테트리스, 끝말잇기 등 다양한 게임을 즐기는 곳',
-      link: '/games',
-      accent: 'from-indigo-500/15 via-indigo-500/5 to-transparent',
-      statKey: 'totalGameScores',
-      metricLabel: '기록된 경기',
-      metricFallback: '도전 300회'
-    },
-    {
-      icon: Calendar,
-      title: '달력',
-      description: '중요한 일정과 기념일을 함께 관리',
-      link: '/calendar',
+      icon: Package,
+      title: '카드 드랍',
+      description: '랜덤 미션과 수집 카드를 확인하는 공간',
+      link: '/cards',
       accent: 'from-emerald-500/15 via-emerald-500/5 to-transparent',
-      metricLabel: '공유 일정',
-      metricFallback: '다가오는 일정 준비중'
+      metricFallback: '오늘의 카드 준비중'
     }
   ]
 
@@ -379,7 +355,7 @@ export default function AboutPage() {
   const ritualHighlights = [
     {
       title: 'Night Sync',
-      description: '하루를 마무리하며 음악과 감정을 나누는 시간',
+      description: '하루를 마무리하며 감정과 근황을 나누는 시간',
       schedule: '매주 금요일 22:30',
       focus: '감정 공유',
       icon: Coffee,
@@ -425,7 +401,7 @@ export default function AboutPage() {
       label: '타임라인 이벤트',
       value: formatNumber(historyEvents.length),
       detail: '기록된 순간들',
-      icon: Calendar
+      icon: Clock
     },
     {
       label: '운영 중인 기능',
@@ -460,11 +436,11 @@ export default function AboutPage() {
         accent: 'from-emerald-500/20 to-emerald-600/10'
       },
       {
-        label: '누적 플레이',
-        value: formatNumber((stats.totalMusicPlays || 0) + (stats.totalGameScores || 0)),
-        detail: '음악 + 게임 기록',
-        icon: Music,
-        accent: 'from-rose-500/20 to-rose-600/10'
+        label: '누적 기록',
+        value: formatNumber(stats.totalPages || 0),
+        detail: '위키 기록',
+        icon: BookOpen,
+        accent: 'from-amber-500/20 to-amber-600/10'
       }
     ]
   }, [siteHistory, members.length])
@@ -487,10 +463,7 @@ export default function AboutPage() {
     { icon: Home, label: '홈', href: '/' },
     { icon: Users, label: '소개', href: '/about' },
     { icon: Users, label: '멤버 소개', href: '/members' },
-    { icon: Music, label: '음악 스테이션', href: '/music' },
     { icon: BookOpen, label: '이랑위키', href: '/wiki' },
-    { icon: Calendar, label: '달력', href: '/calendar' },
-    { icon: Gamepad2, label: '게임', href: '/games' },
     { icon: Package, label: '카드 관리', href: '/cards' }
   ]
 
@@ -519,7 +492,7 @@ export default function AboutPage() {
                 <h1 className="text-4xl md:text-5xl font-bold text-gradient">Rangu.fam 소개</h1>
                 <p className="text-lg text-gray-200/80 leading-relaxed">
                   네 명의 친구가 서로 다른 도시에서 같은 하늘을 바라보며 만든 커뮤니티.
-                  음악, 게임, 기록, 그리고 일상 속 소소한 감정을 공유하며 특별한 우정을 쌓아갑니다.
+                  기록과 일상 속 소소한 감정을 공유하며 특별한 우정을 쌓아갑니다.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <span className="px-4 py-2 rounded-full text-sm bg-primary-300/20 text-primary-100">Remote-first Crew</span>
@@ -564,7 +537,7 @@ export default function AboutPage() {
                 실시간 통화, 협업 프로젝트, 기록 문화가 자연스럽게 이어지도록 직접 서비스와 툴을 구축해 나가는 실험실이기도 합니다.
               </p>
               <p className="text-lg text-gray-200/70 leading-relaxed">
-                우리는 “함께 있는 감각”을 온라인으로 재현하기 위해 음악, 위키, 게임, 일정 관리 등 다양한 기능을 직접 만들고 다듬어 가고 있어요.
+                우리는 “함께 있는 감각”을 온라인으로 재현하기 위해 위키, 일정 관리 등 다양한 기능을 직접 만들고 다듬어 가고 있어요.
               </p>
             </div>
             <div className="glass-card p-8 md:p-10">
@@ -603,7 +576,7 @@ export default function AboutPage() {
           <div className="glass-card p-8 md:p-12">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-8">
               <div className="flex items-center gap-3">
-                <Calendar className="w-12 h-12 text-purple-400" />
+                <Clock className="w-12 h-12 text-purple-400" />
                 <div>
                   <h2 className="text-3xl font-bold text-primary-200">다가오는 기념일</h2>
                   <p className="text-sm text-gray-200/70">다음 만남을 기다리는 설렘</p>

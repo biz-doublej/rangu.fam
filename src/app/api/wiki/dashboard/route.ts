@@ -28,7 +28,6 @@ export async function GET() {
       activeContributors,
       totalUsers,
       latestEditedPage,
-      projectPagesRaw,
       helpPagesRaw,
       openDiscussionsRaw,
       namespacesRaw,
@@ -40,11 +39,6 @@ export async function GET() {
       WikiPage.findOne({ isDeleted: { $ne: true } })
         .sort({ lastEditDate: -1 })
         .select('title slug lastEditor lastEditDate views summary categories tags edits currentRevision')
-        .lean(),
-      WikiPage.find({ namespace: 'project', isDeleted: { $ne: true } })
-        .sort({ lastEditDate: -1 })
-        .limit(6)
-        .select('title slug summary tags categories views lastEditDate edits currentRevision isFeatured')
         .lean(),
       WikiPage.find({ namespace: 'help', isDeleted: { $ne: true } })
         .sort({ views: -1 })
@@ -68,7 +62,6 @@ export async function GET() {
       lastEditor: latestEditedPage?.lastEditor || null,
       lastEditDate: latestEditedPage?.lastEditDate?.toISOString() || null,
       activeContributors: activeContributors || Math.min(totalUsers, 5),
-      projectCount: projectPagesRaw.length,
       helpCount: helpPagesRaw.length
     }
 
@@ -129,38 +122,6 @@ export async function GET() {
       }))
     ]
 
-    const staticProjects = [
-      {
-        title: '이랑위키 프로젝트 보드',
-        description: '전체 프로젝트와 진행 상황을 한눈에 보기',
-        slug: '프로젝트:목록',
-        status: '안내',
-        progress: 100,
-        color: accentPalette[1].replace('/40', ''),
-        views: 0,
-        tags: ['허브', '가이드'],
-        lastEdited: null,
-        icon: 'Layers'
-      }
-    ]
-
-    const projects = projectPagesRaw.map((page: any, index: number) => {
-      const changeBasis = page.edits || page.currentRevision || 1
-      const progress = Math.min(100, Math.max(20, Math.round((changeBasis / 20) * 100)))
-      return {
-        title: page.title,
-        description: page.summary || '설명이 아직 준비되지 않았습니다.',
-        slug: page.slug,
-        status: page.isFeatured ? '주목' : '진행중',
-        progress,
-        color: accentPalette[index % accentPalette.length].replace('/50', ''),
-        views: page.views || 0,
-        tags: (page.tags?.length ? page.tags : page.categories || []).slice(0, 3),
-        lastEdited: page.lastEditDate?.toISOString(),
-        icon: iconPalette[index % iconPalette.length]
-      }
-    })
-
     const communitySignals = openDiscussionsRaw.map((discussion: any) => {
       const preview =
         (discussion.content || '').replace(/<[^>]+>/g, '').slice(0, 90).trim() +
@@ -176,12 +137,6 @@ export async function GET() {
     })
 
     const staticSupportLinks = [
-      {
-        title: '이랑 서비스',
-        description: '이랑 관련 서비스로 바로 이동',
-        href: '/rangi',
-        icon: 'Sparkles'
-      },
       {
         title: '랑구팸',
         description: '랑구팸 메인으로 돌아가기',
@@ -212,7 +167,6 @@ export async function GET() {
         stats: derivedStats,
         quickActions,
         portals,
-        projects: [...staticProjects, ...projects],
         communitySignals,
         supportLinks
       }

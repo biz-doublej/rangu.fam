@@ -24,30 +24,6 @@ export interface User {
   avatar?: string
 }
 
-// 음악 관련 타입
-export interface Track {
-  id: string
-  title: string
-  artist: string
-  album?: string
-  duration: number
-  audioUrl: string
-  coverImage?: string
-  uploadedBy: string
-  uploadDate: Date
-  genre?: string
-}
-
-export interface Playlist {
-  id: string
-  name: string
-  description?: string
-  tracks: Track[]
-  createdBy: string
-  createdDate: Date
-  isPublic: boolean
-}
-
 // 위키 관련 타입 (나무위키 스타일)
 export interface WikiPage {
   id: string
@@ -134,40 +110,6 @@ export interface WikiLink {
   exists?: boolean
 }
 
-// 달력 관련 타입
-export interface CalendarEvent {
-  id: string
-  title: string
-  description?: string
-  startDate: Date
-  endDate: Date
-  allDay: boolean
-  createdBy?: string
-  createdById?: string
-  createdByName?: string
-  attendees: string[]
-  location?: string
-  color?: string
-  isPrivate: boolean
-  gallery?: GalleryImage[]
-  capsulePrompt?: string
-  tags?: string[]
-  createdAt?: Date
-  updatedAt?: Date
-}
-
-export interface EventTimeCapsuleEntry {
-  id: string
-  eventId: string
-  authorId: string
-  authorName?: string
-  mood: 'happy' | 'excited' | 'nervous' | 'tired' | 'thoughtful' | 'custom'
-  memo: string | null
-  createdAt: Date
-  unlockDate: Date
-  isUnlocked?: boolean
-}
-
 // 갤러리 관련 타입
 export interface GalleryImage {
   id: string
@@ -219,113 +161,13 @@ export interface SlideImage {
 // 위젯 타입
 export interface Widget {
   id: string
-  type: 'link' | 'calendar' | 'music' | 'weather' | 'custom'
+  type: 'link' | 'music' | 'weather' | 'custom'
   title: string
   content: any
   position: { x: number; y: number }
   size: { width: number; height: number }
   createdBy: string
   isVisible: boolean
-}
-
-// 게임 관련 타입
-export interface GameScore {
-  id: string
-  playerId: string
-  playerName: string
-  score: number
-  gameType: 'tetris' | 'wordchain' | 'cardgame'
-  playedAt: Date
-  duration?: number
-}
-
-export interface TetrisGameState {
-  board: number[][]
-  currentPiece: TetrisPiece | null
-  nextPiece: TetrisPiece | null
-  score: number
-  level: number
-  lines: number
-  isGameOver: boolean
-  isPaused: boolean
-}
-
-export interface TetrisPiece {
-  shape: number[][]
-  x: number
-  y: number
-  color: number
-}
-
-export interface WordChainGame {
-  id: string
-  players: string[]
-  currentPlayer: string
-  words: string[]
-  usedWords: Set<string>
-  isGameOver: boolean
-  winner?: string
-  currentWord?: string
-}
-
-export interface CardGame {
-  id: string
-  players: string[]
-  deck: Card[]
-  hands: { [playerId: string]: Card[] }
-  currentPlayer: string
-  discardPile: Card[]
-  isGameOver: boolean
-  winner?: string
-}
-
-export interface Card {
-  suit: 'hearts' | 'diamonds' | 'clubs' | 'spades'
-  rank: 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K'
-  value: number
-}
-
-// 게임 설정 관련 타입
-export interface TetrisKeySettings {
-  moveLeft: string
-  moveRight: string
-  softDrop: string
-  hardDrop: string
-  rotateLeft: string
-  rotateRight: string
-  rotate180: string
-  hold: string
-}
-
-export interface BotSettings {
-  tetris: {
-    enabled: boolean
-    difficulty: 'easy' | 'normal' | 'hard'
-    speed: number
-  }
-  wordchain: {
-    enabled: boolean
-    difficulty: 'easy' | 'normal' | 'hard'
-    responseTime: number
-  }
-  cardgame: {
-    enabled: boolean
-    difficulty: 'easy' | 'normal' | 'hard'
-    strategy: 'aggressive' | 'defensive' | 'balanced'
-  }
-}
-
-export interface GameSettings {
-  userId: string
-  tetrisKeys: TetrisKeySettings
-  botSettings: BotSettings
-  preferences: {
-    soundEnabled: boolean
-    animationsEnabled: boolean
-    autoSave: boolean
-  }
-  createdAt: Date
-  updatedAt: Date
 }
 
 // 개인 북마크 타입

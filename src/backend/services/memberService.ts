@@ -111,7 +111,7 @@ export class MemberService {
       {
         id: 'jaewon',
         name: '정재원',
-        role: '소프트웨어 엔지니어, 패션 모델',
+        role: '소프트웨어 엔지니어, DoubleJ CEO',
         description: '코딩과 패션을 사랑하는 다재다능한 개발자입니다.',
         avatar: '/images/jaewon.jpg',
         email: 'jaewon@rangu.fam',
@@ -123,7 +123,7 @@ export class MemberService {
       {
         id: 'minseok',
         name: '정민석',
-        role: '스위스 거주',
+        role: 'IMI 재학생',
         description: '스위스에서 새로운 꿈을 키워가고 있습니다.',
         avatar: '/images/minseok.jpg',
         email: 'minseok@rangu.fam',
@@ -135,12 +135,12 @@ export class MemberService {
       {
         id: 'jinkyu',
         name: '정진규',
-        role: '군 입대 중',
+        role: '군 복무 중',
         description: '현재 군 복무 중이며, 전역 후 새로운 도전을 계획하고 있습니다.',
         avatar: '/images/jingyu.jpg',
         email: 'jingyu@rangu.fam',
         status: 'active',
-        location: '대한민국',
+        location: '춘천, 대한민국',
         joinDate: new Date('2020-01-01'),
         personalPageUrl: '/members/jinkyu'
       },

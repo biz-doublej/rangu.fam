@@ -82,12 +82,6 @@ export class DiscordWebhookService {
     BAN: '🔨',
     UNBAN: '🕊️',
     
-    // 공지사항
-    NOTICE: '📢',
-    UPDATE: '🔄',
-    MAINTENANCE: '🔧',
-    POLICY: '📋',
-    
     // 기타
     FIRE: '🔥',
     STAR: '⭐',
@@ -471,81 +465,6 @@ export class DiscordWebhookService {
       avatar_url: this.RANGU_AVATAR,
       embeds: [embed] 
     })
-  }
-
-  /**
-   * 📢 공지사항 알림 (개선된 버전)
-   */
-  static async sendNoticeCreate(
-    title: string,
-    content: string,
-    author: string,
-    category: string,
-    type: 'announcement' | 'update' | 'maintenance' | 'policy',
-    isPinned: boolean = false
-  ): Promise<boolean> {
-    const typeEmojis = {
-      announcement: this.EMOJIS.NOTICE,
-      update: this.EMOJIS.UPDATE,
-      maintenance: this.EMOJIS.MAINTENANCE,
-      policy: this.EMOJIS.POLICY
-    }
-
-    const typeColors = {
-      announcement: this.COLORS.RANGU_BLUE,
-      update: this.COLORS.RANGU_GREEN,
-      maintenance: this.COLORS.RANGU_ORANGE,
-      policy: this.COLORS.RANGU_PURPLE
-    }
-
-    const typeNames = {
-      announcement: '일반 공지',
-      update: '업데이트',
-      maintenance: '점검 공지',
-      policy: '정책 변경'
-    }
-
-    const embed: DiscordEmbed = {
-      author: {
-        name: `${author}님이 새 공지사항을 작성했습니다`,
-        icon_url: this.WIKI_ICON
-      },
-      title: `${typeEmojis[type]} ${title}${isPinned ? ' 📌' : ''}`,
-      url: 'https://rangu-fam.vercel.app/notices',
-      description: content.length > 200 ? content.substring(0, 197) + '...' : content,
-      color: typeColors[type],
-      fields: [
-        {
-          name: `${this.EMOJIS.CROWN} 작성자`,
-          value: `**${author}**`,
-          inline: true
-        },
-        {
-          name: '📋 분류',
-          value: `**${typeNames[type]}**`,
-          inline: true
-        },
-        {
-          name: '🏷️ 카테고리',
-          value: category || '일반',
-          inline: true
-        }
-      ],
-      image: isPinned ? {
-        url: 'https://rangu-fam.vercel.app/images/slide1.jpg'
-      } : undefined,
-      footer: {
-        text: `RangU.FAM • 공지사항${isPinned ? ' • 📌 상단 고정' : ''}`,
-        icon_url: this.WIKI_ICON
-      },
-      timestamp: new Date().toISOString()
-    }
-
-    if (isPinned) {
-      embed.description = `🔥 **중요 공지** 🔥\n\n${embed.description}`
-    }
-
-    return this.sendEmbedStyled('RangU 공지봇', this.RANGU_AVATAR, embed, 'card')
   }
 
   /**

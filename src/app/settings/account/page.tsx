@@ -255,7 +255,7 @@ export default function AccountSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-white/70">
                 <p>
-                  Discord 계정을 팀 멤버 프로필과 연결하면 활동 기록, 권한, 상태 등이 사이트 전체에
+                  Discord 계정을 팀 멤버 프로필과 연결하면 권한과 계정 정보가 사이트 전체에
                   자동으로 반영됩니다.
                 </p>
                 <div className="space-y-2">
