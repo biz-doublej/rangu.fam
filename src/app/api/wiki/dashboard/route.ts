@@ -100,6 +100,18 @@ export async function GET() {
           { label: '도움말', href: '/wiki/도움말' },
           { label: '최근 편집', href: '/wiki/recent' }
         ]
+      },
+      {
+        title: '한울 X 재원의 작업공작소',
+        description: '발언 기록을 작성하고, 별도 목록 페이지에서 아카이브를 확인하세요.',
+        accent: accentPalette[1],
+        icon: 'MessageCircle',
+        chips: ['작업공작소', '오늘의 발언', '아카이브'],
+        links: [
+          { label: '작성하기', href: '/wiki/workshop?mode=write' },
+          { label: '목록보기', href: '/wiki/workshop' },
+          { label: '[50호 기념 2025 시상식]', href: '/wiki/workshop/awards-2025' }
+        ]
       }
     ]
 

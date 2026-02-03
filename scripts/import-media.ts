@@ -39,16 +39,21 @@ const SOURCES: SourceConfig[] = [
   },
 ]
 
-const DEFAULT_SPOTLIGHT = [
-  { title: '정재원 소개', type: 'video' as const, srcPath: 'videos/intro-jaewon.mp4', posterPath: 'images/poster-jaewon.jpg', order: 1, durationSeconds: 17 },
-  { title: '추억의 사진 1', type: 'image' as const, srcPath: 'images/slide1.jpg', order: 2, durationSeconds: 5 },
-  { title: '정민석 소개', type: 'video' as const, srcPath: 'videos/intro-minseok.mp4', posterPath: 'images/poster-minseok.jpg', order: 3, durationSeconds: 17 },
-  { title: '추억의 사진 2', type: 'image' as const, srcPath: 'images/slide2.jpg', order: 4, durationSeconds: 5 },
-  { title: '정진규 소개', type: 'video' as const, srcPath: 'videos/intro-jingyu.mp4', posterPath: 'images/poster-jingyu.jpg', order: 5, durationSeconds: 17 },
-  { title: '추억의 사진 3', type: 'image' as const, srcPath: 'images/slide3.jpg', order: 6, durationSeconds: 5 },
-  { title: '강한울 소개', type: 'video' as const, srcPath: 'videos/intro-hanul.mp4', posterPath: 'images/poster-hanul.jpg', order: 7, durationSeconds: 17 },
-  { title: '이승찬 소개', type: 'video' as const, srcPath: 'videos/intro-seungchan.mp4', posterPath: 'images/poster-seungchan.jpg', order: 8, durationSeconds: 17 },
-  { title: '추억의 사진 4', type: 'image' as const, srcPath: 'images/slide4.jpg', order: 9, durationSeconds: 5 },
+const DEFAULT_SPOTLIGHT: Array<{
+  title: string
+  type: 'image' | 'video'
+  srcPath: string
+  posterPath?: string
+  order: number
+  durationSeconds: number
+}> = [
+  { title: '추억의 사진 1', type: 'image' as const, srcPath: 'images/slide1.jpg', order: 1, durationSeconds: 5 },
+  { title: '추억의 사진 2', type: 'image' as const, srcPath: 'images/slide2.jpg', order: 2, durationSeconds: 5 },
+  { title: '추억의 사진 3', type: 'image' as const, srcPath: 'images/slide3.jpg', order: 3, durationSeconds: 5 },
+  { title: '추억의 사진 4', type: 'image' as const, srcPath: 'images/slide4.jpg', order: 4, durationSeconds: 5 },
+  { title: '추억의 사진 5', type: 'image' as const, srcPath: 'images/slide5.jpg', order: 5, durationSeconds: 5 },
+  { title: '추억의 사진 6', type: 'image' as const, srcPath: 'images/slide6.jpg', order: 6, durationSeconds: 5 },
+  { title: '추억의 사진 7', type: 'image' as const, srcPath: 'images/slide7.jpg', order: 7, durationSeconds: 5 },
 ]
 
 async function computeChecksum(filePath: string): Promise<string> {

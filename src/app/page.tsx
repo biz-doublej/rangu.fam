@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
-import { ko } from 'date-fns/locale'
 import { 
   Clock, 
   Home, 
@@ -17,38 +16,30 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
   Sparkles,
   Palette
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { MediaPlayer } from '@/components/ui/MediaPlayer'
 import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
 import ThemeMenu from '@/components/ui/ThemeMenu'
 
 type SpotlightSlide = {
   id?: string
-  type: 'video' | 'image'
+  type: 'image'
   src: string
   title: string
-  poster?: string
   durationSeconds?: number
 }
 
 const DEFAULT_SPOTLIGHT_SLIDES: SpotlightSlide[] = [
-  { type: 'video', src: '/videos/intro-jaewon.mp4', title: '정재원 소개', poster: '/images/poster-jaewon.jpg', durationSeconds: 17 },
   { type: 'image', src: '/images/slide1.jpg', title: '추억의 사진 1', durationSeconds: 5 },
-  { type: 'video', src: '/videos/intro-minseok.mp4', title: '정민석 소개', poster: '/images/poster-minseok.jpg', durationSeconds: 17 },
   { type: 'image', src: '/images/slide2.jpg', title: '추억의 사진 2', durationSeconds: 5 },
-  { type: 'video', src: '/videos/intro-jingyu.mp4', title: '정진규 소개', poster: '/images/poster-jingyu.jpg', durationSeconds: 17 },
   { type: 'image', src: '/images/slide3.jpg', title: '추억의 사진 3', durationSeconds: 5 },
-  { type: 'video', src: '/videos/intro-hanul.mp4', title: '강한울 소개', poster: '/images/poster-hanul.jpg', durationSeconds: 17 },
-  { type: 'video', src: '/videos/intro-seungchan.mp4', title: '이승찬 소개', poster: '/images/poster-seungchan.jpg', durationSeconds: 17 },
-  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4', durationSeconds: 5 }
+  { type: 'image', src: '/images/slide4.jpg', title: '추억의 사진 4', durationSeconds: 5 },
+  { type: 'image', src: '/images/slide5.jpg', title: '추억의 사진 5', durationSeconds: 5 },
+  { type: 'image', src: '/images/slide6.jpg', title: '추억의 사진 6', durationSeconds: 5 },
+  { type: 'image', src: '/images/slide7.jpg', title: '추억의 사진 7', durationSeconds: 5 }
 ]
 
 const quickActions = [
@@ -72,10 +63,6 @@ export default function HomePage() {
     switzerland: new Date(),
   })  
   const [isClient, setIsClient] = useState(false)
-  const [savedVolume, setSavedVolume] = useState(50)
-  const [videoVolume, setVideoVolume] = useState(50)
-  const [videoMuted, setVideoMuted] = useState(true)
-  const [isVolumeOpen, setIsVolumeOpen] = useState(true)
   const [showDepartureModal, setShowDepartureModal] = useState(true)
   const departureImageSrc = '/images/minseok-farewell.jpg'
   const departureHideKey = 'rangu_departure_hide_until_v2'
@@ -105,50 +92,22 @@ export default function HomePage() {
   ]
   const initialSlide = DEFAULT_SPOTLIGHT_SLIDES[0]
   const [countdown, setCountdown] = useState(
-    initialSlide?.durationSeconds || (initialSlide?.type === 'video' ? 17 : 5) || 5
+    initialSlide?.durationSeconds || 5
   ) // 카운트다운 타이머
-  const [isSlideHovered, setIsSlideHovered] = useState(false) // 슬라이드 호버 상태
   const { user, logout, isLoggedIn } = useAuth()
   const router = useRouter()
 
   const slideCount = slideContent.length || 1
   const activeSlide = slideContent[currentSlide]
-  const quickStats = [
-    { label: '등록 멤버', value: '5명', detail: '우리만의 팀원' },
-    { label: '오늘의 스포트라이트', value: activeSlide?.title || '준비 중', detail: activeSlide?.type === 'video' ? '멤버 인사 영상' : '추억의 사진' },
-    { label: '위키 문서', value: '업데이트 중', detail: '새 기록 준비' },
-  ]
   const worldTimeItems = [
     { label: '서울', value: isClient ? format(times.seoul, 'HH:mm:ss') : '--:--:--', zone: 'KST' },
     { label: '밴쿠버', value: isClient ? format(times.vancouver, 'HH:mm:ss') : '--:--:--', zone: 'PST' },
     { label: '스위스', value: isClient ? format(times.switzerland, 'HH:mm:ss') : '--:--:--', zone: 'CET' },
   ]
 
-  // 모든 비디오 요소들의 볼륨 제어
-  const updateAllVideosVolume = (volume: number, muted: boolean) => {
-    const videos = document.querySelectorAll('video')
-    videos.forEach((video) => {
-      video.volume = volume / 100
-      video.muted = muted
-    })
-  }
-
   // 클라이언트 사이드에서만 실행되도록 설정
   useEffect(() => {
     setIsClient(true)
-    // 저장된 볼륨 불러오기
-    const savedVol = localStorage.getItem('rangu_video_volume')
-    if (savedVol) {
-      const volume = parseInt(savedVol, 10)
-      setSavedVolume(volume)
-      setVideoVolume(volume)
-    }
-    
-    // 저장된 음소거 상태 불러오기
-    const savedMuted = localStorage.getItem('rangu_video_muted')
-    if (savedMuted) {
-      setVideoMuted(savedMuted === 'true')
-    }
   }, [])
 
   useEffect(() => {
@@ -180,8 +139,11 @@ export default function HomePage() {
         if (!response.ok) return
         const data = await response.json()
         if (isMounted && Array.isArray(data.slides) && data.slides.length) {
-          setSlideContent(data.slides)
-          setCurrentSlide(0)
+          const imageSlides = data.slides.filter((slide: any) => slide?.type === 'image' && typeof slide?.src === 'string')
+          if (imageSlides.length > 0) {
+            setSlideContent(imageSlides)
+            setCurrentSlide(0)
+          }
         }
       } catch (error) {
         console.error('Failed to load spotlight slides:', error)
@@ -217,8 +179,7 @@ export default function HomePage() {
   useEffect(() => {
     const currentContent = slideContent[currentSlide]
     if (!currentContent) return
-    const initialTime =
-      currentContent.durationSeconds || (currentContent.type === 'video' ? 17 : 5) // 영상 17초, 이미지 5초
+    const initialTime = currentContent.durationSeconds || 5
     setCountdown(initialTime)
   }, [currentSlide, slideContent])
 
@@ -528,23 +489,11 @@ export default function HomePage() {
               }}
             />
             <div className="relative grid gap-8 lg:grid-cols-[2fr,1fr]">
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <span className="accent-chip">Rangu.fam 2026</span>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <h1 className="text-4xl md:text-5xl font-semibold leading-tight">추억과 지금을 한 장에서</h1>
-                  <p className="text-base text-slate-200">
-                    각자의 이야기, 각자의 시간. 그리고 한 곳에 모이는 우리만의 기록. 오늘도 감성 가득한 무드를 켜고,
-                    Rangu.fam에서 만나요.
-                  </p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {quickStats.map(stat => (
-                    <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs uppercase text-gray-400">{stat.label}</p>
-                      <p className="text-2xl font-semibold text-white mt-1">{stat.value}</p>
-                      <p className="text-xs text-gray-300 mt-2">{stat.detail}</p>
-                    </div>
-                  ))}
+                  <p className="text-sm text-slate-200">오늘의 사진을 크게 볼 수 있게 정리했어요.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {quickActions.map(action => {
@@ -560,11 +509,81 @@ export default function HomePage() {
                         </span>
                         <span>
                           <span className="block text-sm font-semibold text-white">{action.title}</span>
-                          <span className="text-xs text-gray-300">{action.description}</span>
                         </span>
                       </button>
                     )
                   })}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-3 sm:p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="accent-chip">오늘의 스포트라이트</span>
+                    <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1 text-sm font-mono text-white">
+                      {countdown}s
+                    </span>
+                  </div>
+                  <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-white/10 sm:min-h-[520px]">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={activeSlide?.id || `${currentSlide}-${activeSlide?.src || 'slide'}`}
+                        className="absolute inset-0"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.6 }}
+                      >
+                        {activeSlide ? (
+                          <Image
+                            src={activeSlide.src}
+                            alt={activeSlide.title}
+                            fill
+                            priority={currentSlide === 0}
+                            className="object-cover object-center"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-indigo-900 text-gray-200">
+                            준비 중인 콘텐츠
+                          </div>
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 py-3">
+                      <p className="text-base font-semibold text-white">{activeSlide?.title || '추억의 사진'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="slide-nav-button absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-black/30 p-2.5 text-white"
+                      onClick={() => setCurrentSlide(currentSlide === 0 ? slideCount - 1 : currentSlide - 1)}
+                      aria-label="이전 사진"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="slide-nav-button absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-black/30 p-2.5 text-white"
+                      onClick={() => setCurrentSlide((currentSlide + 1) % slideCount)}
+                      aria-label="다음 사진"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {slideContent.map((slide, index) => (
+                      <button
+                        key={slide.id || `${slide.src}-${index}`}
+                        type="button"
+                        onClick={() => setCurrentSlide(index)}
+                        className={`h-2.5 w-2.5 rounded-full border transition ${
+                          currentSlide === index
+                            ? 'border-white bg-white'
+                            : 'border-white/40 bg-white/20 hover:border-white/70'
+                        }`}
+                        aria-label={`사진 ${index + 1} 보기`}
+                        title={`사진 ${index + 1}`}
+                      >
+                        <span className="sr-only">사진 {index + 1}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 flex flex-col gap-5">
@@ -611,118 +630,6 @@ export default function HomePage() {
               </div>
             </div>
           </section>
-
-          <motion.section
-            className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#1f2937] p-6 shadow-2xl"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <div className="grid gap-8 lg:grid-cols-[2fr,1fr] items-center">
-              <div
-                className="relative rounded-2xl border border-white/10 overflow-hidden min-h-[320px]"
-                onMouseEnter={() => setIsSlideHovered(true)}
-                onMouseLeave={() => setIsSlideHovered(false)}
-              >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={currentSlide}
-                    className="absolute inset-0"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.8 }}
-                  >
-                    {activeSlide?.type === 'video' ? (
-                      <video
-                        className="w-full h-full object-cover"
-                        autoPlay
-                        loop
-                        playsInline
-                        muted={videoMuted}
-                        poster={activeSlide.poster}
-                        onCanPlay={e => {
-                          const video = e.target as HTMLVideoElement
-                          video.volume = videoVolume / 100
-                          video.muted = videoMuted
-                          video.play().catch(console.log)
-                        }}
-                        onLoadedData={e => {
-                          const video = e.target as HTMLVideoElement
-                          video.volume = videoVolume / 100
-                          video.muted = videoMuted
-                        }}
-                      >
-                        <source src={activeSlide.src} type="video/mp4" />
-                      </video>
-                    ) : activeSlide?.type === 'image' ? (
-                      <Image src={activeSlide.src} alt={activeSlide.title} fill className="object-cover object-top" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-slate-800 to-indigo-900 flex items-center justify-center text-gray-200">
-                        준비 중인 콘텐츠
-                      </div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-
-                {isSlideHovered && (
-                  <>
-                    <button
-                      className="absolute left-4 top-1/2 -translate-y-1/2 slide-nav-button z-10 p-3"
-                      onClick={() =>
-                        setCurrentSlide(currentSlide === 0 ? slideCount - 1 : currentSlide - 1)
-                      }
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <button
-                      className="absolute right-4 top-1/2 -translate-y-1/2 slide-nav-button z-10 p-3"
-                      onClick={() => setCurrentSlide((currentSlide + 1) % slideCount)}
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <div className="text-white space-y-6">
-                <div>
-                  <span className="accent-chip mb-3">오늘의 스포트라이트</span>
-                  <h3 className="text-3xl font-semibold">{activeSlide?.title || 'Spotlight'}</h3>
-                  <p className="text-sm text-gray-300 mt-3">
-                    {activeSlide?.type === 'video'
-                      ? '멤버가 직접 인사하는 짧은 영상을 감상해 보세요.'
-                      : '현장의 분위기가 담긴 사진으로 추억을 이어갑니다.'}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-gray-400">다음 전환까지</p>
-                    <p className="text-3xl font-mono">{countdown}s</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-gray-400">콘텐츠 타입</p>
-                    <p className="text-xl font-semibold">{activeSlide?.type === 'video' ? '영상' : '이미지'}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {slideContent.map((slide, index) => (
-                    <button
-                      key={slide.title}
-                      onClick={() => setCurrentSlide(index)}
-                      className={`px-3 py-1 text-xs rounded-full border ${
-                        currentSlide === index
-                          ? 'border-white text-white bg-white/10'
-                          : 'border-white/20 text-gray-300 hover:border-white/40'
-                      }`}
-                    >
-                      {index + 1}. {slide.type === 'video' ? '영상' : '사진'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.section>
 
           <section className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -785,123 +692,6 @@ export default function HomePage() {
         </div>
       </main>
 
-      {/* 우측 하단 비디오 볼륨 컨트롤 */}
-      {/* Main video volume controls */}
-      {isClient && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end space-y-3">
-          <AnimatePresence>
-            {isVolumeOpen && (
-              <motion.div
-                key="volume-panel"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.2 }}
-                className="glass-card backdrop-blur-xl bg-white/10 border border-white/30 shadow-glass rounded-2xl p-4 min-w-[280px]"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-pink-500/90 rounded-full flex items-center justify-center">
-                      <Volume2 className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-100">Main Video Volume</h3>
-                      <p className="text-xs text-gray-200/80">
-                        {slideContent[currentSlide]?.type === 'video'
-                          ? slideContent[currentSlide].title
-                          : 'Image slide'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-medium text-gray-100/90">
-                    {videoMuted ? 'Muted' : `${videoVolume}%`}
-                  </span>
-                </div>
-
-                <div className="mb-3">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={videoMuted ? 0 : videoVolume}
-                    onChange={(e) => {
-                      const volume = Number(e.target.value)
-                      const shouldMute = volume === 0
-                      setVideoVolume(volume)
-                      setSavedVolume(volume)
-                      setVideoMuted(shouldMute)
-                      updateAllVideosVolume(volume, shouldMute)
-                      localStorage.setItem('rangu_video_volume', volume.toString())
-                      localStorage.setItem('rangu_video_muted', shouldMute.toString())
-                    }}
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                    style={{
-                      background: `linear-gradient(to right, rgba(249,115,22,0.9) 0%, rgba(249,115,22,0.9) ${videoMuted ? 0 : videoVolume}%, rgba(255,255,255,0.25) ${videoMuted ? 0 : videoVolume}%, rgba(255,255,255,0.25) 100%)`
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => {
-                        const newMuted = !videoMuted
-                        setVideoMuted(newMuted)
-                        updateAllVideosVolume(videoVolume, newMuted)
-                        localStorage.setItem('rangu_video_muted', newMuted.toString())
-                      }}
-                      className="glass-button p-2 rounded-lg"
-                      title={videoMuted ? 'Unmute' : 'Mute'}
-                    >
-                      {videoMuted ? (
-                        <VolumeX className="w-4 h-4" />
-                      ) : (
-                        <Volume2 className="w-4 h-4" />
-                      )}
-                    </button>
-
-                    <div className="flex space-x-1">
-                      {[25, 50, 75, 100].map((preset) => (
-                        <button
-                          key={preset}
-                          onClick={() => {
-                            setVideoVolume(preset)
-                            setSavedVolume(preset)
-                            setVideoMuted(false)
-                            updateAllVideosVolume(preset, false)
-                            localStorage.setItem('rangu_video_volume', preset.toString())
-                            localStorage.setItem('rangu_video_muted', 'false')
-                          }}
-                          className={`px-2 py-1 text-xs rounded glass-button ${
-                            videoVolume === preset && !videoMuted
-                              ? 'bg-orange-500/80 text-white'
-                              : 'text-gray-100/80'
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <button
-            onClick={() => setIsVolumeOpen(!isVolumeOpen)}
-            className="glass-button w-12 h-12 rounded-full flex items-center justify-center"
-            title={isVolumeOpen ? 'Hide volume panel' : 'Show volume panel'}
-            aria-label={isVolumeOpen ? 'Hide volume panel' : 'Show volume panel'}
-          >
-            {videoMuted ? (
-              <VolumeX className="w-5 h-5" />
-            ) : (
-              <Volume2 className="w-5 h-5" />
-            )}
-          </button>
-        </div>
-      )}
     </div>
   )
 } 

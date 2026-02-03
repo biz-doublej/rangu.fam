@@ -67,6 +67,13 @@ export default function WikiDocumentPage() {
   // URL에서 슬러그 추출 및 디코딩
   const rawSlug = Array.isArray(params.slug) ? params.slug.join('/') : params.slug || ''
   const slug = decodeURIComponent(rawSlug)
+  const legacyCeremonySlug = '50호 기념 2025 시상식'
+
+  useEffect(() => {
+    if (slug === legacyCeremonySlug) {
+      router.replace('/wiki/workshop/awards-2025')
+    }
+  }, [slug, router])
   
   const [currentPage, setCurrentPage] = useState<WikiPageData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -121,6 +128,10 @@ export default function WikiDocumentPage() {
   useEffect(() => {
     const loadPage = async () => {
       if (!slug) {
+        setIsLoading(false)
+        return
+      }
+      if (slug === legacyCeremonySlug) {
         setIsLoading(false)
         return
       }
