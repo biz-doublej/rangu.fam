@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -33,7 +33,7 @@ type WorkshopPayload = {
   statements: WorkshopStatement[]
 }
 
-export default function WikiWorkshopListPage() {
+function WikiWorkshopListPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { wikiUser, isLoggedIn } = useWikiAuth()
@@ -309,5 +309,25 @@ export default function WikiWorkshopListPage() {
         </section>
       </main>
     </div>
+  )
+}
+
+function WorkshopPageFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-gray-100">
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-center text-sm text-gray-400">
+          작업공작소 페이지를 불러오는 중입니다...
+        </div>
+      </main>
+    </div>
+  )
+}
+
+export default function WikiWorkshopListPage() {
+  return (
+    <Suspense fallback={<WorkshopPageFallback />}>
+      <WikiWorkshopListPageContent />
+    </Suspense>
   )
 }
