@@ -5,6 +5,7 @@ import User from '@/models/User'
 import Image from '@/models/Image'
 import { UserCardStats } from '@/models/UserCardStats'
 import jwt from 'jsonwebtoken'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,50 +13,48 @@ const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
 
 async function verifyAdmin(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+  const cookieToken = request.cookies.get('wiki-token')?.value || null
+  const tokens = [bearerToken, cookieToken].filter(Boolean) as string[]
+  if (tokens.length === 0) return null
+
+  await dbConnect()
+
+  for (const token of tokens) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any
+      let user
+      if (decoded.userId) {
+        // Admin JWT 토큰 형식
+        user = await WikiUser.findById(decoded.userId)
+      } else if (decoded.username) {
+        // Wiki JWT 토큰 형식
+        user = await WikiUser.findOne({ username: decoded.username })
+      } else {
+        continue
+      }
+
+      if (!user) continue
+      user = await enforceUserAccessPolicy(user as any)
+      if (!user || user.role !== 'admin') continue
+
+      return user
+    } catch {
+      continue
+    }
   }
 
-  try {
-    const token = authHeader.substring(7)
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-    
-    await dbConnect()
-    
-    let user
-    if (decoded.userId) {
-      // Admin JWT 토큰 형식
-      user = await WikiUser.findById(decoded.userId)
-    } else if (decoded.username) {
-      // Wiki JWT 토큰 형식
-      user = await WikiUser.findOne({ username: decoded.username })
-    }
-    
-    if (!user || (user.role !== 'admin' && user.role !== 'moderator' && user.role !== 'owner')) {
-      return null
-    }
-    
-    return user
-  } catch (error) {
-    // JWT 검증 실패 시 null 반환
-    return null
-  }
+  return null
 }
 
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyAdmin(request)
     if (!user) {
-      // 임시 인증 토큰도 확인
-      const authHeader = request.headers.get('authorization')
-      if (authHeader?.includes('wiki-authenticated')) {
-        // 위키 기반 임시 인증은 허용
-      } else {
-        return NextResponse.json(
-          { success: false, error: '관리자 권한이 필요합니다.' },
-          { status: 403 }
-        )
-      }
+      return NextResponse.json(
+        { success: false, error: '관리자 권한이 필요합니다.' },
+        { status: 403 }
+      )
     }
 
     await dbConnect()

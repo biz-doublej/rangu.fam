@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { BookOpenCheck, Link2, LogIn, UserCircle } from 'lucide-react'
+import { BookOpenCheck, LogIn, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,145 +25,67 @@ export default function WikiLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-4xl grid gap-6 md:grid-cols-2">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <div className="text-center mb-6">
-            <motion.div
-              className="w-20 h-20 bg-gray-900 rounded-full mx-auto mb-4 flex items-center justify-center"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            >
-              <BookOpenCheck className="w-10 h-10 text-white" />
-            </motion.div>
-            <h1 className="text-3xl font-bold text-white mb-2">이랑위키 로그인</h1>
-            <p className="text-gray-400">
-              Discord 계정으로 인증하고, 연결된 위키 계정으로 자동 로그인하세요.
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#020617] text-white px-4">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.12),transparent_40%)]" />
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}
+        className="relative z-10 w-full max-w-md"
+      >
+        <Card className="bg-slate-900/70 border-white/10">
+          <CardHeader>
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+                <BookOpenCheck className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-center">이랑위키 로그인</h1>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4 text-sm text-white/80">
+            <p className="text-center">
+              DoubleJ 통합 로그인 계정으로 위키 토큰을 발급합니다.
             </p>
-          </div>
-
-          <Card className="bg-gray-900/70 border-gray-800">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white text-center">
-                1단계 · Discord 로그인
-              </h2>
-            </CardHeader>
-            <CardContent className="text-sm text-gray-300 space-y-3">
-              <p>
-                먼저 Rangu.fam 메인 로그인 페이지에서 Discord 로그인을 완료해주세요. 로그인 후
-                계정 설정에서 기존 위키 계정을 연결하면 여기서 바로 토큰을 발급할 수 있어요.
+            <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
+              <p className="text-xs text-white/60 mb-1">현재 연결된 계정</p>
+              <p className="font-semibold flex items-center gap-1">
+                <UserCircle className="w-4 h-4 text-primary-300" />
+                {linkedWikiUsername || wikiUser?.username || '미연결'}
               </p>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full border border-white/10 text-white"
-                onClick={() => router.push('/login')}
-              >
-                Discord 로그인 페이지 열기
-              </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
 
-          <Card className="bg-gray-900/70 border-gray-800 mt-4">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white text-center">
-                2단계 · 계정 연동하기
-              </h2>
-            </CardHeader>
-            <CardContent className="text-sm text-gray-300 space-y-2">
-              <p>
-                계정 설정 페이지에서 기존 Rangu 아이디와 위키 계정을 연결할 수 있습니다. 한 번만
-                설정해두면 이후에는 Discord만으로 모든 로그인이 가능합니다.
-              </p>
-            </CardContent>
-            <CardFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full border border-white/10 text-white"
-                onClick={() => router.push('/settings/account')}
-              >
-                계정 설정 바로가기
-              </Button>
-            </CardFooter>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          className="space-y-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-        >
-          <Card>
-            <CardHeader>
-              <h3 className="text-xl font-semibold text-gray-800 text-center">
-                최종 단계 · 위키 토큰 발급
-              </h3>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-gray-600">
-              <p>
-                디스코드로 인증된 상태라면 아래 버튼을 눌러 위키 토큰을 발급받을 수 있습니다. 발급
-                후에는 자동으로 위키 메인 페이지로 이동합니다.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-start space-x-2">
-                  <span className="mt-1">
-                    <UserCircle className="w-4 h-4 text-primary-500" />
-                  </span>
-                  <span>
-                    현재 연결된 위키 계정:{' '}
-                    <strong>{linkedWikiUsername || wikiUser?.username || '미연결'}</strong>
-                  </span>
-                </li>
-                <li className="flex items-start space-x-2">
-                  <span className="mt-1">
-                    <Link2 className="w-4 h-4 text-primary-500" />
-                  </span>
-                  <span>
-                    연결된 계정이 없다면 계정 설정 페이지에서 기존 위키 아이디와 비밀번호를 입력해
-                    주세요.
-                  </span>
-                </li>
-              </ul>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-2">
+          <CardFooter className="flex flex-col gap-2">
+            {isLoggedIn ? (
               <Button
                 type="button"
                 variant="primary"
-                size="lg"
-                disabled={!isLoggedIn}
+                className="w-full"
                 loading={isSubmitting || isLoading}
                 onClick={handleWikiLogin}
               >
-                {isLoggedIn ? '위키 로그인' : '먼저 Discord에 로그인하세요'}
+                위키 로그인
               </Button>
-              {!isLoggedIn && (
-                <p className="text-xs text-gray-500 text-center">
-                  Discord 인증이 필요합니다. 먼저 상단 버튼을 눌러 로그인해주세요.
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="w-full"
+                  onClick={() => router.push('/login')}
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  통합 로그인하러 가기
+                </Button>
+                <p className="text-xs text-white/60 text-center">
+                  먼저 `/login`에서 로그인 후 다시 진행해주세요.
                 </p>
-              )}
-            </CardFooter>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h4 className="text-lg font-semibold text-gray-800">도움말</h4>
-            </CardHeader>
-            <CardContent className="text-sm text-gray-600 space-y-2">
-              <p>
-                • 계정 연동은 한 번만 하면 됩니다. <br />• 위키 계정 비밀번호는 서버에서만 사용하고
-                저장되지 않습니다. <br />• 토큰 발급 후에는 기존처럼 문서를 편집하고 토론에 참여할
-                수 있습니다.
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+              </>
+            )}
+          </CardFooter>
+        </Card>
+      </motion.div>
     </div>
   )
 }

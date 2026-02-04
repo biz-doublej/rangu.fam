@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
 import { checkAdminAuth } from '@/lib/adminAuth'
 
 // 관리자 페이지 데이터 스토어 (실제로는 DB나 파일에 저장하는 것이 좋음)
@@ -23,7 +22,7 @@ const pageData = {
 // GET /api/admin/pages - 모든 페이지 데이터 조회
 export async function GET(request: NextRequest) {
   try {
-    const adminUser = checkAdminAuth(request)
+    const adminUser = await checkAdminAuth(request)
     if (!adminUser) {
       return NextResponse.json({ error: '관리자 권한이 필요합니다' }, { status: 403 })
     }
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest) {
 // PUT /api/admin/pages - 페이지 데이터 업데이트
 export async function PUT(request: NextRequest) {
   try {
-    const adminUser = checkAdminAuth(request)
+    const adminUser = await checkAdminAuth(request)
     if (!adminUser) {
       return NextResponse.json({ error: '관리자 권한이 필요합니다' }, { status: 403 })
     }

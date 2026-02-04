@@ -76,6 +76,19 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json()
         if (data.success && data.user) {
           setWikiUser(data.user)
+          return
+        }
+      }
+
+      // 위키 토큰이 없지만 통합 로그인 상태일 수 있으므로 토큰 재발급 시도
+      const syncResponse = await fetch('/api/wiki/auth/discord-login', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (syncResponse.ok) {
+        const syncData = await syncResponse.json()
+        if (syncData.success && syncData.user) {
+          setWikiUser(syncData.user)
         }
       }
     } catch (error) {
@@ -112,14 +125,14 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
           })
         }
 
-        toast.success('디스코드로 위키에 입장했습니다!')
+        toast.success('통합 계정으로 위키에 입장했습니다!')
         return true
       }
 
       toast.error(data.error || '위키 로그인에 실패했습니다.')
       return false
     } catch (error) {
-      console.error('디스코드 위키 로그인 오류:', error)
+      console.error('통합 위키 로그인 오류:', error)
       toast.error('로그인 중 오류가 발생했습니다.')
       return false
     }
@@ -133,12 +146,17 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
     mainUserId?: string
   }): Promise<boolean> => {
     try {
-      const response = await fetch('/api/wiki/auth/register', {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData)
+        credentials: 'include',
+        body: JSON.stringify({
+          username: userData.username,
+          password: userData.password,
+          displayName: userData.displayName,
+        })
       })
 
       // 응답이 비어있거나 잘못된 경우 체크
@@ -165,7 +183,8 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.success) {
-        toast.success('위키 계정이 생성되었습니다! 로그인해주세요.')
+        toast.success('DoubleJ 계정이 생성되었습니다.')
+        await checkAuthStatus()
         return true
       } else {
         toast.error(data.error || '회원가입에 실패했습니다.')

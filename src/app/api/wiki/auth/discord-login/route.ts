@@ -1,58 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import jwt from 'jsonwebtoken'
-import dbConnect from '@/lib/mongodb'
-import { WikiUser } from '@/models/Wiki'
-import { authOptions } from '@/lib/authOptions'
+import {
+  createWikiToken,
+  enforceUserAccessPolicy,
+  getAuthenticatedWikiUser,
+  setWikiAuthCookie,
+} from '@/lib/doublejAuth'
 import { getIpAddress, formatIpForDisplay } from '@/lib/getIpAddress'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user?.discordId) {
+    const user = await getAuthenticatedWikiUser(request)
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Discord 로그인이 필요합니다.' },
+        { success: false, error: 'DoubleJ 통합 로그인이 필요합니다.' },
         { status: 401 }
       )
     }
 
-    await dbConnect()
-    const wikiUser = await WikiUser.findOne({ discordId: session.user.discordId })
-
-    if (!wikiUser) {
+    if (!user.isActive) {
       return NextResponse.json(
-        { success: false, error: '연동된 위키 계정을 찾을 수 없습니다.' },
-        { status: 404 }
+        { success: false, error: '비활성화된 계정입니다.' },
+        { status: 403 }
       )
     }
 
-    const token = jwt.sign(
-      {
-        userId: wikiUser._id,
-        username: wikiUser.username,
-        role: wikiUser.role,
-        permissions: wikiUser.permissions,
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    )
+    const isBanned = Boolean((user as any).isBanned || (user as any)?.banStatus?.isBanned)
+    if (isBanned) {
+      return NextResponse.json(
+        { success: false, error: '차단된 계정입니다.' },
+        { status: 403 }
+      )
+    }
+
+    user.lastLogin = new Date()
+    user.lastActivity = new Date()
+    await user.save()
+    await enforceUserAccessPolicy(user)
 
     const ipAddress = getIpAddress(request)
     const formattedIp = formatIpForDisplay(ipAddress)
 
-    wikiUser.lastLogin = new Date()
-    wikiUser.lastActivity = new Date()
-    wikiUser.lastLoginIp = ipAddress
-    await wikiUser.save()
-
     try {
       const userAgent = request.headers.get('user-agent')
       await DiscordWebhookService.sendUserLogin(
-        wikiUser.username,
+        user.username,
         ipAddress,
         userAgent || undefined
       )
@@ -64,23 +58,23 @@ export async function POST(request: NextRequest) {
       success: true,
       message: '위키 로그인이 완료되었습니다.',
       user: {
-        id: wikiUser._id,
-        username: wikiUser.username,
-        displayName: wikiUser.displayName || wikiUser.username,
-        email: wikiUser.email,
-        role: wikiUser.role,
-        permissions: wikiUser.permissions,
-        avatar: wikiUser.avatar,
-        bio: wikiUser.bio,
-        signature: wikiUser.signature,
-        edits: wikiUser.edits,
-        pagesCreated: wikiUser.pagesCreated,
-        reputation: wikiUser.reputation,
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName || user.username,
+        email: user.email,
+        role: user.role,
+        permissions: user.permissions,
+        avatar: user.avatar,
+        bio: user.bio,
+        signature: user.signature,
+        edits: user.edits,
+        pagesCreated: user.pagesCreated,
+        reputation: user.reputation,
       },
       loginNotification: {
         type: 'login',
-        title: '디스코드 로그인 성공',
-        message: `${wikiUser.displayName || wikiUser.username}님, 안전하게 로그인되었습니다.`,
+        title: '위키 로그인 성공',
+        message: `${user.displayName || user.username}님, 안전하게 로그인되었습니다.`,
         data: {
           ipAddress: formattedIp,
           timestamp: new Date().toISOString(),
@@ -88,16 +82,11 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    response.cookies.set('wiki-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60,
-    })
+    setWikiAuthCookie(response, createWikiToken(user))
 
     return response
   } catch (error) {
-    console.error('Discord wiki 로그인 오류:', error)
+    console.error('통합 위키 로그인 오류:', error)
     return NextResponse.json(
       { success: false, error: '위키 로그인 처리 중 오류가 발생했습니다.' },
       { status: 500 }

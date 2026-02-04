@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { 
   Settings, 
   FileText, 
@@ -132,13 +132,13 @@ interface RecentActivity {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState('overview')
   const [activeSubTab, setActiveSubTab] = useState('')
   
   // 인증 상태
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   
   // 데이터 상태들
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -150,58 +150,10 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null)
   
-  // 초기 자동 인증/데모 모드: 토큰이 없으면 임시 adminToken 생성 후 전체 기능 활성화
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken')
-    if (!token) {
-      localStorage.setItem('adminToken', 'dev-auto')
-      setCurrentUser({ id: 'auto', username: 'Auto Admin', role: 'admin', isAdmin: true })
-      setIsAuthenticated(true)
-      loadDashboardData()
-      startAutoRefresh()
-    } else {
-      checkAuth()
-    }
-  }, [])
-
-  // WikiUser 인증
-  const handleLogin = async () => {
-    if (!loginForm.username || !loginForm.password) {
-      alert('사용자명과 비밀번호를 입력해주세요.')
-      return
-    }
-
-    try {
-      const response = await fetch('/api/admin/wiki-auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(loginForm)
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        localStorage.setItem('adminToken', result.token)
-        setCurrentUser(result.user)
-        setIsAuthenticated(true)
-        loadDashboardData()
-        startAutoRefresh()
-      } else {
-        alert(result.error || '로그인에 실패했습니다.')
-      }
-    } catch (error) {
-      console.error('로그인 오류:', error)
-      alert('로그인 중 오류가 발생했습니다.')
-    }
-  }
-
   const handleLogout = () => {
     localStorage.removeItem('adminToken')
     setIsAuthenticated(false)
     setCurrentUser(null)
-    setLoginForm({ username: '', password: '' })
     if (refreshInterval) {
       clearInterval(refreshInterval)
       setRefreshInterval(null)
@@ -209,69 +161,8 @@ export default function AdminDashboard() {
   }
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('adminToken')
-    if (token === 'dev-auto') {
-      setIsAuthenticated(true)
-      setCurrentUser({ id: 'auto', username: 'Auto Admin', role: 'admin', isAdmin: true })
-      loadDashboardData()
-      startAutoRefresh()
-      return
-    }
-
-    if (token) {
-      try {
-        const response = await fetch('/api/admin/wiki-auth', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-
-        if (response.ok) {
-          const result = await response.json()
-          setCurrentUser(result.user)
-          setIsAuthenticated(true)
-          loadDashboardData()
-          startAutoRefresh()
-          setInitialLoading(false)
-          return
-        } else {
-          localStorage.removeItem('adminToken')
-        }
-      } catch (error) {
-        console.error('인증 확인 오류:', error)
-        localStorage.removeItem('adminToken')
-      }
-    }
-
-    // adminToken이 없으면 위키 쿠키를 확인
-    await checkWikiAuth()
-    setInitialLoading(false)
-  }
-
-  const checkWikiAuth = async () => {
     try {
-      // 직접 위키 토큰 확인
-      const wikiToken = getCookie('wiki-token')
-      if (wikiToken) {
-        // 위키 토큰으로 관리자 인증 시도
-        try {
-          const response = await fetch('/api/admin/wiki-auth', {
-            headers: { 'Authorization': `Bearer ${wikiToken}` }
-          })
-
-          if (response.ok) {
-            const result = await response.json()
-            localStorage.setItem('adminToken', wikiToken)
-            setCurrentUser(result.user)
-            setIsAuthenticated(true)
-            loadDashboardData()
-            startAutoRefresh()
-            return
-          }
-        } catch (error) {
-          console.error('위키 토큰 인증 실패:', error)
-        }
-      }
-
-      // 위키 토큰 인증이 실패하면 /api/wiki/auth/me로 확인
+      setInitialLoading(true)
       const response = await fetch('/api/wiki/auth/me', {
         credentials: 'include'
       })
@@ -280,8 +171,7 @@ export default function AdminDashboard() {
         const result = await response.json()
         const user = result.user
 
-        // admin, moderator, owner 권한이 있는지 확인
-        if (user && (user.role === 'admin' || user.role === 'moderator' || user.role === 'owner')) {
+        if (user && user.role === 'admin') {
           // 사용자 정보를 직접 설정
           setCurrentUser({
             id: user.id,
@@ -292,31 +182,42 @@ export default function AdminDashboard() {
           })
           setIsAuthenticated(true)
           
-          // 임시 토큰 생성
-          localStorage.setItem('adminToken', 'wiki-authenticated')
+          // 관리자 API 호출을 위한 세션 표식 (권한 검증은 서버에서 wiki-token으로 재검증)
+          localStorage.setItem('adminToken', 'doublej-admin')
           loadDashboardData()
           startAutoRefresh()
+          setInitialLoading(false)
+          return
         }
       }
+
+      localStorage.removeItem('adminToken')
+      setIsAuthenticated(false)
+      setCurrentUser(null)
     } catch (error) {
       console.error('위키 인증 확인 오류:', error)
+      localStorage.removeItem('adminToken')
+      setIsAuthenticated(false)
+      setCurrentUser(null)
+    } finally {
+      setInitialLoading(false)
     }
   }
 
-  const getCookie = (name: string): string | null => {
-    const value = `; ${document.cookie}`
-    const parts = value.split(`; ${name}=`)
-    if (parts.length === 2) return parts.pop()?.split(';').shift() || null
-    return null
-  }
+  useEffect(() => {
+    checkAuth()
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+      }
+    }
+  }, [])
 
   // 통계 데이터 로드
   const loadDashboardStats = async () => {
     try {
-      const token = localStorage.getItem('adminToken') || 'dev-auto'
-
       const response = await fetch('/api/admin/dashboard-stats', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -332,20 +233,18 @@ export default function AdminDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const token = localStorage.getItem('adminToken') || 'dev-auto'
-
       setLoading(true)
 
       // 기존 데이터 로드
       const [pagesRes, submissionsRes, usersRes] = await Promise.all([
         fetch('/api/admin/pages', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
         }).catch(() => null),
         fetch('/api/wiki/mod', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
         }).catch(() => null),
         fetch('/api/wiki/users', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
         }).catch(() => null)
       ])
 
@@ -390,8 +289,8 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         },
+        credentials: 'include',
         body: JSON.stringify({ action, submissionId, reason })
       })
 
@@ -415,8 +314,8 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         },
+        credentials: 'include',
         body: JSON.stringify({ action, userId, data })
       })
 
@@ -493,16 +392,6 @@ export default function AdminDashboard() {
     }
   ]
 
-  useEffect(() => {
-    checkAuth()
-    
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval)
-      }
-    }
-  }, [])
-
   // 초기 로딩 상태 추가
   const [initialLoading, setInitialLoading] = useState(true)
 
@@ -554,48 +443,21 @@ export default function AdminDashboard() {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                   RangU 관리자 대시보드
                 </h1>
-                <p className="text-gray-400 mt-2">WikiUser 관리자 계정으로 로그인하세요</p>
+                <p className="text-gray-400 mt-2">관리자 전용 페이지입니다.</p>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    사용자명
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="WikiUser 사용자명"
-                    value={loginForm.username}
-                    onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                    className="bg-gray-700/50 border-gray-600 text-gray-200 backdrop-blur-sm"
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    비밀번호
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="비밀번호"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                    className="bg-gray-700/50 border-gray-600 text-gray-200 backdrop-blur-sm"
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  />
-                </div>
                 <Button 
-                  onClick={handleLogin} 
+                  onClick={() => router.push('/login')} 
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0"
                 >
                   <LogIn className="w-4 h-4 mr-2" />
-                  관리자 로그인
+                  DoubleJ 통합 로그인으로 이동
                 </Button>
                 <div className="text-center text-sm text-gray-500">
-                  ⚠️ 관리자 권한이 필요합니다<br/>
-                  <span className="text-red-400">위키에서 admin/moderator/owner 권한으로 로그인하거나</span><br/>
-                  <span className="text-blue-400">WikiUser 테이블의 admin 계정으로 직접 로그인하세요</span>
+                  ⚠️ 관리자 개별 로그인은 제거되었습니다.<br/>
+                  통합 로그인 후 관리자 권한 계정만 접근할 수 있습니다.
                 </div>
               </div>
             </CardContent>

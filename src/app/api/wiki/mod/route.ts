@@ -4,6 +4,7 @@ import { WikiSubmission, WikiPage, WikiUser } from '@/models/Wiki'
 import { isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
 import jwt from 'jsonwebtoken'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
@@ -11,38 +12,36 @@ const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
 async function getUserFromToken(request: NextRequest) {
   // Authorization 헤더에서 토큰 확인
   const authHeader = request.headers.get('authorization')
-  let token = null
+  let bearerToken: string | null = null
   
   if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.split(' ')[1]
-  } else {
-    // 쿠키에서 토큰 확인 (기존 방식)
-    token = request.cookies.get('wiki-token')?.value
+    bearerToken = authHeader.split(' ')[1]
   }
+  const cookieToken = request.cookies.get('wiki-token')?.value || null
+  const tokens = [bearerToken, cookieToken].filter(Boolean) as string[]
+  if (tokens.length === 0) return null
   
-  if (!token) return null
-  
-  try {
-    // 위키 기반 임시 토큰인 경우
-    if (token === 'wiki-authenticated') {
-      return await WikiUser.findOne({ username: 'gabriel0727' })
+  for (const token of tokens) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any
+      let user
+      if (decoded.userId) {
+        // Admin JWT 토큰 형식
+        user = await WikiUser.findById(decoded.userId)
+      } else if (decoded.username) {
+        // Wiki JWT 토큰 형식
+        user = await WikiUser.findOne({ username: decoded.username })
+      } else {
+        continue
+      }
+      if (!user) continue
+      return enforceUserAccessPolicy(user as any)
+    } catch {
+      continue
     }
-    
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-    
-    let user
-    if (decoded.userId) {
-      // Admin JWT 토큰 형식
-      user = await WikiUser.findById(decoded.userId)
-    } else if (decoded.username) {
-      // Wiki JWT 토큰 형식
-      user = await WikiUser.findOne({ username: decoded.username })
-    }
-    
-    return user
-  } catch {
-    return null
   }
+
+  return null
 }
 
 export async function GET(request: NextRequest) {

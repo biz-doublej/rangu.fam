@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import { WikiUser } from '@/models/Wiki'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
 import jwt from 'jsonwebtoken'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,31 +11,35 @@ export const dynamic = 'force-dynamic'
 async function getUserFromToken(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) return null
-    
-    const token = authHeader.split(' ')[1]
-    
-    // 위키 기반 임시 토큰인 경우
-    if (token === 'wiki-authenticated') {
-      await dbConnect()
-      return await WikiUser.findOne({ username: 'gabriel0727' })
-    }
-    
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null
+    const cookieToken = request.cookies.get('wiki-token')?.value || null
+    const tokens = [bearerToken, cookieToken].filter(Boolean) as string[]
+    if (tokens.length === 0) return null
+
     const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-    
     await dbConnect()
-    
-    let user
-    if (decoded.userId) {
-      // Admin JWT 토큰 형식
-      user = await WikiUser.findById(decoded.userId)
-    } else if (decoded.username) {
-      // Wiki JWT 토큰 형식
-      user = await WikiUser.findOne({ username: decoded.username })
+
+    for (const token of tokens) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any
+        let user
+        if (decoded.userId) {
+          // Admin JWT 토큰 형식
+          user = await WikiUser.findById(decoded.userId)
+        } else if (decoded.username) {
+          // Wiki JWT 토큰 형식
+          user = await WikiUser.findOne({ username: decoded.username })
+        } else {
+          continue
+        }
+        if (!user) continue
+        return enforceUserAccessPolicy(user as any)
+      } catch {
+        continue
+      }
     }
-    
-    return user
+
+    return null
   } catch (error) {
     return null
   }
@@ -42,7 +47,7 @@ async function getUserFromToken(request: NextRequest) {
 
 // 관리자 권한 확인
 function isAdminOrModerator(user: any) {
-  return user && (user.role === 'admin' || user.role === 'moderator' || user.username === 'gabriel0727')
+  return user && user.role === 'admin'
 }
 
 // GET /api/wiki/users - 사용자 목록 조회 (관리자만)
@@ -131,6 +136,7 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       )
     }
+    const adminUser = user as any
 
     const { action, userId, data } = await request.json()
     
@@ -143,14 +149,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 자기 자신이나 상위 권한자는 조치할 수 없음
-    if (targetUser._id.toString() === user._id.toString()) {
+    if (targetUser._id.toString() === adminUser._id.toString()) {
       return NextResponse.json(
         { success: false, error: '자기 자신에게는 조치를 취할 수 없습니다.' },
         { status: 400 }
       )
     }
 
-    if (targetUser.role === 'admin' || targetUser.username === 'gabriel0727') {
+    if (targetUser.role === 'admin') {
       return NextResponse.json(
         { success: false, error: '관리자에게는 조치를 취할 수 없습니다.' },
         { status: 400 }
@@ -163,7 +169,7 @@ export async function POST(request: NextRequest) {
         if (!targetUser.warnings) targetUser.warnings = []
         targetUser.warnings.push({
           reason: data.reason,
-          warnedBy: user.username,
+          warnedBy: adminUser.username,
           warnedAt: new Date()
         })
         await targetUser.save()
@@ -171,7 +177,7 @@ export async function POST(request: NextRequest) {
         // 디스코드 웹훅 전송
         try {
           await DiscordWebhookService.sendUserModeration(
-            user.username,
+            adminUser.username,
             targetUser.username,
             'warn',
             data.reason
@@ -194,7 +200,7 @@ export async function POST(request: NextRequest) {
         targetUser.banStatus = {
           isBanned: true,
           reason: data.reason,
-          bannedBy: user.username,
+          bannedBy: adminUser.username,
           bannedAt: new Date(),
           bannedUntil
         }
@@ -204,7 +210,7 @@ export async function POST(request: NextRequest) {
         // 디스코드 웹훅 전송
         try {
           await DiscordWebhookService.sendUserModeration(
-            user.username,
+            adminUser.username,
             targetUser.username,
             'ban',
             data.reason,
@@ -224,7 +230,7 @@ export async function POST(request: NextRequest) {
         targetUser.banStatus = {
           isBanned: false,
           reason: '',
-          unbannedBy: user.username,
+          unbannedBy: adminUser.username,
           unbannedAt: new Date()
         }
         targetUser.isActive = true
@@ -233,7 +239,7 @@ export async function POST(request: NextRequest) {
         // 디스코드 웹훅 전송
         try {
           await DiscordWebhookService.sendUserModeration(
-            user.username,
+            adminUser.username,
             targetUser.username,
             'unban',
             '차단 해제'
@@ -258,7 +264,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 관리자만 moderator 권한 부여 가능
-        if (data.role === 'moderator' && user.role !== 'admin') {
+        if (data.role === 'moderator' && adminUser.role !== 'admin') {
           return NextResponse.json(
             { success: false, error: '운영자 권한은 관리자만 부여할 수 있습니다.' },
             { status: 403 }

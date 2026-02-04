@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb'
 import { WikiUser } from '@/models/Wiki'
 import { isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
 import jwt from 'jsonwebtoken'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
@@ -13,7 +14,7 @@ async function getUserFromToken(request: NextRequest) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any
     const user = await WikiUser.findById(decoded.userId)
-    return user
+    return enforceUserAccessPolicy(user as any)
   } catch {
     return null
   }
@@ -36,6 +37,7 @@ export async function PATCH(request: NextRequest) {
   if (role) target.role = role
   if (permissions) target.permissions = { ...target.permissions, ...permissions }
   await target.save()
+  await enforceUserAccessPolicy(target as any)
 
   return NextResponse.json({ success: true, user: { username: target.username, role: target.role, permissions: target.permissions } })
 }

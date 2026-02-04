@@ -679,7 +679,7 @@ export default function WikiMainPage() {
             <div>
               <p className="inline-flex items-center text-xs uppercase tracking-[0.3em] text-sky-300">
                 <Sparkles className="w-3 h-3 mr-2" />
-                이랑위키 v4.1.0
+                이랑위키 v4.2.0
               </p>
               <h1 className="mt-3 text-3xl font-bold text-white md:text-4xl">
                 모두가 만드는 지식 아카이브, 실시간으로 진화 중입니다.

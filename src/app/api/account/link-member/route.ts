@@ -1,70 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/authOptions'
-import dbConnect from '@/lib/mongodb'
-import DiscordLink, { IDiscordLink } from '@/models/DiscordLink'
+import { getAuthenticatedWikiUser, resolveMemberIdForUser } from '@/lib/doublejAuth'
 import { MemberService } from '@/backend/services/memberService'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user?.discordId) {
+    const user = await getAuthenticatedWikiUser(request)
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Discord 로그인이 필요합니다.' },
+        { success: false, error: '로그인이 필요합니다.' },
         { status: 401 }
       )
     }
 
-    const { memberId } = await request.json()
-
+    const memberId = resolveMemberIdForUser(user)
     if (!memberId) {
       return NextResponse.json(
-        { success: false, error: '연동할 멤버 아이디를 선택해주세요.' },
-        { status: 400 }
+        {
+          success: false,
+          error: '지정된 다섯 멤버 계정만 멤버 권한이 적용됩니다. 그 외 계정은 게스트로 동작합니다.',
+        },
+        { status: 403 }
       )
     }
 
-    const member = await MemberService.getMember(memberId)
-    if (!member) {
-      return NextResponse.json(
-        { success: false, error: '존재하지 않는 멤버입니다.' },
-        { status: 404 }
-      )
-    }
-
-    await dbConnect()
-    const updated = await DiscordLink.findOneAndUpdate(
-      { discordId: session.user.discordId },
-      {
-        discordUsername: session.user.name,
-        discordAvatar: session.user.image,
-        memberId,
-        memberLinkedAt: new Date(),
-      },
-      { new: true, upsert: true }
-    ).lean<IDiscordLink>()
-
-    if (!updated) {
-      return NextResponse.json(
-        { success: false, error: '멤버 연동에 실패했습니다.' },
-        { status: 500 }
-      )
-    }
+    const memberProfile = await MemberService.getMember(memberId).catch(() => null)
 
     return NextResponse.json({
       success: true,
       data: {
-        memberId: updated.memberId,
-        memberLinkedAt: updated.memberLinkedAt,
-        memberProfile: member,
+        memberId,
+        memberLinkedAt: user.createdAt || null,
+        memberProfile,
       },
     })
   } catch (error) {
     console.error('Member link error:', error)
     return NextResponse.json(
-      { success: false, error: '멤버 연동에 실패했습니다.' },
+      { success: false, error: '멤버 상태 확인에 실패했습니다.' },
       { status: 500 }
     )
   }

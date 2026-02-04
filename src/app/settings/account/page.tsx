@@ -1,148 +1,137 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { Link2, Users, ShieldCheck, Activity, UserCheck2, Sparkles } from 'lucide-react'
+import { Link2, ShieldCheck, Sparkles, UserCircle2, Unlink, LogIn } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Member } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface AccountSession {
-  discordId: string
-  discordUsername?: string
-  discordAvatar?: string
-  memberId?: string
-  memberLinkedAt?: string
-  memberProfile?: Member
-  wikiUsername?: string
-  wikiLinkedAt?: string
+  id: string
+  username: string
+  role: 'member' | 'guest'
+  discordId?: string | null
+  discordUsername?: string | null
+  discordAvatar?: string | null
+  wikiUsername?: string | null
+  memberId?: string | null
 }
 
 export default function AccountSettingsPage() {
-  const [members, setMembers] = useState<Member[]>([])
-  const [accountSession, setAccountSession] = useState<AccountSession | null>(null)
-  const [selectedMember, setSelectedMember] = useState<string>('')
-  const [wikiCredentials, setWikiCredentials] = useState({ username: '', password: '' })
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { isLoggedIn, user } = useAuth()
+  const [session, setSession] = useState<AccountSession | null>(null)
   const [loading, setLoading] = useState(true)
-  const [linkingMember, setLinkingMember] = useState(false)
-  const [linkingWiki, setLinkingWiki] = useState(false)
+  const [unlinking, setUnlinking] = useState(false)
 
-  useEffect(() => {
-    const bootstrap = async () => {
-      try {
-        const [memberRes, sessionRes] = await Promise.all([
-          fetch('/api/members'),
-          fetch('/api/account/session'),
-        ])
-
-        if (memberRes.ok) {
-          const memberData = await memberRes.json()
-          setMembers(memberData)
-        }
-
-        if (sessionRes.ok) {
-          const sessionData = await sessionRes.json()
-          setAccountSession(sessionData.data)
-          setSelectedMember(sessionData.data.memberId || '')
-        }
-      } catch (error) {
-        console.error('계정 정보 초기화 실패:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    bootstrap()
-  }, [])
+  const discordLinked = !!session?.discordId
+  const memberLabel = useMemo(() => (session?.role === 'member' ? '멤버' : '게스트'), [session])
 
   const refreshSession = async () => {
+    setLoading(true)
     try {
-      const response = await fetch('/api/account/session')
-      if (response.ok) {
-        const data = await response.json()
-        setAccountSession(data.data)
-        setSelectedMember(data.data.memberId || '')
-      }
-    } catch (error) {
-      console.error('세션 새로고침 실패:', error)
-    }
-  }
-
-  const handleLinkMember = async () => {
-    if (!accountSession) {
-      toast.error('먼저 디스코드로 로그인해주세요.')
-      return
-    }
-
-    if (!selectedMember) {
-      toast.error('연결할 멤버를 선택해주세요.')
-      return
-    }
-
-    setLinkingMember(true)
-    try {
-      const response = await fetch('/api/account/link-member', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ memberId: selectedMember }),
+      const response = await fetch('/api/account/session', {
+        credentials: 'include',
+        cache: 'no-store',
       })
 
-      const data = await response.json()
       if (!response.ok) {
-        toast.error(data.error || '멤버 연동에 실패했습니다.')
+        setSession(null)
         return
       }
 
-      toast.success('멤버 계정과 연결되었습니다.')
-      await refreshSession()
+      const data = await response.json()
+      setSession(data.data || null)
     } catch (error) {
-      console.error('멤버 연동 오류:', error)
-      toast.error('멤버 연동 중 오류가 발생했습니다.')
+      console.error('계정 세션 조회 실패:', error)
+      setSession(null)
     } finally {
-      setLinkingMember(false)
+      setLoading(false)
     }
   }
 
-  const handleLinkWiki = async () => {
-    if (!accountSession) {
-      toast.error('먼저 디스코드로 로그인해주세요.')
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setLoading(false)
+      return
+    }
+    refreshSession()
+  }, [isLoggedIn])
+
+  useEffect(() => {
+    const linked = searchParams.get('discordLinked')
+    const error = searchParams.get('discordError')
+
+    if (linked === '1') {
+      toast.success('Discord 계정이 연결되었습니다.')
+      refreshSession()
+      router.replace('/settings/account')
       return
     }
 
-    if (!wikiCredentials.username || !wikiCredentials.password) {
-      toast.error('위키 아이디와 비밀번호를 입력해주세요.')
-      return
+    if (error) {
+      const messageMap: Record<string, string> = {
+        already_linked: '이미 다른 계정에 연결된 Discord입니다.',
+        invalid_request: '잘못된 Discord 연결 요청입니다.',
+        link_failed: 'Discord 연결에 실패했습니다.',
+        discord_not_configured: 'Discord 설정이 완료되지 않았습니다.',
+      }
+      toast.error(messageMap[error] || 'Discord 연결 중 오류가 발생했습니다.')
+      router.replace('/settings/account')
     }
+  }, [searchParams, router])
 
-    setLinkingWiki(true)
+  const handleDiscordLink = () => {
+    window.location.href = '/api/auth/discord/link/start?callbackUrl=/settings/account'
+  }
+
+  const handleDiscordUnlink = async () => {
+    setUnlinking(true)
     try {
-      const response = await fetch('/api/wiki/auth/link', {
+      const response = await fetch('/api/auth/discord/unlink', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(wikiCredentials),
+        credentials: 'include',
       })
+      const data = await response.json().catch(() => ({}))
 
-      const data = await response.json()
-      if (!response.ok) {
-        toast.error(data.error || '위키 계정 연동에 실패했습니다.')
+      if (!response.ok || !data.success) {
+        toast.error(data.error || 'Discord 연결 해제에 실패했습니다.')
         return
       }
 
-      toast.success('위키 계정이 디스코드와 연결되었습니다.')
-      setWikiCredentials({ username: '', password: '' })
+      toast.success('Discord 연결이 해제되었습니다.')
       await refreshSession()
     } catch (error) {
-      console.error('위키 연동 오류:', error)
-      toast.error('위키 계정 연동 중 오류가 발생했습니다.')
+      console.error('Discord 연결 해제 오류:', error)
+      toast.error('Discord 연결 해제 중 오류가 발생했습니다.')
     } finally {
-      setLinkingWiki(false)
+      setUnlinking(false)
     }
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <Card className="max-w-lg w-full">
+          <CardHeader>
+            <h1 className="text-xl font-bold text-gray-800">계정 설정</h1>
+          </CardHeader>
+          <CardContent className="text-sm text-gray-600">
+            DoubleJ 통합 로그인이 필요합니다.
+          </CardContent>
+          <CardFooter>
+            <Button type="button" variant="primary" className="w-full" onClick={() => router.push('/login')}>
+              <LogIn className="w-4 h-4 mr-2" />
+              로그인 페이지로 이동
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
 
   if (loading) {
@@ -153,187 +142,113 @@ export default function AccountSettingsPage() {
     )
   }
 
-  const infoBlocks = [
-    {
-      label: '연결된 멤버',
-      value: accountSession?.memberProfile?.name || '아직 연결되지 않았습니다',
-    },
-    {
-      label: '연결된 위키 계정',
-      value: accountSession?.wikiUsername || '아직 연결되지 않았습니다',
-    },
-    {
-      label: '디스코드 ID',
-      value: accountSession?.discordUsername || '로그인 필요',
-    },
-  ]
-
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="absolute inset-0 bg-gradient-to-b from-[#050918] via-[#060312] to-[#020205]" />
       <div className="absolute -top-32 right-0 w-[32rem] h-[32rem] bg-primary-500/30 blur-[180px]" />
-      <div className="absolute bottom-[-10rem] left-[-6rem] w-[28rem] h-[28rem] bg-purple-600/20 blur-[160px]" />
+      <div className="absolute bottom-[-10rem] left-[-6rem] w-[28rem] h-[28rem] bg-cyan-500/20 blur-[160px]" />
 
       <div className="relative z-10 px-4 py-14 lg:py-16">
-        <div className="max-w-5xl mx-auto space-y-10">
+        <div className="max-w-4xl mx-auto space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6"
+            className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl"
           >
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-white/60 mb-2">Account Center</p>
-              <h1 className="text-3xl lg:text-4xl font-bold mb-3">계정 설정</h1>
-              <p className="text-white/70 leading-relaxed">
-                Discord 인증과 Rangu · 이랑위키 계정을 한 곳에서 관리하세요. 계정 정보를 연결하면
-                사이트 전체에서 권한과 상태가 자동으로 적용됩니다.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 w-full lg:w-auto justify-end">
-              {infoBlocks.map((block) => (
-                <div
-                  key={block.label}
-                  className="rounded-2xl bg-white/5 border border-white/10 px-4 py-2 text-sm min-w-[8.5rem]"
-                >
-                  <p className="text-white/60">{block.label}</p>
-                  <p className="font-semibold text-white mt-0.5 break-words">{block.value}</p>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm uppercase tracking-[0.3em] text-white/60 mb-2">DoubleJ Account Center</p>
+            <h1 className="text-3xl lg:text-4xl font-bold mb-2">통합 계정 설정</h1>
+            <p className="text-white/70">
+              하나의 계정으로 랑구팸과 이랑위키를 함께 사용합니다. Discord는 여기서 연결 후 간편로그인으로 사용할 수 있습니다.
+            </p>
           </motion.div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2">
             <Card className="bg-white/5 border-white/10 text-white shadow-xl">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Link2 className="w-4 h-4 text-primary-200" />
-                    <h2 className="text-lg font-semibold">디스코드 연결 상태</h2>
-                  </div>
-                  <span className="flex items-center space-x-1 text-xs text-white/70 border border-white/10 px-2 py-1 rounded-full">
-                    <Activity className="w-3 h-3" />
-                    <span>{accountSession ? '연결됨' : '연결 해제'}</span>
-                  </span>
-                </div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <UserCircle2 className="w-4 h-4 text-primary-200" />
+                  계정 상태
+                </h2>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm text-white/80">
-                <p>
-                  {accountSession
-                    ? `${accountSession.discordUsername || 'Discord 사용자'}님의 계정이 연결되어 있습니다.`
-                    : 'Discord 계정을 먼저 인증하면 상태가 표시됩니다.'}
-                </p>
-
-                <div className="grid gap-3">
-                  <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
-                    <p className="text-xs text-white/60 mb-1">연결된 멤버</p>
-                    <p className="text-base font-semibold">
-                      {accountSession?.memberProfile?.name || accountSession?.discordUsername || '연결되지 않음'}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
-                    <p className="text-xs text-white/60 mb-1">연결된 위키 계정</p>
-                    <p className="text-base font-semibold">
-                      {accountSession?.wikiUsername || '연결되지 않음'}
-                    </p>
-                  </div>
+              <CardContent className="space-y-3 text-sm text-white/80">
+                <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                  <p className="text-xs text-white/60 mb-1">아이디</p>
+                  <p className="text-base font-semibold">{session?.username || user?.username || '-'}</p>
+                </div>
+                <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                  <p className="text-xs text-white/60 mb-1">서비스 권한</p>
+                  <p className="text-base font-semibold">{memberLabel}</p>
+                  <p className="text-xs text-white/60 mt-1">지정된 다섯 멤버 외 계정은 게스트로 표시됩니다.</p>
+                </div>
+                <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                  <p className="text-xs text-white/60 mb-1">이랑위키 계정</p>
+                  <p className="text-base font-semibold">{session?.wikiUsername || '-'}</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900 border-white/5 shadow-xl">
+            <Card className="bg-black/30 border-white/10 shadow-xl">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-blue-200" />
-                    <h3 className="text-lg font-semibold text-white">Rangu 멤버 연결</h3>
-                  </div>
-                  <span className="text-xs text-white/60 flex items-center space-x-1">
-                    <UserCheck2 className="w-3 h-3" />
-                    <span>멤버 권한 동기화</span>
-                  </span>
-                </div>
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-cyan-200" />
+                  Discord 간편로그인 연결
+                </h3>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm text-white/70">
-                <p>
-                  Discord 계정을 팀 멤버 프로필과 연결하면 권한과 계정 정보가 사이트 전체에
-                  자동으로 반영됩니다.
-                </p>
-                <div className="space-y-2">
-                  <label className="text-xs text-white/60">연결할 멤버 선택</label>
-                  <select
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    value={selectedMember}
-                    onChange={(e) => setSelectedMember(e.target.value)}
-                  >
-                    <option value="">멤버를 선택하세요</option>
-                    {members.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
-                      </option>
-                    ))}
-                  </select>
+              <CardContent className="space-y-4 text-sm text-white/75">
+                <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                  <p className="text-xs text-white/60 mb-1">현재 상태</p>
+                  <p className="text-base font-semibold">
+                    {discordLinked ? '연결됨' : '미연결'}
+                  </p>
+                  {discordLinked && (
+                    <p className="text-xs text-white/60 mt-1">
+                      {session?.discordUsername || session?.discordId}
+                    </p>
+                  )}
                 </div>
+                <p>
+                  Discord 연결 후 로그인 페이지에서 <strong>Discord 간편로그인</strong> 버튼을 사용할 수 있습니다.
+                </p>
               </CardContent>
-              <CardFooter>
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="w-full"
-                  loading={linkingMember}
-                  disabled={!accountSession}
-                  onClick={handleLinkMember}
-                >
-                  멤버 연결하기
-                </Button>
+              <CardFooter className="flex flex-col gap-2">
+                {!discordLinked ? (
+                  <Button type="button" variant="primary" className="w-full" onClick={handleDiscordLink}>
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Discord 연결하기
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full border border-white/20 text-white"
+                    onClick={handleDiscordUnlink}
+                    loading={unlinking}
+                  >
+                    <Unlink className="w-4 h-4 mr-2" />
+                    Discord 연결 해제
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           </div>
 
-          <Card className="bg-black/30 border-white/5 shadow-xl">
+          <Card className="bg-white/5 border-white/10">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                  <h3 className="text-lg font-semibold text-white">이랑위키 계정 연동</h3>
-                </div>
-                <span className="text-xs flex items-center space-x-1 text-emerald-100/80">
-                  <Sparkles className="w-3 h-3" />
-                  <span>보안 검증 후 연결</span>
-                </span>
-              </div>
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-200" />
+                안내
+              </h4>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <p className="text-sm text-white/70 leading-relaxed">
-                기존 위키 아이디와 비밀번호를 입력하면 Discord 계정과 연결됩니다. 비밀번호는 인증
-                과정에서만 사용되고 저장되지 않습니다.
+            <CardContent className="text-sm text-white/70 space-y-2">
+              <p>• DoubleJ 통합 계정은 이랑위키와 랑구팸 사이트에 공통 적용됩니다.</p>
+              <p>• 회원가입은 아이디/비밀번호로 진행하며, Discord 연결은 선택 사항입니다.</p>
+              <p>• 권한은 지정된 다섯 멤버 외에는 게스트 권한으로 동작합니다.</p>
+              <p>• Discord 간편로그인을 쓰려면 먼저 이 페이지에서 Discord 연결을 완료해주세요.</p>
+              <p className="text-emerald-100/80 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                연결 후에는 로그인 화면에서 한 번에 들어올 수 있습니다.
               </p>
-              <Input
-                label="위키 아이디 또는 이메일"
-                type="text"
-                value={wikiCredentials.username}
-                onChange={(e) => setWikiCredentials({ ...wikiCredentials, username: e.target.value })}
-                placeholder="wiki 사용자명"
-              />
-              <Input
-                label="위키 비밀번호"
-                type="password"
-                value={wikiCredentials.password}
-                onChange={(e) => setWikiCredentials({ ...wikiCredentials, password: e.target.value })}
-                placeholder="비밀번호"
-              />
             </CardContent>
-            <CardFooter>
-              <Button
-                type="button"
-                variant="primary"
-                className="w-full"
-                loading={linkingWiki}
-                disabled={!accountSession}
-                onClick={handleLinkWiki}
-              >
-                위키 계정 연동하기
-              </Button>
-            </CardFooter>
           </Card>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import dbConnect from '@/lib/mongodb'
 import { WikiUser } from '@/models/Wiki'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       const decoded = jwt.verify(token, JWT_SECRET) as any
       
       // 사용자 정보 조회
-      const wikiUser = await WikiUser.findById(decoded.userId).select('-password')
+      let wikiUser = await WikiUser.findById(decoded.userId).select('-password')
       
       if (!wikiUser) {
         return NextResponse.json(
@@ -42,12 +43,15 @@ export async function GET(request: NextRequest) {
         )
       }
       
-      if (wikiUser.isBanned) {
+      const isBanned = Boolean((wikiUser as any).isBanned || (wikiUser as any).banStatus?.isBanned)
+      if (isBanned) {
         return NextResponse.json(
           { success: false, error: '차단된 계정입니다.' },
           { status: 403 }
         )
       }
+
+      wikiUser = await enforceUserAccessPolicy(wikiUser as any)
       
       // 마지막 활동 시간 업데이트
       wikiUser.lastActivity = new Date()

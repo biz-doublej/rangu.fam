@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { useSession, signIn, signOut } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import { User, Member } from '@/types'
 
@@ -18,76 +17,16 @@ async function loadMembers(): Promise<Member[]> {
   } catch (error) {
     console.error('멤버 목록을 불러오지 못했습니다:', error)
   }
-
-  return [
-    {
-      id: 'jaewon',
-      name: '정재원',
-      role: '소프트웨어 엔지니어, DoubleJ CEO',
-      description: '코딩과 패션을 사랑하는 다재다능한 개발자입니다.',
-      avatar: '/images/jaewon.jpg',
-      email: 'jaewon@rangu.fam',
-      status: 'active',
-      location: '서울, 대한민국',
-      joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/jaewon',
-    },
-    {
-      id: 'minseok',
-      name: '정민석',
-      role: 'IMI 재학생',
-      description: '스위스에서 새로운 꿈을 키워가고 있습니다.',
-      avatar: '/images/minseok.jpg',
-      email: 'minseok@rangu.fam',
-      status: 'active',
-      location: '취리히, 스위스',
-      joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/minseok',
-    },
-    {
-      id: 'jingyu',
-      name: '정진규',
-      role: '군 복무 중',
-      description: '현재 군 복무 중이며, 전역 후 새로운 도전을 계획하고 있습니다.',
-      avatar: '/images/jingyu.jpg',
-      email: 'jingyu@rangu.fam',
-      status: 'active',
-      location: '대한민국',
-      joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/jingyu',
-    },
-    {
-      id: 'seungchan',
-      name: '이승찬',
-      role: '임시 멤버 (마술사)',
-      description: '2025년 7월부터 임시로 합류한 마술사 멤버입니다.',
-      avatar: '/images/seungchan.jpg',
-      email: 'seungchan@rangu.fam',
-      status: 'active',
-      location: '대한민국',
-      joinDate: new Date('2025-07-21'),
-      personalPageUrl: '/members/seungchan',
-    },
-    {
-      id: 'hanul',
-      name: '강한울',
-      role: '크리에이터',
-      description: '다양한 취미와 관심사를 가진 크리에이터입니다.',
-      avatar: '/images/hanul.jpg',
-      email: 'hanul@rangu.fam',
-      status: 'active',
-      location: '서울, 대한민국',
-      joinDate: new Date('2020-01-01'),
-      personalPageUrl: '/members/hanul',
-    },
-  ]
+  return MEMBERS
 }
 
 interface AuthContextType {
   user: User | null
   member: Member | null
   isLoading: boolean
-  login: () => Promise<boolean>
+  login: (username: string, password: string) => Promise<boolean>
+  register: (username: string, password: string, displayName?: string) => Promise<boolean>
+  loginWithDiscord: (callbackUrl?: string) => void
   logout: () => Promise<void>
   isLoggedIn: boolean
   isMember: boolean
@@ -95,10 +34,24 @@ interface AuthContextType {
   linkedWikiUsername: string | null
 }
 
+interface AccountSessionData {
+  id: string
+  username: string
+  email: string
+  role: 'member' | 'guest'
+  memberId?: string | null
+  isLoggedIn: boolean
+  discordId?: string | null
+  discordUsername?: string | null
+  discordAvatar?: string | null
+  avatar?: string | null
+  memberProfile?: Member | null
+  wikiUsername?: string | null
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession()
   const [user, setUser] = useState<User | null>(null)
   const [member, setMember] = useState<Member | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -108,97 +61,155 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadMembers()
   }, [])
 
-  const fetchAccountSession = useCallback(async () => {
-    if (status !== 'authenticated' || !session?.user?.discordId) {
+  const applySession = useCallback((data: AccountSessionData | null) => {
+    if (!data) {
       setUser(null)
       setMember(null)
-      setIsLoading(false)
+      setLinkedWikiUsername(null)
       return
     }
 
+    setUser({
+      id: data.id,
+      username: data.username || 'DoubleJ 사용자',
+      email: data.email || '',
+      role: data.role || 'guest',
+      memberId: data.memberId || undefined,
+      isLoggedIn: true,
+      discordId: data.discordId || undefined,
+      avatar: data.avatar || data.discordAvatar || undefined,
+    })
+
+    setMember(data.memberProfile || null)
+    setLinkedWikiUsername(data.wikiUsername || data.username || null)
+  }, [])
+
+  const fetchAccountSession = useCallback(async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/account/session', { cache: 'no-store' })
+      const response = await fetch('/api/account/session', {
+        cache: 'no-store',
+        credentials: 'include',
+      })
+
       if (!response.ok) {
-        throw new Error('account session fetch failed')
+        applySession(null)
+        return
       }
 
       const payload = await response.json()
-      const data = payload.data
-
-      const mappedUser: User = {
-        id: data.discordId,
-        username: data.discordUsername || session.user?.name || 'Discord 사용자',
-        email: session.user?.email || '',
-        role: data.memberId ? 'member' : 'guest',
-        memberId: data.memberId || undefined,
-        isLoggedIn: true,
-        discordId: data.discordId,
-        avatar: data.discordAvatar || session.user?.image,
-      }
-
-      setUser(mappedUser)
-      setMember(data.memberProfile || null)
-      setLinkedWikiUsername(data.wikiUsername || null)
+      applySession(payload.data as AccountSessionData)
     } catch (error) {
       console.error('Account 세션 확인 실패:', error)
-      if (session?.user) {
-        setUser({
-          id: session.user.discordId || session.user.email || 'discord-user',
-          username: session.user.name || 'Discord 사용자',
-          email: session.user.email || '',
-          role: 'guest',
-          isLoggedIn: true,
-          discordId: session.user.discordId,
-          avatar: session.user.image || undefined,
-        })
-      } else {
-        setUser(null)
-      }
-      setMember(null)
-      setLinkedWikiUsername(null)
+      applySession(null)
     } finally {
       setIsLoading(false)
     }
-  }, [session, status])
+  }, [applySession])
 
   useEffect(() => {
     fetchAccountSession()
   }, [fetchAccountSession])
 
-  const login = async (): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<boolean> => {
+    setIsLoading(true)
     try {
-      await signIn('discord', { callbackUrl: '/' })
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success) {
+        toast.error(data.error || '로그인에 실패했습니다.')
+        return false
+      }
+
+      await fetchAccountSession()
+      toast.success('DoubleJ 통합 로그인 완료!')
       return true
     } catch (error) {
-      console.error('Discord 로그인 실패:', error)
-      toast.error('디스코드 로그인에 실패했습니다.')
+      console.error('통합 로그인 실패:', error)
+      toast.error('로그인 중 오류가 발생했습니다.')
       return false
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const logout = async (): Promise<void> => {
+  const register = async (
+    username: string,
+    password: string,
+    displayName?: string
+  ): Promise<boolean> => {
+    setIsLoading(true)
     try {
-      await signOut({ callbackUrl: '/' })
-      setUser(null)
-      setMember(null)
-      setLinkedWikiUsername(null)
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username, password, displayName }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success) {
+        toast.error(data.error || '회원가입에 실패했습니다.')
+        return false
+      }
+
+      await fetchAccountSession()
+      toast.success('회원가입이 완료되었습니다.')
+      return true
+    } catch (error) {
+      console.error('회원가입 실패:', error)
+      toast.error('회원가입 중 오류가 발생했습니다.')
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loginWithDiscord = (callbackUrl: string = '/') => {
+    const url = `/api/auth/discord/start?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    window.location.href = url
+  }
+
+  const logout = async (): Promise<void> => {
+    setIsLoading(true)
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      applySession(null)
       toast.success('로그아웃되었습니다.')
     } catch (error) {
       console.error('로그아웃 실패:', error)
       toast.error('로그아웃 중 오류가 발생했습니다.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const value: AuthContextType = {
     user,
     member,
-    isLoading: isLoading || status === 'loading',
+    isLoading,
     login,
+    register,
+    loginWithDiscord,
     logout,
-    isLoggedIn: status === 'authenticated',
-    isMember: !!user?.memberId,
-    canEdit: !!member,
+    isLoggedIn: !!user,
+    isMember: user?.role === 'member',
+    canEdit: user?.role === 'member',
     linkedWikiUsername,
   }
 

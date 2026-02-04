@@ -1,225 +1,178 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import {
-  LogIn,
-  ArrowLeft,
-  Link2,
-  ShieldCheck,
-  Sparkles,
-  Activity,
-  Info,
-  UserCircle2,
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Link2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
 
-const benefits = [
-  {
-    icon: Link2,
-    title: '기존 계정 연동',
-    description: '계정 설정 페이지에서 예전 Rangu 아이디와 위키 계정을 연결할 수 있어요.',
-  },
-  {
-    icon: ShieldCheck,
-    title: '이랑위키 인증',
-    description: '연동만 해두면 Discord 인증 한 번으로 위키 토큰을 바로 발급받을 수 있어요.',
-  },
-  {
-    icon: Sparkles,
-    title: '단일 로그인',
-    description: '이제는 비밀번호 대신 Discord만으로 Rangu.fam과 이랑위키를 모두 이용해요.',
-  },
-]
-
-const steps = [
-  'Discord 버튼을 눌러 나타나는 인증 창에서 승인을 완료하세요.',
-  '로그인 후 우측 상단의 이름을 눌러 계정 설정 페이지를 열 수 있어요.',
-  '계정 설정에서 예전 아이디나 위키 계정을 연결하면 끝!',
-]
+const ERROR_MESSAGES: Record<string, string> = {
+  discord_not_linked: '회원가입된 계정에 연결된 Discord를 찾지 못했습니다. 먼저 통합 회원가입 후 계정 설정에서 Discord를 연결해주세요.',
+  discord_auth_failed: 'Discord 인증에 실패했습니다. 잠시 후 다시 시도해주세요.',
+  discord_not_configured: 'Discord 로그인 설정이 아직 완료되지 않았습니다.',
+  account_inactive: '비활성화된 계정입니다.',
+  account_banned: '차단된 계정입니다.',
+  login_required: '먼저 통합 로그인이 필요합니다.',
+  session_expired: '세션이 만료되었습니다. 다시 로그인해주세요.',
+}
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, isLoading, isLoggedIn, user } = useAuth()
-  const [isRedirecting, setIsRedirecting] = useState(false)
+  const searchParams = useSearchParams()
+  const { login, register, loginWithDiscord, isLoading, isLoggedIn, user } = useAuth()
 
-  const handleDiscordLogin = async () => {
-    setIsRedirecting(true)
-    await login()
-    setIsRedirecting(false)
+  const [form, setForm] = useState({ username: '', password: '' })
+  const [rememberId, setRememberId] = useState(false)
+
+  const errorCode = searchParams.get('error')
+  const errorMessage = useMemo(() => {
+    if (!errorCode) return null
+    return ERROR_MESSAGES[errorCode] || '로그인 중 오류가 발생했습니다.'
+  }, [errorCode])
+
+  useEffect(() => {
+    const savedId = localStorage.getItem('doublej.savedUsername')
+    if (savedId) {
+      setForm((prev) => ({ ...prev, username: savedId }))
+      setRememberId(true)
+    }
+  }, [])
+
+  const persistRememberId = (username: string) => {
+    if (rememberId) {
+      localStorage.setItem('doublej.savedUsername', username)
+      return
+    }
+    localStorage.removeItem('doublej.savedUsername')
   }
 
-  const linkedMemberName = (user?.memberId && user?.username) ? user.username : (user?.username || null)
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const success = await login(form.username, form.password)
+    if (success) {
+      persistRememberId(form.username)
+      router.push('/')
+    }
+  }
+
+  const handleRegister = async () => {
+    const success = await register(form.username, form.password)
+    if (success) {
+      persistRememberId(form.username)
+      router.push('/')
+    }
+  }
+
+  if (isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white px-4 py-16">
+        <div className="max-w-2xl mx-auto">
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <h1 className="text-2xl font-bold">DoubleJ 통합 로그인</h1>
+              </CardHeader>
+              <CardContent className="space-y-2 text-white/80">
+              <p>
+                <strong>{user?.username}</strong> 계정으로 로그인되어 있습니다.
+              </p>
+              <p>이랑위키와 랑구팸 서비스가 같은 계정으로 연결됩니다.</p>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              <Button type="button" variant="primary" onClick={() => router.push('/')}>
+                홈으로 이동
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => router.push('/settings/account')}>
+                계정 설정
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#030617] text-white">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#040920] via-[#050414] to-[#02030b]" />
-      <div className="absolute top-0 -right-10 w-[30rem] h-[30rem] bg-primary-500/30 blur-[120px]" />
-      <div className="absolute bottom-0 left-0 w-[28rem] h-[28rem] bg-purple-500/20 blur-[140px]" />
-
-      <motion.button
-        className="fixed top-6 left-6 glass-button p-3 z-20"
-        onClick={() => router.push('/')}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#020617] text-white px-4">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.12),transparent_40%)]" />
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}
+        className="relative z-10 w-full max-w-md"
       >
-        <ArrowLeft className="w-5 h-5 text-white" />
-      </motion.button>
-
-      <div className="relative z-10 px-4 py-16 lg:py-20">
-        <div className="max-w-5xl mx-auto grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
-          {/* Hero + CTA */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-6"
-          >
-            <div className="space-y-4">
-              <motion.div
-                className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center shadow-2xl"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
-              >
-                <LogIn className="w-10 h-10 text-white" />
-              </motion.div>
-              <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-white/60 mb-2">
-                  Rangu.fam x 이랑위키
-                </p>
-                <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
-                  디스코드 하나면
-                  <br />모든 공간에 <span className="text-primary-300">접속 완료</span>
-                </h1>
-                <p className="mt-4 text-base text-white/80 leading-relaxed">
-                  디스코드 인증을 통과하면 Rangu.fam과 이랑위키의 계정이 하나로 이어집니다. 인증 후에는
-                  오른쪽 상단의 이름을 눌러 언제든지 계정 설정을 열 수 있어요.
-                </p>
-              </div>
-            </div>
-
-            <Card className="bg-white/5 border-white/10 shadow-2xl backdrop-blur-xl">
-              <CardHeader>
-                <h2 className="text-xl font-semibold text-white">Discord로 계속하기</h2>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3">
-                  {benefits.map((item) => (
-                    <div key={item.title} className="flex items-start space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                        <item.icon className="w-5 h-5 text-primary-200" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">{item.title}</p>
-                        <p className="text-sm text-white/70">{item.description}</p>
-                      </div>
-                    </div>
-                  ))}
+        <Card className="bg-slate-900/70 border-white/10">
+          <CardHeader>
+            <h1 className="text-2xl font-bold text-center">DoubleJ 통합 로그인</h1>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              {errorMessage && (
+                <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  {errorMessage}
                 </div>
-              </CardContent>
-              <CardFooter className="flex flex-col space-y-3">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  loading={isLoading || isRedirecting}
-                  className="w-full"
-                  onClick={handleDiscordLogin}
-                >
-                  {isLoggedIn ? '다시 연결하기' : 'Discord로 계속하기'}
+              )}
+
+              <label className="block text-sm text-white/70">아이디</label>
+              <Input
+                type="text"
+                value={form.username}
+                onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+                placeholder="아이디"
+                className="bg-black/20 border-white/20 text-white placeholder:text-white/40"
+              />
+
+              <label className="block text-sm text-white/70">비밀번호</label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+                placeholder="비밀번호"
+                className="bg-black/20 border-white/20 text-white placeholder:text-white/40"
+              />
+
+              <label className="flex items-center gap-2 text-sm text-white/75">
+                <input
+                  type="checkbox"
+                  checked={rememberId}
+                  onChange={(e) => setRememberId(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/30 bg-transparent"
+                />
+                아이디 저장
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="submit" variant="primary" className="w-full" loading={isLoading}>
+                  로그인
                 </Button>
-                <p className="text-sm text-white/60 text-center">
-                  인증 후 우측 상단의 이름을 눌러 <span className="text-white font-semibold">계정 설정</span>
-                  을 열 수 있어요.
-                </p>
-              </CardFooter>
-            </Card>
-          </motion.div>
-
-          {/* Status + Info */}
-          <motion.div
-            className="space-y-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-          >
-            <Card className="bg-gradient-to-b from-white/80 to-white text-gray-800 shadow-2xl border-white/70">
-              <CardHeader>
-                <div className="flex items-center space-x-2 text-sm font-medium text-primary-600">
-                  <Activity className="w-4 h-4" />
-                  <span>연결 상태</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {isLoggedIn ? '디스코드 인증 완료' : '아직 인증되지 않았어요'}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {isLoggedIn
-                      ? '이제 이름을 눌러 계정 설정으로 바로 이동할 수 있어요.'
-                      : '버튼을 눌러 디스코드 인증을 완료해 주세요.'}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-gray-100 p-4 border border-gray-200">
-                  <p className="text-xs text-gray-500 mb-1">현재 연결된 멤버</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {linkedMemberName || '연결된 멤버가 아직 없어요'}
-                  </p>
-                </div>
-              </CardContent>
-              <CardFooter>
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full border border-gray-200 text-gray-800 hover:bg-gray-100"
-                  onClick={() => router.push('/settings/account')}
+                  className="w-full border border-white/20 text-white"
+                  onClick={handleRegister}
+                  disabled={isLoading}
                 >
-                  계정 설정으로 이동
+                  회원가입
                 </Button>
-              </CardFooter>
-            </Card>
-
-            <Card className="bg-white/5 border-white/10">
-              <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <Info className="w-4 h-4 text-primary-200" />
-                  <h3 className="text-lg font-semibold text-white">로그인 안내</h3>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <ul className="space-y-2 text-sm text-white/80">
-                  {steps.map((step, idx) => (
-                    <li key={step} className="flex items-start space-x-3">
-                      <span className="w-6 h-6 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs text-white">
-                        {idx + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/5 border-white/10">
-              <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <UserCircle2 className="w-4 h-4 text-primary-200" />
-                  <h4 className="font-semibold text-white">도움말</h4>
-                </div>
-              </CardHeader>
-              <CardContent className="text-sm text-white/70 space-y-2">
-                <p>• 개인 계정 연동은 로그인 후 이름을 눌러 열리는 계정 설정에서 직접 진행하면 돼요.</p>
-                <p>• 다른 사용자의 계정 연동은 이랑위키 관리자 페이지에서만 처리할 수 있습니다.</p>
-                <p>• 계정 설정에서는 멤버 정보와 위키 계정을 한 번에 확인할 수 있어요.</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
+              </div>
+            </form>
+          </CardContent>
+          <CardFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full border border-white/20 text-white"
+              onClick={() => loginWithDiscord('/')}
+              disabled={isLoading}
+            >
+              <Link2 className="w-4 h-4 mr-2" />
+              간편로그인 (Discord)
+            </Button>
+          </CardFooter>
+        </Card>
+      </motion.div>
     </div>
   )
 }
