@@ -1,8 +1,8 @@
-import fs from 'fs'
 import path from 'path'
 import { Card, CardRarity, CardType } from '@/models/Card'
 import { UserCard } from '@/models/UserCard'
 import { CardDrop } from '@/models/CardDrop'
+import { CARD_IMAGE_MANIFEST, CardImageManifestFolder } from '@/data/cardImageManifest'
 
 type GeneratedCard = {
   cardId: string
@@ -25,9 +25,6 @@ type SyncResult = {
   upsertedCount: number
   generatedCards: GeneratedCard[]
 }
-
-const CARD_ROOT = path.join(process.cwd(), 'public', 'images', 'cards')
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp'])
 
 const MEMBER_CODE_TO_NAME: Record<string, string> = {
   HAN: '강한울',
@@ -72,16 +69,7 @@ const toFullYear = (shortYear: number) => {
   return 2000 + shortYear
 }
 
-const listImageFiles = (folder: string) => {
-  const directoryPath = path.join(CARD_ROOT, folder)
-  if (!fs.existsSync(directoryPath)) return []
-
-  return fs
-    .readdirSync(directoryPath, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase()))
-}
+const listImageFiles = (folder: CardImageManifestFolder) => [...CARD_IMAGE_MANIFEST[folder]]
 
 const toImageUrl = (folder: string, filename: string) => `/images/cards/${folder}/${filename}`
 

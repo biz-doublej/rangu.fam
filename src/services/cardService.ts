@@ -1,6 +1,4 @@
 import { createHash } from 'crypto'
-import fs from 'fs'
-import path from 'path'
 import { Card, CardType, CardRarity } from '@/models/Card'
 import { UserCard } from '@/models/UserCard'
 import { CardDrop } from '@/models/CardDrop'
@@ -124,14 +122,7 @@ export class CardService {
 
   // 이미지가 존재하지 않으면 공통 대체 이미지로 치환
   static ensureImage(card: any) {
-    if (!card?.imageUrl) {
-      return { ...card, imageUrl: this.FALLBACK_IMAGE }
-    }
-    const relativePath = card.imageUrl.startsWith('/')
-      ? card.imageUrl.slice(1)
-      : card.imageUrl
-    const absolutePath = path.join(process.cwd(), 'public', relativePath)
-    if (!fs.existsSync(absolutePath)) {
+    if (!card?.imageUrl || typeof card.imageUrl !== 'string' || !card.imageUrl.trim()) {
       return { ...card, imageUrl: this.FALLBACK_IMAGE }
     }
     return card
