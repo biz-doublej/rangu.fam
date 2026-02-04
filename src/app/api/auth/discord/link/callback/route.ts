@@ -14,6 +14,7 @@ import {
   buildDiscordAvatarUrl,
   exchangeDiscordCodeForToken,
   fetchDiscordProfile,
+  resolveDiscordOAuthBaseUrl,
 } from '@/lib/discordOAuth'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,9 @@ function appendResult(path: string, key: string, value: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const requestUrl = new URL(request.url)
+  const { searchParams } = requestUrl
+  const origin = resolveDiscordOAuthBaseUrl(requestUrl.origin)
   const code = searchParams.get('code')
   const stateToken = searchParams.get('state')
 

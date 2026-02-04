@@ -15,6 +15,12 @@ export interface DiscordProfile {
 
 const DISCORD_API_BASE = 'https://discord.com/api'
 
+export function resolveDiscordOAuthBaseUrl(origin: string): string {
+  const configuredBaseUrl = process.env.DISCORD_REDIRECT_BASE_URL?.trim()
+  if (!configuredBaseUrl) return origin
+  return configuredBaseUrl.replace(/\/+$/, '')
+}
+
 export function buildDiscordAuthorizeUrl(params: {
   clientId: string
   redirectUri: string

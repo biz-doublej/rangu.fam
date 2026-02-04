@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
-import { buildDiscordAuthorizeUrl } from '@/lib/discordOAuth'
+import { buildDiscordAuthorizeUrl, resolveDiscordOAuthBaseUrl } from '@/lib/discordOAuth'
 import { sanitizeCallbackPath } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const { searchParams, origin } = new URL(request.url)
+  const requestUrl = new URL(request.url)
+  const { searchParams } = requestUrl
+  const origin = resolveDiscordOAuthBaseUrl(requestUrl.origin)
   const callbackUrl = sanitizeCallbackPath(searchParams.get('callbackUrl'), '/')
 
   const state = jwt.sign(
