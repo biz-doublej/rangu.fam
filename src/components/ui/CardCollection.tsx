@@ -6,14 +6,9 @@ import {
   Package, 
   Search, 
   Filter,
-  Star,
   Lock,
   Unlock,
-  Heart,
-  Grid3X3,
-  List,
-  ChevronLeft,
-  ChevronRight
+  Heart
 } from 'lucide-react'
 import { Button } from './Button'
 import { Card, CardContent, CardHeader } from './Card'
@@ -46,9 +41,8 @@ interface UserCard {
   }
 }
 
-// 전체 카드 슬롯 설정 (예: 6x8 = 48개 슬롯)
+// 전체 카드 슬롯 설정
 const TOTAL_SLOTS = 48
-const SLOTS_PER_ROW = 8
 
 const getRarityColor = (rarity: string) => {
   switch (rarity) {
@@ -83,9 +77,9 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('')
-  const [filterRarity, setFilterRarity] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [updatingCardIds, setUpdatingCardIds] = useState<Record<string, boolean>>({})
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
     if (!img.src.includes(FALLBACK_IMAGE)) {
@@ -105,7 +99,6 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
         page: '1',
         limit: '100', // ��ü ī�� ��������
         ...(filterType && { type: filterType }),
-        ...(filterRarity && { rarity: filterRarity }),
         ...(favoritesOnly && { favorites: 'true' })
       })
 
@@ -120,7 +113,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
     } finally {
       setIsLoading(false)
     }
-  }, [userId, filterType, filterRarity, favoritesOnly])
+  }, [userId, filterType, favoritesOnly])
 
 
   useEffect(() => {
@@ -136,7 +129,18 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
 
   // 카드 상태 업데이트 (즐겨찾기, 잠금)
   const updateCardState = async (cardId: string, updates: { isFavorite?: boolean; isLocked?: boolean }) => {
-    if (!userId) return
+    if (!userId || updatingCardIds[cardId]) return
+
+    const previousCards = cards
+    const previousSelectedCard = selectedCard
+
+    setUpdatingCardIds((prev) => ({ ...prev, [cardId]: true }))
+    setCards((prevCards) =>
+      prevCards.map((card) => (card.cardId === cardId ? { ...card, ...updates } : card))
+    )
+    setSelectedCard((prevCard) =>
+      prevCard && prevCard.cardId === cardId ? { ...prevCard, ...updates } : prevCard
+    )
 
     try {
       const response = await fetch('/api/cards/inventory', {
@@ -151,17 +155,20 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
         })
       })
 
-      if (response.ok) {
-        setCards(prevCards => 
-          prevCards.map(card => 
-            card.cardId === cardId 
-              ? { ...card, ...updates }
-              : card
-          )
-        )
+      if (!response.ok) {
+        throw new Error('카드 상태 업데이트 실패')
       }
     } catch (error) {
       console.error('Failed to update card state:', error)
+      // 실패 시 바로 롤백해서 버벅임을 최소화합니다.
+      setCards(previousCards)
+      setSelectedCard(previousSelectedCard)
+    } finally {
+      setUpdatingCardIds((prev) => {
+        const next = { ...prev }
+        delete next[cardId]
+        return next
+      })
     }
   }
 
@@ -181,7 +188,6 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
   // 빈 슬롯 생성
   const createSlots = () => {
     const slots = []
-    const cardMap = new Map(filteredCards.map(card => [card._id, card]))
     
     for (let i = 0; i < TOTAL_SLOTS; i++) {
       const card = filteredCards[i]
@@ -282,9 +288,9 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
 
   return (
     <>
-      <div className={className}>
+      <Card variant="flat" className={`overflow-hidden shadow-2xl ${className}`}>
         {/* 헤더 */}
-        <CardHeader className="pb-4">
+        <CardHeader className="border-b border-gray-200/80 bg-white/95 pb-4 text-gray-900">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
@@ -299,6 +305,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
             <Button
               variant="ghost"
               size="sm"
+              className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900"
               onClick={() => setShowFilters(!showFilters)}
             >
               <Filter className="w-4 h-4" />
@@ -313,7 +320,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
                 placeholder="카드 이름이나 멤버로 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 !border-gray-300 !bg-white !text-gray-900 placeholder:!text-gray-400"
               />
             </div>
           </div>
@@ -327,13 +334,13 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
               >
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">타입</label>
                     <select
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
-                      className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     >
                       <option value="">전체</option>
                       <option value="year">년도 카드</option>
@@ -341,22 +348,6 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
                       <option value="signature">시그니처 카드</option>
                       <option value="material">재료 카드</option>
                       <option value="prestige">프레스티지 카드</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">등급</label>
-                    <select
-                      value={filterRarity}
-                      onChange={(e) => setFilterRarity(e.target.value)}
-                      className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1"
-                    >
-                      <option value="">전체</option>
-                      <option value="basic">베이직</option>
-                      <option value="rare">레어</option>
-                      <option value="epic">에픽</option>
-                      <option value="legendary">레전더리</option>
-                      <option value="material">재료</option>
                     </select>
                   </div>
 
@@ -379,7 +370,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
           </AnimatePresence>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="bg-white/95">
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
@@ -391,7 +382,7 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
             </div>
           )}
         </CardContent>
-      </div>
+      </Card>
 
       {/* 카드 상세 모달 */}
       <AnimatePresence>
@@ -440,12 +431,14 @@ export function CardCollection({ userId, className = '' }: CardCollectionProps) 
                   <div className="flex items-center justify-center space-x-4 mb-4">
                     <button
                       onClick={() => updateCardState(selectedCard.cardId, { isFavorite: !selectedCard.isFavorite })}
+                      disabled={Boolean(updatingCardIds[selectedCard.cardId])}
                       className={`p-2 rounded-lg ${selectedCard.isFavorite ? 'text-pink-500 bg-pink-50' : 'text-gray-400 hover:text-pink-500 hover:bg-pink-50'}`}
                     >
                       <Heart className="w-5 h-5" fill={selectedCard.isFavorite ? 'currentColor' : 'none'} />
                     </button>
                     <button
                       onClick={() => updateCardState(selectedCard.cardId, { isLocked: !selectedCard.isLocked })}
+                      disabled={Boolean(updatingCardIds[selectedCard.cardId])}
                       className={`p-2 rounded-lg ${selectedCard.isLocked ? 'text-orange-500 bg-orange-50' : 'text-gray-400 hover:text-orange-500 hover:bg-orange-50'}`}
                     >
                       {selectedCard.isLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}

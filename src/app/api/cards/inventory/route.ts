@@ -135,33 +135,39 @@ export async function PATCH(request: NextRequest) {
     }
     
     const userObjectId = CardService.normalizeUserId(userId)
-    
-    // 사용자 카드 조회
-    const userCard = await UserCard.findOne({ 
-      userId: userObjectId, 
-      cardId 
-    })
-    
-    if (!userCard) {
+
+    // 상태 업데이트 값 구성
+    const updateData: any = {}
+    if (isFavorite !== undefined) updateData.isFavorite = isFavorite
+    if (isLocked !== undefined) updateData.isLocked = isLocked
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { success: false, message: '업데이트할 상태가 없습니다.' },
+        { status: 400 }
+      )
+    }
+
+    const updatedCard = await UserCard.findOneAndUpdate(
+      { userId: userObjectId, cardId },
+      { $set: updateData },
+      { new: true }
+    ).lean<{ isFavorite?: boolean; isLocked?: boolean } | null>()
+
+    if (!updatedCard) {
       return NextResponse.json(
         { success: false, message: '소장하지 않은 카드입니다.' },
         { status: 404 }
       )
     }
     
-    // 상태 업데이트
-    const updateData: any = {}
-    if (isFavorite !== undefined) updateData.isFavorite = isFavorite
-    if (isLocked !== undefined) updateData.isLocked = isLocked
-    
-    await UserCard.findOneAndUpdate(
-      { userId: userObjectId, cardId },
-      { $set: updateData }
-    )
-    
     return NextResponse.json({
       success: true,
-      message: '카드 상태가 업데이트되었습니다.'
+      message: '카드 상태가 업데이트되었습니다.',
+      cardState: {
+        isFavorite: Boolean(updatedCard.isFavorite),
+        isLocked: Boolean(updatedCard.isLocked)
+      }
     })
     
   } catch (error) {

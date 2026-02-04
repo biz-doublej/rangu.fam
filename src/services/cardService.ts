@@ -7,6 +7,7 @@ import { CardDrop } from '@/models/CardDrop'
 import { UserCardStats } from '@/models/UserCardStats'
 import connectDB from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { CardCatalogService } from '@/services/cardCatalogService'
 
 export interface CardDropResult {
   success: boolean
@@ -20,9 +21,97 @@ export interface CraftingResult {
   card?: any
   message: string
   usedCards: { cardId: string; quantity: number }[]
+  usedCardDetails?: { cardId: string; name: string; quantity: number; imageUrl?: string }[]
 }
 
 export class CardService {
+  static readonly FALLBACK_IMAGE = '/images/default-music-cover.jpg'
+  static readonly MAX_DROPS_PER_WINDOW = 5
+  static readonly DROP_WINDOW_MS = 24 * 60 * 60 * 1000
+
+  private static shouldResetDropWindow(lastDropDate?: Date | string | null, now: Date = new Date()) {
+    if (!lastDropDate) return true
+    const parsed = new Date(lastDropDate)
+    if (Number.isNaN(parsed.getTime())) return true
+    const elapsedMs = now.getTime() - parsed.getTime()
+    return elapsedMs >= this.DROP_WINDOW_MS || elapsedMs < 0
+  }
+
+  private static getMemberKey(value?: string) {
+    if (!value) return undefined
+    const compact = value.replace(/\s+/g, '')
+    if (compact.includes('강한울') || /HAN/i.test(compact)) return 'HAN'
+    if (compact.includes('정재원') || /JAE/i.test(compact)) return 'JAE'
+    if (compact.includes('정진규') || /JIN/i.test(compact)) return 'JIN'
+    if (compact.includes('이승찬') || /LEE/i.test(compact)) return 'LEE'
+    if (compact.includes('정민석') || /MIN/i.test(compact)) return 'MIN'
+    return undefined
+  }
+
+  private static inferVersion(card: any) {
+    if (card?.period === 'h1') return 1
+    if (card?.period === 'h2') return 2
+    const source = `${card?.cardId || ''} ${card?.name || ''} ${card?.imageUrl || ''}`.toLowerCase()
+    if (/(?:^|[_\s-])v1(?:$|[_\s.-])/.test(source) || source.includes('버전1')) return 1
+    if (/(?:^|[_\s-])v2(?:$|[_\s.-])/.test(source) || source.includes('버전2')) return 2
+    return undefined
+  }
+
+  private static inferYear(card: any) {
+    if (card?.year && card.year > 1900) return Number(card.year)
+    const source = `${card?.cardId || ''} ${card?.name || ''} ${card?.imageUrl || ''}`
+    const fullYearMatch = source.match(/(19|20)\d{2}/)
+    if (fullYearMatch) return Number(fullYearMatch[0])
+    const shortYearMatch = source.match(/_(\d{2})_V[12]/i)
+    if (shortYearMatch) {
+      const shortYear = Number(shortYearMatch[1])
+      return shortYear >= 70 ? 1900 + shortYear : 2000 + shortYear
+    }
+    return undefined
+  }
+
+  private static buildDropDedupKey(card: any) {
+    const type = String(card?.type || '')
+    const memberKey =
+      this.getMemberKey(card?.member) ||
+      this.getMemberKey(card?.cardId) ||
+      this.getMemberKey(card?.name)
+    const year = this.inferYear(card)
+    const version = this.inferVersion(card)
+    const imageUrl = String(card?.imageUrl || '').toLowerCase()
+
+    if (type === CardType.YEAR) {
+      return `year:${memberKey || 'unknown'}:${year || 'unknown'}:${version || 'unknown'}`
+    }
+    if (type === CardType.SIGNATURE) {
+      return `signature:${memberKey || 'unknown'}:${year || 'unknown'}`
+    }
+    if (type === CardType.SPECIAL) {
+      return `special:${imageUrl || card?.cardId || 'unknown'}`
+    }
+    if (type === CardType.MATERIAL) {
+      return `material:${imageUrl || card?.cardId || 'unknown'}`
+    }
+    return `${type}:${card?.cardId || 'unknown'}`
+  }
+
+  private static getDropCandidateScore(card: any) {
+    let score = Number(card?.dropRate || 0)
+    const cardId = String(card?.cardId || '')
+    const imageUrl = String(card?.imageUrl || '')
+
+    if (/^[A-Z]{3}_\d{4}_v[12]$/i.test(cardId)) score += 2
+    if (/^SIG_[A-Z]{3}_\d{4}$/i.test(cardId)) score += 2
+    if (!cardId.startsWith('year_') && !cardId.startsWith('signature_') && !cardId.startsWith('special_')) {
+      score += 1
+    }
+    if (imageUrl.includes('/BG_') || imageUrl.includes('BG_SIGNATURE')) {
+      score -= 1.5
+    }
+
+    return score
+  }
+
   // Normalize arbitrary user identifiers (e.g. Discord) into a stable ObjectId
   static normalizeUserId(rawId: string): ObjectId {
     if (rawId && ObjectId.isValid(rawId) && rawId.length === 24) {
@@ -35,16 +124,15 @@ export class CardService {
 
   // 이미지가 존재하지 않으면 공통 대체 이미지로 치환
   static ensureImage(card: any) {
-    const fallback = '/images/default-music-cover.jpg'
     if (!card?.imageUrl) {
-      return { ...card, imageUrl: fallback }
+      return { ...card, imageUrl: this.FALLBACK_IMAGE }
     }
     const relativePath = card.imageUrl.startsWith('/')
       ? card.imageUrl.slice(1)
       : card.imageUrl
     const absolutePath = path.join(process.cwd(), 'public', relativePath)
     if (!fs.existsSync(absolutePath)) {
-      return { ...card, imageUrl: fallback }
+      return { ...card, imageUrl: this.FALLBACK_IMAGE }
     }
     return card
   }
@@ -56,42 +144,57 @@ export class CardService {
     try {
       const userObjectId = this.normalizeUserId(userId)
       
-      // 사용자 통계 조회/생성
-      let userStats = await UserCardStats.findOne({ userId: userObjectId })
+      // 사용자 통계 조회/생성 (upsert로 중복 생성 방지)
+      const userStats = await UserCardStats.findOneAndUpdate(
+        { userId: userObjectId },
+        {
+          $setOnInsert: {
+            userId: userObjectId,
+            lastDropDate: new Date(),
+            dailyDropsUsed: 0,
+            totalDropsUsed: 0,
+            totalCardsCollected: 0
+          }
+        },
+        { upsert: true, new: true }
+      )
+
       if (!userStats) {
-        userStats = new UserCardStats({
-          userId: userObjectId,
-          lastDropDate: new Date(),
-          dailyDropsUsed: 0
-        })
+        throw new Error('사용자 카드 통계를 초기화하지 못했습니다.')
       }
       
-      // 날짜 체크 (하루가 지났으면 드랍 횟수 리셋)
-      const today = new Date()
-      const lastDrop = new Date(userStats.lastDropDate)
-      const isNewDay = today.toDateString() !== lastDrop.toDateString()
-      
-      if (isNewDay) {
+      const now = new Date()
+
+      // 24시간 경과 시 자동 리셋
+      if (this.shouldResetDropWindow(userStats.lastDropDate, now)) {
         userStats.dailyDropsUsed = 0
-        userStats.lastDropDate = today
+        userStats.lastDropDate = now
       }
-      
-      // 무제한 드랍으로 변경 - 횟수 제한 제거
-      // if (userStats.dailyDropsUsed >= 5) {
-      //   return {
-      //     success: false,
-      //     message: '오늘 카드 드랍 횟수를 모두 사용했습니다. 내일 다시 시도해주세요.',
-      //     remainingDrops: 0
-      //   }
-      // }
+
+      if (userStats.dailyDropsUsed >= this.MAX_DROPS_PER_WINDOW) {
+        return {
+          success: false,
+          message: '24시간 동안 사용 가능한 드랍 5회를 모두 사용했습니다. 자동 초기화를 기다려주세요.',
+          remainingDrops: 0
+        }
+      }
+
+      // 현재 24시간 윈도우의 시작점 기록
+      if (userStats.dailyDropsUsed === 0) {
+        userStats.lastDropDate = now
+      }
       
       // 랜덤 카드 선택
       const droppedCard = this.ensureImage(await this.selectRandomCard())
       if (!droppedCard) {
+        const remainingOnFail = Math.max(
+          0,
+          this.MAX_DROPS_PER_WINDOW - Number(userStats.dailyDropsUsed || 0)
+        )
         return {
           success: false,
           message: '카드 드랍에 실패했습니다.',
-          remainingDrops: 999 // 무제한으로 표시
+          remainingDrops: remainingOnFail
         }
       }
       
@@ -112,12 +215,16 @@ export class CardService {
       userStats.totalDropsUsed += 1
       userStats.totalCardsCollected += 1
       await userStats.save()
+      const remainingDrops = Math.max(
+        0,
+        this.MAX_DROPS_PER_WINDOW - Number(userStats.dailyDropsUsed || 0)
+      )
       
       return {
         success: true,
         card: droppedCard,
-        message: `${droppedCard.name} 카드를 획득했습니다!`,
-        remainingDrops: 999 // 무제한으로 표시
+        message: `카드를 획득했습니다! 남은 드랍 ${remainingDrops}회`,
+        remainingDrops
       }
       
     } catch (error) {
@@ -135,18 +242,51 @@ export class CardService {
     await connectDB()
     
     try {
-      // 모든 카드 조회 (프레스티지 제외)
-      const availableCards = await Card.find({
-        type: { $ne: CardType.PRESTIGE }
-      }).lean()
+      const loadDropCandidates = async () => {
+        const cards = await Card.find({
+          type: { $ne: CardType.PRESTIGE },
+          dropRate: { $gt: 0 }
+        }).lean()
+
+        const validCards = cards
+          .map((card) => this.ensureImage(card))
+          .filter((card) => card.imageUrl !== this.FALLBACK_IMAGE)
+
+        const deduped = new Map<string, any>()
+        for (const card of validCards) {
+          const key = this.buildDropDedupKey(card)
+          const existing = deduped.get(key)
+          if (!existing) {
+            deduped.set(key, { ...card })
+            continue
+          }
+
+          const chosen =
+            this.getDropCandidateScore(card) > this.getDropCandidateScore(existing)
+              ? { ...card }
+              : existing
+          chosen.dropRate = Number(existing.dropRate || 0) + Number(card.dropRate || 0)
+          deduped.set(key, chosen)
+        }
+
+        return Array.from(deduped.values())
+      }
+
+      // 모든 카드 조회 (프레스티지 제외 + 실제 이미지 존재 카드만 사용)
+      let availableCards = await loadDropCandidates()
       
       console.log('Available cards count:', availableCards.length)
       
       if (availableCards.length === 0) {
-        console.log('No cards found in database, creating default card...')
-        // 기본 카드 생성
+        console.log('No valid drop cards found, syncing from local card images...')
+        await CardCatalogService.syncCardsFromLocalImages()
+        availableCards = await loadDropCandidates()
+      }
+
+      if (availableCards.length === 0) {
+        console.log('No cards available after sync, creating default card...')
         const defaultCard = await this.createDefaultCard()
-        return defaultCard
+        return this.ensureImage(defaultCard)
       }
       
       // 가중 랜덤 선택
@@ -189,7 +329,7 @@ export class CardService {
         type: CardType.YEAR,
         rarity: CardRarity.BASIC,
         description: '기본 카드입니다',
-        imageUrl: '/images/cards/default.jpg',
+        imageUrl: this.FALLBACK_IMAGE,
         member: '재원',
         year: 2024,
         period: 'h1',
@@ -211,7 +351,7 @@ export class CardService {
         type: CardType.YEAR,
         rarity: CardRarity.BASIC,
         description: '임시 기본 카드입니다',
-        imageUrl: '/images/cards/default.jpg',
+        imageUrl: this.FALLBACK_IMAGE,
         member: '재원',
         year: 2024,
         period: 'h1',
@@ -419,8 +559,12 @@ export class CardService {
     try {
       const userObjectId = this.normalizeUserId(userId)
       
-      // 사용자 인벤토리 조회
-      const userCards = await UserCard.find({ userId: userObjectId }).lean()
+      // 잠금 카드 제외: 제작/강화에 사용할 수 있는 카드만 조회
+      const userCards = await UserCard.find({
+        userId: userObjectId,
+        isLocked: { $ne: true },
+        quantity: { $gt: 0 }
+      }).lean()
       const cardCounts = userCards.reduce((acc, card) => {
         acc[card.cardId] = card.quantity
         return acc
@@ -435,6 +579,17 @@ export class CardService {
       
       let usedCards: { cardId: string; quantity: number }[] = []
       let canCraft = false
+      const buildUsedCardDetails = (source: { cardId: string; quantity: number }[]) =>
+        source.map(({ cardId, quantity }) => {
+          const cardInfo = cardMap[cardId]
+          const ensuredCard = cardInfo ? this.ensureImage(cardInfo) : null
+          return {
+            cardId,
+            name: cardInfo?.name || '알 수 없는 카드',
+            quantity,
+            imageUrl: ensuredCard?.imageUrl
+          }
+        })
       
       if (useMaterialCard) {
         // 재료 카드 사용 (무한 조합)
@@ -489,8 +644,9 @@ export class CardService {
       if (!canCraft) {
         return {
           success: false,
-          message: '조합에 필요한 카드가 부족합니다.',
-          usedCards: []
+          message: '조합에 필요한 카드가 부족합니다. (잠금 카드는 제외됩니다.)',
+          usedCards: [],
+          usedCardDetails: []
         }
       }
       
@@ -502,7 +658,7 @@ export class CardService {
         userId: userObjectId,
         cardId: isSuccess ? 'prestige_random' : 'craft_fail',
         dropType: 'craft',
-        dailyDropCount: 0,
+        dailyDropCount: 1,
         craftingAttempt: {
           usedCards,
           wasSuccessful: isSuccess
@@ -514,7 +670,7 @@ export class CardService {
       if (!useMaterialCard && usedCards.length > 0) {
         for (const { cardId, quantity } of usedCards) {
           await UserCard.findOneAndUpdate(
-            { userId: userObjectId, cardId },
+            { userId: userObjectId, cardId, isLocked: { $ne: true } },
             { $inc: { quantity: -quantity } }
           )
           
@@ -539,26 +695,51 @@ export class CardService {
         // 랜덤 프레스티지 카드 지급 (17.5% 멤버 카드, 나머지는 특별 프레스티지)
         const isPersonalCard = Math.random() < 0.175
         const prestigePool = ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan']
-        const prestigeCardId = isPersonalCard 
+        let prestigeCardId = isPersonalCard 
           ? `prestige_${prestigePool[Math.floor(Math.random() * prestigePool.length)]}` 
           : 'prestige_group_special'
-        
+
+        // 프레스티지 카드 정보 조회 (없으면 이미지 카탈로그 동기화 후 재시도)
+        let prestigeCard: any = await Card.findOne({ cardId: prestigeCardId }).lean()
+        if (!prestigeCard) {
+          await CardCatalogService.syncCardsFromLocalImages()
+          prestigeCard = await Card.findOne({ cardId: prestigeCardId }).lean()
+        }
+
+        // 여전히 없으면 사용 가능한 프레스티지 카드로 대체
+        if (!prestigeCard) {
+          prestigeCard = await Card.findOne({ type: CardType.PRESTIGE }).lean()
+          if (prestigeCard) {
+            prestigeCardId = prestigeCard.cardId
+          }
+        }
+
+        if (!prestigeCard) {
+          throw new Error('프레스티지 카드 데이터를 찾을 수 없습니다.')
+        }
+
+        // 최근 획득 피드에서 실제 카드명을 보여주기 위해 성공 로그를 실제 카드 ID로 교정
+        await CardDrop.updateOne(
+          { _id: dropLog._id },
+          { $set: { cardId: prestigeCardId } }
+        )
+
         await this.addCardToInventory(userId, prestigeCardId, 'craft')
-        
-        // 프레스티지 카드 정보 조회
-        const prestigeCard = this.ensureImage(await Card.findOne({ cardId: prestigeCardId }).lean())
+        const ensuredPrestigeCard = this.ensureImage(prestigeCard)
         
         return {
           success: true,
-          card: prestigeCard,
-          message: `축하합니다! ${(prestigeCard as any)?.name || '프레스티지 카드'}를 획득했습니다!`,
-          usedCards
+          card: ensuredPrestigeCard,
+          message: `축하합니다! ${(ensuredPrestigeCard as any)?.name || '프레스티지 카드'}를 획득했습니다!`,
+          usedCards,
+          usedCardDetails: buildUsedCardDetails(usedCards)
         }
       } else {
         return {
           success: false,
           message: '조합에 실패했습니다. 사용된 카드들이 사라졌습니다.',
-          usedCards
+          usedCards,
+          usedCardDetails: buildUsedCardDetails(usedCards)
         }
       }
       
@@ -567,22 +748,35 @@ export class CardService {
       return {
         success: false,
         message: '조합 중 오류가 발생했습니다.',
-        usedCards: []
+        usedCards: [],
+        usedCardDetails: []
       }
     }
   }
   
-  // 사용자의 오늘 남은 드랍 횟수 조회 (무제한으로 변경)
+  // 사용자의 남은 드랍 횟수 조회 (24시간당 5회)
   static async getRemainingDrops(userId: string): Promise<number> {
     await connectDB()
     
     try {
-      // 무제한 드랍으로 변경
-      return 999
+      const userObjectId = this.normalizeUserId(userId)
+      const userStats = await UserCardStats.findOne({ userId: userObjectId })
+
+      if (!userStats) {
+        return this.MAX_DROPS_PER_WINDOW
+      }
+
+      if (this.shouldResetDropWindow(userStats.lastDropDate)) {
+        userStats.dailyDropsUsed = 0
+        userStats.lastDropDate = new Date()
+        await userStats.save()
+      }
+
+      return Math.max(0, this.MAX_DROPS_PER_WINDOW - Number(userStats.dailyDropsUsed || 0))
       
     } catch (error) {
       console.error('Error getting remaining drops:', error)
-      return 999
+      return 0
     }
   }
 }

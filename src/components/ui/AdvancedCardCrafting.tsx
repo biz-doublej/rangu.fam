@@ -1,19 +1,18 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Hammer, 
-  Sparkles, 
+import {
   AlertTriangle,
   CheckCircle,
+  Crown,
+  Flame,
+  Hammer,
+  ShieldCheck,
+  Sparkles,
+  WandSparkles,
   X,
-  Package,
-  Zap,
-  Star,
-  Gift,
-  Plus,
-  Minus
+  Zap
 } from 'lucide-react'
 import { Button } from './Button'
 import { Card, CardContent, CardHeader } from './Card'
@@ -23,18 +22,30 @@ interface AdvancedCardCraftingProps {
   className?: string
 }
 
+type CraftingMode = 'standard' | 'catalyst'
+
 interface CraftingResult {
   success: boolean
-  card?: any
+  card?: {
+    cardId: string
+    name: string
+    description: string
+    rarity: string
+    imageUrl?: string
+  }
   message: string
   usedCards: { cardId: string; quantity: number }[]
+  usedCardDetails?: { cardId: string; name: string; quantity: number; imageUrl?: string }[]
+  modeUsed?: CraftingMode
 }
 
 interface UserCard {
   _id: string
   cardId: string
   quantity: number
+  isLocked: boolean
   cardInfo: {
+    cardId: string
     name: string
     type: string
     rarity: string
@@ -43,133 +54,197 @@ interface UserCard {
   }
 }
 
-interface CraftingSlot {
-  id: string
-  card?: UserCard
-  requiredType?: string
-  maxQuantity?: number
+interface PrestigePreviewCard {
+  canonicalKey: string
+  cardId: string
+  name: string
+  imageUrl: string
 }
 
-// 프레스티지 카드 미리보기 데이터
-const prestigeCards = [
-  { id: 'prestige_jaewon', name: '재원 프레스티지', member: '재원', emoji: '👨‍💻' },
-  { id: 'prestige_minseok', name: '민석 프레스티지', member: '민석', emoji: '🏔️' },
-  { id: 'prestige_jinkyu', name: '진규 프레스티지', member: '진규', emoji: '🪖' },
-  { id: 'prestige_hanul', name: '한울 프레스티지', member: '한울', emoji: '🎮' },
-  { id: 'prestige_seungchan', name: '승찬 프레스티지', member: '승찬', emoji: '🌟' }
-]
+interface UserStats {
+  craftingAttempts?: number
+  successfulCrafts?: number
+  failedCrafts?: number
+}
 
-const getRarityColor = (rarity: string) => {
-  switch (rarity) {
-    case 'basic':
-      return 'from-gray-400 to-gray-600'
-    case 'rare':
-      return 'from-blue-400 to-purple-600'
-    case 'epic':
-      return 'from-pink-400 to-rose-600'
+const FALLBACK_IMAGE = '/images/default-music-cover.jpg'
+
+const STANDARD_REQUIREMENTS = [
+  { type: 'year', label: '년도 카드', required: 7, tone: 'from-slate-500 to-slate-700' },
+  { type: 'special', label: '스페셜 카드', required: 3, tone: 'from-sky-500 to-indigo-600' },
+  { type: 'signature', label: '시그니처 카드', required: 1, tone: 'from-fuchsia-500 to-rose-600' }
+] as const
+
+const getRarityBadge = (rarity?: string) => {
+  switch ((rarity || '').toLowerCase()) {
     case 'legendary':
-      return 'from-yellow-400 to-orange-600'
+      return 'from-amber-400 to-orange-500'
+    case 'epic':
+      return 'from-fuchsia-500 to-rose-600'
+    case 'rare':
+      return 'from-sky-500 to-indigo-600'
     case 'material':
-      return 'from-green-400 to-teal-600'
+      return 'from-emerald-500 to-teal-600'
     default:
-      return 'from-gray-400 to-gray-600'
+      return 'from-slate-500 to-slate-700'
   }
 }
 
+const getModeLabel = (mode: CraftingMode) =>
+  mode === 'catalyst' ? '강화 촉매' : '정규 조합'
+
+const PRESTIGE_SORT_ORDER = ['jaewon', 'minseok', 'jinkyu', 'hanul', 'seungchan', 'group']
+
+const normalizePrestigeKey = (value?: string) => {
+  const normalized = (value || '').replace(/\s+/g, '').toLowerCase()
+  if (!normalized) return null
+
+  if (normalized.includes('jaewon') || normalized.includes('정재원') || normalized.includes('재원')) return 'jaewon'
+  if (normalized.includes('minseok') || normalized.includes('정민석') || normalized.includes('민석')) return 'minseok'
+  if (normalized.includes('jinkyu') || normalized.includes('정진규') || normalized.includes('진규')) return 'jinkyu'
+  if (normalized.includes('hanul') || normalized.includes('강한울') || normalized.includes('한울')) return 'hanul'
+  if (normalized.includes('seungchan') || normalized.includes('이승찬') || normalized.includes('승찬')) return 'seungchan'
+  if (normalized.includes('group') || normalized.includes('랑구')) return 'group'
+
+  return null
+}
+
 export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCraftingProps) {
+  const [isLoading, setIsLoading] = useState(true)
   const [isCrafting, setIsCrafting] = useState(false)
+  const [craftingMode, setCraftingMode] = useState<CraftingMode>('standard')
   const [craftingResult, setCraftingResult] = useState<CraftingResult | null>(null)
   const [showResultModal, setShowResultModal] = useState(false)
-  const [userStats, setUserStats] = useState<any>(null)
+  const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [userCards, setUserCards] = useState<UserCard[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [showInventory, setShowInventory] = useState(false)
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [prestigeCards, setPrestigeCards] = useState<PrestigePreviewCard[]>([])
 
-  // 조합 슬롯 설정
-  const [craftingSlots, setCraftingSlots] = useState<CraftingSlot[]>([
-    { id: 'year1', requiredType: 'year', maxQuantity: 7 },
-    { id: 'year2', requiredType: 'year', maxQuantity: 7 },
-    { id: 'year3', requiredType: 'year', maxQuantity: 7 },
-    { id: 'special1', requiredType: 'special', maxQuantity: 3 },
-    { id: 'special2', requiredType: 'special', maxQuantity: 3 },
-    { id: 'signature1', requiredType: 'signature', maxQuantity: 1 }
-  ])
-
-  // 사용자 통계 및 카드 조회
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     if (!userId) return
 
     try {
-      // 통계 조회
-      const statsResponse = await fetch(`/api/cards/stats?userId=${userId}`)
-      const statsData = await statsResponse.json()
+      setIsLoading(true)
+      const [statsResponse, cardsResponse, prestigeResponse] = await Promise.all([
+        fetch(`/api/cards/stats?userId=${userId}`),
+        fetch(`/api/cards/inventory?userId=${userId}&limit=300&sortBy=recent`),
+        fetch('/api/cards?type=prestige&limit=20')
+      ])
+
+      const [statsData, cardsData, prestigeData] = await Promise.all([
+        statsResponse.json(),
+        cardsResponse.json(),
+        prestigeResponse.json()
+      ])
+
       if (statsData.success) {
         setUserStats(statsData.stats)
       }
 
-      // 카드 조회
-      const cardsResponse = await fetch(`/api/cards/inventory?userId=${userId}&limit=100`)
-      const cardsData = await cardsResponse.json()
       if (cardsData.success) {
-        setUserCards(cardsData.inventory)
+        setUserCards(cardsData.inventory || [])
+      }
+
+      if (prestigeData.success) {
+        const deduped = new Map<string, PrestigePreviewCard>()
+        for (const card of prestigeData.cards || []) {
+          const inferredKey =
+            normalizePrestigeKey(card.member) ||
+            normalizePrestigeKey(card.cardId?.replace(/^prestige_/, '')) ||
+            normalizePrestigeKey(card.name) ||
+            card.cardId
+
+          const candidate: PrestigePreviewCard = {
+            canonicalKey: inferredKey,
+            cardId: card.cardId,
+            name: card.name,
+            imageUrl: card.imageUrl || FALLBACK_IMAGE
+          }
+
+          const existing = deduped.get(inferredKey)
+          if (!existing) {
+            deduped.set(inferredKey, candidate)
+            continue
+          }
+
+          const existingScore =
+            (existing.imageUrl !== FALLBACK_IMAGE ? 2 : 0) + existing.name.length
+          const candidateScore =
+            (candidate.imageUrl !== FALLBACK_IMAGE ? 2 : 0) + candidate.name.length
+
+          if (candidateScore > existingScore) {
+            deduped.set(inferredKey, candidate)
+          }
+        }
+
+        const sorted = Array.from(deduped.values()).sort((a, b) => {
+          const aIndex = PRESTIGE_SORT_ORDER.indexOf(a.canonicalKey)
+          const bIndex = PRESTIGE_SORT_ORDER.indexOf(b.canonicalKey)
+          const aOrder = aIndex === -1 ? 99 : aIndex
+          const bOrder = bIndex === -1 ? 99 : bIndex
+          if (aOrder !== bOrder) return aOrder - bOrder
+          return a.name.localeCompare(b.name, 'ko')
+        })
+
+        setPrestigeCards(sorted)
       }
     } catch (error) {
-      console.error('Failed to fetch user data:', error)
+      console.error('Failed to fetch crafting data:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [userId])
 
   useEffect(() => {
     fetchUserData()
-  }, [userId])
+  }, [fetchUserData])
 
-  // 슬롯에 카드 추가
-  const addCardToSlot = (slotId: string, card: UserCard) => {
-    setCraftingSlots(prev => {
-      const isAlreadyUsed = prev.some(
-        slot => slot.card?.cardId === card.cardId && slot.id !== slotId
-      )
-      if (isAlreadyUsed) {
-        return prev
-      }
-      return prev.map(slot => 
-        slot.id === slotId 
-          ? { ...slot, card }
-          : slot
-      )
-    })
-    setShowInventory(false)
-    setSelectedSlot(null)
-  }
+  useEffect(() => {
+    const handleInventoryUpdate = () => fetchUserData()
+    window.addEventListener('card-inventory-updated', handleInventoryUpdate)
+    return () => window.removeEventListener('card-inventory-updated', handleInventoryUpdate)
+  }, [fetchUserData])
 
-  // 슬롯에서 카드 제거
-  const removeCardFromSlot = (slotId: string) => {
-    setCraftingSlots(prev => 
-      prev.map(slot => 
-        slot.id === slotId 
-          ? { ...slot, card: undefined }
-          : slot
-      )
-    )
-  }
+  const unlockedUserCards = useMemo(
+    () => userCards.filter((card) => !card.isLocked),
+    [userCards]
+  )
 
-  // 조합 가능 여부 확인
-  const canCraft = () => {
-    const yearCards = craftingSlots.filter(slot => slot.requiredType === 'year' && slot.card).length
-    const specialCards = craftingSlots.filter(slot => slot.requiredType === 'special' && slot.card).length
-    const signatureCards = craftingSlots.filter(slot => slot.requiredType === 'signature' && slot.card).length
-    
-    return yearCards >= 1 && specialCards >= 1 && signatureCards >= 1
-  }
+  const cardTypeCounts = useMemo(() => {
+    return unlockedUserCards.reduce((acc, card) => {
+      const type = card.cardInfo.type
+      acc[type] = (acc[type] || 0) + card.quantity
+      return acc
+    }, {} as Record<string, number>)
+  }, [unlockedUserCards])
 
-  // 프레스티지 카드 조합
-  const handleCrafting = async () => {
-    if (!userId || isCrafting || !canCraft()) return
+  const requirementProgress = useMemo(
+    () =>
+      STANDARD_REQUIREMENTS.map((requirement) => {
+        const owned = cardTypeCounts[requirement.type] || 0
+        const ready = owned >= requirement.required
+        const percent = Math.min(100, Math.floor((owned / requirement.required) * 100))
+        return { ...requirement, owned, ready, percent }
+      }),
+    [cardTypeCounts]
+  )
+
+  const isStandardReady = requirementProgress.every((item) => item.ready)
+  const catalystOwned = cardTypeCounts.material || 0
+  const isCatalystReady = catalystOwned >= 1
+
+  const attempts = userStats?.craftingAttempts || 0
+  const successes = userStats?.successfulCrafts || 0
+  const failures = userStats?.failedCrafts || 0
+  const currentSuccessRate = attempts > 0 ? Math.round((successes / attempts) * 100) : 70
+
+  const handleCrafting = async (mode: CraftingMode) => {
+    if (!userId || isCrafting) return
+    if (mode === 'standard' && !isStandardReady) return
+    if (mode === 'catalyst' && !isCatalystReady) return
 
     setIsCrafting(true)
     setCraftingResult(null)
+    setCraftingMode(mode)
 
     try {
       const response = await fetch('/api/cards/craft', {
@@ -179,31 +254,27 @@ export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCra
         },
         body: JSON.stringify({
           userId,
-          useMaterialCard: false
+          useMaterialCard: mode === 'catalyst'
         })
       })
 
       const result: CraftingResult = await response.json()
+      result.modeUsed = mode
       setCraftingResult(result)
       setShowResultModal(true)
-      
-      // 성공하면 슬롯 초기화
-      if (result.success) {
-        setCraftingSlots(prev => prev.map(slot => ({ ...slot, card: undefined })))
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('card-inventory-updated'))
-        }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('card-inventory-updated'))
       }
-      
-      // 데이터 새로고침
+
       await fetchUserData()
-      
     } catch (error) {
       console.error('Crafting error:', error)
       setCraftingResult({
         success: false,
-        message: '조합 중 오류가 발생했습니다.',
-        usedCards: []
+        message: '조합/강화 중 오류가 발생했습니다.',
+        usedCards: [],
+        modeUsed: mode
       })
       setShowResultModal(true)
     } finally {
@@ -211,13 +282,15 @@ export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCra
     }
   }
 
+  const closeResultModal = () => setShowResultModal(false)
+
   if (!userId) {
     return (
       <Card className={className}>
         <CardContent className="p-8 text-center">
-          <Hammer className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">고급 카드 조합</h3>
-          <p className="text-gray-500">로그인 후 프레스티지 카드를 조합하세요</p>
+          <Hammer className="mx-auto mb-4 h-16 w-16 text-gray-400" />
+          <h3 className="mb-2 text-lg font-semibold text-gray-700">제작/강화 스테이션</h3>
+          <p className="text-gray-500">로그인 후 프레스티지 제작을 시작할 수 있어요.</p>
         </CardContent>
       </Card>
     )
@@ -227,8 +300,8 @@ export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCra
     return (
       <Card className={className}>
         <CardContent className="p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">데이터를 불러오고 있습니다...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary-500" />
+          <p className="text-gray-500">제작 데이터를 불러오고 있습니다...</p>
         </CardContent>
       </Card>
     )
@@ -236,303 +309,276 @@ export function AdvancedCardCrafting({ userId, className = '' }: AdvancedCardCra
 
   return (
     <>
-      <Card className={className}>
-        <CardHeader>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center">
-              <Hammer className="w-5 h-5 text-white" />
+      <Card variant="flat" className={`overflow-hidden shadow-2xl ${className}`}>
+        <CardHeader className="border-b border-gray-200/80 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-lg">
+                <Hammer className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">제작 / 강화 랩</h2>
+                <p className="text-sm text-gray-600">프레스티지 카드를 조합하거나 촉매 강화로 획득하세요.</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">고급 카드 조합</h2>
-              <p className="text-sm text-gray-500">프레스티지 카드를 제작하세요</p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/50 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>기본 성공률 70%</span>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          {/* 프레스티지 카드 미리보기 */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">🏆 획득 가능한 프레스티지 카드</h3>
-            <div className="grid grid-cols-5 gap-3">
-              {prestigeCards.map((card, index) => (
-                <motion.div
-                  key={card.id}
-                  className="aspect-[3/4] bg-gradient-to-br from-yellow-100 to-orange-200 rounded-lg border-2 border-yellow-300 flex flex-col items-center justify-center p-2"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <div className="text-2xl mb-1">{card.emoji}</div>
-                  <div className="text-xs font-medium text-center text-gray-800 leading-tight">
-                    {card.name}
-                  </div>
-                  <div className="mt-1 px-1 py-0.5 bg-yellow-400 text-yellow-900 text-xs rounded font-bold">
-                    전설
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+        <CardContent className="space-y-6 bg-white/95">
+          <div className="grid gap-4 md:grid-cols-2">
+            <button
+              type="button"
+              className={`rounded-2xl border p-4 text-left transition ${
+                craftingMode === 'standard'
+                  ? 'border-indigo-400 bg-indigo-50 shadow-lg shadow-indigo-100'
+                  : 'border-gray-200 bg-white hover:border-indigo-200'
+              }`}
+              onClick={() => setCraftingMode('standard')}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600">
+                  <Zap className="h-4 w-4" />
+                </div>
+                <p className="font-semibold text-gray-900">정규 조합</p>
+              </div>
+              <p className="text-sm text-gray-600">년도 7 + 스페셜 3 + 시그니처 1 소모</p>
+              <p className="mt-2 text-xs font-medium text-indigo-700">
+                준비 상태: {isStandardReady ? '조합 가능' : '재료 부족'}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              className={`rounded-2xl border p-4 text-left transition ${
+                craftingMode === 'catalyst'
+                  ? 'border-emerald-400 bg-emerald-50 shadow-lg shadow-emerald-100'
+                  : 'border-gray-200 bg-white hover:border-emerald-200'
+              }`}
+              onClick={() => setCraftingMode('catalyst')}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
+                  <WandSparkles className="h-4 w-4" />
+                </div>
+                <p className="font-semibold text-gray-900">강화 촉매</p>
+              </div>
+              <p className="text-sm text-gray-600">재료 카드 1장 이상 보유 시 즉시 시도 (재료 소모 없음)</p>
+              <p className="mt-2 text-xs font-medium text-emerald-700">
+                준비 상태: {isCatalystReady ? '강화 가능' : '재료 카드 필요'}
+              </p>
+            </button>
           </div>
 
-          {/* 조합 슬롯 */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">🔧 조합 재료</h3>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
-              {craftingSlots.map((slot, index) => (
-                <motion.div
-                  key={slot.id}
-                  className={`aspect-[3/4] border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-2 cursor-pointer transition-all duration-300 ${
-                    slot.card 
-                      ? 'border-green-300 bg-green-50' 
-                      : 'border-gray-300 bg-gray-50 hover:border-primary-300 hover:bg-primary-25'
-                  }`}
-                  onClick={() => {
-                    if (slot.card) {
-                      removeCardFromSlot(slot.id)
-                    } else {
-                      setSelectedSlot(slot.id)
-                      setShowInventory(true)
-                    }
-                  }}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
-                >
-                  {slot.card ? (
-                    <>
-                      <div className="flex-1 flex items-center justify-center text-lg">
-                        {slot.card.cardInfo.member ? 
-                          {'재원': '👨‍💻', '민석': '🏔️', '진규': '🪖', '한울': '🎮', '승찬': '🌟', '희열': '🔮'}[slot.card.cardInfo.member] || '👤'
-                          : slot.card.cardInfo.type === 'year' ? '📅'
-                          : slot.card.cardInfo.type === 'special' ? '⭐'
-                          : slot.card.cardInfo.type === 'signature' ? '✨'
-                          : '🎴'
-                        }
-                      </div>
-                      <div className="text-xs text-center font-medium text-gray-800 leading-tight">
-                        {slot.card.cardInfo.name}
-                      </div>
-                      <button 
-                        className="mt-1 p-1 rounded-full bg-red-500 text-white hover:bg-red-600"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeCardFromSlot(slot.id)
-                        }}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-6 h-6 text-gray-400 mb-1" />
-                      <div className="text-xs text-center text-gray-500">
-                        {slot.requiredType === 'year' ? '년도 카드' :
-                         slot.requiredType === 'special' ? '스페셜 카드' :
-                         slot.requiredType === 'signature' ? '시그니처 카드' : '카드'}
-                      </div>
-                    </>
-                  )}
-                </motion.div>
-              ))}
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {craftingMode === 'standard' ? '정규 조합 요구 재료' : '강화 촉매 요구 재료'}
+              </h3>
+              <span className="text-xs text-gray-500">
+                {craftingMode === 'standard'
+                  ? '잠금 카드는 계산에서 제외됩니다'
+                  : '잠금된 재료 카드는 강화에 사용할 수 없습니다'}
+              </span>
             </div>
 
-            {/* 조합 버튼 */}
-            <div className="text-center">
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={handleCrafting}
-                disabled={isCrafting || !canCraft()}
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
-              >
-                {isCrafting ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>조합 중...</span>
+            {craftingMode === 'standard' ? (
+              <div className="space-y-3">
+                {requirementProgress.map((item) => (
+                  <div key={item.type}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="font-medium text-gray-700">{item.label}</span>
+                      <span className={item.ready ? 'font-semibold text-emerald-600' : 'font-semibold text-rose-600'}>
+                        {item.owned}/{item.required}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className={`h-full bg-gradient-to-r ${item.tone}`}
+                        style={{ width: `${item.percent}%` }}
+                      />
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <Zap className="w-5 h-5" />
-                    <span>프레스티지 카드 조합</span>
-                  </div>
-                )}
-              </Button>
-              {!canCraft() && (
-                <p className="text-sm text-gray-500 mt-2">
-                  최소 년도 카드 1개, 스페셜 카드 1개, 시그니처 카드 1개가 필요합니다
-                </p>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-emerald-900">재료 카드 보유량</span>
+                  <span className={isCatalystReady ? 'font-bold text-emerald-700' : 'font-bold text-rose-600'}>
+                    {catalystOwned} / 1
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              size="lg"
+              className={`mt-4 w-full ${
+                craftingMode === 'standard'
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+              }`}
+              onClick={() => handleCrafting(craftingMode)}
+              disabled={isCrafting || (craftingMode === 'standard' ? !isStandardReady : !isCatalystReady)}
+            >
+              {isCrafting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
+                  <span>실행 중...</span>
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  {craftingMode === 'standard' ? <Zap className="h-4 w-4" /> : <Flame className="h-4 w-4" />}
+                  <span>{craftingMode === 'standard' ? '정규 조합 실행' : '강화 촉매 실행'}</span>
+                </span>
               )}
+            </Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-gray-200 bg-white p-3 text-center">
+              <p className="text-xs text-gray-500">총 시도</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{attempts}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
+              <p className="text-xs text-emerald-700">성공</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-700">{successes}</p>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center">
+              <p className="text-xs text-rose-700">실패</p>
+              <p className="mt-1 text-2xl font-bold text-rose-700">{failures}</p>
             </div>
           </div>
 
-          {/* 조합 통계 */}
-          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <div className="text-xl font-bold text-gray-800">{userStats?.craftingAttempts || 0}</div>
-              <div className="text-sm text-gray-600">총 시도</div>
+          <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                <Crown className="h-4 w-4" />
+                <span>프레스티지 카드 풀</span>
+              </h3>
+              <span className="text-xs font-medium text-amber-800">현재 성공률 {currentSuccessRate}%</span>
             </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-xl font-bold text-green-600">{userStats?.successfulCrafts || 0}</div>
-              <div className="text-sm text-gray-600">성공</div>
-            </div>
-            <div className="text-center p-3 bg-yellow-50 rounded-lg">
-              <div className="text-xl font-bold text-yellow-600">70%</div>
-              <div className="text-sm text-gray-600">성공률</div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              {prestigeCards.map((card) => (
+                <div key={card.cardId} className="overflow-hidden rounded-xl border border-amber-200 bg-white">
+                  <div className="h-28 w-full overflow-hidden bg-amber-100">
+                    <img
+                      src={card.imageUrl}
+                      alt={card.name}
+                      onError={(event) => {
+                        event.currentTarget.src = FALLBACK_IMAGE
+                      }}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="p-2">
+                    <p className="line-clamp-2 text-center text-xs font-semibold text-gray-800">{card.name}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 인벤토리 모달 */}
-      <AnimatePresence>
-        {showInventory && selectedSlot && (
-          <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowInventory(false)}
-          >
-            <motion.div
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden"
-              initial={{ scale: 0.8, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {craftingSlots.find(s => s.id === selectedSlot)?.requiredType === 'year' ? '년도 카드' :
-                     craftingSlots.find(s => s.id === selectedSlot)?.requiredType === 'special' ? '스페셜 카드' :
-                     craftingSlots.find(s => s.id === selectedSlot)?.requiredType === 'signature' ? '시그니처 카드' : '카드'} 선택
-                  </h3>
-                  <button
-                    onClick={() => setShowInventory(false)}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="p-6 max-h-[60vh] overflow-y-auto">
-                <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
-                  {userCards
-                    .filter(card => {
-                      const requiredType = craftingSlots.find(s => s.id === selectedSlot)?.requiredType
-                      return card.cardInfo.type === requiredType
-                    })
-                    .map((card) => (
-                      <motion.div
-                        key={card._id}
-                        className="aspect-[3/4] bg-white rounded-lg border border-gray-200 hover:border-primary-300 hover:shadow-lg transition-all duration-300 cursor-pointer p-2"
-                        onClick={() => addCardToSlot(selectedSlot, card)}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <div className="h-full flex flex-col">
-                          <div className="flex-1 flex items-center justify-center text-lg bg-gray-50 rounded mb-1">
-                            {card.cardInfo.member ? 
-                              {'재원': '👨‍💻', '민석': '🏔️', '진규': '🪖', '한울': '🎮', '승찬': '🌟', '희열': '🔮'}[card.cardInfo.member] || '👤'
-                              : card.cardInfo.type === 'year' ? '📅'
-                              : card.cardInfo.type === 'special' ? '⭐'
-                              : card.cardInfo.type === 'signature' ? '✨'
-                              : '🎴'
-                            }
-                          </div>
-                          <div className="text-xs text-center font-medium text-gray-800 leading-tight">
-                            {card.cardInfo.name}
-                          </div>
-                          {card.quantity > 1 && (
-                            <div className="text-xs text-center text-gray-500 mt-1">
-                              ×{card.quantity}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 조합 결과 모달 */}
       <AnimatePresence>
         {showResultModal && craftingResult && (
           <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setShowResultModal(false)}
+            onClick={closeResultModal}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-              initial={{ scale: 0.8, opacity: 0, y: 20 }}
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+              initial={{ scale: 0.86, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
+              exit={{ scale: 0.86, opacity: 0, y: 20 }}
+              onClick={(event) => event.stopPropagation()}
             >
-              <div className={`p-4 text-white ${
-                craftingResult.success 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
-                  : 'bg-gradient-to-r from-red-500 to-pink-600'
-              }`}>
+              <div
+                className={`p-4 text-white ${
+                  craftingResult.success
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600'
+                    : 'bg-gradient-to-r from-rose-500 to-red-600'
+                }`}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {craftingResult.success ? (
-                      <CheckCircle className="w-5 h-5" />
-                    ) : (
-                      <AlertTriangle className="w-5 h-5" />
-                    )}
-                    <span className="font-semibold">
-                      {craftingResult.success ? '조합 성공!' : '조합 실패'}
-                    </span>
+                  <div className="flex items-center gap-2">
+                    {craftingResult.success ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                    <span className="font-semibold">{craftingResult.success ? '획득 성공!' : '획득 실패'}</span>
                   </div>
-                  <button
-                    onClick={() => setShowResultModal(false)}
-                    className="p-1 hover:bg-white/20 rounded"
-                  >
-                    <X className="w-4 h-4" />
+                  <button onClick={closeResultModal} className="rounded p-1 hover:bg-white/20">
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className="space-y-4 p-5">
                 {craftingResult.success && craftingResult.card ? (
-                  <div className="text-center mb-4">
-                    <div className="w-24 h-32 mx-auto mb-3 bg-gradient-to-br from-yellow-100 to-orange-200 rounded-lg flex items-center justify-center">
-                      <div className="text-3xl">👑</div>
+                  <div className="text-center">
+                    <div className="mx-auto mb-3 h-40 w-28 overflow-hidden rounded-lg border border-gray-200">
+                      <img
+                        src={craftingResult.card.imageUrl || FALLBACK_IMAGE}
+                        alt={craftingResult.card.name}
+                        onError={(event) => {
+                          event.currentTarget.src = FALLBACK_IMAGE
+                        }}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-800 mb-1">
-                      {(craftingResult.card as any)?.name || '프레스티지 카드'}
-                    </h3>
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-600 text-white">
-                      프레스티지 카드
+                    <p className="text-lg font-bold text-gray-900">{craftingResult.card.name}</p>
+                    <p className="mt-1 text-sm text-gray-600">{craftingResult.card.description}</p>
+                    <span
+                      className={`mt-3 inline-flex rounded-full bg-gradient-to-r px-3 py-1 text-xs font-semibold text-white ${getRarityBadge(
+                        craftingResult.card.rarity
+                      )}`}
+                    >
+                      {(craftingResult.card.rarity || 'legendary').toUpperCase()}
                     </span>
                   </div>
                 ) : (
-                  <div className="text-center mb-4">
-                    <div className="w-16 h-16 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                      <X className="w-8 h-8 text-gray-400" />
+                  <div className="text-center">
+                    <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
+                      <X className="h-7 w-7 text-rose-500" />
                     </div>
                   </div>
                 )}
 
-                <p className="text-sm text-gray-600 text-center mb-4">
-                  {craftingResult.message}
-                </p>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                  <p className="font-medium text-gray-900">{getModeLabel(craftingResult.modeUsed || craftingMode)}</p>
+                  <p className="mt-1">{craftingResult.message}</p>
+                </div>
 
-                <Button
-                  variant="glass"
-                  className="w-full"
-                  onClick={() => setShowResultModal(false)}
-                >
+                {((craftingResult.usedCardDetails && craftingResult.usedCardDetails.length > 0) ||
+                  craftingResult.usedCards.length > 0) && (
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                    <p className="mb-2 text-sm font-semibold text-gray-900">소모 카드</p>
+                    <div className="space-y-1 text-sm text-gray-700">
+                      {(craftingResult.usedCardDetails || []).length > 0
+                        ? (craftingResult.usedCardDetails || []).map((used) => (
+                            <div key={`${used.cardId}-${used.quantity}`} className="flex items-center justify-between">
+                              <span>{used.name || '알 수 없는 카드'}</span>
+                              <span className="font-semibold">×{used.quantity}</span>
+                            </div>
+                          ))
+                        : craftingResult.usedCards.map((used) => (
+                            <div key={`${used.cardId}-${used.quantity}`} className="flex items-center justify-between">
+                              <span>알 수 없는 카드</span>
+                              <span className="font-semibold">×{used.quantity}</span>
+                            </div>
+                          ))}
+                    </div>
+                  </div>
+                )}
+
+                <Button variant="glass" className="w-full" onClick={closeResultModal}>
                   확인
                 </Button>
               </div>

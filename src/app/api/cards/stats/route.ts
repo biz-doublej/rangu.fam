@@ -34,14 +34,15 @@ export async function GET(request: NextRequest) {
       await userStats.save()
     }
     
-    // 오늘 날짜 체크하여 드랍 횟수 리셋 여부 확인
-    const today = new Date()
+    // 24시간 경과 시 드랍 횟수 자동 리셋
+    const now = new Date()
     const lastDrop = new Date(userStats.lastDropDate)
-    const isNewDay = today.toDateString() !== lastDrop.toDateString()
-    
-    if (isNewDay) {
+    const elapsedMs = now.getTime() - lastDrop.getTime()
+    const shouldResetWindow = Number.isNaN(lastDrop.getTime()) || elapsedMs >= 24 * 60 * 60 * 1000 || elapsedMs < 0
+
+    if (shouldResetWindow) {
       userStats.dailyDropsUsed = 0
-      userStats.lastDropDate = today
+      userStats.lastDropDate = now
       await userStats.save()
     }
     
