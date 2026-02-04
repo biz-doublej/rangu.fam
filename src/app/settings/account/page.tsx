@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Link2, ShieldCheck, Sparkles, UserCircle2, Unlink, LogIn } from 'lucide-react'
@@ -21,6 +21,14 @@ interface AccountSession {
 }
 
 export default function AccountSettingsPage() {
+  return (
+    <Suspense fallback={<AccountSettingsFallback />}>
+      <AccountSettingsPageContent />
+    </Suspense>
+  )
+}
+
+function AccountSettingsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoggedIn, user } = useAuth()
@@ -252,6 +260,14 @@ export default function AccountSettingsPage() {
           </Card>
         </div>
       </div>
+    </div>
+  )
+}
+
+function AccountSettingsFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-gray-500">
+      계정 설정 화면을 불러오는 중입니다...
     </div>
   )
 }

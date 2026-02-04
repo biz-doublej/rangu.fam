@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Link2 } from 'lucide-react'
@@ -20,6 +20,14 @@ const ERROR_MESSAGES: Record<string, string> = {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, register, loginWithDiscord, isLoading, isLoggedIn, user } = useAuth()
@@ -173,6 +181,16 @@ export default function LoginPage() {
           </CardFooter>
         </Card>
       </motion.div>
+    </div>
+  )
+}
+
+function LoginPageFallback() {
+  return (
+    <div className="min-h-screen bg-slate-950 text-white px-4 py-16">
+      <div className="max-w-md mx-auto rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/70">
+        로그인 화면을 불러오는 중입니다...
+      </div>
     </div>
   )
 }
