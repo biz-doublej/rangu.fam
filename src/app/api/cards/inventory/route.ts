@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CardService } from '@/services/cardService'
 import { UserCard } from '@/models/UserCard'
-import connectDB from '@/lib/mongodb'
+import connectDB from '@/lib/database'
 export const dynamic = 'force-dynamic'
 
 // GET: 사용자 카드 인벤토리 조회

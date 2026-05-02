@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import { connectToDatabase } from '@/lib/database'
 import { Bookmark } from '@/models/Bookmark'
 import { Bookmark as BookmarkType } from '@/types'
 export const dynamic = 'force-dynamic'
@@ -36,12 +36,12 @@ export async function GET(request: NextRequest) {
         data: bookmarks
       })
     } catch (dbError) {
-      console.warn('MongoDB 연결 실패, 빈 배열 반환:', dbError)
+      console.warn('데이터베이스 연결 실패, 빈 배열 반환:', dbError)
       // 데이터베이스 연결 실패 시 빈 배열 반환
       return NextResponse.json({
         success: true,
         data: [],
-        message: 'MongoDB 연결이 필요합니다. 현재는 빈 목록을 표시합니다.'
+        message: '데이터베이스 연결이 필요합니다. 현재는 빈 목록을 표시합니다.'
       })
     }
   } catch (error) {
@@ -109,9 +109,9 @@ export async function POST(request: NextRequest) {
         data: savedBookmark
       }, { status: 201 })
     } catch (dbError) {
-      console.warn('MongoDB 연결 실패:', dbError)
+      console.warn('데이터베이스 연결 실패:', dbError)
       return NextResponse.json(
-        { success: false, error: 'MongoDB 연결이 필요합니다. 데이터베이스를 설정해주세요.' },
+        { success: false, error: '데이터베이스 연결이 필요합니다. 데이터베이스를 설정해주세요.' },
         { status: 503 }
       )
     }

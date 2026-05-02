@@ -125,7 +125,7 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
           })
         }
 
-        toast.success('통합 계정으로 위키에 입장했습니다!')
+        toast.success('통합 계정 세션으로 위키에 입장했습니다!')
         return true
       }
 
@@ -145,56 +145,9 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
     displayName?: string
     mainUserId?: string
   }): Promise<boolean> => {
-    try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          username: userData.username,
-          password: userData.password,
-          displayName: userData.displayName,
-        })
-      })
-
-      // 응답이 비어있거나 잘못된 경우 체크
-      if (!response.ok) {
-        console.error('HTTP 오류:', response.status, response.statusText)
-        toast.error(`서버 오류 (${response.status})`)
-        return false
-      }
-
-      const text = await response.text()
-      if (!text) {
-        console.error('빈 응답 받음')
-        toast.error('서버에서 빈 응답을 받았습니다.')
-        return false
-      }
-
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch (parseError) {
-        console.error('JSON 파싱 오류:', parseError, '응답 텍스트:', text)
-        toast.error('서버 응답 형식이 올바르지 않습니다.')
-        return false
-      }
-
-      if (data.success) {
-        toast.success('DoubleJ 계정이 생성되었습니다.')
-        await checkAuthStatus()
-        return true
-      } else {
-        toast.error(data.error || '회원가입에 실패했습니다.')
-        return false
-      }
-    } catch (error) {
-      console.error('위키 회원가입 오류:', error)
-      toast.error('회원가입 중 오류가 발생했습니다.')
-      return false
-    }
+    void userData
+    window.location.href = '/auth/start?screen=signup&callbackUrl=%2Fwiki'
+    return false
   }
 
   const logout = async (): Promise<void> => {

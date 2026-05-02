@@ -2,11 +2,15 @@
 
 import { useEffect } from 'react'
 import { useAuthNotifications } from '@/hooks/useAuthNotifications'
+import { usePathname } from 'next/navigation'
 
 export const DemoNotificationTrigger = () => {
-  const { notifyInfo, notifySuccess } = useAuthNotifications()
+  const { notifyInfo } = useAuthNotifications()
+  const pathname = usePathname()
 
   useEffect(() => {
+    if (pathname?.startsWith('/university')) return
+
     // 환영 알림이 이미 표시되었는지 체크
     const hasShownWelcome = localStorage.getItem('welcome-notification-shown')
     
@@ -24,7 +28,7 @@ export const DemoNotificationTrigger = () => {
 
       return () => clearTimeout(timer)
     }
-  }, []) // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
+  }, [pathname]) // 페이지 변경 시 재평가
 
   // This component renders nothing, it just triggers notifications
   return null

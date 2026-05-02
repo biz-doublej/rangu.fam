@@ -151,19 +151,19 @@ export function CardCrafting({ userId, className = '' }: CardCraftingProps) {
             </div>
           </div>
 
-          {/* 조합 방법 1: 재료 카드 사용 */}
+          {/* 조합 방법 1: 조커카드 대체 사용 */}
           <div className="border border-green-200 rounded-xl p-4 bg-green-50">
             <div className="flex items-center space-x-2 mb-3">
               <Gift className="w-5 h-5 text-green-600" />
-              <h3 className="font-semibold text-green-800">재료 카드 조합</h3>
-              <span className="px-2 py-1 bg-green-200 text-green-800 text-xs rounded-full">무한 사용</span>
+              <h3 className="font-semibold text-green-800">조커카드 대체 조합</h3>
+              <span className="px-2 py-1 bg-green-200 text-green-800 text-xs rounded-full">조커 소모</span>
             </div>
             <p className="text-sm text-green-700 mb-4">
-              재료 카드를 사용하여 조합합니다. 재료 카드는 소모되지 않습니다.
+              조커카드 1장은 부족한 재료 1장을 대체하며 조합 시 소모됩니다.
             </p>
             <div className="flex items-center justify-between">
               <div className="text-sm text-green-600">
-                <span className="font-medium">보유 재료 카드:</span> {userStats?.materialCardsOwned || 0}장
+                <span className="font-medium">보유 조커카드:</span> {userStats?.materialCardsOwned || 0}장
               </div>
               <Button
                 variant="primary"
@@ -180,7 +180,7 @@ export function CardCrafting({ userId, className = '' }: CardCraftingProps) {
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Gift className="w-4 h-4" />
-                    <span>재료로 조합</span>
+                    <span>조커 대체 조합</span>
                   </div>
                 )}
               </Button>

@@ -1,39 +1,10 @@
 import { Member } from '@/types'
-import dbConnect from '@/lib/mongodb'
-import User, { IUser } from '@/models/User'
+import dbConnect from '@/lib/database'
+import User from '@/models/User'
 
 export class MemberService {
-  // MongoDB에서 모든 멤버 가져오기
   static async getAllMembers(): Promise<Member[]> {
-    // 현재 MongoDB 연결 문제로 인해 임시로 기본 멤버 반환
-    console.log('MongoDB 연결 문제로 기본 멤버 데이터 사용')
     return this.getDefaultMembers()
-    
-    // TODO: MongoDB 연결 안정화 후 활성화
-    /* 
-    try {
-      await dbConnect()
-      
-      const users = await User.find({}).lean() as any[]
-      
-      return users.map((user: any) => ({
-        id: user.username,
-        name: user.username,
-        role: user.role,
-        description: user.bio || '',
-        avatar: user.profileImage || '/images/default-avatar.jpg',
-        email: user.email,
-        status: 'active',
-        location: '대한민국', // TODO: 사용자 위치 필드 추가 시 업데이트
-        joinDate: user.createdAt || new Date(),
-        personalPageUrl: `/members/${user.username}`
-      }))
-    } catch (error) {
-      console.error('멤버 조회 오류:', error)
-      // 오류 시 기본 멤버 반환
-      return this.getDefaultMembers()
-    }
-    */
   }
 
   // 특정 멤버 가져오기

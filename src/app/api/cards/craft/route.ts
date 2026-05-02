@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CardService } from '@/services/cardService'
-import connectDB from '@/lib/mongodb'
+import connectDB from '@/lib/database'
 export const dynamic = 'force-dynamic'
 
 // POST: 프레스티지 카드 조합
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB()
     const body = await request.json()
-    const { userId, useMaterialCard = false } = body
+    const { userId, useMaterialCard = true } = body
 
     if (!userId) {
       return NextResponse.json(

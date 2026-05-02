@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import { connectToDatabase } from '@/lib/database'
 import { Bookmark } from '@/models/Bookmark'
 export const dynamic = 'force-dynamic'
 
@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
         message: '북마크 순서가 업데이트되었습니다.'
       })
     } catch (dbError) {
-      console.warn('MongoDB 연결 실패:', dbError)
+      console.warn('데이터베이스 연결 실패:', dbError)
       return NextResponse.json(
-        { success: false, error: 'MongoDB 연결이 필요합니다.' },
+        { success: false, error: '데이터베이스 연결이 필요합니다.' },
         { status: 503 }
       )
     }

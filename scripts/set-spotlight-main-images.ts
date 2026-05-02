@@ -16,7 +16,7 @@ const MAIN_IMAGE_SLIDES = [
 ]
 
 async function main() {
-  const { default: dbConnect } = await import('@/lib/mongodb')
+  const { default: dbConnect } = await import('@/lib/database')
   const { default: SpotlightSlide } = await import('@/models/SpotlightSlide')
   await dbConnect()
 

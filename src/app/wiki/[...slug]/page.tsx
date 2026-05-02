@@ -242,7 +242,7 @@ export default function WikiDocumentPage() {
   // 편집 모드로 전환
   const handleEditMode = () => {
     if (!isLoggedIn) {
-      router.push('/wiki/login')
+      router.push('/auth/start?callbackUrl=%2Fwiki')
       return
     }
     setActiveTab('edit')
@@ -256,7 +256,7 @@ export default function WikiDocumentPage() {
     }
     if (!isLoggedIn) {
       alert('로그인이 필요합니다. 로그인 페이지로 이동합니다.')
-      router.push('/wiki/login')
+      router.push('/auth/start?callbackUrl=%2Fwiki')
       return
     }
 
@@ -284,7 +284,7 @@ export default function WikiDocumentPage() {
 
       if (response.status === 401) {
         alert('로그인이 필요합니다. 로그인 페이지로 이동합니다.')
-        router.push('/wiki/login')
+        router.push('/auth/start?callbackUrl=%2Fwiki')
         return
       }
 
@@ -354,7 +354,7 @@ export default function WikiDocumentPage() {
   // 문서 보호 설정 저장
   const handleProtect = async () => {
     if (!isLoggedIn) {
-      router.push('/wiki/login')
+      router.push('/auth/start?callbackUrl=%2Fwiki')
       return
     }
     try {
@@ -841,7 +841,7 @@ export default function WikiDocumentPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.push('/wiki/login')}
+                  onClick={() => router.push('/auth/start?callbackUrl=%2Fwiki')}
                   className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
                 >
                   <LogIn className="w-4 h-4" />

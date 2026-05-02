@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CardService } from '@/services/cardService'
-import connectDB from '@/lib/mongodb'
+import connectDB from '@/lib/database'
 import {
   buildClientUser,
   getAuthenticatedWikiUser,

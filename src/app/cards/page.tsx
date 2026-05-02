@@ -41,7 +41,7 @@ export default function CardsPage() {
 
   const tabs = [
     { id: 'inventory', label: '인벤토리', icon: Sparkles, description: '컬렉션 · 재료 한눈에 보기' },
-    { id: 'crafting', label: '제작/강화', icon: Hammer, description: '소재를 조합해 업그레이드' }
+    { id: 'crafting', label: '제작', icon: Hammer, description: '소재를 조합해 프레스티지 획득' }
   ]
 
   useEffect(() => {

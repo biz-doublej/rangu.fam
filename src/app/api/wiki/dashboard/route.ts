@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import SiteHistory from '@/models/SiteHistory'
 import { WikiPage, WikiUser, WikiDiscussion, WikiNamespace } from '@/models/Wiki'
 

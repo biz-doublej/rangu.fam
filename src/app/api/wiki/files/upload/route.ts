@@ -1,13 +1,18 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import dbConnect from '@/lib/mongodb'
+import fs from 'fs/promises'
+import path from 'path'
+import dbConnect from '@/lib/database'
 import Image from '@/models/Image'
 import { WikiUser } from '@/models/Wiki'
 import jwt from 'jsonwebtoken'
+import { getWikiUploadsDir } from '@/lib/wikiUploadStorage'
+
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
-const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
+const MAX_SIZE_BYTES = 1 * 1024 * 1024 // 1MB
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/jpg', 
@@ -61,35 +66,45 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_SIZE_BYTES) {
       return NextResponse.json({ 
         success: false, 
-        error: '파일이 너무 큽니다. 최대 5MB까지 허용됩니다.' 
+        error: '파일이 너무 큽니다. 최대 1MB까지 허용됩니다.' 
       }, { status: 400 })
     }
 
-    // 파일을 base64로 변환
+    // 파일을 buffer로 변환
     const buffer = Buffer.from(await file.arrayBuffer())
     const base64Data = buffer.toString('base64')
 
     // 고유한 파일명 생성
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const uniqueFilename = `wiki_${randomUUID()}.${fileExtension}`
+    const uploadsDir = getWikiUploadsDir()
+    const outputPath = path.join(uploadsDir, uniqueFilename)
 
-    // 이미지 데이터베이스에 저장
-    const imageDoc = new Image({
-      filename: uniqueFilename,
-      originalName: file.name,
-      mimeType: file.type,
-      size: file.size,
-      data: base64Data,
-      uploadedBy: user.username,
-      uploadedById: user._id.toString(),
-      category: 'wiki',
-      isPublic: true
-    })
+    // Primary storage: NAS-mounted wiki uploads directory.
+    await fs.mkdir(uploadsDir, { recursive: true })
+    await fs.writeFile(outputPath, buffer)
 
-    await imageDoc.save()
+    // Legacy compatibility: keep DB copy if possible.
+    try {
+      const imageDoc = new Image({
+        filename: uniqueFilename,
+        originalName: file.name,
+        mimeType: file.type,
+        size: file.size,
+        data: base64Data,
+        uploadedBy: user.username,
+        uploadedById: user._id.toString(),
+        category: 'wiki',
+        isPublic: true
+      })
+
+      await imageDoc.save()
+    } catch (legacyError) {
+      console.warn('위키 이미지 레거시 DB 저장 실패(파일 저장은 성공):', legacyError)
+    }
 
     // 이미지 접근 URL 생성
-    const imageUrl = `/api/images/serve/${uniqueFilename}`
+    const imageUrl = `/uploads/wiki/${uniqueFilename}`
 
     return NextResponse.json({
       success: true,

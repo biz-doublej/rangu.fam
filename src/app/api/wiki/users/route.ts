@@ -1,9 +1,11 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiUser } from '@/models/Wiki'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
 import jwt from 'jsonwebtoken'
 import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +18,7 @@ async function getUserFromToken(request: NextRequest) {
     const tokens = [bearerToken, cookieToken].filter(Boolean) as string[]
     if (tokens.length === 0) return null
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+    const JWT_SECRET = getRequiredEnv('JWT_SECRET')
     await dbConnect()
 
     for (const token of tokens) {

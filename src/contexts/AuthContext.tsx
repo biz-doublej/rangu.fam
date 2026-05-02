@@ -24,9 +24,9 @@ interface AuthContextType {
   user: User | null
   member: Member | null
   isLoading: boolean
-  login: (username: string, password: string) => Promise<boolean>
-  register: (username: string, password: string, displayName?: string) => Promise<boolean>
-  loginWithDiscord: (callbackUrl?: string) => void
+  startSignIn: (callbackUrl?: string) => void
+  startSignUp: (callbackUrl?: string) => void
+  openAccountCenter: (path?: string) => void
   logout: () => Promise<void>
   isLoggedIn: boolean
   isMember: boolean
@@ -56,6 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [member, setMember] = useState<Member | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [linkedWikiUsername, setLinkedWikiUsername] = useState<string | null>(null)
+  const accountsBaseUrl = (process.env.NEXT_PUBLIC_ACCOUNTS_BASE_URL || 'https://accounts.doublej.app')
+    .trim()
+    .replace(/\/+$/, '')
 
   useEffect(() => {
     loadMembers()
@@ -111,76 +114,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchAccountSession()
   }, [fetchAccountSession])
 
-  const login = async (username: string, password: string): Promise<boolean> => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ username, password }),
-      })
+  const buildAuthStartUrl = useCallback((screen: 'signin' | 'signup', callbackUrl: string = '/') => {
+    return `/auth/start?screen=${screen}&callbackUrl=${encodeURIComponent(callbackUrl)}`
+  }, [])
 
-      const data = await response.json().catch(() => ({}))
+  const startSignIn = useCallback((callbackUrl: string = '/') => {
+    window.location.href = buildAuthStartUrl('signin', callbackUrl)
+  }, [buildAuthStartUrl])
 
-      if (!response.ok || !data.success) {
-        toast.error(data.error || '로그인에 실패했습니다.')
-        return false
-      }
+  const startSignUp = useCallback((callbackUrl: string = '/') => {
+    window.location.href = buildAuthStartUrl('signup', callbackUrl)
+  }, [buildAuthStartUrl])
 
-      await fetchAccountSession()
-      toast.success('DoubleJ 통합 로그인 완료!')
-      return true
-    } catch (error) {
-      console.error('통합 로그인 실패:', error)
-      toast.error('로그인 중 오류가 발생했습니다.')
-      return false
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const register = async (
-    username: string,
-    password: string,
-    displayName?: string
-  ): Promise<boolean> => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ username, password, displayName }),
-      })
-
-      const data = await response.json().catch(() => ({}))
-
-      if (!response.ok || !data.success) {
-        toast.error(data.error || '회원가입에 실패했습니다.')
-        return false
-      }
-
-      await fetchAccountSession()
-      toast.success('회원가입이 완료되었습니다.')
-      return true
-    } catch (error) {
-      console.error('회원가입 실패:', error)
-      toast.error('회원가입 중 오류가 발생했습니다.')
-      return false
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const loginWithDiscord = (callbackUrl: string = '/') => {
-    const url = `/api/auth/discord/start?callbackUrl=${encodeURIComponent(callbackUrl)}`
-    window.location.href = url
-  }
+  const openAccountCenter = useCallback((path: string = '/account') => {
+    const normalizedPath = path.startsWith('/') ? path : '/account'
+    window.location.href = `${accountsBaseUrl}${normalizedPath}`
+  }, [accountsBaseUrl])
 
   const logout = async (): Promise<void> => {
     setIsLoading(true)
@@ -203,9 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     member,
     isLoading,
-    login,
-    register,
-    loginWithDiscord,
+    startSignIn,
+    startSignUp,
+    openAccountCenter,
     logout,
     isLoggedIn: !!user,
     isMember: user?.role === 'member',

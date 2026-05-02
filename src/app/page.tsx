@@ -66,30 +66,6 @@ export default function HomePage() {
   const [showDepartureModal, setShowDepartureModal] = useState(true)
   const departureImageSrc = '/images/minseok-farewell.jpg'
   const departureHideKey = 'rangu_departure_hide_until_v2'
-  const [nowTick, setNowTick] = useState(0)
-  const departureEvents = [
-    {
-      title: 'ICN → AUH',
-      date: '2026.02.05',
-      time: '17:50 ~ 23:25',
-      startUtc: Date.UTC(2026, 1, 5, 8, 50, 0),
-      endUtc: Date.UTC(2026, 1, 5, 14, 25, 0)
-    },
-    {
-      title: 'AUH 대기 (3시간 10분)',
-      date: '2026.02.05 ~ 2026.02.06',
-      time: '23:25 ~ 02:35',
-      startUtc: Date.UTC(2026, 1, 5, 14, 25, 0),
-      endUtc: Date.UTC(2026, 1, 5, 17, 35, 0)
-    },
-    {
-      title: 'AUH → ZRH',
-      date: '2026.02.06',
-      time: '02:35 ~ 06:30',
-      startUtc: Date.UTC(2026, 1, 5, 17, 35, 0),
-      endUtc: Date.UTC(2026, 1, 5, 21, 30, 0)
-    }
-  ]
   const initialSlide = DEFAULT_SPOTLIGHT_SLIDES[0]
   const [countdown, setCountdown] = useState(
     initialSlide?.durationSeconds || 5
@@ -109,13 +85,6 @@ export default function HomePage() {
   useEffect(() => {
     setIsClient(true)
   }, [])
-
-  useEffect(() => {
-    if (!isClient) return
-    setNowTick(Date.now())
-    const timer = setInterval(() => setNowTick(Date.now()), 60 * 1000)
-    return () => clearInterval(timer)
-  }, [isClient])
 
   useEffect(() => {
     if (!isClient) return
@@ -332,7 +301,7 @@ export default function HomePage() {
               ) : (
                 <button 
                   className="glass-button p-2"
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push('/auth/start?callbackUrl=%2F')}
                   title="로그인"
                 >
                   <LogIn className="w-5 h-5 text-primary-600" />
@@ -436,50 +405,6 @@ export default function HomePage() {
       {/* 메인 콘텐츠 */}
       <main className="md:ml-64 pt-24 pb-24 min-h-screen">
         <div className="max-w-6xl mx-auto px-6 space-y-12">
-          <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-emerald-900/20 to-slate-950/40 p-6 text-white shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/70">현재 상황</p>
-                <h2 className="text-2xl font-semibold">민석 이동 일정</h2>
-                <p className="mt-1 text-sm text-slate-300">한국 시간 기준</p>
-              </div>
-              <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-100">
-                2026.02.05 ~ 2026.02.06
-              </div>
-            </div>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {departureEvents.map((event) => {
-                const isPast = isClient && nowTick > event.endUtc
-                const isActive = isClient && nowTick >= event.startUtc && nowTick <= event.endUtc
-                const statusLabel = isActive ? '진행중' : isPast ? '완료' : '예정'
-                return (
-                  <div
-                    key={event.title}
-                    className={`rounded-2xl border border-white/10 bg-slate-950/50 px-5 py-4 text-sm transition ${
-                      isPast ? 'text-slate-400 line-through' : 'text-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold text-white">{event.title}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          isActive
-                            ? 'bg-emerald-500/20 text-emerald-200'
-                            : isPast
-                              ? 'bg-white/10 text-slate-400'
-                              : 'bg-sky-500/20 text-sky-200'
-                        }`}
-                      >
-                        {statusLabel}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-300">{event.date}</p>
-                    <p className="mt-1 text-xs text-emerald-200">{event.time}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
           <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-indigo-900/30 to-purple-900/20 p-8 text-white shadow-2xl">
             <div
               className="absolute inset-0 opacity-70 pointer-events-none blur-3xl"
@@ -599,7 +524,7 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => router.push('/login')}
+                    onClick={() => router.push('/auth/start?callbackUrl=%2F')}
                     className="glass-button px-4 py-1 text-xs text-white"
                   >
                     로그인

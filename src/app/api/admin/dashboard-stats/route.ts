@@ -1,5 +1,6 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiUser, WikiSubmission } from '@/models/Wiki'
 import User from '@/models/User'
 import Image from '@/models/Image'
@@ -7,9 +8,10 @@ import { UserCardStats } from '@/models/UserCardStats'
 import jwt from 'jsonwebtoken'
 import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 
+
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 async function verifyAdmin(request: NextRequest) {
   const authHeader = request.headers.get('authorization')

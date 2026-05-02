@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { MemberService } from '@/backend/services/memberService'
+import { MemberService } from '@/services/memberService'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {

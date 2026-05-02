@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UserCardStats } from '@/models/UserCardStats'
 import { CardService } from '@/services/cardService'
-import connectDB from '@/lib/mongodb'
+import connectDB from '@/lib/database'
 export const dynamic = 'force-dynamic'
 
 // GET: 사용자 카드 통계 조회

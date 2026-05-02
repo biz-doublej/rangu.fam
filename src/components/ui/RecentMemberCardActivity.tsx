@@ -102,7 +102,7 @@ export function RecentMemberCardActivity({ className = '' }: RecentMemberCardAct
             </div>
             <h3 className="mt-3 text-2xl font-bold text-white md:text-3xl">랑구팸 최근 카드 획득</h3>
             <p className="mt-2 text-sm text-slate-300">
-              드롭 · 제작 · 강화 이력을 자동 갱신으로 확인할 수 있어요.
+              드롭 · 제작 이력을 자동 갱신으로 확인할 수 있어요.
             </p>
           </div>
           <div className="rounded-xl border border-white/15 bg-slate-900/70 px-3 py-2 text-right text-[11px] text-slate-300">

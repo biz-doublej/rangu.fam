@@ -94,7 +94,7 @@ function WikiWorkshopListPageContent() {
     event.preventDefault()
 
     if (!isLoggedIn) {
-      router.push('/wiki/login')
+      router.push('/auth/start?callbackUrl=%2Fwiki%2Fworkshop')
       return
     }
 
@@ -248,7 +248,7 @@ function WikiWorkshopListPageContent() {
                 {!isLoggedIn && (
                   <button
                     type="button"
-                    onClick={() => router.push('/wiki/login')}
+                    onClick={() => router.push('/auth/start?callbackUrl=%2Fwiki%2Fworkshop')}
                     className="rounded-xl border border-slate-700 bg-slate-800/70 px-4 py-2 text-sm text-gray-200"
                   >
                     로그인하고 작성

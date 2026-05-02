@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MemberService } from '@/backend/services/memberService'
+import { MemberService } from '@/services/memberService'
 import {
   buildClientUser,
   getAuthenticatedWikiUser,

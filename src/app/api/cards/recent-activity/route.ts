@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import mongoose from 'mongoose'
-import connectDB from '@/lib/mongodb'
+import connectDB from '@/lib/database'
 import { CardDrop } from '@/models/CardDrop'
 import { Card } from '@/models/Card'
 import { WikiUser } from '@/models/Wiki'

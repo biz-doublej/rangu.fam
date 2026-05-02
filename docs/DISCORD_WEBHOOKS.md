@@ -1,6 +1,6 @@
 Discord Webhooks
 
-- Env var: `DISCORD_WEBHOOK_URL` (set in `.env.local`)
+- Env var: `DISCORD_WEBHOOK_URL` (set in `.env`)
 - Code: `src/services/discordWebhookService.ts`
 
 Styles
@@ -8,4 +8,3 @@ Styles
 - Available styles: `standard`, `compact`, `card`, `minimal`.
 - Generic sender: `DiscordWebhookService.sendEmbedStyled(username, avatarUrl, baseEmbed, style)`
 - Existing notice/event/test senders now use styled sending internally.
-

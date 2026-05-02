@@ -1,13 +1,15 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import Image from '@/models/Image'
 import { WikiUser } from '@/models/Wiki'
 import jwt from 'jsonwebtoken'
 
+
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',

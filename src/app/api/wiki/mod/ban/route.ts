@@ -1,12 +1,14 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiUser } from '@/models/Wiki'
 import jwt from 'jsonwebtoken'
 import { isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
 import { banIp, unbanIp, listBannedIps } from '@/app/api/wiki/_utils/blocklist'
+
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 async function getUserFromToken(request: NextRequest) {
   const token = request.cookies.get('wiki-token')?.value

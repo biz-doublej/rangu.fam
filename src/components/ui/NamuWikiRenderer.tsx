@@ -176,6 +176,80 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   const footnoteMappingRef = React.useRef<{[key: string]: number}>({})
   const PLACEHOLDER_IMAGE = '/images/default-music-cover.jpg'
 
+  const getImageServePathFromSource = (value: string) => {
+    const raw = (value || '').trim()
+    if (!raw) return null
+
+    const withoutQuery = raw.split('?')[0]?.split('#')[0] || ''
+    const pathParts = withoutQuery.split('/').filter(Boolean)
+    const fileNameCandidate = pathParts[pathParts.length - 1]
+    if (!fileNameCandidate || fileNameCandidate.includes('..')) return null
+
+    try {
+      const decoded = decodeURIComponent(fileNameCandidate)
+      if (!decoded || decoded.includes('/') || decoded.includes('\\')) return null
+      return `/api/images/serve/${encodeURIComponent(decoded)}`
+    } catch {
+      return null
+    }
+  }
+
+  const normalizeWikiImageSrc = (value?: string) => {
+    const raw = (value || '').trim()
+    if (!raw) return PLACEHOLDER_IMAGE
+
+    if (
+      raw.startsWith('data:') ||
+      raw.startsWith('blob:') ||
+      /^https?:\/\//i.test(raw) ||
+      raw.startsWith('//')
+    ) {
+      return raw
+    }
+
+    if (raw.startsWith('/api/images/serve/')) return raw
+    if (raw.startsWith('/uploads/wiki/')) return raw
+    if (raw.startsWith('api/images/serve/')) return `/${raw}`
+    if (raw.startsWith('uploads/wiki/')) return `/${raw}`
+
+    const imageServePath = getImageServePathFromSource(raw)
+    if (raw.startsWith('wiki_') && imageServePath) {
+      return imageServePath
+    }
+
+    return raw.startsWith('/') ? raw : `/${raw}`
+  }
+
+  const handleWikiImageError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const imageElement = event.currentTarget
+    const currentSource = imageElement.getAttribute('src') || ''
+    const fallbackAttempt = imageElement.dataset.fallbackAttempt || '0'
+
+    if (fallbackAttempt === '0') {
+      if (currentSource.startsWith('/uploads/wiki/')) {
+        const imageServePath = getImageServePathFromSource(currentSource)
+        if (imageServePath) {
+          imageElement.dataset.fallbackAttempt = '1'
+          imageElement.src = imageServePath
+          return
+        }
+      }
+
+      if (currentSource.startsWith('/api/images/serve/')) {
+        const pathParts = currentSource.split('/').filter(Boolean)
+        const fileNameCandidate = pathParts[pathParts.length - 1]
+        if (fileNameCandidate) {
+          imageElement.dataset.fallbackAttempt = '1'
+          imageElement.src = `/uploads/wiki/${fileNameCandidate}`
+          return
+        }
+      }
+    }
+
+    imageElement.dataset.fallbackAttempt = '2'
+    imageElement.src = PLACEHOLDER_IMAGE
+  }
+
   // 컨텐츠가 변경될 때 각주 카운터 리셋
   React.useEffect(() => {
     footnoteCounterRef.current = 0
@@ -841,8 +915,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             <div className="bg-red-700 text-white text-center py-2 px-3">
               <div className="text-sm flex items-center justify-center gap-2">
                 {params['상단로고'] && (
-                  <img src={params['상단로고']} alt="로고" className="w-6 h-6 object-contain" 
-                       onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  <img src={normalizeWikiImageSrc(params['상단로고'])} alt="로고" className="w-6 h-6 object-contain" 
+                       data-fallback-attempt="0"
+                       onError={handleWikiImageError} />
                 )}
                 {params['상단제목'] || ''}
               </div>
@@ -859,8 +934,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             </div>
             {params['이미지'] && (
               <div className="text-center bg-gray-800 p-3">
-                <img src={params['이미지']} alt={params['이름'] || '인물 사진'} className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded"
-                     onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+                <img src={normalizeWikiImageSrc(params['이미지'])} alt={params['이름'] || '인물 사진'} className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded"
+                     data-fallback-attempt="0"
+                     onError={handleWikiImageError} />
                 {params['이미지설명'] && (
                   <div className="text-xs text-gray-400 mt-2">{parseInlineElements(params['이미지설명'])}</div>
                 )}
@@ -898,8 +974,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                                   {colorAttributes.content.includes('[[파일:') || colorAttributes.content.includes('[이미지:') ? (
                                     <div dangerouslySetInnerHTML={{
                                       __html: colorAttributes.content
-                                        .replace(/\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; vertical-align: middle;" />')
-                                        .replace(/\[이미지:([^\]]+)\]/g, '<img src="$1" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; vertical-align: middle;" />')
+                                        .replace(/\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, imagePath: string) => {
+                                          const src = normalizeWikiImageSrc(imagePath)
+                                          return `<img src="${src}" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; vertical-align: middle;" />`
+                                        })
+                                        .replace(/\[이미지:([^\]]+)\]/g, (_match, imagePath: string) => {
+                                          const src = normalizeWikiImageSrc(imagePath)
+                                          return `<img src="${src}" alt="서명" style="max-width: 120px; max-height: 60px; display: inline-block; vertical-align: middle;" />`
+                                        })
                                     }}
                                   />
                                   ) : (
@@ -1072,7 +1154,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           else if (key === '이미지' || key.toLowerCase() === 'image') image = value
           else rows.push({ key, value })
         })
-        const resolvedImage = image || PLACEHOLDER_IMAGE
+        const resolvedImage = normalizeWikiImageSrc(image)
         elements.push(
           <div key={i} className="my-6 border border-gray-700 rounded-lg overflow-hidden bg-gray-900">
             {(
@@ -1081,7 +1163,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                   src={resolvedImage}
                   alt={title || '문서 이미지'}
                   className="w-full h-auto max-h-[420px] object-cover"
-                  onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }}
+                  data-fallback-attempt="0"
+                  onError={handleWikiImageError}
                 />
               </div>
             )}
@@ -1229,8 +1312,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 {items.map((it, idx) => (
                   <div key={idx} className="bg-gray-900 border border-gray-700 rounded-lg overflow-hidden hover:border-gray-600 transition-colors">
                     <div className="aspect-[1/1] bg-gray-800">
-                      <img src={it.image || PLACEHOLDER_IMAGE} alt={it.title || ''} className="w-full h-full object-cover"
-                           onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+                      <img src={normalizeWikiImageSrc(it.image)} alt={it.title || ''} className="w-full h-full object-cover"
+                           data-fallback-attempt="0"
+                           onError={handleWikiImageError} />
                     </div>
                     <div className="p-3 space-y-1">
                       {it.tag && <span className="inline-block text-[10px] px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-300">{it.tag}</span>}
@@ -1252,14 +1336,15 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // 파일/이미지 렌더링
       const imageMatch = trimmed.match(imageRegex)
       if (imageMatch) {
-        const src = imageMatch[1].trim()
+        const src = normalizeWikiImageSrc(imageMatch[1].trim())
         elements.push(
           <div key={i} className="my-4 text-center">
             <img
               src={src}
               alt="문서 이미지"
               className="max-w-full h-auto rounded border border-gray-700 inline-block"
-              onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }}
+              data-fallback-attempt="0"
+              onError={handleWikiImageError}
             />
           </div>
         )
@@ -1267,12 +1352,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
       const fileMatch = trimmed.match(fileRegex)
       if (fileMatch) {
-        const path = fileMatch[1].trim()
+        const path = normalizeWikiImageSrc(fileMatch[1].trim())
         const caption = (fileMatch[2] || '').trim()
         elements.push(
           <div key={i} className="my-4 text-center">
             <img src={path} alt={caption} className="max-w-full h-auto rounded border border-gray-700 inline-block"
-                 onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
+                 data-fallback-attempt="0"
+                 onError={handleWikiImageError} />
             {caption && <div className="text-xs text-gray-400 mt-1">{caption}</div>}
           </div>
         )
@@ -1648,13 +1734,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           </a>
         )
       case 'inline-image':
-        const src = groups[1]
+        const src = normalizeWikiImageSrc(groups[1])
         return (
           <img
             src={src}
             alt="인라인 이미지"
             className="inline-block max-h-64 align-middle rounded border border-gray-700"
-            onError={(e)=>{ (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }}
+            data-fallback-attempt="0"
+            onError={handleWikiImageError}
           />
         )
         

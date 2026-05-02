@@ -1,12 +1,14 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiUser } from '@/models/Wiki'
 import { WikiWorkshopStatement } from '@/models/WikiWorkshopStatement'
 
+
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 type JwtPayload = {
   userId?: string

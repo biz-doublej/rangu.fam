@@ -1,12 +1,16 @@
+import { getRequiredEnv } from '@/lib/env'
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { IWikiUser, WikiUser } from '@/models/Wiki'
+import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
+
 
 export const DOUBLEJ_AUTH_COOKIE = 'doublej-token'
 export const WIKI_AUTH_COOKIE = 'wiki-token'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 // 7 days
 
 const MEMBER_DISCORD_TO_MEMBER_ID: Record<string, string> = {
@@ -280,6 +284,152 @@ export function createDoubleJToken(user: Pick<IWikiUser, '_id' | 'username' | 'r
     JWT_SECRET,
     { expiresIn: '7d' }
   )
+}
+
+function normalizeUsernameForStorage(rawInput?: string | null): string {
+  const source = (rawInput || '').toString().trim().toLowerCase()
+  const sanitized = source
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 20)
+
+  if (sanitized.length >= 3) return sanitized
+  if (!sanitized) return `user-${Date.now().toString().slice(-6)}`
+  return `${sanitized}x`.slice(0, 20)
+}
+
+async function resolveUniqueUsername(baseUsername: string): Promise<string> {
+  const base = normalizeUsernameForStorage(baseUsername)
+  const exists = await WikiUser.exists({ username: base })
+  if (!exists) return base
+
+  for (let index = 1; index < 1000; index += 1) {
+    const candidate = `${base}-${index}`.slice(0, 20)
+    const duplicated = await WikiUser.exists({ username: candidate })
+    if (!duplicated) return candidate
+  }
+
+  return `${base.slice(0, 12)}-${Date.now().toString().slice(-6)}`.slice(0, 20)
+}
+
+async function resolveUniqueEmail(baseEmail: string): Promise<string> {
+  const normalized = (baseEmail || '').trim().toLowerCase()
+  const fallbackBase = normalized || `user-${Date.now().toString().slice(-6)}@doublej.local`
+  const exists = await WikiUser.exists({ email: fallbackBase })
+  if (!exists) return fallbackBase
+
+  const [localPart, domainPart] = fallbackBase.split('@')
+  const domain = domainPart || 'doublej.local'
+
+  for (let index = 1; index < 1000; index += 1) {
+    const candidate = `${localPart}-${index}@${domain}`
+    const duplicated = await WikiUser.exists({ email: candidate })
+    if (!duplicated) return candidate
+  }
+
+  return `${localPart.slice(0, 12)}-${Date.now().toString().slice(-6)}@${domain}`
+}
+
+export interface OidcUserProfile {
+  subject: string
+  username: string
+  email?: string
+  displayName?: string
+  avatar?: string
+}
+
+export async function findOrCreateWikiUserFromOidcProfile(
+  profile: OidcUserProfile
+): Promise<IWikiUser | null> {
+  await dbConnect()
+
+  const subject = profile.subject?.trim()
+  if (!subject) return null
+
+  const normalizedUsername = normalizeUsernameForStorage(profile.username)
+  const normalizedEmail = profile.email?.trim().toLowerCase()
+  const displayName = profile.displayName?.trim()
+  const avatar = profile.avatar?.trim()
+
+  let user =
+    (await WikiUser.findOne({ ssoSubject: subject })) ||
+    (normalizedEmail ? await WikiUser.findOne({ email: normalizedEmail }) : null) ||
+    (await WikiUser.findOne({ username: normalizedUsername }))
+
+  if (!user) {
+    const username = await resolveUniqueUsername(normalizedUsername)
+    const email = await resolveUniqueEmail(normalizedEmail || `${username}@doublej.local`)
+    const placeholderPassword = await bcrypt.hash(`__oidc__${crypto.randomUUID()}`, 12)
+    user = await WikiUser.create({
+      username,
+      email,
+      password: placeholderPassword,
+      ssoSubject: subject,
+      displayName: displayName || username,
+      avatar,
+      role: 'editor',
+      permissions: {
+        canEdit: true,
+        canDelete: false,
+        canProtect: false,
+        canBan: false,
+        canManageUsers: false,
+      },
+      edits: 0,
+      pagesCreated: 0,
+      discussionPosts: 0,
+      reputation: 0,
+      preferences: {
+        theme: 'auto',
+        timezone: 'Asia/Seoul',
+        emailNotifications: true,
+        showEmail: false,
+        autoWatchPages: true,
+      },
+      isActive: true,
+      lastLogin: new Date(),
+      lastActivity: new Date(),
+    })
+  } else {
+    let dirty = false
+
+    if (!user.ssoSubject || user.ssoSubject !== subject) {
+      user.ssoSubject = subject
+      dirty = true
+    }
+
+    if (normalizedEmail && user.email !== normalizedEmail) {
+      const emailConflict = await WikiUser.exists({
+        _id: { $ne: user._id },
+        email: normalizedEmail,
+      })
+      if (!emailConflict) {
+        user.email = normalizedEmail
+        dirty = true
+      }
+    }
+
+    if (displayName && user.displayName !== displayName) {
+      user.displayName = displayName
+      dirty = true
+    }
+
+    if (avatar && user.avatar !== avatar) {
+      user.avatar = avatar
+      dirty = true
+    }
+
+    user.lastLogin = new Date()
+    user.lastActivity = new Date()
+    dirty = true
+
+    if (dirty) {
+      await user.save()
+    }
+  }
+
+  if (!user) return null
+  return enforceUserAccessPolicy(user)
 }
 
 export function verifyDoubleJToken(token: string): DoubleJTokenPayload | null {

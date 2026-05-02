@@ -1,11 +1,13 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiPage, WikiUser } from '@/models/Wiki'
 import jwt from 'jsonwebtoken'
 
+
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 const LOCK_DURATION = 10 * 60 * 1000 // 10분 (밀리초)
 
 async function getUserFromToken(request: NextRequest) {

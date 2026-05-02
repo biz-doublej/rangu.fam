@@ -77,7 +77,7 @@ export default function WikiMainPage() {
   // 편집 페이지로 이동 (관리자만 가능)
   const handleEditMainPage = () => {
     if (!isWikiLoggedIn) {
-      router.push('/wiki/login')
+      router.push('/auth/start?callbackUrl=%2Fwiki')
       return
     }
     
@@ -169,7 +169,7 @@ export default function WikiMainPage() {
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white" onClick={() => router.push('/login')}>
+                  <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white" onClick={() => router.push('/auth/start?callbackUrl=%2Fwiki')}>
                     <LogIn className="w-4 h-4 mr-1" />
                     로그인
                   </Button>

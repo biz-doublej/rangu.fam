@@ -368,7 +368,7 @@ export default function WikiMainPage() {
 
   const handleEditMainPage = () => {
     if (!isLoggedIn) {
-      router.push('/wiki/login')
+      router.push('/auth/start?callbackUrl=%2Fwiki')
       return
     }
 
@@ -627,7 +627,7 @@ export default function WikiMainPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.push('/wiki/login')}
+                  onClick={() => router.push('/auth/start?callbackUrl=%2Fwiki')}
                   className="text-gray-300 hover:text-white h-8"
                 >
                   <LogIn className="w-4 h-4 mr-1" />

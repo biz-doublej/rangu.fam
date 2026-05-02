@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import SiteHistory from '@/models/SiteHistory'
 export const dynamic = 'force-dynamic'
 

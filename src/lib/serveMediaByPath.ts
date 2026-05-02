@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Readable } from 'stream'
 import { Types } from 'mongoose'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { getMediaBucket } from '@/lib/gridfs'
 import MediaAsset from '@/models/MediaAsset'
 

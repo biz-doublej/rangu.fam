@@ -1,22 +1,25 @@
 'use client'
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Link2 } from 'lucide-react'
+import { ArrowRight, ExternalLink, KeyRound, UserPlus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
 
 const ERROR_MESSAGES: Record<string, string> = {
-  discord_not_linked: '회원가입된 계정에 연결된 Discord를 찾지 못했습니다. 먼저 통합 회원가입 후 계정 설정에서 Discord를 연결해주세요.',
-  discord_auth_failed: 'Discord 인증에 실패했습니다. 잠시 후 다시 시도해주세요.',
-  discord_not_configured: 'Discord 로그인 설정이 아직 완료되지 않았습니다.',
+  oidc_not_configured: '현재 서비스 OIDC 설정이 누락되었습니다. 관리자에게 OIDC_CLIENT_ID/OIDC_CLIENT_SECRET 설정을 요청해주세요.',
+  oidc_start_failed: '로그인 시작 처리에 실패했습니다. 잠시 후 다시 시도해주세요.',
+  oidc_authorize_failed: '인증 서버에서 로그인이 취소되었거나 실패했습니다.',
+  invalid_oauth_callback: '로그인 응답이 올바르지 않습니다. 다시 시도해주세요.',
+  state_missing: '로그인 세션이 만료되었습니다. 다시 로그인해주세요.',
+  state_mismatch: '보안 검증(state)이 일치하지 않습니다. 다시 로그인해주세요.',
+  identity_not_found: '계정 정보를 확인하지 못했습니다.',
+  session_sync_failed: '서비스 세션 생성에 실패했습니다.',
+  oidc_callback_failed: '로그인 콜백 처리 중 오류가 발생했습니다.',
   account_inactive: '비활성화된 계정입니다.',
   account_banned: '차단된 계정입니다.',
-  login_required: '먼저 통합 로그인이 필요합니다.',
-  session_expired: '세션이 만료되었습니다. 다시 로그인해주세요.',
 }
 
 export default function LoginPage() {
@@ -30,49 +33,13 @@ export default function LoginPage() {
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, register, loginWithDiscord, isLoading, isLoggedIn, user } = useAuth()
-
-  const [form, setForm] = useState({ username: '', password: '' })
-  const [rememberId, setRememberId] = useState(false)
+  const { startSignIn, startSignUp, openAccountCenter, isLoading, isLoggedIn, user } = useAuth()
 
   const errorCode = searchParams.get('error')
   const errorMessage = useMemo(() => {
     if (!errorCode) return null
     return ERROR_MESSAGES[errorCode] || '로그인 중 오류가 발생했습니다.'
   }, [errorCode])
-
-  useEffect(() => {
-    const savedId = localStorage.getItem('doublej.savedUsername')
-    if (savedId) {
-      setForm((prev) => ({ ...prev, username: savedId }))
-      setRememberId(true)
-    }
-  }, [])
-
-  const persistRememberId = (username: string) => {
-    if (rememberId) {
-      localStorage.setItem('doublej.savedUsername', username)
-      return
-    }
-    localStorage.removeItem('doublej.savedUsername')
-  }
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const success = await login(form.username, form.password)
-    if (success) {
-      persistRememberId(form.username)
-      router.push('/')
-    }
-  }
-
-  const handleRegister = async () => {
-    const success = await register(form.username, form.password)
-    if (success) {
-      persistRememberId(form.username)
-      router.push('/')
-    }
-  }
 
   if (isLoggedIn) {
     return (
@@ -82,18 +49,21 @@ function LoginPageContent() {
               <CardHeader>
                 <h1 className="text-2xl font-bold">DoubleJ 통합 로그인</h1>
               </CardHeader>
-              <CardContent className="space-y-2 text-white/80">
+            <CardContent className="space-y-2 text-white/80">
               <p>
                 <strong>{user?.username}</strong> 계정으로 로그인되어 있습니다.
               </p>
               <p>이랑위키와 랑구팸 서비스가 같은 계정으로 연결됩니다.</p>
             </CardContent>
-            <CardFooter className="flex gap-2">
+            <CardFooter className="flex flex-wrap gap-2">
               <Button type="button" variant="primary" onClick={() => router.push('/')}>
                 홈으로 이동
               </Button>
+              <Button type="button" variant="ghost" onClick={() => openAccountCenter('/account')}>
+                계정센터 열기
+              </Button>
               <Button type="button" variant="ghost" onClick={() => router.push('/settings/account')}>
-                계정 설정
+                계정 링크 보기
               </Button>
             </CardFooter>
           </Card>
@@ -113,70 +83,63 @@ function LoginPageContent() {
       >
         <Card className="bg-slate-900/70 border-white/10">
           <CardHeader>
-            <h1 className="text-2xl font-bold text-center">DoubleJ 통합 로그인</h1>
+            <h1 className="text-2xl font-bold text-center">DoubleJ 통합 계정</h1>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              {errorMessage && (
-                <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                  {errorMessage}
-                </div>
-              )}
-
-              <label className="block text-sm text-white/70">아이디</label>
-              <Input
-                type="text"
-                value={form.username}
-                onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
-                placeholder="아이디"
-                className="bg-black/20 border-white/20 text-white placeholder:text-white/40"
-              />
-
-              <label className="block text-sm text-white/70">비밀번호</label>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder="비밀번호"
-                className="bg-black/20 border-white/20 text-white placeholder:text-white/40"
-              />
-
-              <label className="flex items-center gap-2 text-sm text-white/75">
-                <input
-                  type="checkbox"
-                  checked={rememberId}
-                  onChange={(e) => setRememberId(e.target.checked)}
-                  className="h-4 w-4 rounded border-white/30 bg-transparent"
-                />
-                아이디 저장
-              </label>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="submit" variant="primary" className="w-full" loading={isLoading}>
-                  로그인
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full border border-white/20 text-white"
-                  onClick={handleRegister}
-                  disabled={isLoading}
-                >
-                  회원가입
-                </Button>
+          <CardContent className="space-y-4">
+            {errorMessage && (
+              <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {errorMessage}
               </div>
-            </form>
+            )}
+
+            <p className="text-sm text-white/75">
+              로그인/회원가입/계정설정은 <strong>accounts.doublej.app</strong>에서 통합 제공됩니다.
+              아래 버튼을 누르면 서비스 인증 플로우(`/auth/start`)를 통해 자동 연동됩니다.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                className="w-full"
+                onClick={() => startSignIn('/')}
+                disabled={isLoading}
+              >
+                <KeyRound className="w-4 h-4 mr-2" />
+                로그인
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full border border-white/20 text-white"
+                onClick={() => startSignUp('/')}
+                disabled={isLoading}
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                회원가입
+              </Button>
+            </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex-col gap-2">
             <Button
               type="button"
               variant="ghost"
               className="w-full border border-white/20 text-white"
-              onClick={() => loginWithDiscord('/')}
+              onClick={() => openAccountCenter('/account')}
               disabled={isLoading}
             >
-              <Link2 className="w-4 h-4 mr-2" />
-              간편로그인 (Discord)
+              <ExternalLink className="w-4 h-4 mr-2" />
+              계정센터 바로가기
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full border border-white/20 text-white"
+              onClick={() => router.push('/auth/start?callbackUrl=%2F')}
+              disabled={isLoading}
+            >
+              <ArrowRight className="w-4 h-4 mr-2" />
+              인증 시작 URL 열기
             </Button>
           </CardFooter>
         </Card>

@@ -289,6 +289,12 @@ export default function WikiEditor({
   // Enhanced upload and insert with smart positioning
   const uploadImageAndInsert = async (file: File) => {
     try {
+      const maxSizeBytes = 1 * 1024 * 1024
+      if (file.size > maxSizeBytes) {
+        alert('이미지 크기는 최대 1MB까지 업로드할 수 있습니다.')
+        return
+      }
+
       const form = new FormData()
       form.append('file', file)
       const res = await fetch('/api/wiki/files/upload', {

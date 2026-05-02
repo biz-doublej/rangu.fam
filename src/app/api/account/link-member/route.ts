@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedWikiUser, resolveMemberIdForUser } from '@/lib/doublejAuth'
-import { MemberService } from '@/backend/services/memberService'
+import { MemberService } from '@/services/memberService'
 
 export const dynamic = 'force-dynamic'
 

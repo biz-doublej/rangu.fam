@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import User from '@/models/User'
 import bcrypt from 'bcryptjs'
 export const dynamic = 'force-dynamic'

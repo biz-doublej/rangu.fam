@@ -1,0 +1,1253 @@
+{
+  "schema_name": "mongo_import",
+  "source_dir": "exports\\test-csv",
+  "tables": [
+    {
+      "csv": "bookmarks.csv",
+      "table": "bookmarks",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "carddrops.csv",
+      "table": "carddrops",
+      "skipped": false,
+      "reason": "",
+      "row_count": 760,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "userId",
+          "sql_type": "text"
+        },
+        {
+          "name": "cardId",
+          "sql_type": "text"
+        },
+        {
+          "name": "dropType",
+          "sql_type": "text"
+        },
+        {
+          "name": "dailyDropCount",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "craftingAttempt.usedCards",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "droppedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "craftingAttempt.wasSuccessful",
+          "sql_type": "boolean"
+        }
+      ]
+    },
+    {
+      "csv": "cards.csv",
+      "table": "cards",
+      "skipped": false,
+      "reason": "",
+      "row_count": 86,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "cardId",
+          "sql_type": "text"
+        },
+        {
+          "name": "name",
+          "sql_type": "text"
+        },
+        {
+          "name": "type",
+          "sql_type": "text"
+        },
+        {
+          "name": "rarity",
+          "sql_type": "text"
+        },
+        {
+          "name": "description",
+          "sql_type": "text"
+        },
+        {
+          "name": "imageUrl",
+          "sql_type": "text"
+        },
+        {
+          "name": "member",
+          "sql_type": "text"
+        },
+        {
+          "name": "year",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "version",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "isGroupCard",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "dropRate",
+          "sql_type": "numeric"
+        },
+        {
+          "name": "canBeUsedForCrafting",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "craftingRecipe.requiredCards",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "period",
+          "sql_type": "text"
+        },
+        {
+          "name": "cardImageUrl",
+          "sql_type": "text"
+        },
+        {
+          "name": "maxCopies",
+          "sql_type": "bigint"
+        }
+      ]
+    },
+    {
+      "csv": "discordbotstatuses.csv",
+      "table": "discordbotstatuses",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "discordcommandlogs.csv",
+      "table": "discordcommandlogs",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "discordlinks.csv",
+      "table": "discordlinks",
+      "skipped": false,
+      "reason": "",
+      "row_count": 5,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "discordId",
+          "sql_type": "text"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "discordAvatar",
+          "sql_type": "text"
+        },
+        {
+          "name": "discordUsername",
+          "sql_type": "text"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "wikiLinkedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "wikiUserId",
+          "sql_type": "text"
+        },
+        {
+          "name": "wikiUsername",
+          "sql_type": "text"
+        }
+      ]
+    },
+    {
+      "csv": "discordmusicqueues.csv",
+      "table": "discordmusicqueues",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "discordservers.csv",
+      "table": "discordservers",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "discorduserlinks.csv",
+      "table": "discorduserlinks",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "images.csv",
+      "table": "images",
+      "skipped": false,
+      "reason": "",
+      "row_count": 11,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "filename",
+          "sql_type": "text"
+        },
+        {
+          "name": "originalName",
+          "sql_type": "text"
+        },
+        {
+          "name": "mimeType",
+          "sql_type": "text"
+        },
+        {
+          "name": "size",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "data",
+          "sql_type": "text"
+        },
+        {
+          "name": "uploadedBy",
+          "sql_type": "text"
+        },
+        {
+          "name": "uploadedById",
+          "sql_type": "text"
+        },
+        {
+          "name": "category",
+          "sql_type": "text"
+        },
+        {
+          "name": "isPublic",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        }
+      ]
+    },
+    {
+      "csv": "mediaAssets.chunks.csv",
+      "table": "mediaassets_chunks",
+      "skipped": false,
+      "reason": "",
+      "row_count": 2002,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "files_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "n",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "data",
+          "sql_type": "text"
+        }
+      ]
+    },
+    {
+      "csv": "mediaassets.csv",
+      "table": "mediaassets",
+      "skipped": false,
+      "reason": "",
+      "row_count": 25,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "originalPath",
+          "sql_type": "text"
+        },
+        {
+          "name": "filename",
+          "sql_type": "text"
+        },
+        {
+          "name": "mimeType",
+          "sql_type": "text"
+        },
+        {
+          "name": "size",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "category",
+          "sql_type": "text"
+        },
+        {
+          "name": "gridFsId",
+          "sql_type": "text"
+        },
+        {
+          "name": "tags",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "checksum",
+          "sql_type": "text"
+        },
+        {
+          "name": "metadata.lastImportedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        }
+      ]
+    },
+    {
+      "csv": "mediaAssets.files.csv",
+      "table": "mediaassets_files",
+      "skipped": false,
+      "reason": "",
+      "row_count": 26,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "length",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "chunkSize",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "uploadDate",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "filename",
+          "sql_type": "text"
+        },
+        {
+          "name": "contentType",
+          "sql_type": "text"
+        },
+        {
+          "name": "metadata.originalPath",
+          "sql_type": "text"
+        },
+        {
+          "name": "metadata.category",
+          "sql_type": "text"
+        }
+      ]
+    },
+    {
+      "csv": "sitehistories.csv",
+      "table": "sitehistories",
+      "skipped": false,
+      "reason": "",
+      "row_count": 1,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "siteName",
+          "sql_type": "text"
+        },
+        {
+          "name": "siteDescription",
+          "sql_type": "text"
+        },
+        {
+          "name": "formationDate",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "completeDate",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "siteCreationDate",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "events",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "milestones",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "stats.totalVisits",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.uniqueVisitors",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalPages",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalUsers",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalPosts",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalComments",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalLikes",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalMusicPlays",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats.totalGameScores",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "stats._id",
+          "sql_type": "text"
+        },
+        {
+          "name": "stats.monthlyStats",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "stats.createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "stats.updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "plannedEvents",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "versionHistory",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        }
+      ]
+    },
+    {
+      "csv": "spotlightslides.csv",
+      "table": "spotlightslides",
+      "skipped": false,
+      "reason": "",
+      "row_count": 7,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "srcPath",
+          "sql_type": "text"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "durationSeconds",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "isActive",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "order",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "tags",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "title",
+          "sql_type": "text"
+        },
+        {
+          "name": "type",
+          "sql_type": "text"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "csv": "usercards.csv",
+      "table": "usercards",
+      "skipped": false,
+      "reason": "",
+      "row_count": 279,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "userId",
+          "sql_type": "text"
+        },
+        {
+          "name": "cardId",
+          "sql_type": "text"
+        },
+        {
+          "name": "quantity",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "acquiredBy",
+          "sql_type": "text"
+        },
+        {
+          "name": "isFavorite",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "isLocked",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "acquiredAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        }
+      ]
+    },
+    {
+      "csv": "usercardstats.csv",
+      "table": "usercardstats",
+      "skipped": false,
+      "reason": "",
+      "row_count": 14,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "userId",
+          "sql_type": "text"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "achievements",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "basicCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "craftingAttempts",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "dailyDropsUsed",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "epicCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "failedCrafts",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "lastDropDate",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "legendaryCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "materialCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "rareCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "successfulCrafts",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "totalCardsCollected",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "totalCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "totalDropsUsed",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "uniqueCardsOwned",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "yearCardCompletion",
+          "sql_type": "jsonb"
+        }
+      ]
+    },
+    {
+      "csv": "users.csv",
+      "table": "users",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "wikiconfigs.csv",
+      "table": "wikiconfigs",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "wikidiscussions.csv",
+      "table": "wikidiscussions",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "wikinamespaces.csv",
+      "table": "wikinamespaces",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "wikipages.csv",
+      "table": "wikipages",
+      "skipped": false,
+      "reason": "",
+      "row_count": 42,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "title",
+          "sql_type": "text"
+        },
+        {
+          "name": "slug",
+          "sql_type": "text"
+        },
+        {
+          "name": "namespace",
+          "sql_type": "text"
+        },
+        {
+          "name": "content",
+          "sql_type": "text"
+        },
+        {
+          "name": "summary",
+          "sql_type": "text"
+        },
+        {
+          "name": "categories",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "tags",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "aliases",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "creator",
+          "sql_type": "text"
+        },
+        {
+          "name": "creatorId",
+          "sql_type": "text"
+        },
+        {
+          "name": "lastEditor",
+          "sql_type": "text"
+        },
+        {
+          "name": "lastEditorId",
+          "sql_type": "text"
+        },
+        {
+          "name": "lastEditDate",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "lastEditSummary",
+          "sql_type": "text"
+        },
+        {
+          "name": "currentRevision",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "protection.level",
+          "sql_type": "text"
+        },
+        {
+          "name": "protection.allowedRoles",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "isRedirect",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "isDeleted",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "isStub",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "isFeatured",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "views",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "uniqueViews",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "edits",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "watchers",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "discussions",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "incomingLinks",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "outgoingLinks",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "tableOfContents",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "templateInfo.isTemplate",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "templateInfo.parameters",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "revisions",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "editLock.isLocked",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "editLock.lockReason",
+          "sql_type": "text"
+        },
+        {
+          "name": "protection.reason",
+          "sql_type": "text"
+        },
+        {
+          "name": "protection.protectedBy",
+          "sql_type": "text"
+        }
+      ]
+    },
+    {
+      "csv": "wikirevisions.csv",
+      "table": "wikirevisions",
+      "skipped": true,
+      "reason": "empty_header",
+      "row_count": 0,
+      "columns": []
+    },
+    {
+      "csv": "wikisubmissions.csv",
+      "table": "wikisubmissions",
+      "skipped": false,
+      "reason": "",
+      "row_count": 18,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "type",
+          "sql_type": "text"
+        },
+        {
+          "name": "status",
+          "sql_type": "text"
+        },
+        {
+          "name": "namespace",
+          "sql_type": "text"
+        },
+        {
+          "name": "targetTitle",
+          "sql_type": "text"
+        },
+        {
+          "name": "targetSlug",
+          "sql_type": "text"
+        },
+        {
+          "name": "pageId",
+          "sql_type": "text"
+        },
+        {
+          "name": "content",
+          "sql_type": "text"
+        },
+        {
+          "name": "summary",
+          "sql_type": "text"
+        },
+        {
+          "name": "editSummary",
+          "sql_type": "text"
+        },
+        {
+          "name": "categories",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "tags",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "expectedRevision",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "author",
+          "sql_type": "text"
+        },
+        {
+          "name": "authorId",
+          "sql_type": "text"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "reason",
+          "sql_type": "text"
+        },
+        {
+          "name": "reviewedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "reviewedBy",
+          "sql_type": "text"
+        },
+        {
+          "name": "reviewerId",
+          "sql_type": "text"
+        }
+      ]
+    },
+    {
+      "csv": "wikiusers.csv",
+      "table": "wikiusers",
+      "skipped": false,
+      "reason": "",
+      "row_count": 10,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "username",
+          "sql_type": "text"
+        },
+        {
+          "name": "email",
+          "sql_type": "text"
+        },
+        {
+          "name": "password",
+          "sql_type": "text"
+        },
+        {
+          "name": "displayName",
+          "sql_type": "text"
+        },
+        {
+          "name": "avatar",
+          "sql_type": "text"
+        },
+        {
+          "name": "bio",
+          "sql_type": "text"
+        },
+        {
+          "name": "signature",
+          "sql_type": "text"
+        },
+        {
+          "name": "role",
+          "sql_type": "text"
+        },
+        {
+          "name": "permissions.canEdit",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "permissions.canDelete",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "permissions.canProtect",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "permissions.canBan",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "permissions.canManageUsers",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "edits",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "pagesCreated",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "discussionPosts",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "reputation",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "preferences.theme",
+          "sql_type": "text"
+        },
+        {
+          "name": "preferences.timezone",
+          "sql_type": "text"
+        },
+        {
+          "name": "preferences.emailNotifications",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "preferences.showEmail",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "preferences.autoWatchPages",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "isActive",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "isBanned",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "lastLogin",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "lastActivity",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "banStatus.isBanned",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "warnings",
+          "sql_type": "jsonb"
+        },
+        {
+          "name": "discordAvatar",
+          "sql_type": "text"
+        },
+        {
+          "name": "discordId",
+          "sql_type": "text"
+        },
+        {
+          "name": "discordUsername",
+          "sql_type": "text"
+        }
+      ]
+    },
+    {
+      "csv": "wikiworkshopstatements.csv",
+      "table": "wikiworkshopstatements",
+      "skipped": false,
+      "reason": "",
+      "row_count": 58,
+      "columns": [
+        {
+          "name": "_id",
+          "sql_type": "text"
+        },
+        {
+          "name": "issueNumber",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "speaker",
+          "sql_type": "text"
+        },
+        {
+          "name": "message",
+          "sql_type": "text"
+        },
+        {
+          "name": "listAuthor",
+          "sql_type": "text"
+        },
+        {
+          "name": "listAuthorDisplayName",
+          "sql_type": "text"
+        },
+        {
+          "name": "listAuthorDiscordId",
+          "sql_type": "text"
+        },
+        {
+          "name": "isSpeakerOfYear",
+          "sql_type": "boolean"
+        },
+        {
+          "name": "createdAt",
+          "sql_type": "timestamptz"
+        },
+        {
+          "name": "__v",
+          "sql_type": "bigint"
+        },
+        {
+          "name": "updatedAt",
+          "sql_type": "timestamptz"
+        }
+      ]
+    }
+  ]
+}

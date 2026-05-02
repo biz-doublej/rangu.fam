@@ -941,7 +941,7 @@ export default function AboutPage() {
               ) : (
                 <button
                   className="glass-button p-2"
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push('/auth/start?callbackUrl=%2Fabout')}
                   title="로그인"
                 >
                   <LogIn className="w-5 h-5 text-primary-200" />

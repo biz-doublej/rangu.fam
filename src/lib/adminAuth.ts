@@ -1,10 +1,12 @@
+import { getRequiredEnv } from '@/lib/env'
 import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiUser } from '@/models/Wiki'
 import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 export interface AdminUser {
   userId: string

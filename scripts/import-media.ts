@@ -215,9 +215,9 @@ async function ensureSpotlightSlides() {
 }
 
 async function main() {
-  const { default: dbConnect } = await import('@/lib/mongodb')
+  const { default: dbConnect } = await import('@/lib/database')
   await dbConnect()
-  console.log('Connected to MongoDB')
+  console.log('Connected to PostgreSQL bridge')
 
   const summary = { created: 0, updated: 0 }
 

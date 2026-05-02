@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { BookOpenCheck, LogIn, UserCircle } from 'lucide-react'
+import { BookOpenCheck, LogIn, UserCircle, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import { useAuth } from '@/contexts/AuthContext'
@@ -11,18 +11,8 @@ import { useWikiAuth } from '@/contexts/WikiAuthContext'
 
 export default function WikiLoginPage() {
   const router = useRouter()
-  const { isLoggedIn, linkedWikiUsername } = useAuth()
-  const { login, isLoading, wikiUser } = useWikiAuth()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleWikiLogin = async () => {
-    setIsSubmitting(true)
-    const success = await login()
-    setIsSubmitting(false)
-    if (success) {
-      router.push('/wiki')
-    }
-  }
+  const { isLoggedIn, linkedWikiUsername, startSignIn, startSignUp } = useAuth()
+  const { wikiUser, isLoading } = useWikiAuth()
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#020617] text-white px-4">
@@ -45,7 +35,7 @@ export default function WikiLoginPage() {
 
           <CardContent className="space-y-4 text-sm text-white/80">
             <p className="text-center">
-              DoubleJ 통합 로그인 계정으로 위키 토큰을 발급합니다.
+              이랑위키 로그인/회원가입은 DoubleJ 통합 계정 플랫폼으로 이동하여 진행합니다.
             </p>
             <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
               <p className="text-xs text-white/60 mb-1">현재 연결된 계정</p>
@@ -62,10 +52,10 @@ export default function WikiLoginPage() {
                 type="button"
                 variant="primary"
                 className="w-full"
-                loading={isSubmitting || isLoading}
-                onClick={handleWikiLogin}
+                loading={isLoading}
+                onClick={() => router.push('/wiki')}
               >
-                위키 로그인
+                위키로 이동
               </Button>
             ) : (
               <>
@@ -73,13 +63,22 @@ export default function WikiLoginPage() {
                   type="button"
                   variant="primary"
                   className="w-full"
-                  onClick={() => router.push('/login')}
+                  onClick={() => startSignIn('/wiki')}
                 >
                   <LogIn className="w-4 h-4 mr-2" />
-                  통합 로그인하러 가기
+                  통합 로그인
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full border border-white/20 text-white"
+                  onClick={() => startSignUp('/wiki')}
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  통합 회원가입
                 </Button>
                 <p className="text-xs text-white/60 text-center">
-                  먼저 `/login`에서 로그인 후 다시 진행해주세요.
+                  로그인 완료 후 자동으로 `/wiki`로 복귀합니다.
                 </p>
               </>
             )}

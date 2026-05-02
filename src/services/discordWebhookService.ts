@@ -1,3 +1,5 @@
+import { getOptionalEnv } from '@/lib/env'
+
 interface DiscordEmbed {
   title?: string
   description?: string
@@ -34,9 +36,11 @@ interface DiscordWebhookPayload {
 }
 
 export class DiscordWebhookService {
-  private static readonly WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || ''
-  private static readonly ADMIN_WEBHOOK_URL = process.env.DISCORD_ADMIN_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || ''
-  private static readonly USER_WEBHOOK_URL = process.env.DISCORD_USER_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || ''
+  private static readonly WEBHOOK_URL = getOptionalEnv('DISCORD_WEBHOOK_URL')
+  private static readonly ADMIN_WEBHOOK_URL =
+    getOptionalEnv('DISCORD_ADMIN_WEBHOOK_URL') ?? getOptionalEnv('DISCORD_WEBHOOK_URL')
+  private static readonly USER_WEBHOOK_URL =
+    getOptionalEnv('DISCORD_USER_WEBHOOK_URL') ?? getOptionalEnv('DISCORD_WEBHOOK_URL')
   
   // Available style variants for webhook embeds
   static readonly STYLES = {

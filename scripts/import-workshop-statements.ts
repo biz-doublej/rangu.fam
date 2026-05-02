@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import dbConnect from '../src/lib/mongodb'
+import dbConnect from '../src/lib/database'
 import WikiWorkshopStatement from '../src/models/WikiWorkshopStatement'
 
 type ParsedEntry = {

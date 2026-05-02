@@ -3,8 +3,8 @@ import { Card, CardType, CardRarity } from '@/models/Card'
 import { UserCard } from '@/models/UserCard'
 import { CardDrop } from '@/models/CardDrop'
 import { UserCardStats } from '@/models/UserCardStats'
-import connectDB from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
+import connectDB from '@/lib/database'
+import mongoose from 'mongoose'
 import { CardCatalogService } from '@/services/cardCatalogService'
 
 export interface CardDropResult {
@@ -111,13 +111,13 @@ export class CardService {
   }
 
   // Normalize arbitrary user identifiers (e.g. Discord) into a stable ObjectId
-  static normalizeUserId(rawId: string): ObjectId {
-    if (rawId && ObjectId.isValid(rawId) && rawId.length === 24) {
-      return new ObjectId(rawId)
+  static normalizeUserId(rawId: string): mongoose.Types.ObjectId {
+    if (rawId && mongoose.Types.ObjectId.isValid(rawId) && rawId.length === 24) {
+      return new mongoose.Types.ObjectId(rawId)
     }
     const seed = rawId || 'guest'
     const hexId = createHash('md5').update(seed).digest('hex').slice(0, 24)
-    return new ObjectId(hexId)
+    return new mongoose.Types.ObjectId(hexId)
   }
 
   // 이미지가 존재하지 않으면 공통 대체 이미지로 치환
@@ -240,6 +240,11 @@ export class CardService {
         }).lean()
 
         const validCards = cards
+          // 재료 카드는 조커카드만 드랍 후보로 허용
+          .filter((card) => {
+            if (card.type !== CardType.MATERIAL) return true
+            return String(card.cardId || '').toLowerCase() === 'joker_card'
+          })
           .map((card) => this.ensureImage(card))
           .filter((card) => card.imageUrl !== this.FALLBACK_IMAGE)
 
@@ -543,14 +548,14 @@ export class CardService {
   // 프레스티지 카드 조합
   static async craftPrestigeCard(
     userId: string,
-    useMaterialCard: boolean = false
+    useMaterialCard: boolean = true
   ): Promise<CraftingResult> {
     await connectDB()
     
     try {
       const userObjectId = this.normalizeUserId(userId)
       
-      // 잠금 카드 제외: 제작/강화에 사용할 수 있는 카드만 조회
+      // 잠금 카드 제외: 제작에 사용할 수 있는 카드만 조회
       const userCards = await UserCard.find({
         userId: userObjectId,
         isLocked: { $ne: true },
@@ -568,6 +573,14 @@ export class CardService {
         return acc
       }, {} as Record<string, any>)
       
+      const allowJokerSubstitution = useMaterialCard
+      const JOKER_CARD_ID = 'joker_card'
+      const requirements = [
+        { type: CardType.YEAR, required: 7, label: '년도 카드' },
+        { type: CardType.SPECIAL, required: 3, label: '스페셜 카드' },
+        { type: CardType.SIGNATURE, required: 1, label: '시그니처 카드' }
+      ] as const
+
       let usedCards: { cardId: string; quantity: number }[] = []
       let canCraft = false
       const buildUsedCardDetails = (source: { cardId: string; quantity: number }[]) =>
@@ -581,61 +594,48 @@ export class CardService {
             imageUrl: ensuredCard?.imageUrl
           }
         })
-      
-      if (useMaterialCard) {
-        // 재료 카드 사용 (무한 조합)
-        const materialCards = Object.keys(cardCounts).filter(cardId => 
-          cardMap[cardId]?.type === CardType.MATERIAL && cardCounts[cardId] > 0
+      // 기본 조합 재료를 먼저 채우고, 부족 수량은 조커카드로 대체
+      const missingByType: Record<string, number> = {}
+      for (const requirement of requirements) {
+        const cardIds = Object.keys(cardCounts).filter(
+          (cardId) => cardMap[cardId]?.type === requirement.type && cardCounts[cardId] > 0
         )
-        
-        if (materialCards.length > 0) {
-          canCraft = true
-          // 재료 카드는 소모되지 않음
+
+        let used = 0
+        for (const cardId of cardIds) {
+          if (used >= requirement.required) break
+          const useCount = Math.min(cardCounts[cardId], requirement.required - used)
+          if (useCount <= 0) continue
+          usedCards.push({ cardId, quantity: useCount })
+          used += useCount
         }
-      } else {
-        // 일반 카드 조합 (년도 7개 + 스페셜 3개 + 시그니처 1개)
-        const yearCards = Object.keys(cardCounts).filter(cardId => 
-          cardMap[cardId]?.type === CardType.YEAR && cardCounts[cardId] > 0
-        )
-        const specialCards = Object.keys(cardCounts).filter(cardId => 
-          cardMap[cardId]?.type === CardType.SPECIAL && cardCounts[cardId] > 0
-        )
-        const signatureCards = Object.keys(cardCounts).filter(cardId => 
-          cardMap[cardId]?.type === CardType.SIGNATURE && cardCounts[cardId] > 0
-        )
-        
-        const availableYearCount = yearCards.reduce((sum, cardId) => sum + cardCounts[cardId], 0)
-        const availableSpecialCount = specialCards.reduce((sum, cardId) => sum + cardCounts[cardId], 0)
-        const availableSignatureCount = signatureCards.reduce((sum, cardId) => sum + cardCounts[cardId], 0)
-        
-        if (availableYearCount >= 7 && availableSpecialCount >= 3 && availableSignatureCount >= 1) {
-          canCraft = true
-          
-          // 사용할 카드 선정
-          let yearUsed = 0
-          for (const cardId of yearCards) {
-            if (yearUsed >= 7) break
-            const useCount = Math.min(cardCounts[cardId], 7 - yearUsed)
-            usedCards.push({ cardId, quantity: useCount })
-            yearUsed += useCount
-          }
-          
-          let specialUsed = 0
-          for (const cardId of specialCards) {
-            if (specialUsed >= 3) break
-            const useCount = Math.min(cardCounts[cardId], 3 - specialUsed)
-            usedCards.push({ cardId, quantity: useCount })
-            specialUsed += useCount
-          }
-          
-          usedCards.push({ cardId: signatureCards[0], quantity: 1 })
-        }
+
+        missingByType[requirement.label] = Math.max(0, requirement.required - used)
+      }
+
+      const missingCount = Object.values(missingByType).reduce((sum, count) => sum + count, 0)
+      const jokerEntry = Object.entries(cardCounts).find(([cardId]) => cardId.toLowerCase() === JOKER_CARD_ID)
+      const jokerCardId = jokerEntry?.[0] || JOKER_CARD_ID
+      const jokerOwned = Number(jokerEntry?.[1] || 0)
+
+      if (missingCount === 0) {
+        canCraft = true
+      } else if (allowJokerSubstitution && jokerOwned >= missingCount) {
+        canCraft = true
+        usedCards.push({ cardId: jokerCardId, quantity: missingCount })
       }
       
       if (!canCraft) {
+        const missingSummary = Object.entries(missingByType)
+          .filter(([, count]) => count > 0)
+          .map(([label, count]) => `${label} ${count}`)
+          .join(', ')
         return {
           success: false,
-          message: '조합에 필요한 카드가 부족합니다. (잠금 카드는 제외됩니다.)',
+          message:
+            missingCount > 0
+              ? `조합 재료가 부족합니다. (${missingSummary}) 조커카드 ${missingCount}장이 필요합니다.`
+              : '조합에 필요한 카드가 부족합니다. (잠금 카드는 제외됩니다.)',
           usedCards: [],
           usedCardDetails: []
         }
@@ -657,17 +657,17 @@ export class CardService {
       })
       await dropLog.save()
       
-      // 사용된 카드 제거 (재료 카드 제외)
-      if (!useMaterialCard && usedCards.length > 0) {
+      // 사용된 카드 제거 (실패 시에도 소모)
+      if (usedCards.length > 0) {
         for (const { cardId, quantity } of usedCards) {
           await UserCard.findOneAndUpdate(
             { userId: userObjectId, cardId, isLocked: { $ne: true } },
             { $inc: { quantity: -quantity } }
           )
-          
-          // 수량이 0이 되면 삭제
-          await UserCard.deleteMany({ userId: userObjectId, quantity: { $lte: 0 } })
         }
+
+        // 수량이 0 이하가 된 카드 정리
+        await UserCard.deleteMany({ userId: userObjectId, quantity: { $lte: 0 } })
       }
       
       // 통계 업데이트

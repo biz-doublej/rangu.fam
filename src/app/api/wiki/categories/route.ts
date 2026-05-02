@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { WikiPage } from '@/models/Wiki'
 import { extractCategoriesFromContent, normalizeCategoryName, buildCategoryRegex } from '@/lib/wikiCategories'
 

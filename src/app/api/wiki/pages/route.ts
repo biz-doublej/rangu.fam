@@ -1,16 +1,17 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
-
-export const dynamic = 'force-dynamic'
 import { WikiPage, WikiUser, WikiSubmission } from '@/models/Wiki'
 import { extractCategoriesFromContent } from '@/lib/wikiCategories'
 import { canEditPage, canProtectPage, isRateLimited, isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
 import { appendAuditLog } from '@/app/api/wiki/_utils/audit'
 import { createCaptchaChallenge, hasValidCaptchaPass, issueCaptchaPassCookie, verifyCaptchaChallenge } from '@/app/api/wiki/_utils/captcha'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+export const dynamic = 'force-dynamic'
+
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 // 공통 슬러그/앵커 생성 규칙: 한글 포함, 소문자-하이픈
 function toSlug(text: string): string {

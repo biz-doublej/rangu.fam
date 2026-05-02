@@ -1,12 +1,12 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 
 export default function WikiRegisterPage() {
-  const router = useRouter()
+  const { startSignUp, startSignIn } = useAuth()
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -16,11 +16,14 @@ export default function WikiRegisterPage() {
         </CardHeader>
         <CardContent className="text-sm text-gray-600 space-y-2">
           <p>기존 위키 개별 회원가입은 종료되었습니다.</p>
-          <p>이제 DoubleJ 통합 로그인에서 아이디/비밀번호로 회원가입 후 이랑위키와 랑구팸을 함께 이용할 수 있습니다.</p>
+          <p>회원가입은 `accounts.doublej.app`에서 통합으로 진행되며 완료 후 이랑위키/랑구팸에 공통 적용됩니다.</p>
         </CardContent>
-        <CardFooter>
-          <Button type="button" variant="primary" className="w-full" onClick={() => router.push('/login')}>
-            통합 로그인/회원가입으로 이동
+        <CardFooter className="flex flex-col gap-2">
+          <Button type="button" variant="primary" className="w-full" onClick={() => startSignUp('/wiki')}>
+            통합 회원가입 시작
+          </Button>
+          <Button type="button" variant="ghost" className="w-full" onClick={() => startSignIn('/wiki')}>
+            통합 로그인 시작
           </Button>
         </CardFooter>
       </Card>

@@ -1,7 +1,9 @@
+import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rangu-wiki-secret'
+
+const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 export interface CaptchaChallengePayload {
   a: number

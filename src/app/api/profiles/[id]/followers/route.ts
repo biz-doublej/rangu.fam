@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/mongodb'
+import dbConnect from '@/lib/database'
 import Profile from '@/models/Profile'
 export const dynamic = 'force-dynamic'
 

@@ -1,21 +1,20 @@
 import mongoose from 'mongoose'
-import { GridFSBucket } from 'mongodb'
 
-let mediaBucket: GridFSBucket | null = null
+let mediaBucket: mongoose.mongo.GridFSBucket | null = null
 
 export function resetMediaBucket() {
   mediaBucket = null
 }
 
-export function getMediaBucket(): GridFSBucket {
+export function getMediaBucket(): mongoose.mongo.GridFSBucket {
   const connection = mongoose.connection
 
   if (!connection || connection.readyState !== 1 || !connection.db) {
-    throw new Error('MongoDB connection is not ready')
+    throw new Error('PostgreSQL bridge connection is not ready')
   }
 
   if (!mediaBucket) {
-    mediaBucket = new GridFSBucket(connection.db as any, {
+    mediaBucket = new mongoose.mongo.GridFSBucket(connection.db as any, {
       bucketName: 'mediaAssets',
     })
   }

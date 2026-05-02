@@ -14,6 +14,7 @@ const WikiUserSchema = new mongoose.Schema({
   discordId: { type: String, unique: true, sparse: true },
   discordUsername: { type: String },
   discordAvatar: { type: String },
+  ssoSubject: { type: String, unique: true, sparse: true },
   
   // 위키 권한
   role: { 
@@ -322,8 +323,8 @@ const WikiConfigSchema = new mongoose.Schema({
   // 검색 설정
   searchEngine: { 
     type: String, 
-    enum: ['mongodb', 'elasticsearch'],
-    default: 'mongodb'
+    enum: ['postgres', 'elasticsearch'],
+    default: 'postgres'
   },
   indexCategories: { type: Boolean, default: true },
   indexDiscussions: { type: Boolean, default: true },
@@ -389,6 +390,7 @@ export interface IWikiUser extends mongoose.Document {
   username: string
   email: string
   password: string
+  ssoSubject?: string
   displayName?: string
   avatar?: string
   bio?: string

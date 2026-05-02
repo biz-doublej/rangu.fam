@@ -39,6 +39,11 @@ const Footer: React.FC = () => {
       name: '이랑위키',
       description: '지식과 정보의 공유 플랫폼',
       href: '/wiki'
+    },
+    {
+      name: '랑구대학',
+      description: 'University 브랜드 랜딩 서비스',
+      href: '/university'
     }
   ]
 

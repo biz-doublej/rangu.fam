@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import { connectToDatabase } from '@/lib/database'
 import { Bookmark } from '@/models/Bookmark'
 export const dynamic = 'force-dynamic'
 
@@ -27,9 +27,9 @@ export async function GET(
         data: bookmark
       })
     } catch (dbError) {
-      console.warn('MongoDB 연결 실패:', dbError)
+      console.warn('데이터베이스 연결 실패:', dbError)
       return NextResponse.json(
-        { success: false, error: 'MongoDB 연결이 필요합니다.' },
+        { success: false, error: '데이터베이스 연결이 필요합니다.' },
         { status: 503 }
       )
     }
@@ -96,9 +96,9 @@ export async function PUT(
         data: updatedBookmark
       })
     } catch (dbError) {
-      console.warn('MongoDB 연결 실패:', dbError)
+      console.warn('데이터베이스 연결 실패:', dbError)
       return NextResponse.json(
-        { success: false, error: 'MongoDB 연결이 필요합니다.' },
+        { success: false, error: '데이터베이스 연결이 필요합니다.' },
         { status: 503 }
       )
     }
@@ -147,9 +147,9 @@ export async function DELETE(
         data: deletedBookmark
       })
     } catch (dbError) {
-      console.warn('MongoDB 연결 실패:', dbError)
+      console.warn('데이터베이스 연결 실패:', dbError)
       return NextResponse.json(
-        { success: false, error: 'MongoDB 연결이 필요합니다.' },
+        { success: false, error: '데이터베이스 연결이 필요합니다.' },
         { status: 503 }
       )
     }

@@ -449,7 +449,7 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="space-y-4">
                 <Button 
-                  onClick={() => router.push('/login')} 
+                  onClick={() => router.push('/auth/start?callbackUrl=%2Fadmin')} 
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0"
                 >
                   <LogIn className="w-4 h-4 mr-2" />

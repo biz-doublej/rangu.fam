@@ -13,6 +13,10 @@ node_modules/
 /out/
 
 # Environment variables
+.env
+.env.*
+!.env.example
+!.env.local.example
 .env.development.local
 .env.test.local
 .env.production.local
@@ -118,6 +122,14 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Database export dumps (kept locally, never committed)
+exports/
 
 # Vercel
 .vercel
