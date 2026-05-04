@@ -62,7 +62,7 @@ const members = [
   },
   {
     name: '정민석',
-    role: '취리히 · 유학 · 탐험',
+    role: '루체른 · 유학 · 탐험',
     desc: '새로운 경험과 도전을 즐기는 자유로운 영혼',
     pic: '/images/profile/ms.png',
     rot: 'right' as const,

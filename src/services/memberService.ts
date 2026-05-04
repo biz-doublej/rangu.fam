@@ -98,7 +98,7 @@ export class MemberService {
         avatar: '/images/minseok.jpg',
         email: 'minseok@rangu.fam',
         status: 'active',
-        location: '취리히, 스위스',
+        location: '루체른, 스위스',
         joinDate: new Date('2020-01-01'),
         personalPageUrl: '/members/minseok',
       },

@@ -357,7 +357,7 @@ export default function JingyuPage() {
 
           <div className="mt-8 sm:mt-12 flex flex-wrap justify-center gap-3">
             <a
-              href="mailto:jingyu@rangu-fam.com"
+              href="mailto:jinq0901@gmail.com"
               className="inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-sky-950 transition sm:px-7 sm:py-3 sm:text-sm"
               style={{ background: SKY }}
             >

@@ -102,8 +102,8 @@ const STATS = [
 ]
 
 const CONTACT = [
-  { label: 'Email', value: 'gabriel@doublej.app', href: 'mailto:gabriel@doublej.app' },
-  { label: 'GitHub', value: 'github.com/biz-doublej', href: 'https://github.com/biz-doublej' },
+  { label: 'Email', value: 'doublej.biz01@gmail.com', href: 'mailto:doublej.biz01@gmail.com' },
+  { label: 'GitHub', value: 'github.com/GabrielJung0727', href: 'https://github.com/GabrielJung0727' },
   { label: 'DoubleJ', value: 'accounts.doublej.app/company', href: 'https://accounts.doublej.app/company' },
 ]
 

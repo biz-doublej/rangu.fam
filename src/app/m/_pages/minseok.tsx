@@ -67,7 +67,7 @@ export default function MinseokPage() {
           >
             <p className="font-serif italic text-zinc-500">vol. 27 — independent musician</p>
             <h1 className="mt-6 font-serif text-[10rem] leading-[0.85] tracking-[-0.04em] md:text-[14rem]">
-              MIN<span className="block">SEOK</span>
+              TAM<span className="block">PLNAT</span>
             </h1>
             <div className="mt-10 flex items-center gap-4 text-sm">
               <span className="h-px w-16 bg-white" />
@@ -222,10 +222,10 @@ export default function MinseokPage() {
           <p className="font-mono text-xs uppercase tracking-[0.3em] text-zinc-500">— get in touch</p>
           <h2 className="mt-4 font-serif text-7xl italic">let&apos;s make something.</h2>
           <a
-            href="mailto:minseok@rangu-fam.com"
+            href="mailto:05alstjr@gmail.com"
             className="mt-12 inline-block border-b border-white pb-1 font-serif text-2xl tracking-wide transition hover:text-zinc-400"
           >
-            minseok@rangu-fam.com
+            05alstjr@gmail.com
           </a>
           <div className="mt-16">
             <Link

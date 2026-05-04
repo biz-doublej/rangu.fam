@@ -20,7 +20,7 @@ const simpleProfiles = {
     role: 'IMI 재학생',
     intro: '스위스에서 새로운 꿈을 키워가고 있습니다.',
     bio: '스위스에서 새로운 꿈을 키워가고 있습니다.',
-    location: '취리히, 스위스',
+    location: '루체른, 스위스',
     profileImage: '/images/profile/ms.png'
   },
   jingyu: {
@@ -37,7 +37,7 @@ const simpleProfiles = {
     id: 'hanul',
     username: 'hanul',
     name: '강한울',
-    role: '철도차량시스템학과 진학 예정',
+    role: '철도차량시스템학과 재학 중',
     intro: '자유로운 영혼으로 다양한 취미와 관심사를 탐구합니다.',
     bio: '자유로운 영혼으로 다양한 취미와 관심사를 탐구합니다.',
     location: '서울, 대한민국',

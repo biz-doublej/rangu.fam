@@ -282,7 +282,7 @@ export default function HanulPage() {
 
           <div className="mt-8 sm:mt-12 flex flex-wrap justify-center gap-2 sm:gap-3">
             <a
-              href="mailto:hanul@rangu-fam.com"
+              href="mailto:kanghu05@gmail.com"
               className="inline-flex items-center gap-2 rounded-full px-5 sm:px-7 py-2.5 sm:py-3 text-xs sm:text-sm font-bold uppercase tracking-widest text-white transition"
               style={{ background: ACCENT }}
             >

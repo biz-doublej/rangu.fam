@@ -139,7 +139,7 @@ export default function SeungchanPage() {
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <a
-            href="mailto:seungchan@rangu-fam.com"
+            href="mailto:mushbit@naver.com"
             className="inline-flex items-center gap-2 rounded-full bg-[#d4a017] px-6 py-3 font-serif text-[#1a0b2e] transition hover:bg-[#ffd700]"
           >
             ✉ 메시지 보내기

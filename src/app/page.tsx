@@ -91,7 +91,7 @@ const quickPaths = [
 
 const memberSnippets = [
   { id: 'jaewon', name: '정재원', role: '개발 · 패션', src: '/images/profile/jw.jpg', rot: 'left' as const, tape: 'top-left' as const, color: 'coral' as const },
-  { id: 'minseok', name: '정민석', role: '취리히 IMI', src: '/images/profile/ms.png', rot: 'right' as const, tape: 'top-right' as const, color: 'sage' as const },
+  { id: 'minseok', name: '정민석', role: '루체른 IMI', src: '/images/profile/ms.png', rot: 'right' as const, tape: 'top-right' as const, color: 'sage' as const },
   { id: 'jingyu', name: '정진규', role: '복무 중', src: '/images/profile/jq.jpg', rot: 'left' as const, tape: 'top' as const, color: 'mustard' as const },
   { id: 'hanul', name: '강한울', role: '철도차량시스템 진학 예정', src: '/images/profile/hu.jpg', rot: 'extra' as const, tape: 'top-right' as const, color: 'coral' as const },
   { id: 'seungchan', name: '이승찬', role: '마술사', src: '/images/profile/sc.jpg', rot: 'right' as const, tape: 'top-left' as const, color: 'sage' as const },
