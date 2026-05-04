@@ -48,16 +48,8 @@ export default async function MemberPage({ params }: Props) {
       return <Mod.default />
     }
     case 'jaewon': {
-      // 아직 디자인 미정 — placeholder
-      return (
-        <div className="min-h-screen flex items-center justify-center px-6 text-center">
-          <div>
-            <p className="caveat text-xl text-coral-500">coming soon</p>
-            <h1 className="display-han mt-2 text-3xl text-ink-500">정재원 — 컨셉 미정</h1>
-            <p className="mt-3 text-sm text-ink-300">곧 공개될 예정.</p>
-          </div>
-        </div>
-      )
+      const Mod = await import('../_pages/jaewon')
+      return <Mod.default />
     }
     default:
       notFound()

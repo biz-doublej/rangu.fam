@@ -26,7 +26,11 @@ import {
   Bell,
   Edit,
   Folder,
-  Trophy
+  Trophy,
+  Info,
+  Users,
+  CreditCard,
+  ExternalLink
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -88,6 +92,90 @@ const TOOL_LINKS = [
   { label: '내 감시 목록', href: '/wiki/watchlist', icon: Bell },
   { label: '기여자', href: '/wiki/contributors', icon: Trophy }
 ]
+
+/* 사이트 전체(랑구팸) 셀렉 메뉴 — 위키 토프바 아래에 노출. 랑구팸 본 사이트의
+ * 메뉴와 동일한 6 항목을 그대로 가져옵니다. 현재 위치는 "이랑위키"이므로
+ * 그 항목이 active 상태로 강조됩니다. "이랑위키" 항목에는 미러 드롭다운
+ * (rangu-fam.com/wiki + irang.wiki)이 함께 따라옵니다. */
+type SiteMenuItem = {
+  key: 'home' | 'about' | 'members' | 'wiki' | 'cards' | 'login' | 'terms'
+  label: string
+  /** 한 줄 소제목 — 마우스 hover 시 표시 + tooltip / aria-label */
+  subtitle: string
+  href: string
+  icon: React.ElementType
+  external?: boolean
+  mirrors?: Array<{ label: string; href: string }>
+  /** 이 항목을 active로 만드는 pathname 매칭. */
+  matchPaths?: RegExp[]
+}
+
+/* 이랑위키 내부 셀렉 메뉴.
+ * 라벨은 랑구팸 본 사이트와 동일하지만, 각 항목은 이랑위키 안에서
+ * 자연스러운 경로(대문 / 소개 / 기여자 / …)를 가리킵니다. */
+const SITE_MENU_ITEMS: SiteMenuItem[] = [
+  {
+    key: 'home',
+    label: '홈',
+    subtitle: '이랑위키 대문',
+    href: '/wiki',
+    icon: Home,
+    matchPaths: [/^\/wiki\/?$/]
+  },
+  {
+    key: 'about',
+    label: '소개',
+    subtitle: '이랑위키 소개 · 안내',
+    href: '/wiki/이랑위키:소개',
+    icon: Info,
+    matchPaths: [/^\/wiki\/이랑위키:소개/, /^\/wiki\/이랑위키:도움말/]
+  },
+  {
+    key: 'members',
+    label: '멤버',
+    subtitle: '기여자 목록',
+    href: '/wiki/contributors',
+    icon: Users,
+    matchPaths: [/^\/wiki\/contributors/]
+  },
+  {
+    key: 'wiki',
+    label: '이랑위키',
+    subtitle: '이랑위키 자기 자신 (메타 문서)',
+    href: '/wiki/이랑위키',
+    icon: BookOpen,
+    matchPaths: [/^\/wiki\/이랑위키(?!:)/],
+    mirrors: [
+      { label: 'rangu-fam.com/wiki', href: 'https://rangu-fam.com/wiki' },
+      { label: 'irang.wiki',          href: 'https://irang.wiki/' }
+    ]
+  },
+  {
+    key: 'cards',
+    label: '카드',
+    subtitle: '카드 분류 모아보기',
+    href: '/wiki/category/카드',
+    icon: CreditCard,
+    matchPaths: [/^\/wiki\/category\/카드/]
+  }
+]
+
+const SITE_MENU_LOGIN: SiteMenuItem = {
+  key: 'login',
+  label: '로그인',
+  subtitle: '이랑위키 로그인',
+  href: '/auth/start?callbackUrl=%2Fwiki',
+  icon: LogIn
+}
+
+const SITE_MENU_TERMS: SiteMenuItem = {
+  key: 'terms',
+  label: '약관',
+  subtitle: 'DoubleJ 통합 계정 약관',
+  href: 'https://accounts.doublej.app/terms',
+  icon: FileText,
+  external: true
+}
 
 /* ────────────────────────────────────────────────────────────
  * Layout-mode context.
@@ -471,6 +559,13 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
               )}
             </div>
           </div>
+
+          {/* 사이트 셀렉 메뉴 — 랑구팸 본 사이트와 동일한 cross-site nav */}
+          <SiteSelectMenu
+            isLoggedIn={isLoggedIn}
+            displayName={wikiUser?.displayName || wikiUser?.username || null}
+            onLogin={() => router.push('/auth/start?callbackUrl=%2Fwiki')}
+          />
         </header>
 
         {/* ── Sidebar + main + right rail ──────────────────────── */}
@@ -741,5 +836,164 @@ export function WikiPageHeader({
         </div>
       )}
     </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────
+ * SiteSelectMenu — 이랑위키 내부 셀렉 메뉴.
+ * 위키 토프바 바로 아래 두 번째 줄에 노출. 라벨 6개(홈/소개/멤버/이랑위키/카드/로그인)
+ * 는 랑구팸 본 사이트와 동일하지만, 각 링크는 위키 내부 경로를 가리킵니다.
+ * - 현재 pathname을 기준으로 active 항목 자동 강조
+ * - "이랑위키" 항목은 미러 드롭다운(rangu-fam.com/wiki + irang.wiki) 보유
+ * - 모바일에서는 가로 스크롤되는 슬림 바
+ * ────────────────────────────────────────────────────────────*/
+function SiteSelectMenu({
+  isLoggedIn,
+  displayName,
+  onLogin
+}: {
+  isLoggedIn: boolean
+  displayName: string | null
+  onLogin: () => void
+}) {
+  const router = useRouter()
+  const pathname = usePathname() || ''
+  const [mirrorsOpen, setMirrorsOpen] = useState(false)
+
+  const matchActive = useCallback(
+    (item: SiteMenuItem) =>
+      Array.isArray(item.matchPaths) && item.matchPaths.some(re => re.test(pathname)),
+    [pathname]
+  )
+
+  // 위키 내부 어디에 있는지에 따라 active 결정. 매칭 없으면 기본 "홈".
+  const explicitActive = SITE_MENU_ITEMS.find(matchActive)?.key
+  const fallbackActive: SiteMenuItem['key'] = pathname.startsWith('/wiki') ? 'home' : 'home'
+  const activeKey = explicitActive ?? fallbackActive
+
+  const handleInternal = (e: React.MouseEvent, href: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    router.push(href)
+  }
+
+  return (
+    <nav className="wiki-sitemenu" aria-label="이랑위키 사이트 내비게이션">
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 flex items-center gap-0.5 sm:gap-1 overflow-x-auto whitespace-nowrap">
+        {SITE_MENU_ITEMS.map(item => {
+          const isCurrent = item.key === activeKey
+          const Icon = item.icon
+          if (item.key === 'wiki') {
+            return (
+              <div key={item.key} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMirrorsOpen(v => !v)}
+                  onBlur={() => setTimeout(() => setMirrorsOpen(false), 180)}
+                  aria-current={isCurrent ? 'page' : undefined}
+                  aria-haspopup="menu"
+                  aria-expanded={mirrorsOpen}
+                  title={item.subtitle}
+                  className={`wiki-sitemenu__item ${isCurrent ? 'is-current' : ''}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                  <span className="wiki-sitemenu__sub">{item.subtitle}</span>
+                  <span className="wiki-sitemenu__caret" aria-hidden>▾</span>
+                </button>
+                {mirrorsOpen && item.mirrors && (
+                  <div role="menu" className="wiki-sitemenu__dropdown">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); router.push(item.href) }}
+                      className="wiki-sitemenu__mirror"
+                    >
+                      <BookOpen className="w-3 h-3 text-[color:var(--wiki-cyan)]" />
+                      <span>위키 메타 문서로 이동</span>
+                    </button>
+                    {item.mirrors.map(m => (
+                      <a
+                        key={m.href}
+                        role="menuitem"
+                        href={m.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="wiki-sitemenu__mirror"
+                      >
+                        <ExternalLink className="w-3 h-3 text-[color:var(--wiki-ink-muted)]" />
+                        <span>{m.label}</span>
+                      </a>
+                    ))}
+                    <p className="wiki-sitemenu__mirror-note">
+                      두 도메인은 동일한 이랑위키를 가리킵니다.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          }
+          return (
+            <a
+              key={item.key}
+              href={item.href}
+              target={item.external ? '_blank' : undefined}
+              rel={item.external ? 'noopener noreferrer' : undefined}
+              onClick={item.external ? undefined : (e) => handleInternal(e, item.href)}
+              aria-current={isCurrent ? 'page' : undefined}
+              title={item.subtitle}
+              className={`wiki-sitemenu__item ${isCurrent ? 'is-current' : ''}`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{item.label}</span>
+              <span className="wiki-sitemenu__sub">{item.subtitle}</span>
+              {item.external && <ExternalLink className="w-3 h-3 opacity-50" />}
+            </a>
+          )
+        })}
+
+        {/* 우측: 로그인 / 사용자 표시 */}
+        <span className="ml-auto" />
+        {isLoggedIn ? (
+          <span className="wiki-sitemenu__item is-passive" aria-disabled title="현재 로그인된 위키 계정">
+            <span className="wiki-pulse-dot" aria-hidden />
+            <span className="text-[color:var(--wiki-cyan)]">@{displayName || '내 계정'}</span>
+          </span>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onLogin}
+              className="wiki-sitemenu__item"
+              title={SITE_MENU_LOGIN.subtitle}
+            >
+              <SITE_MENU_LOGIN.icon className="w-3.5 h-3.5" />
+              <span>{SITE_MENU_LOGIN.label}</span>
+              <span className="wiki-sitemenu__sub">{SITE_MENU_LOGIN.subtitle}</span>
+            </button>
+            <a
+              href="https://accounts.doublej.app/signup"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="wiki-sitemenu__item wiki-sitemenu__item--accent"
+              title="DoubleJ 통합 회원가입"
+            >
+              <span>회원가입</span>
+              <ExternalLink className="w-3 h-3 opacity-70" />
+            </a>
+          </>
+        )}
+        <a
+          href={SITE_MENU_TERMS.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="wiki-sitemenu__item wiki-sitemenu__item--muted"
+          title={SITE_MENU_TERMS.subtitle}
+        >
+          <SITE_MENU_TERMS.icon className="w-3.5 h-3.5" />
+          <span>{SITE_MENU_TERMS.label}</span>
+          <ExternalLink className="w-3 h-3 opacity-50" />
+        </a>
+      </div>
+    </nav>
   )
 }

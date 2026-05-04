@@ -48,9 +48,11 @@ $secrets = @(
 
 Write-Host ""
 Write-Host "==> Deploying $Service to Cloud Run ($Region)" -ForegroundColor Cyan
+# --project 명시 필수: gcloud config 가 다른 project 일 때 prompt 로 멈추거나 잘못된 곳에 deploy.
 gcloud run deploy $Service `
   --image=$image `
   --region=$Region `
+  --project=$Project `
   --platform=managed `
   --allow-unauthenticated `
   --port=8080 `
@@ -60,9 +62,10 @@ gcloud run deploy $Service `
   --min-instances=0 `
   --max-instances=4 `
   --timeout=60 `
+  --quiet `
   "--set-env-vars=$envVars" `
   "--set-secrets=$secrets"
 
 Write-Host ""
 Write-Host "==> Service URL:" -ForegroundColor Green
-gcloud run services describe $Service --region=$Region --format='value(status.url)'
+gcloud run services describe $Service --region=$Region --project=$Project --format='value(status.url)'

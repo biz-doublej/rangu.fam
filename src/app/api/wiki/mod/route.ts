@@ -57,7 +57,11 @@ export async function GET(request: NextRequest) {
     .where(eq(wikiSubmissions.status, status))
     .orderBy(desc(wikiSubmissions.createdAt))
 
-  return NextResponse.json({ success: true, submissions: list })
+  // legacy mongoose 호환 — 클라이언트(`DocumentManagement`, `WikiModPage`) 가 `_id` 사용.
+  // Drizzle row 의 `id` 를 `_id` 로 alias 하여 호환 유지.
+  const submissions = list.map((row) => ({ ...row, _id: row.id }))
+
+  return NextResponse.json({ success: true, submissions })
 }
 
 // POST /api/wiki/mod — { action: 'approve'|'reject'|'hold', submissionId, reason? }

@@ -2083,6 +2083,161 @@ video:hover {
 /* ── WikiMeter 마이크로 변형 ─────────────── */
 [data-section='wiki'] .wiki-meter { width: 100%; }
 
+/* ── 사이트 셀렉 메뉴 (cross-site nav) ──────── */
+[data-section='wiki'] .wiki-sitemenu {
+  position: relative;
+  border-top: 1px solid var(--wiki-rule);
+  background: rgba(4, 7, 13, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+[data-section='wiki'] .wiki-sitemenu::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.55) 40%, rgba(167, 139, 250, 0.45) 70%, transparent);
+  pointer-events: none;
+}
+[data-section='wiki'] .wiki-sitemenu .mx-auto {
+  scrollbar-width: none;
+}
+[data-section='wiki'] .wiki-sitemenu .mx-auto::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+[data-section='wiki'] .wiki-sitemenu__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-family: 'Space Grotesk', 'Pretendard', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--wiki-ink-soft);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+[data-section='wiki'] .wiki-sitemenu__item:hover {
+  color: var(--wiki-ink);
+  background: linear-gradient(180deg, transparent 60%, rgba(34, 211, 238, 0.08));
+}
+[data-section='wiki'] .wiki-sitemenu__item.is-current {
+  color: var(--wiki-cyan);
+  font-weight: 600;
+  border-bottom-color: var(--wiki-cyan);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+  background: linear-gradient(180deg, transparent 55%, rgba(34, 211, 238, 0.10));
+}
+[data-section='wiki'] .wiki-sitemenu__item.is-passive {
+  cursor: default;
+  color: var(--wiki-ink-soft);
+}
+[data-section='wiki'] .wiki-sitemenu__item.is-passive:hover {
+  background: transparent;
+}
+[data-section='wiki'] .wiki-sitemenu__item--accent {
+  color: var(--wiki-cyan);
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-bottom-width: 1px;
+  border-radius: 4px;
+  margin: 4px 0;
+  padding: 4px 10px;
+}
+[data-section='wiki'] .wiki-sitemenu__item--accent:hover {
+  background: rgba(34, 211, 238, 0.10);
+  border-color: var(--wiki-cyan);
+}
+[data-section='wiki'] .wiki-sitemenu__item--muted {
+  color: var(--wiki-ink-faint);
+  font-size: 0.72rem;
+}
+[data-section='wiki'] .wiki-sitemenu__item--muted:hover {
+  color: var(--wiki-ink-soft);
+  background: transparent;
+}
+[data-section='wiki'] .wiki-sitemenu__caret {
+  font-size: 0.65rem;
+  margin-left: 1px;
+  opacity: 0.7;
+}
+
+/* 항목 hover 시 우측에 슬쩍 노출되는 마이크로 소제목.
+   data-rich-subtitle 같은 헤비 솔루션 대신 inline 텍스트로 처리. */
+[data-section='wiki'] .wiki-sitemenu__sub {
+  display: none;
+  margin-left: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--wiki-ink-faint);
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+@media (min-width: 1024px) {
+  [data-section='wiki'] .wiki-sitemenu__item:hover .wiki-sitemenu__sub,
+  [data-section='wiki'] .wiki-sitemenu__item.is-current .wiki-sitemenu__sub {
+    display: inline;
+    opacity: 1;
+  }
+  [data-section='wiki'] .wiki-sitemenu__item.is-current .wiki-sitemenu__sub {
+    color: var(--wiki-cyan);
+    opacity: 0.85;
+  }
+}
+
+/* 미러 드롭다운 */
+[data-section='wiki'] .wiki-sitemenu__dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 40;
+  min-width: 220px;
+  background: rgba(8, 13, 24, 0.95);
+  border: 1px solid var(--wiki-rule-strong);
+  border-radius: 4px;
+  padding: 4px;
+  box-shadow: 0 12px 36px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(34, 211, 238, 0.18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+[data-section='wiki'] .wiki-sitemenu__mirror {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--wiki-ink-soft);
+  border-radius: 3px;
+  text-decoration: none;
+}
+[data-section='wiki'] .wiki-sitemenu__mirror:hover {
+  background: rgba(34, 211, 238, 0.10);
+  color: var(--wiki-cyan);
+}
+[data-section='wiki'] .wiki-sitemenu__mirror-note {
+  font-size: 0.65rem;
+  color: var(--wiki-ink-faint);
+  padding: 4px 10px 2px;
+  border-top: 1px dashed var(--wiki-rule);
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  [data-section='wiki'] .wiki-sitemenu__item {
+    padding: 6px 10px;
+    font-size: 0.74rem;
+  }
+}
+
 
 
 /* ── 각주 점프 시 깜빡임 효과 ─────────────── */
