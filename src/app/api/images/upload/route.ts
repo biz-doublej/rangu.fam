@@ -1,11 +1,11 @@
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import dbConnect from '@/lib/database'
-import Image from '@/models/Image'
-import { WikiUser } from '@/models/Wiki'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { images } from '@/db/schema/media'
+import { wikiUsers } from '@/db/schema/wiki'
 import jwt from 'jsonwebtoken'
-
 
 export const dynamic = 'force-dynamic'
 
@@ -13,11 +13,11 @@ const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
-  'image/jpg', 
+  'image/jpg',
   'image/png',
   'image/gif',
   'image/webp',
-  'image/svg+xml'
+  'image/svg+xml',
 ]
 
 async function getUserFromToken(request: NextRequest) {
@@ -25,8 +25,13 @@ async function getUserFromToken(request: NextRequest) {
   if (!token) return null
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any
-    const user = await WikiUser.findById(decoded.userId)
-    return user
+    const db = getDb()
+    const rows = await db
+      .select({ id: wikiUsers.id, username: wikiUsers.username })
+      .from(wikiUsers)
+      .where(eq(wikiUsers.id, decoded.userId))
+      .limit(1)
+    return rows[0] ?? null
   } catch {
     return null
   }
@@ -34,13 +39,12 @@ async function getUserFromToken(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect()
     const user = await getUserFromToken(request)
     if (!user) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '로그인이 필요합니다.' 
-      }, { status: 401 })
+      return NextResponse.json(
+        { success: false, error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
     }
 
     const form = await request.formData()
@@ -49,71 +53,66 @@ export async function POST(request: NextRequest) {
     const description = form.get('description') as string
 
     if (!file) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '파일이 필요합니다.' 
-      }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: '파일이 필요합니다.' },
+        { status: 400 }
+      )
     }
 
-    // MIME 타입 검증
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '허용되지 않는 파일 형식입니다. (JPG, PNG, GIF, WebP, SVG만 허용)' 
-      }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: '허용되지 않는 파일 형식입니다. (JPG, PNG, GIF, WebP, SVG만 허용)' },
+        { status: 400 }
+      )
     }
 
-    // 파일 크기 검증
     if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '파일이 너무 큽니다. 최대 5MB까지 허용됩니다.' 
-      }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: '파일이 너무 큽니다. 최대 5MB까지 허용됩니다.' },
+        { status: 400 }
+      )
     }
 
-    // 파일을 base64로 변환
     const buffer = Buffer.from(await file.arrayBuffer())
     const base64Data = buffer.toString('base64')
 
-    // 고유한 파일명 생성
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const uniqueFilename = `${randomUUID()}.${fileExtension}`
 
-    // 이미지 데이터베이스에 저장
-    const imageDoc = new Image({
-      filename: uniqueFilename,
-      originalName: file.name,
-      mimeType: file.type,
-      size: file.size,
-      data: base64Data,
-      uploadedBy: user.username,
-      uploadedById: user._id.toString(),
-      category: category,
-      description: description || undefined,
-      isPublic: true
-    })
+    const db = getDb()
+    const [created] = await db
+      .insert(images)
+      .values({
+        filename: uniqueFilename,
+        originalName: file.name,
+        mimeType: file.type,
+        size: file.size,
+        data: base64Data,
+        uploadedBy: user.username,
+        uploadedById: user.id,
+        category,
+        description: description || undefined,
+        isPublic: true,
+      })
+      .returning({ id: images.id })
 
-    await imageDoc.save()
-
-    // 이미지 접근 URL 생성
     const imageUrl = `/api/images/serve/${uniqueFilename}`
 
     return NextResponse.json({
       success: true,
       url: imageUrl,
-      id: imageDoc._id.toString(),
+      id: created.id,
       filename: uniqueFilename,
       originalName: file.name,
       size: file.size,
       mimeType: file.type,
-      category: category
+      category,
     })
-
   } catch (error) {
     console.error('이미지 업로드 오류:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: '이미지 업로드 중 오류가 발생했습니다.' 
-    }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: '이미지 업로드 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
   }
 }

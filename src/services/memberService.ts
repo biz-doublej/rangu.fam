@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm'
 import { Member } from '@/types'
-import dbConnect from '@/lib/database'
-import User from '@/models/User'
+import { getDb } from '@/db/client'
+import { users } from '@/db/schema/users'
 
 export class MemberService {
   static async getAllMembers(): Promise<Member[]> {
@@ -10,14 +11,15 @@ export class MemberService {
   // 특정 멤버 가져오기
   static async getMember(memberId: string): Promise<Member | null> {
     try {
-      await dbConnect()
-      
-      const user = await User.findOne({ username: memberId }).lean() as any
-      
-      if (!user) {
-        return null
-      }
-      
+      const db = getDb()
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, memberId))
+        .limit(1)
+
+      if (!user) return null
+
       return {
         id: user.username,
         name: user.username,
@@ -28,7 +30,7 @@ export class MemberService {
         status: 'active',
         location: '대한민국',
         joinDate: user.createdAt || new Date(),
-        personalPageUrl: `/members/${user.username}`
+        personalPageUrl: `/members/${user.username}`,
       }
     } catch (error) {
       console.error('멤버 조회 오류:', error)
@@ -39,36 +41,33 @@ export class MemberService {
   // 멤버 정보 업데이트
   static async updateMember(memberId: string, updates: Partial<Member>): Promise<Member | null> {
     try {
-      await dbConnect()
-      
-      const updateData: any = {}
-      
+      const db = getDb()
+
+      const updateData: Record<string, any> = { updatedAt: new Date() }
       if (updates.role) updateData.role = updates.role
       if (updates.description) updateData.bio = updates.description
       if (updates.avatar) updateData.profileImage = updates.avatar
       if (updates.email) updateData.email = updates.email
-      
-      const updatedUser = await User.findOneAndUpdate(
-        { username: memberId },
-        updateData,
-        { new: true }
-      ).lean() as any
-      
-      if (!updatedUser) {
-        return null
-      }
-      
+
+      const [updated] = await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.username, memberId))
+        .returning()
+
+      if (!updated) return null
+
       return {
-        id: updatedUser.username,
-        name: updatedUser.username,
-        role: updatedUser.role,
-        description: updatedUser.bio || '',
-        avatar: updatedUser.profileImage || '/images/default-avatar.jpg',
-        email: updatedUser.email,
+        id: updated.username,
+        name: updated.username,
+        role: updated.role,
+        description: updated.bio || '',
+        avatar: updated.profileImage || '/images/default-avatar.jpg',
+        email: updated.email,
         status: 'active',
         location: '대한민국',
-        joinDate: updatedUser.createdAt || new Date(),
-        personalPageUrl: `/members/${updatedUser.username}`
+        joinDate: updated.createdAt || new Date(),
+        personalPageUrl: `/members/${updated.username}`,
       }
     } catch (error) {
       console.error('멤버 업데이트 오류:', error)
@@ -89,7 +88,7 @@ export class MemberService {
         status: 'active',
         location: '서울, 대한민국',
         joinDate: new Date('2020-01-01'),
-        personalPageUrl: '/members/jaewon'
+        personalPageUrl: '/members/jaewon',
       },
       {
         id: 'minseok',
@@ -101,7 +100,7 @@ export class MemberService {
         status: 'active',
         location: '취리히, 스위스',
         joinDate: new Date('2020-01-01'),
-        personalPageUrl: '/members/minseok'
+        personalPageUrl: '/members/minseok',
       },
       {
         id: 'jinkyu',
@@ -113,7 +112,7 @@ export class MemberService {
         status: 'active',
         location: '춘천, 대한민국',
         joinDate: new Date('2020-01-01'),
-        personalPageUrl: '/members/jinkyu'
+        personalPageUrl: '/members/jinkyu',
       },
       {
         id: 'hanul',
@@ -125,7 +124,7 @@ export class MemberService {
         status: 'active',
         location: '서울, 대한민국',
         joinDate: new Date('2020-01-01'),
-        personalPageUrl: '/members/hanul'
+        personalPageUrl: '/members/hanul',
       },
       {
         id: 'seungchan',
@@ -137,8 +136,8 @@ export class MemberService {
         status: 'active',
         location: '호그와트 마법학교, 영국',
         joinDate: new Date('2025-01-21'),
-        personalPageUrl: '/members/seungchan'
-      }
+        personalPageUrl: '/members/seungchan',
+      },
     ]
   }
-} 
+}

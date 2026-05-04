@@ -1,11 +1,9 @@
 'use client'
 
-import React, { useEffect, useState, Suspense } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Card, CardHeader, CardContent } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react'
+import { WikiShell, WikiPageHeader } from '@/components/wiki'
 
 interface RecentChange {
   title: string
@@ -17,7 +15,43 @@ interface RecentChange {
     summary?: string
     author: string
     timestamp: string
+    sizeChange?: number
+    contentLength?: number
+    isMinorEdit?: boolean
+    isAutomated?: boolean
   }
+}
+
+// 상대 시각 — "3분 전", "어제", "3일 전"
+function relativeTime(iso: string): string {
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return ''
+  const diff = Date.now() - t
+  const sec = Math.floor(diff / 1000)
+  if (sec < 60) return `${sec}초 전`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}분 전`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}시간 전`
+  const day = Math.floor(hr / 24)
+  if (day < 7) return `${day}일 전`
+  if (day < 30) return `${Math.floor(day / 7)}주 전`
+  return new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+// "오늘" / "어제" / "2026년 1월 15일" 같은 그룹 키
+function dateGroup(iso: string): string {
+  const t = new Date(iso)
+  if (Number.isNaN(t.getTime())) return '기타'
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const day = new Date(t)
+  day.setHours(0, 0, 0, 0)
+  const diff = (today.getTime() - day.getTime()) / 86400000
+  if (diff === 0) return '오늘'
+  if (diff === 1) return '어제'
+  if (diff < 7) return `${Math.floor(diff)}일 전`
+  return t.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 }
 
 interface PaginationInfo {
@@ -25,6 +59,14 @@ interface PaginationInfo {
   skip: number
   limit: number
   hasMore: boolean
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  create: '생성',
+  edit: '편집',
+  revert: '되돌림',
+  delete: '삭제',
+  protect: '보호'
 }
 
 function WikiRecentChangesPageContent() {
@@ -39,12 +81,11 @@ function WikiRecentChangesPageContent() {
   const [currentPage, setCurrentPage] = useState(1)
   const [showAllChanges, setShowAllChanges] = useState(true)
 
-  const load = async (page = 1, fetchAll = false) => {
+  const load = async (page = 1, fetchAll = showAllChanges) => {
     setIsLoading(true)
     try {
       const limit = fetchAll ? 500 : 50
       const skip = (page - 1) * limit
-      
       const sp = new URLSearchParams()
       if (namespace) sp.set('namespace', namespace)
       if (type) sp.set('type', type)
@@ -52,12 +93,12 @@ function WikiRecentChangesPageContent() {
       if (fetchAll) sp.set('all', 'true')
       sp.set('limit', limit.toString())
       sp.set('skip', skip.toString())
-      
-      const res = await fetch(`/api/wiki/recent?${sp.toString()}`)
-      const data = await res.json()
-      if (data.success) {
-        setItems(data.changes)
-        setPagination(data.pagination || { total: data.changes.length, skip, limit, hasMore: false })
+
+      const r = await fetch(`/api/wiki/recent?${sp.toString()}`)
+      const d = await r.json()
+      if (d.success) {
+        setItems(d.changes)
+        setPagination(d.pagination || { total: d.changes.length, skip, limit, hasMore: false })
         setCurrentPage(page)
         setShowAllChanges(fetchAll)
       }
@@ -66,234 +107,318 @@ function WikiRecentChangesPageContent() {
     }
   }
 
-  const handlePageChange = (newPage: number) => {
-    load(newPage, showAllChanges)
-  }
-
-  const handleFilterChange = () => {
-    setCurrentPage(1)
-    load(1, showAllChanges)
-  }
-
-  const handleShowAllChanges = () => {
-    setCurrentPage(1)
-    load(1, true)
-  }
-
-  const handleShowRecentChanges = () => {
-    setCurrentPage(1)
-    load(1, false)
-  }
-
   useEffect(() => {
-    load(1, true) // Start with all changes by default
+    load(1, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const totalPages = Math.ceil(pagination.total / pagination.limit)
+  const totalPages = Math.ceil(pagination.total / pagination.limit) || 1
 
   return (
-    <div className="min-h-screen theme-surface text-gray-100">
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-        {/* Header */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-200">
-                  {showAllChanges ? '모든 변경 기록' : '최근 변경'}
-                </h1>
-                <p className="text-gray-400 text-sm mt-1">
-                  {showAllChanges 
-                    ? '처음부터 끝까지 모든 변경 기록을 보여줍니다.'
-                    : '최근에 이루어진 변경 내역을 보여줍니다.'
-                  }
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleShowAllChanges}
-                  className={`${
-                    showAllChanges 
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                      : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                  }`}
-                >
-                  모든 변경
-                </Button>
-                <Button 
-                  onClick={handleShowRecentChanges}
-                  className={`${
-                    !showAllChanges 
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                      : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                  }`}
-                >
-                  최근 변경
-                </Button>
-                <Button 
-                  onClick={() => load(currentPage, showAllChanges)}
-                  className="bg-gray-700 hover:bg-gray-600 text-gray-200"
-                  disabled={isLoading}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                  새로고침
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        {/* Filters */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>미세 필터</CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <Input 
-                value={namespace} 
-                onChange={(e) => setNamespace(e.target.value)} 
-                placeholder="네임스페이스" 
-                className="bg-gray-700 border-gray-600 text-gray-200" 
-              />
-              <Input 
-                value={type} 
-                onChange={(e) => setType(e.target.value)} 
-                placeholder="유형(create/edit/revert...)" 
-                className="bg-gray-700 border-gray-600 text-gray-200" 
-              />
-              <Input 
-                value={author} 
-                onChange={(e) => setAuthor(e.target.value)} 
-                placeholder="작성자" 
-                className="bg-gray-700 border-gray-600 text-gray-200" 
-              />
-              <Button 
-                onClick={handleFilterChange} 
-                className="bg-gray-700 hover:bg-gray-600 text-gray-200"
-                disabled={isLoading}
+    <WikiShell
+      activeNav="recent"
+      pageHeader={
+        <WikiPageHeader
+          title={showAllChanges ? '모든 변경 기록' : '최근 변경'}
+          subtitle={
+            showAllChanges
+              ? '이랑위키에서 일어난 모든 변경 내역을 시간순으로 보여줍니다.'
+              : '가장 최근에 일어난 변경 내역만 보여줍니다.'
+          }
+          hatnote={
+            <>
+              필요한 변경 내역만 보려면 아래 필터를 사용하세요. 작성자명을 누르면 그 사용자의 활동을, 문서명을 누르면 본문을 확인할 수 있습니다.
+            </>
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => load(1, true)}
+                className={`inline-flex items-center gap-1 rounded-sm border px-2.5 py-1 text-xs ${
+                  showAllChanges
+                    ? 'bg-[color:var(--wiki-accent)] text-white border-[color:var(--wiki-accent)]'
+                    : 'bg-[color:var(--wiki-bg-2)] border-[color:var(--wiki-rule-strong)] text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]'
+                }`}
               >
-                적용
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                모든 변경
+              </button>
+              <button
+                type="button"
+                onClick={() => load(1, false)}
+                className={`inline-flex items-center gap-1 rounded-sm border px-2.5 py-1 text-xs ${
+                  !showAllChanges
+                    ? 'bg-[color:var(--wiki-accent)] text-white border-[color:var(--wiki-accent)]'
+                    : 'bg-[color:var(--wiki-bg-2)] border-[color:var(--wiki-rule-strong)] text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]'
+                }`}
+              >
+                최근 변경
+              </button>
+              <a
+                href="/api/wiki/feed"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-sm border border-amber-500/40 bg-amber-500/10 text-amber-300 px-2.5 py-1 text-xs hover:bg-amber-500/20 hover:border-amber-500/60"
+                title="RSS 피드로 구독하기 (예: Feedly, Inoreader)"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M4 11v3c4.97 0 9 4.03 9 9h3c0-6.63-5.37-12-12-12zm0-7v3c9.39 0 17 7.61 17 17h3c0-11.05-8.95-20-20-20zm2 16a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+                RSS
+              </a>
+              <button
+                type="button"
+                onClick={() => load(currentPage, showAllChanges)}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1 rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] px-2.5 py-1 text-xs text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)] disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                새로고침
+              </button>
+            </>
+          }
+        />
+      }
+    >
+      {/* 필터 */}
+      <section className="wiki-panel mb-4">
+        <h3 className="flex items-center gap-2 wiki-serif text-base font-semibold mb-2">
+          <Filter className="w-4 h-4 text-[color:var(--wiki-accent)]" />
+          필터
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <input
+            value={namespace}
+            onChange={(e) => setNamespace(e.target.value)}
+            placeholder="네임스페이스"
+            className="bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule-strong)] rounded-sm px-2 py-1.5 text-sm text-[color:var(--wiki-ink)]"
+          />
+          <input
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            placeholder="유형 (create/edit/revert)"
+            className="bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule-strong)] rounded-sm px-2 py-1.5 text-sm text-[color:var(--wiki-ink)]"
+          />
+          <input
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            placeholder="작성자"
+            className="bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule-strong)] rounded-sm px-2 py-1.5 text-sm text-[color:var(--wiki-ink)]"
+          />
+          <button
+            type="button"
+            onClick={() => { setCurrentPage(1); load(1, showAllChanges) }}
+            disabled={isLoading}
+            className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            적용
+          </button>
+        </div>
+      </section>
 
-        {/* Results */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <span>{isLoading ? '불러오는 중...' : `총 ${pagination.total}개의 변경 내역`}</span>
-              {totalPages > 1 && (
-                <div className="flex items-center space-x-2">
-                  <Button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || isLoading}
-                    className="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-400">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <Button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages || isLoading}
-                    className="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
+      {/* 결과 */}
+      <section className="wiki-panel">
+        <div className="flex items-center justify-between mb-2 text-xs text-[color:var(--wiki-ink-muted)]">
+          <span>{isLoading ? '불러오는 중…' : `총 ${pagination.total.toLocaleString()}개의 변경`}</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1 || isLoading}
+                onClick={() => load(currentPage - 1, showAllChanges)}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] hover:border-[color:var(--wiki-accent)] disabled:opacity-40"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span>{currentPage} / {totalPages}</span>
+              <button
+                type="button"
+                disabled={currentPage === totalPages || isLoading}
+                onClick={() => load(currentPage + 1, showAllChanges)}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] hover:border-[color:var(--wiki-accent)] disabled:opacity-40"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-400">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                <p>변경 내역을 불러오는 중입니다...</p>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <p>변경 내역이 없습니다.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <div key={`${item.slug}-${item.revision.revisionNumber}`} className="bg-gray-900 rounded px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          className="text-blue-400 hover:underline font-medium"
-                          onClick={() => router.push(`/wiki/${encodeURIComponent(item.title)}`)}
-                        >
-                          {item.title}
-                        </button>
-                        {item.namespace && (
-                          <span className="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">
-                            {item.namespace}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {new Date(item.revision.timestamp).toLocaleString('ko-KR')}
+          )}
+        </div>
+
+        {isLoading ? (
+          <p className="text-center py-6 text-sm text-[color:var(--wiki-ink-muted)]">
+            <RefreshCw className="w-4 h-4 animate-spin inline-block mr-1.5 align-middle" />
+            변경 내역을 불러오는 중입니다…
+          </p>
+        ) : items.length === 0 ? (
+          <p className="text-center py-6 text-sm text-[color:var(--wiki-ink-muted)]">
+            변경 내역이 없습니다.
+          </p>
+        ) : (
+          (() => {
+            // 날짜 그룹별로 묶기
+            const groups: Record<string, RecentChange[]> = {}
+            const order: string[] = []
+            for (const item of items) {
+              const key = dateGroup(item.revision.timestamp)
+              if (!(key in groups)) {
+                groups[key] = []
+                order.push(key)
+              }
+              groups[key].push(item)
+            }
+
+            return (
+              <div className="space-y-5">
+                {order.map((groupKey) => (
+                  <div key={groupKey}>
+                    {/* 그룹 헤더 */}
+                    <div className="flex items-baseline gap-2 mb-1.5 px-2">
+                      <h3 className="text-sm font-semibold text-[color:var(--wiki-ink)] wiki-serif">
+                        {groupKey}
+                      </h3>
+                      <span className="text-[10px] text-[color:var(--wiki-ink-muted)] tabular-nums">
+                        {groups[groupKey].length}건
                       </span>
                     </div>
-                    
-                    <div className="flex items-center justify-between mt-2 text-sm">
-                      <div className="flex items-center space-x-3">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          item.revision.editType === 'create' 
-                            ? 'bg-green-900 text-green-300' 
-                            : item.revision.editType === 'revert' 
-                              ? 'bg-red-900 text-red-300' 
-                              : 'bg-blue-900 text-blue-300'
-                        }`}>
-                          {item.revision.editType === 'create' ? '생성' : 
-                           item.revision.editType === 'revert' ? '되돌림' : '편집'}
-                        </span>
-                        <span className="text-gray-400">
-                          {item.revision.author}
-                        </span>
-                      </div>
-                      {item.revision.summary && (
-                        <span className="text-gray-500 text-sm truncate max-w-xs">
-                          {item.revision.summary}
-                        </span>
-                      )}
-                    </div>
+
+                    {/* 그룹 내 변경 리스트 */}
+                    <ul className="border border-[color:var(--wiki-rule)] rounded-sm overflow-hidden divide-y divide-[color:var(--wiki-rule)]">
+                      {groups[groupKey].map((item) => {
+                        const sz = item.revision.sizeChange ?? 0
+                        const isPositive = sz > 0
+                        const isMinor = item.revision.isMinorEdit
+                        const isAuto = item.revision.isAutomated
+
+                        return (
+                          <li
+                            key={`${item.slug}-${item.revision.revisionNumber}`}
+                            className="px-3 py-2 hover:bg-[color:var(--wiki-paper-2)] transition-colors"
+                          >
+                            <div className="flex items-start gap-2 flex-wrap">
+                              {/* 시각 (상대) */}
+                              <span
+                                className="text-[11px] text-[color:var(--wiki-ink-muted)] tabular-nums w-16 flex-shrink-0 pt-0.5"
+                                title={new Date(item.revision.timestamp).toLocaleString('ko-KR', { hour12: false })}
+                              >
+                                {relativeTime(item.revision.timestamp)}
+                              </span>
+
+                              {/* 유형 chip */}
+                              <span
+                                className={`wiki-chip text-[10px] flex-shrink-0 ${
+                                  item.revision.editType === 'create'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                    : item.revision.editType === 'revert'
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                      : ''
+                                }`}
+                              >
+                                {TYPE_LABELS[item.revision.editType] || item.revision.editType}
+                              </span>
+
+                              {/* minor / auto badges */}
+                              {isMinor && (
+                                <span
+                                  className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-sm px-1.5 py-0.5"
+                                  title="마이너 편집"
+                                >
+                                  m
+                                </span>
+                              )}
+                              {isAuto && (
+                                <span
+                                  className="text-[10px] font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 rounded-sm px-1.5 py-0.5"
+                                  title="자동 편집"
+                                >
+                                  bot
+                                </span>
+                              )}
+
+                              {/* 문서 제목 */}
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/wiki/${encodeURIComponent(item.title)}`)}
+                                className="text-[color:var(--wiki-link)] hover:underline text-sm font-medium"
+                              >
+                                {item.title}
+                              </button>
+
+                              {/* size diff */}
+                              {sz !== 0 && (
+                                <span
+                                  className={`text-[11px] tabular-nums font-mono ${
+                                    isPositive ? 'text-emerald-400' : 'text-rose-400'
+                                  }`}
+                                  title={`총 ${item.revision.contentLength?.toLocaleString() ?? '?'} 자`}
+                                >
+                                  ({isPositive ? '+' : ''}{sz.toLocaleString()})
+                                </span>
+                              )}
+
+                              {/* namespace (main 외) */}
+                              {item.namespace && item.namespace !== 'main' && (
+                                <span className="wiki-chip text-[10px] flex-shrink-0">
+                                  {item.namespace}
+                                </span>
+                              )}
+
+                              <span className="ml-auto" />
+
+                              {/* 작성자 */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAuthor(item.revision.author)
+                                  load(1, showAllChanges)
+                                }}
+                                className="text-[11px] text-[color:var(--wiki-ink-soft)] hover:text-[color:var(--wiki-link)] hover:underline flex-shrink-0"
+                                title="이 작성자의 변경만 보기"
+                              >
+                                {item.revision.author}
+                              </button>
+                            </div>
+
+                            {/* 요약 (있을 경우) */}
+                            {item.revision.summary && (
+                              <div className="text-[11px] text-[color:var(--wiki-ink-muted)] mt-0.5 ml-[68px] line-clamp-1 italic">
+                                “{item.revision.summary}”
+                              </div>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
                   </div>
                 ))}
               </div>
-            )}
-            
-            {/* Pagination Info */}
-            {pagination.total > 0 && !isLoading && (
-              <div className="mt-4 pt-4 border-t border-gray-700 text-center text-sm text-gray-500">
-                {showAllChanges ? (
-                  <p>
-                    {pagination.total}개의 변경 내역 중 {items.length}개를 표시 중
-                    {pagination.hasMore && ' (더 많은 변경 내역이 있습니다)'}
-                  </p>
-                ) : (
-                  <p>
-                    최근 {items.length}개의 변경 내역을 표시 중
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+            )
+          })()
+        )}
+
+        {pagination.total > 0 && !isLoading && (
+          <p className="mt-3 pt-3 border-t border-[color:var(--wiki-rule)] text-center text-xs text-[color:var(--wiki-ink-muted)]">
+            {showAllChanges
+              ? <>{pagination.total.toLocaleString()}개의 변경 중 {items.length.toLocaleString()}개 표시 중</>
+              : <>최근 {items.length.toLocaleString()}개의 변경 표시 중</>
+            }
+          </p>
+        )}
+      </section>
+    </WikiShell>
   )
 }
 
 export default function WikiRecentChangesPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen theme-surface text-gray-100 flex items-center justify-center">Loading...</div>}>
+    <Suspense
+      fallback={
+        <WikiShell>
+          <div className="text-center py-24 text-sm text-[color:var(--wiki-ink-muted)]">
+            불러오는 중…
+          </div>
+        </WikiShell>
+      }
+    >
       <WikiRecentChangesPageContent />
     </Suspense>
   )
 }
-
-

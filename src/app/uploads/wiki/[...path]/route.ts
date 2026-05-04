@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
+import { eq } from 'drizzle-orm'
 import { serveMediaByPath } from '@/lib/serveMediaByPath'
-import dbConnect from '@/lib/database'
-import Image from '@/models/Image'
+import { getDb } from '@/db/client'
+import { images } from '@/db/schema/media'
 import { resolveWikiUploadPath } from '@/lib/wikiUploadStorage'
 
 export const dynamic = 'force-dynamic'
@@ -35,12 +36,16 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
   }
 
   try {
-    await dbConnect()
-    const imageDoc = await Image.findOne({ filename: decodedFilename }).lean<{
-      mimeType: string
-      data: string
-      originalName?: string
-    }>()
+    const db = getDb()
+    const [imageDoc] = await db
+      .select({
+        mimeType: images.mimeType,
+        data: images.data,
+        originalName: images.originalName,
+      })
+      .from(images)
+      .where(eq(images.filename, decodedFilename))
+      .limit(1)
 
     if (!imageDoc) {
       return mediaResponse

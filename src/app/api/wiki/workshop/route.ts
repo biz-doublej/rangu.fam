@@ -1,66 +1,78 @@
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
+import { eq, sql } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
-import dbConnect from '@/lib/database'
-import { WikiUser } from '@/models/Wiki'
-import { WikiWorkshopStatement } from '@/models/WikiWorkshopStatement'
-
+import { getDb } from '@/db/client'
+import { wikiUsers, wikiWorkshopStatements } from '@/db/schema/wiki'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
-type JwtPayload = {
-  userId?: string
-}
-
 async function getUserFromToken(request: NextRequest) {
   const token = request.cookies.get('wiki-token')?.value
   if (!token) return null
-
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload
+    const decoded = jwt.verify(token, JWT_SECRET) as any
     if (!decoded?.userId) return null
-    const user = await WikiUser.findById(decoded.userId)
-    return user
+    const db = getDb()
+    const [user] = await db
+      .select()
+      .from(wikiUsers)
+      .where(eq(wikiUsers.id, decoded.userId))
+      .limit(1)
+    if (!user) return null
+    return enforceUserAccessPolicy(user as any)
   } catch {
     return null
   }
 }
 
-function toSafeStatement(doc: any) {
+function toSafeStatement(row: any) {
+  const p = (row.payload || {}) as any
   return {
-    id: String(doc._id),
-    issueNumber: doc.issueNumber,
-    issueLabel: `${doc.issueNumber}호`,
-    speaker: doc.speaker,
-    message: doc.message,
-    listAuthor: doc.listAuthor,
-    listAuthorDisplayName: doc.listAuthorDisplayName || doc.listAuthor,
-    listAuthorDiscordId: doc.listAuthorDiscordId || null,
-    createdAt: doc.createdAt?.toISOString?.() || new Date().toISOString(),
-    updatedAt: doc.updatedAt?.toISOString?.() || new Date().toISOString()
+    id: row.id,
+    issueNumber: p.issueNumber,
+    issueLabel: `${p.issueNumber}호`,
+    speaker: p.speaker,
+    message: p.message,
+    listAuthor: p.listAuthor,
+    listAuthorDisplayName: p.listAuthorDisplayName || p.listAuthor,
+    listAuthorDiscordId: p.listAuthorDiscordId || null,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect()
-
+    const db = getDb()
     const { searchParams } = new URL(request.url)
     const limitRaw = Number(searchParams.get('limit') || 200)
     const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 500)) : 200
 
-    const docs = await WikiWorkshopStatement.find({})
-      .sort({ issueNumber: -1, createdAt: -1 })
-      .limit(limit)
-      .lean()
+    // jsonb payload 의 issueNumber 기준 desc 정렬
+    const result = await db.execute<any>(
+      sql`SELECT id, payload, created_at, updated_at
+          FROM wiki_workshop_statements
+          ORDER BY (payload->>'issueNumber')::int DESC NULLS LAST, created_at DESC
+          LIMIT ${limit}`
+    )
+    const rows = ((result as any).rows ?? result) as any[]
 
     return NextResponse.json({
       success: true,
       data: {
-        statements: docs.map(toSafeStatement)
-      }
+        statements: rows.map((r) =>
+          toSafeStatement({
+            id: r.id,
+            payload: r.payload,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          })
+        ),
+      },
     })
   } catch (error) {
     console.error('워크숍 발언 목록 조회 오류:', error)
@@ -73,9 +85,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect()
-
-    const user = await getUserFromToken(request)
+    const db = getDb()
+    const user: any = await getUserFromToken(request)
     if (!user) {
       return NextResponse.json(
         { success: false, error: '작성하려면 위키 로그인이 필요합니다.' },
@@ -93,14 +104,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
     if (speaker.length > 40) {
       return NextResponse.json(
         { success: false, error: '발언자 이름은 40자 이하여야 합니다.' },
         { status: 400 }
       )
     }
-
     if (message.length > 1200) {
       return NextResponse.json(
         { success: false, error: '발언 메시지는 1200자 이하여야 합니다.' },
@@ -112,46 +121,32 @@ export async function POST(request: NextRequest) {
     const listAuthorDisplayName = user.displayName || user.discordUsername || user.username || 'unknown'
     const listAuthorDiscordId = user.discordId || null
 
-    let created: any = null
-    let retryCount = 0
-    let lastError: unknown = null
+    // 다음 issueNumber — payload->>'issueNumber' 의 max + 1
+    const maxResult = await db.execute<any>(
+      sql`SELECT COALESCE(MAX((payload->>'issueNumber')::int), 0) AS max_issue FROM wiki_workshop_statements`
+    )
+    const maxRows = ((maxResult as any).rows ?? maxResult) as any[]
+    const nextIssueNumber = Number(maxRows[0]?.max_issue || 0) + 1
 
-    while (!created && retryCount < 4) {
-      const latest = (await WikiWorkshopStatement.findOne({})
-        .sort({ issueNumber: -1 })
-        .select('issueNumber')
-        .lean()) as any
-      const nextIssueNumber = (latest?.issueNumber || 0) + 1
-
-      try {
-        created = await WikiWorkshopStatement.create({
-          issueNumber: nextIssueNumber,
-          speaker,
-          message,
-          listAuthor,
-          listAuthorDisplayName,
-          listAuthorDiscordId
-        })
-      } catch (error: any) {
-        lastError = error
-        // issueNumber unique 충돌 시 다음 번호로 재시도
-        if (error?.code === 11000) {
-          retryCount += 1
-          continue
-        }
-        throw error
-      }
+    const payload = {
+      issueNumber: nextIssueNumber,
+      speaker,
+      message,
+      listAuthor,
+      listAuthorDisplayName,
+      listAuthorDiscordId,
     }
 
-    if (!created) {
-      throw lastError || new Error('issueNumber를 배정하지 못했습니다.')
-    }
+    const [created] = await db
+      .insert(wikiWorkshopStatements)
+      .values({ payload })
+      .returning()
 
     return NextResponse.json({
       success: true,
       data: {
-        statement: toSafeStatement(created)
-      }
+        statement: toSafeStatement(created),
+      },
     })
   } catch (error) {
     console.error('워크숍 발언 작성 오류:', error)

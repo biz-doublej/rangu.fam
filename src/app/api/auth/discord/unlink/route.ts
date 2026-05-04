@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import { WikiUser } from '@/models/Wiki'
-import { enforceUserAccessPolicy, getAuthenticatedWikiUser } from '@/lib/doublejAuth'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiUsers } from '@/db/schema/wiki'
+import { getAuthenticatedWikiUser } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,21 +16,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await dbConnect()
+    const db = getDb()
+    const userId = (authUser as any).id || (authUser as any)._id
 
-    const user = await WikiUser.findById(authUser._id)
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: '사용자를 찾을 수 없습니다.' },
-        { status: 404 }
-      )
-    }
-
-    user.discordId = undefined
-    user.discordUsername = undefined
-    user.discordAvatar = undefined
-    await user.save()
-    await enforceUserAccessPolicy(user)
+    await db
+      .update(wikiUsers)
+      .set({
+        discordId: null,
+        discordUsername: null,
+        discordAvatar: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(wikiUsers.id, userId))
 
     return NextResponse.json({
       success: true,

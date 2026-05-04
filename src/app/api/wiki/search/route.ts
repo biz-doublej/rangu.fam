@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import { WikiPage } from '@/models/Wiki'
+import { and, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiPages } from '@/db/schema/wiki'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/wiki/search?q=...&namespace=&limit=20&skip=0
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect()
+    const db = getDb()
     const { searchParams } = request.nextUrl
     const q = (searchParams.get('q') || '').trim()
     const namespace = searchParams.get('namespace') || undefined
@@ -18,65 +19,87 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, results: [], total: 0, limit, skip })
     }
 
-    const query: any = {}
-    if (namespace) query.namespace = namespace
+    // ILIKE 패턴 (대소문자 무시 부분일치). %, _ 이스케이프.
+    const pattern = `%${q.replace(/[%_]/g, (c) => `\\${c}`)}%`
 
-    let docs: any[] = []
-    let total = 0
+    const baseConditions = [ne(wikiPages.isDeleted, true)]
+    if (namespace) baseConditions.push(eq(wikiPages.namespace, namespace))
 
-    // 1) 텍스트 인덱스 검색 시도
-    try {
-      docs = await WikiPage.find(
-        {
-          ...query,
-          $text: { $search: q },
-          isDeleted: { $ne: true }
-        },
-        { score: { $meta: 'textScore' } }
-      )
-        .sort({ score: { $meta: 'textScore' } })
-        .skip(skip)
-        .limit(limit)
-        .select('title slug namespace summary categories lastEditDate lastEditor edits views')
-        .lean()
+    // title / content / summary / tags 중 하나라도 매치
+    const matchExpr = or(
+      ilike(wikiPages.title, pattern),
+      ilike(wikiPages.content, pattern),
+      ilike(wikiPages.summary, pattern),
+      // tags text[] 부분일치 (배열 중 하나의 원소가 q를 포함)
+      sql`EXISTS (SELECT 1 FROM unnest(${wikiPages.tags}) AS t WHERE t ILIKE ${pattern})`
+    )
 
-      total = await WikiPage.countDocuments({ ...query, $text: { $search: q }, isDeleted: { $ne: true } })
-    } catch (err) {
-      // 텍스트 인덱스가 없거나 오류일 경우 바로 정규식 검색으로 폴백
-      console.warn('Text search failed, falling back to regex search:', (err as any)?.message || err)
+    const whereClause = and(...baseConditions, matchExpr)
+
+    const [{ count: total }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(wikiPages)
+      .where(whereClause as any)
+
+    const docs = await db
+      .select({
+        _id: wikiPages.id,
+        title: wikiPages.title,
+        slug: wikiPages.slug,
+        namespace: wikiPages.namespace,
+        summary: wikiPages.summary,
+        content: wikiPages.content,
+        categories: wikiPages.categories,
+        lastEditDate: wikiPages.lastEditDate,
+        lastEditor: wikiPages.lastEditor,
+        edits: wikiPages.edits,
+        views: wikiPages.views,
+      })
+      .from(wikiPages)
+      .where(whereClause as any)
+      .orderBy(desc(wikiPages.lastEditDate))
+      .offset(skip)
+      .limit(limit)
+
+    // 본문에서 매칭 위치 주변 스니펫 추출 (앞뒤 ~80자)
+    const qLower = q.toLowerCase()
+    const buildSnippet = (content: string): string | null => {
+      if (!content) return null
+      const lower = content.toLowerCase()
+      const idx = lower.indexOf(qLower)
+      if (idx < 0) return null
+      const start = Math.max(0, idx - 80)
+      const end = Math.min(content.length, idx + qLower.length + 80)
+      let snippet = content.slice(start, end).replace(/\s+/g, ' ').trim()
+      if (start > 0) snippet = '… ' + snippet
+      if (end < content.length) snippet = snippet + ' …'
+      return snippet
     }
 
-    // 텍스트 인덱스가 결과 없으면 부분 매칭 fallback
-    if (docs.length === 0) {
-      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-      const orQuery = {
-        ...query,
-        isDeleted: { $ne: true },
-        $or: [
-          { title: regex },
-          { content: regex },
-          { summary: regex },
-          { tags: { $in: [regex] } }
-        ]
-      }
-      total = await WikiPage.countDocuments(orQuery)
-      docs = await WikiPage.find(orQuery)
-        .sort({ lastEditDate: -1 })
-        .skip(skip)
-        .limit(limit)
-        .select('title slug namespace summary categories lastEditDate lastEditor edits views')
-        .lean()
-    }
+    const enriched = docs.map(({ content, ...rest }) => ({
+      ...rest,
+      snippet: buildSnippet(content || ''),
+    }))
 
-    // 검색 결과 문서들의 조회수 증가
+    // 검색 결과 문서들의 조회수 증가 (best effort)
     if (docs.length > 0) {
-      const ids = docs.map(doc => doc._id)
-      await WikiPage.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } })
+      try {
+        const ids = docs.map((d) => d._id as string)
+        await db
+          .update(wikiPages)
+          .set({ views: sql`${wikiPages.views} + 1` })
+          .where(inArray(wikiPages.id, ids))
+      } catch (e) {
+        console.warn('view increment failed:', e)
+      }
     }
-    return NextResponse.json({ success: true, results: docs, total, limit, skip })
+
+    return NextResponse.json({ success: true, results: enriched, total, limit, skip })
   } catch (error) {
     console.error('검색 오류:', error)
-    return NextResponse.json({ success: false, error: '검색 처리 중 오류가 발생했습니다.' }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: '검색 처리 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
   }
 }
-

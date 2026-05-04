@@ -1,7 +1,10 @@
-import { IWikiUser, IWikiPage } from '@/models/Wiki'
+import type { WikiUser, WikiPage } from '@/db/schema/wiki'
 
-type Role = IWikiUser['role']
-type ProtectionLevel = IWikiPage['protection']['level']
+// Drizzle row 기반 타입. Role/ProtectionLevel 은 의도된 enum 값.
+type IWikiUser = WikiUser
+type IWikiPage = WikiPage
+type Role = 'viewer' | 'editor' | 'moderator' | 'admin' | 'owner'
+type ProtectionLevel = 'none' | 'semi' | 'full' | 'admin'
 
 const ROLE_PRIORITY: Record<Role, number> = {
   viewer: 0,
@@ -11,14 +14,17 @@ const ROLE_PRIORITY: Record<Role, number> = {
   owner: 4,
 }
 
+const rolePriority = (role: string): number =>
+  (ROLE_PRIORITY as Record<string, number>)[role] ?? -1
+
 export function isModeratorOrAbove(user?: IWikiUser | null) {
   if (!user) return false
-  return ROLE_PRIORITY[user.role] >= ROLE_PRIORITY.moderator
+  return rolePriority(user.role) >= ROLE_PRIORITY.moderator
 }
 
 export function isAdminOrAbove(user?: IWikiUser | null) {
   if (!user) return false
-  return ROLE_PRIORITY[user.role] >= ROLE_PRIORITY.admin
+  return rolePriority(user.role) >= ROLE_PRIORITY.admin
 }
 
 export function isAutoconfirmed(user?: IWikiUser | null) {

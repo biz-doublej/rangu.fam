@@ -15,6 +15,7 @@ import {
   getMissingOidcEnvKeys,
   getOidcStateCookieOptions,
   parseOidcStateCookieValue,
+  resolvePublicOrigin,
 } from '@/lib/serviceOidc'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,7 @@ function clearOidcStateCookie(response: NextResponse) {
 }
 
 function redirectWithError(request: NextRequest, code: string) {
-  const url = new URL('/login', request.url)
+  const url = new URL('/login', resolvePublicOrigin(request))
   url.searchParams.set('error', code)
   return NextResponse.redirect(url)
 }
@@ -68,9 +69,11 @@ export async function GET(request: NextRequest) {
     return response
   }
 
+  const publicOrigin = resolvePublicOrigin(request)
+
   try {
     const tokenResponse = await exchangeAuthorizationCode({
-      origin: requestUrl.origin,
+      origin: publicOrigin,
       code,
       codeVerifier: parsedState.codeVerifier,
     })
@@ -104,7 +107,7 @@ export async function GET(request: NextRequest) {
     }
 
     const callbackUrl = sanitizeCallbackPath(parsedState.callbackUrl, '/')
-    const response = NextResponse.redirect(new URL(callbackUrl, request.url))
+    const response = NextResponse.redirect(new URL(callbackUrl, publicOrigin))
     setDoubleJAuthCookie(response, createDoubleJToken(user))
     setWikiAuthCookie(response, createWikiToken(user))
     clearOidcStateCookie(response)

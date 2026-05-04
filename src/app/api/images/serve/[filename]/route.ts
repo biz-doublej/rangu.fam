@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import Image from '@/models/Image'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { images } from '@/db/schema/media'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,36 +10,32 @@ export async function GET(
   { params }: { params: { filename: string } }
 ) {
   try {
-    await dbConnect()
-    
+    const db = getDb()
+
     const { filename } = params
 
-    // 데이터베이스에서 이미지 찾기
-    const imageDoc = await Image.findOne({ filename })
+    const [imageDoc] = await db
+      .select()
+      .from(images)
+      .where(eq(images.filename, filename))
+      .limit(1)
 
     if (!imageDoc) {
-      return NextResponse.json({ 
-        error: '이미지를 찾을 수 없습니다.' 
-      }, { status: 404 })
+      return NextResponse.json({ error: '이미지를 찾을 수 없습니다.' }, { status: 404 })
     }
 
-    // base64 데이터를 Buffer로 변환
     const imageBuffer = Buffer.from(imageDoc.data, 'base64')
 
-    // 적절한 Content-Type 헤더와 함께 이미지 반환
     return new NextResponse(imageBuffer, {
       headers: {
         'Content-Type': imageDoc.mimeType,
         'Content-Length': imageBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=31536000, immutable', // 1년 캐시
-        'Content-Disposition': `inline; filename="${imageDoc.originalName}"`
-      }
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Disposition': `inline; filename="${imageDoc.originalName}"`,
+      },
     })
-
   } catch (error) {
     console.error('이미지 서빙 오류:', error)
-    return NextResponse.json({ 
-      error: '이미지를 로드할 수 없습니다.' 
-    }, { status: 500 })
+    return NextResponse.json({ error: '이미지를 로드할 수 없습니다.' }, { status: 500 })
   }
 }

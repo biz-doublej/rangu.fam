@@ -147,3 +147,6 @@ public/videos/*.mp4
 
 # Local Netlify folder
 .netlify
+
+# IDE / Claude Code session artifacts (deploy logs, scheduled tasks lock 등)
+.claude/

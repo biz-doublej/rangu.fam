@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import SiteHistory from '@/models/SiteHistory'
-import { WikiPage, WikiUser, WikiDiscussion, WikiNamespace } from '@/models/Wiki'
+import { and, asc, desc, eq, ne, sql } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiPages, wikiUsers, wikiDiscussions, wikiNamespaces } from '@/db/schema/wiki'
+import { siteHistory } from '@/db/schema/site'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,51 +19,104 @@ const iconPalette = ['Compass', 'HelpCircle', 'Layers', 'Shield', 'Target', 'Zap
 
 export async function GET() {
   try {
-    await dbConnect()
+    const db = getDb()
 
     const now = new Date()
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
     const [
-      totalPages,
-      activeContributors,
-      totalUsers,
-      latestEditedPage,
+      totalPagesRows,
+      activeContributorsRows,
+      totalUsersRows,
+      latestEditedPageRows,
       helpPagesRaw,
       openDiscussionsRaw,
       namespacesRaw,
-      siteHistory
+      siteHistoryRows,
     ] = await Promise.all([
-      WikiPage.countDocuments({ isDeleted: { $ne: true } }),
-      WikiUser.countDocuments({ lastActivity: { $gte: last24Hours }, isActive: true }).catch(() => 0),
-      WikiUser.countDocuments({}).catch(() => 0),
-      WikiPage.findOne({ isDeleted: { $ne: true } })
-        .sort({ lastEditDate: -1 })
-        .select('title slug lastEditor lastEditDate views summary categories tags edits currentRevision')
-        .lean(),
-      WikiPage.find({ namespace: 'help', isDeleted: { $ne: true } })
-        .sort({ views: -1 })
-        .limit(5)
-        .select('title slug summary views')
-        .lean(),
-      WikiDiscussion.find({ status: 'open' })
-        .sort({ updatedAt: -1 })
-        .limit(5)
-        .populate('pageId', 'title slug')
-        .lean(),
-      WikiNamespace.find({ isActive: true }).sort({ createdAt: 1 }).limit(6).lean(),
-      SiteHistory.findOne().select('stats').lean<{ stats?: any }>()
-    ]) as any[]
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(wikiPages)
+        .where(ne(wikiPages.isDeleted, true)),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(wikiUsers)
+        .where(and(eq(wikiUsers.isActive, true), sql`${wikiUsers.lastActivity} >= ${last24Hours}`))
+        .catch(() => [{ count: 0 }]),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(wikiUsers)
+        .catch(() => [{ count: 0 }]),
+      db
+        .select({
+          title: wikiPages.title,
+          slug: wikiPages.slug,
+          lastEditor: wikiPages.lastEditor,
+          lastEditDate: wikiPages.lastEditDate,
+          views: wikiPages.views,
+          summary: wikiPages.summary,
+          categories: wikiPages.categories,
+          tags: wikiPages.tags,
+          edits: wikiPages.edits,
+          currentRevision: wikiPages.currentRevision,
+        })
+        .from(wikiPages)
+        .where(ne(wikiPages.isDeleted, true))
+        .orderBy(desc(wikiPages.lastEditDate))
+        .limit(1),
+      db
+        .select({
+          title: wikiPages.title,
+          slug: wikiPages.slug,
+          summary: wikiPages.summary,
+          views: wikiPages.views,
+        })
+        .from(wikiPages)
+        .where(and(eq(wikiPages.namespace, 'help'), ne(wikiPages.isDeleted, true)))
+        .orderBy(desc(wikiPages.views))
+        .limit(5),
+      db
+        .select({
+          id: wikiDiscussions.id,
+          pageId: wikiDiscussions.pageId,
+          title: wikiDiscussions.title,
+          content: wikiDiscussions.content,
+          priority: wikiDiscussions.priority,
+          updatedAt: wikiDiscussions.updatedAt,
+          createdAt: wikiDiscussions.createdAt,
+          pageTitle: wikiPages.title,
+          pageSlug: wikiPages.slug,
+        })
+        .from(wikiDiscussions)
+        .leftJoin(wikiPages, eq(wikiPages.id, wikiDiscussions.pageId))
+        .where(eq(wikiDiscussions.status, 'open'))
+        .orderBy(desc(wikiDiscussions.updatedAt))
+        .limit(5),
+      db
+        .select()
+        .from(wikiNamespaces)
+        .where(eq(wikiNamespaces.isActive, true))
+        .orderBy(asc(wikiNamespaces.createdAt))
+        .limit(6),
+      db.select({ stats: siteHistory.stats }).from(siteHistory).limit(1),
+    ])
 
-    const safeSiteStats = siteHistory?.stats || {}
+    const totalPages = totalPagesRows[0]?.count ?? 0
+    const activeContributors = activeContributorsRows[0]?.count ?? 0
+    const totalUsers = totalUsersRows[0]?.count ?? 0
+    const latestEditedPage = latestEditedPageRows[0] || null
+    const safeSiteStats = (siteHistoryRows[0]?.stats as any) || {}
+
     const derivedStats = {
       totalPages: safeSiteStats.totalPages || totalPages,
       totalUsers: safeSiteStats.totalUsers || totalUsers,
       pageViews: latestEditedPage?.views || safeSiteStats.totalVisits || 0,
       lastEditor: latestEditedPage?.lastEditor || null,
-      lastEditDate: latestEditedPage?.lastEditDate?.toISOString() || null,
+      lastEditDate: latestEditedPage?.lastEditDate
+        ? new Date(latestEditedPage.lastEditDate).toISOString()
+        : null,
       activeContributors: activeContributors || Math.min(totalUsers, 5),
-      helpCount: helpPagesRaw.length
+      helpCount: helpPagesRaw.length,
     }
 
     const quickActions = [
@@ -70,22 +124,22 @@ export async function GET() {
         title: '새 문서 만들기',
         description: `${derivedStats.totalPages.toLocaleString()}개의 문서가 운영 중`,
         href: '/wiki/search',
-        icon: 'FileText'
+        icon: 'FileText',
       },
       {
         title: helpPagesRaw[0]?.title || '도움말 허브',
         description: helpPagesRaw[0]?.summary || '도움말 문서를 참고하고 편집 팁을 확인하세요.',
         href: helpPagesRaw[0] ? `/wiki/${encodeURIComponent(helpPagesRaw[0].slug)}` : '/wiki/도움말',
-        icon: 'HelpCircle'
+        icon: 'HelpCircle',
       },
       {
         title: '열린 토론',
         description: `${openDiscussionsRaw.length.toLocaleString()}건 진행 중`,
-        href: openDiscussionsRaw[0]?.pageId
-          ? `/wiki/${encodeURIComponent((openDiscussionsRaw[0].pageId as any).slug)}#discussions`
+        href: openDiscussionsRaw[0]?.pageSlug
+          ? `/wiki/${encodeURIComponent(openDiscussionsRaw[0].pageSlug)}#discussions`
           : '/wiki/recent',
-        icon: 'MessageCircle'
-      }
+        icon: 'MessageCircle',
+      },
     ]
 
     const staticPortals = [
@@ -98,8 +152,8 @@ export async function GET() {
         links: [
           { label: '검색', href: '/wiki/search' },
           { label: '도움말', href: '/wiki/도움말' },
-          { label: '최근 편집', href: '/wiki/recent' }
-        ]
+          { label: '최근 편집', href: '/wiki/recent' },
+        ],
       },
       {
         title: '한울 X 재원의 작업공작소',
@@ -110,9 +164,9 @@ export async function GET() {
         links: [
           { label: '작성하기', href: '/wiki/workshop?mode=write' },
           { label: '목록보기', href: '/wiki/workshop' },
-          { label: '[50호 기념 2025 시상식]', href: '/wiki/workshop/awards-2025' }
-        ]
-      }
+          { label: '[50호 기념 2025 시상식]', href: '/wiki/workshop/awards-2025' },
+        ],
+      },
     ]
 
     const portals = [
@@ -123,28 +177,33 @@ export async function GET() {
         accent: accentPalette[index % accentPalette.length],
         icon: iconPalette[index % iconPalette.length],
         chips: [
-        ns.prefix,
-        ns.allowSubpages ? '하위 문서 허용' : '단일 문서',
-        `${ns.pageCount?.toLocaleString?.() || 0}문서`
-      ],
-          links: [
-            { label: '문서 찾기', href: `/wiki/search?namespace=${encodeURIComponent(ns.name)}` },
-            { label: '최근 편집', href: `/wiki/recent?namespace=${encodeURIComponent(ns.name)}` }
-          ]
-      }))
+          ns.prefix,
+          ns.allowSubpages ? '하위 문서 허용' : '단일 문서',
+          `${ns.pageCount?.toLocaleString?.() || 0}문서`,
+        ],
+        links: [
+          { label: '문서 찾기', href: `/wiki/search?namespace=${encodeURIComponent(ns.name)}` },
+          { label: '최근 편집', href: `/wiki/recent?namespace=${encodeURIComponent(ns.name)}` },
+        ],
+      })),
     ]
 
     const communitySignals = openDiscussionsRaw.map((discussion: any) => {
       const preview =
         (discussion.content || '').replace(/<[^>]+>/g, '').slice(0, 90).trim() +
         ((discussion.content || '').length > 90 ? '…' : '')
-      const page = discussion.pageId as { title?: string; slug?: string } | undefined
       return {
         title: discussion.title,
         detail: preview || '토론이 진행 중입니다.',
         status: discussion.priority || 'normal',
-        href: page?.slug ? `/wiki/${encodeURIComponent(page.slug)}#discussions` : '/wiki/recent',
-        updatedAt: discussion.updatedAt?.toISOString() || discussion.createdAt?.toISOString() || new Date().toISOString()
+        href: discussion.pageSlug
+          ? `/wiki/${encodeURIComponent(discussion.pageSlug)}#discussions`
+          : '/wiki/recent',
+        updatedAt: discussion.updatedAt
+          ? new Date(discussion.updatedAt).toISOString()
+          : discussion.createdAt
+          ? new Date(discussion.createdAt).toISOString()
+          : new Date().toISOString(),
       }
     })
 
@@ -153,14 +212,14 @@ export async function GET() {
         title: '랑구팸',
         description: '랑구팸 메인으로 돌아가기',
         href: '/',
-        icon: 'Home'
+        icon: 'Home',
       },
       {
         title: 'DoubleJ',
         description: 'DoubleJ 회사 소개 보기',
         href: '/about/company',
-        icon: 'Building2'
-      }
+        icon: 'Building2',
+      },
     ]
 
     const supportLinks = [
@@ -169,8 +228,8 @@ export async function GET() {
         title: help.title,
         description: help.summary || `${help.views?.toLocaleString?.() || 0}명이 열람`,
         href: `/wiki/${encodeURIComponent(help.slug)}`,
-        icon: 'HelpCircle'
-      }))
+        icon: 'HelpCircle',
+      })),
     ]
 
     return NextResponse.json({
@@ -180,8 +239,8 @@ export async function GET() {
         quickActions,
         portals,
         communitySignals,
-        supportLinks
-      }
+        supportLinks,
+      },
     })
   } catch (error) {
     console.error('Failed to load wiki dashboard data:', error)

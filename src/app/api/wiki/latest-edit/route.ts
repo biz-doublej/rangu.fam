@@ -1,41 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import { WikiPage } from '@/models/Wiki'
+import { desc, isNotNull, ne, and } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiPages } from '@/db/schema/wiki'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/wiki/latest-edit - 전체 위키에서 가장 최근 편집 정보 가져오기
+// GET /api/wiki/latest-edit - 전체 위키에서 가장 최근 편집 정보
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect()
-    
-    // 가장 최근에 편집된 페이지 찾기 (삭제되지 않은 페이지만)
-    const latestPage = await WikiPage
-      .findOne({ 
-        isDeleted: { $ne: true },
-        lastEditDate: { $exists: true }
+    const db = getDb()
+
+    const [latest] = await db
+      .select({
+        title: wikiPages.title,
+        lastEditDate: wikiPages.lastEditDate,
+        lastEditor: wikiPages.lastEditor,
+        lastEditSummary: wikiPages.lastEditSummary,
       })
-      .sort({ lastEditDate: -1 })
-      .select('title lastEditDate lastEditor lastEditSummary')
-      .lean()
-    
-    if (!latestPage) {
-      return NextResponse.json({
-        success: false,
-        error: '편집된 페이지가 없습니다.'
-      }, { status: 404 })
+      .from(wikiPages)
+      .where(and(ne(wikiPages.isDeleted, true), isNotNull(wikiPages.lastEditDate)))
+      .orderBy(desc(wikiPages.lastEditDate))
+      .limit(1)
+
+    if (!latest) {
+      return NextResponse.json(
+        { success: false, error: '편집된 페이지가 없습니다.' },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json({
       success: true,
       latestEdit: {
-        title: (latestPage as any).title,
-        lastEditDate: (latestPage as any).lastEditDate,
-        lastEditor: (latestPage as any).lastEditor || '알수없음',
-        lastEditSummary: (latestPage as any).lastEditSummary || ''
-      }
+        title: latest.title,
+        lastEditDate: latest.lastEditDate,
+        lastEditor: latest.lastEditor || '알수없음',
+        lastEditSummary: latest.lastEditSummary || '',
+      },
     })
-    
   } catch (error) {
     console.error('최근 편집 조회 오류:', error)
     return NextResponse.json(

@@ -62,8 +62,8 @@ export default function DocumentManagement({
       case 'pending': return 'bg-yellow-600 text-yellow-100'
       case 'approved': return 'bg-green-600 text-green-100'
       case 'rejected': return 'bg-red-600 text-red-100'
-      case 'onhold': return 'bg-gray-600 text-gray-100'
-      default: return 'bg-gray-600 text-gray-100'
+      case 'onhold': return 'bg-slate-700 text-slate-100'
+      default: return 'bg-slate-700 text-slate-100'
     }
   }
 
@@ -87,56 +87,56 @@ export default function DocumentManagement({
         <h2 className="text-2xl font-bold text-white">{getTabTitle()}</h2>
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
             <Input
               placeholder="문서명 또는 작성자 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-700 border-gray-600 text-gray-200 min-w-[300px]"
+              className="pl-10 bg-slate-800 border-slate-700 text-slate-200 min-w-[300px]"
             />
           </div>
         </div>
       </div>
 
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-slate-900 border-slate-800">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-700">
+              <thead className="bg-slate-800">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     문서 정보
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     작성자
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     유형
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     상태
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     작성일
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     작업
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700">
+              <tbody className="divide-y divide-slate-800">
                 {filteredSubmissions.map((submission) => (
-                  <motion.tr 
+                  <motion.tr
                     key={submission._id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="hover:bg-gray-700 transition-colors"
+                    className="hover:bg-slate-800 transition-colors"
                   >
                     <td className="px-6 py-4">
                       <div className="max-w-xs">
-                        <p className="font-medium text-gray-200 truncate">{submission.targetTitle}</p>
+                        <p className="font-medium text-slate-200 truncate">{submission.targetTitle}</p>
                         {submission.editSummary && (
-                          <p className="text-sm text-gray-400 truncate mt-1">{submission.editSummary}</p>
+                          <p className="text-sm text-slate-400 truncate mt-1">{submission.editSummary}</p>
                         )}
                         {submission.reason && (
                           <p className="text-sm text-red-400 truncate mt-1">사유: {submission.reason}</p>
@@ -145,17 +145,17 @@ export default function DocumentManagement({
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mr-3">
+                        <div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center mr-3">
                           <span className="text-xs font-bold text-white">
                             {submission.author.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="text-gray-300 font-medium">{submission.author}</span>
+                        <span className="text-slate-300 font-medium">{submission.author}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        submission.type === 'create' ? 'bg-blue-600 text-blue-100' : 'bg-green-600 text-green-100'
+                        submission.type === 'create' ? 'bg-cyan-500 text-cyan-100' : 'bg-green-600 text-green-100'
                       }`}>
                         {submission.type === 'create' ? '🆕 새 문서' : '✏️ 편집'}
                       </span>
@@ -165,7 +165,7 @@ export default function DocumentManagement({
                         {getStatusText(submission.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-400 text-sm">
+                    <td className="px-6 py-4 text-slate-400 text-sm">
                       {new Date(submission.createdAt).toLocaleDateString('ko-KR', {
                         year: 'numeric',
                         month: '2-digit',
@@ -216,7 +216,7 @@ export default function DocumentManagement({
                             // 내용 미리보기 모달 구현 필요
                             alert(`문서 내용:\n\n${submission.content.substring(0, 200)}...`)
                           }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          className="bg-cyan-500 hover:bg-cyan-400 text-white"
                           title="미리보기"
                         >
                           <Eye className="w-4 h-4" />
@@ -228,13 +228,13 @@ export default function DocumentManagement({
               </tbody>
             </table>
           </div>
-          
+
           {filteredSubmissions.length === 0 && (
             <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">해당하는 문서가 없습니다.</p>
+              <FileText className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+              <p className="text-slate-400 text-lg">해당하는 문서가 없습니다.</p>
               {searchTerm && (
-                <p className="text-gray-500 text-sm mt-2">
+                <p className="text-slate-500 text-sm mt-2">
                   &quot;{searchTerm}&quot;에 대한 검색 결과가 없습니다.
                 </p>
               )}
@@ -269,12 +269,12 @@ export default function DocumentManagement({
             <p className="text-red-300 text-sm">불허됨</p>
           </CardContent>
         </Card>
-        <Card className="bg-gray-600/10 border-gray-600/20">
+        <Card className="bg-slate-700/10 border-slate-700/20">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-gray-400">
+            <p className="text-2xl font-bold text-slate-400">
               {submissions.filter(s => s.status === 'onhold').length}
             </p>
-            <p className="text-gray-300 text-sm">보류</p>
+            <p className="text-slate-300 text-sm">보류</p>
           </CardContent>
         </Card>
       </div>

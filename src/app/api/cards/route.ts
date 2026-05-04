@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import connectDB from '@/lib/database'
-import { Card } from '@/models/Card'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { cards } from '@/db/schema/cards'
+
 export const dynamic = 'force-dynamic'
 
 // GET: 모든 카드 조회 (필터링 옵션 포함)
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
-    
+    const db = getDb()
+
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
     const rarity = searchParams.get('rarity')
@@ -15,36 +17,39 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    
-    // 필터 조건 구성
-    const filter: any = {}
-    if (type) filter.type = type
-    if (rarity) filter.rarity = rarity
-    if (member) filter.member = member
-    if (year) filter.year = parseInt(year)
-    
     const skip = (page - 1) * limit
-    
-    // 카드 조회
-    const cards = await Card.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
+
+    const conditions = []
+    if (type) conditions.push(eq(cards.type, type))
+    if (rarity) conditions.push(eq(cards.rarity, rarity))
+    if (member) conditions.push(eq(cards.member, member))
+    if (year) conditions.push(eq(cards.year, parseInt(year)))
+
+    const where = conditions.length ? and(...conditions) : undefined
+
+    const rows = await db
+      .select()
+      .from(cards)
+      .where(where as any)
+      .orderBy(desc(cards.createdAt))
+      .offset(skip)
       .limit(limit)
-      .lean()
-    
-    const totalCount = await Card.countDocuments(filter)
-    
+
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(cards)
+      .where(where as any)
+
     return NextResponse.json({
       success: true,
-      cards,
+      cards: rows,
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(totalCount / limit),
         totalCount,
-        hasMore: skip + cards.length < totalCount
-      }
+        hasMore: skip + rows.length < totalCount,
+      },
     })
-    
   } catch (error) {
     console.error('Cards GET error:', error)
     return NextResponse.json(
@@ -57,8 +62,7 @@ export async function GET(request: NextRequest) {
 // POST: 새 카드 생성 (관리자 전용)
 export async function POST(request: NextRequest) {
   try {
-    await connectDB()
-    
+    const db = getDb()
     const body = await request.json()
     const {
       cardId,
@@ -74,52 +78,62 @@ export async function POST(request: NextRequest) {
       dropRate,
       maxCopies,
       canBeUsedForCrafting,
-      craftingRecipe
+      craftingRecipe,
     } = body
-    
-    // 필수 필드 검증
-    if (!cardId || !name || !type || !rarity || !description || !imageUrl || dropRate === undefined) {
+
+    if (
+      !cardId ||
+      !name ||
+      !type ||
+      !rarity ||
+      !description ||
+      !imageUrl ||
+      dropRate === undefined
+    ) {
       return NextResponse.json(
         { success: false, message: '필수 필드가 누락되었습니다.' },
         { status: 400 }
       )
     }
-    
-    // 중복 카드 ID 체크
-    const existingCard = await Card.findOne({ cardId })
-    if (existingCard) {
+
+    const [existing] = await db
+      .select({ id: cards.id })
+      .from(cards)
+      .where(eq(cards.cardId, cardId))
+      .limit(1)
+
+    if (existing) {
       return NextResponse.json(
         { success: false, message: '이미 존재하는 카드 ID입니다.' },
         { status: 400 }
       )
     }
-    
-    // 새 카드 생성
-    const newCard = new Card({
-      cardId,
-      name,
-      type,
-      rarity,
-      description,
-      imageUrl,
-      member,
-      year,
-      period,
-      isGroupCard,
-      dropRate,
-      maxCopies,
-      canBeUsedForCrafting,
-      craftingRecipe
-    })
-    
-    await newCard.save()
-    
+
+    const [newCard] = await db
+      .insert(cards)
+      .values({
+        cardId,
+        name,
+        type,
+        rarity,
+        description,
+        imageUrl,
+        member: member ?? null,
+        year: year ?? null,
+        period: period ?? null,
+        isGroupCard: Boolean(isGroupCard),
+        dropRate,
+        maxCopies: maxCopies ?? null,
+        canBeUsedForCrafting: Boolean(canBeUsedForCrafting),
+        craftingRecipe: craftingRecipe ?? null,
+      })
+      .returning()
+
     return NextResponse.json({
       success: true,
       message: '카드가 성공적으로 생성되었습니다.',
-      card: newCard
+      card: newCard,
     })
-    
   } catch (error) {
     console.error('Card POST error:', error)
     return NextResponse.json(

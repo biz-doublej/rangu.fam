@@ -1,73 +1,116 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import Profile from '@/models/Profile'
-import User from '@/models/User'
+import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { profiles } from '@/db/schema/profiles'
+import { users } from '@/db/schema/users'
+
 export const dynamic = 'force-dynamic'
+
+const USER_PUBLIC_COLS = {
+  _id: users.id,
+  username: users.username,
+  email: users.email,
+  profileImage: users.profileImage,
+  role: users.role,
+} as const
+
+const PROFILE_COLS = {
+  _id: profiles.id,
+  userId: profiles.userId,
+  username: profiles.username,
+  intro: profiles.intro,
+  bio: profiles.bio,
+  location: profiles.location,
+  website: profiles.website,
+  phone: profiles.phone,
+  birthdate: profiles.birthdate,
+  militaryInfo: profiles.militaryInfo,
+  skills: profiles.skills,
+  projects: profiles.projects,
+  experience: profiles.experience,
+  education: profiles.education,
+  socialLinks: profiles.socialLinks,
+  recentPosts: profiles.recentPosts,
+  viewCount: profiles.viewCount,
+  likesReceived: profiles.likesReceived,
+  projectCount: profiles.projectCount,
+  followers: profiles.followers,
+  following: profiles.following,
+  isPublic: profiles.isPublic,
+  showEmail: profiles.showEmail,
+  showPhone: profiles.showPhone,
+  allowComments: profiles.allowComments,
+  createdAt: profiles.createdAt,
+  updatedAt: profiles.updatedAt,
+} as const
+
+function shapeRow(row: any) {
+  const { _user, ...profile } = row
+  return { ...profile, userId: _user ?? row.userId }
+}
 
 // GET - 모든 프로필 또는 특정 사용자 프로필 가져오기
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect()
-
+    const db = getDb()
     const { searchParams } = new URL(request.url)
     const username = searchParams.get('username')
     const userId = searchParams.get('userId')
 
     if (username) {
-      // 특정 사용자명으로 프로필 조회
-      const profile = await Profile.findOne({ username })
-        .populate('userId', 'username email profileImage role')
-        .lean()
+      const rows = await db
+        .select({ ...PROFILE_COLS, _user: USER_PUBLIC_COLS })
+        .from(profiles)
+        .leftJoin(users, eq(profiles.userId, users.id))
+        .where(eq(profiles.username, username))
+        .limit(1)
 
-      if (!profile) {
+      if (rows.length === 0) {
         return NextResponse.json(
           { success: false, error: '프로필을 찾을 수 없습니다.' },
           { status: 404 }
         )
       }
 
-      // 조회수 증가
-      await Profile.findByIdAndUpdate((profile as any)._id, {
-        $inc: { viewCount: 1 }
-      })
+      const profile = shapeRow(rows[0])
 
-      return NextResponse.json({
-        success: true,
-        profile
-      })
+      // 조회수 증가 (await — fire-and-forget 안 함, race 위험)
+      await db
+        .update(profiles)
+        .set({ viewCount: sql`${profiles.viewCount} + 1` })
+        .where(eq(profiles.id, profile._id))
+
+      return NextResponse.json({ success: true, profile })
     }
 
     if (userId) {
-      // 특정 사용자 ID로 프로필 조회
-      const profile = await Profile.findOne({ userId })
-        .populate('userId', 'username email profileImage role')
-        .lean()
+      const rows = await db
+        .select({ ...PROFILE_COLS, _user: USER_PUBLIC_COLS })
+        .from(profiles)
+        .leftJoin(users, eq(profiles.userId, users.id))
+        .where(eq(profiles.userId, userId))
+        .limit(1)
 
-      if (!profile) {
+      if (rows.length === 0) {
         return NextResponse.json(
           { success: false, error: '프로필을 찾을 수 없습니다.' },
           { status: 404 }
         )
       }
 
-      return NextResponse.json({
-        success: true,
-        profile
-      })
+      return NextResponse.json({ success: true, profile: shapeRow(rows[0]) })
     }
 
-    // 모든 프로필 조회 (공개된 것만)
-    const profiles = await Profile.find({ isPublic: true })
-      .populate('userId', 'username email profileImage role')
-      .sort({ viewCount: -1 })
+    // 모든 공개 프로필
+    const rows = await db
+      .select({ ...PROFILE_COLS, _user: USER_PUBLIC_COLS })
+      .from(profiles)
+      .leftJoin(users, eq(profiles.userId, users.id))
+      .where(eq(profiles.isPublic, true))
+      .orderBy(desc(profiles.viewCount))
       .limit(20)
-      .lean()
 
-    return NextResponse.json({
-      success: true,
-      profiles
-    })
-
+    return NextResponse.json({ success: true, profiles: rows.map(shapeRow) })
   } catch (error) {
     console.error('프로필 조회 오류:', error)
     return NextResponse.json(
@@ -80,12 +123,10 @@ export async function GET(request: NextRequest) {
 // POST - 새 프로필 생성
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect()
-
+    const db = getDb()
     const body = await request.json()
     const { userId, username, intro, bio, location } = body
 
-    // 필수 필드 검증
     if (!userId || !username) {
       return NextResponse.json(
         { success: false, error: '필수 필드가 누락되었습니다.' },
@@ -94,8 +135,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 사용자 존재 확인
-    const user = await User.findById(userId)
-    if (!user) {
+    const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+    if (userRows.length === 0) {
       return NextResponse.json(
         { success: false, error: '사용자를 찾을 수 없습니다.' },
         { status: 404 }
@@ -103,50 +144,39 @@ export async function POST(request: NextRequest) {
     }
 
     // 기존 프로필 존재 확인
-    const existingProfile = await Profile.findOne({ 
-      $or: [{ userId }, { username }] 
-    })
-    
-    if (existingProfile) {
+    const existing = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(or(eq(profiles.userId, userId), eq(profiles.username, username)))
+      .limit(1)
+
+    if (existing.length > 0) {
       return NextResponse.json(
         { success: false, error: '이미 프로필이 존재합니다.' },
         { status: 409 }
       )
     }
 
-    // 새 프로필 생성
-    const newProfile = new Profile({
-      userId,
-      username,
-      intro: intro || '',
-      bio: bio || '',
-      location: location || '',
-      skills: [],
-      projects: [],
-      experience: [],
-      education: [],
-      socialLinks: {},
-      recentPosts: [],
-      viewCount: 0,
-      likesReceived: 0,
-      isPublic: true,
-      showEmail: false,
-      showPhone: false,
-      allowComments: true
-    })
+    const [created] = await db
+      .insert(profiles)
+      .values({
+        userId,
+        username,
+        intro: intro || '',
+        bio: bio || '',
+        location: location || '',
+      })
+      .returning()
 
-    const savedProfile = await newProfile.save()
+    // populate 흉내
+    const rows = await db
+      .select({ ...PROFILE_COLS, _user: USER_PUBLIC_COLS })
+      .from(profiles)
+      .leftJoin(users, eq(profiles.userId, users.id))
+      .where(eq(profiles.id, created.id))
+      .limit(1)
 
-    // 생성된 프로필을 populate하여 반환
-    const populatedProfile = await Profile.findById(savedProfile._id)
-      .populate('userId', 'username email profileImage role')
-      .lean()
-
-    return NextResponse.json({
-      success: true,
-      profile: populatedProfile
-    }, { status: 201 })
-
+    return NextResponse.json({ success: true, profile: shapeRow(rows[0]) }, { status: 201 })
   } catch (error) {
     console.error('프로필 생성 오류:', error)
     return NextResponse.json(
@@ -159,52 +189,73 @@ export async function POST(request: NextRequest) {
 // PUT - 프로필 업데이트
 export async function PUT(request: NextRequest) {
   try {
-    await dbConnect()
-
+    const db = getDb()
     const body = await request.json()
     const { profileId, userId, updateData } = body
 
-    // 권한 확인 - 본인의 프로필만 수정 가능
-    let profile
-    if (profileId) {
-      profile = await Profile.findById(profileId)
-    } else if (userId) {
-      profile = await Profile.findOne({ userId })
+    if (!updateData || typeof updateData !== 'object') {
+      return NextResponse.json(
+        { success: false, error: '업데이트할 데이터가 없습니다.' },
+        { status: 400 }
+      )
     }
 
-    if (!profile) {
+    // 대상 프로필 조회
+    let targetRow:
+      | { id: string }
+      | undefined
+    if (profileId) {
+      const r = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.id, profileId))
+        .limit(1)
+      targetRow = r[0]
+    } else if (userId) {
+      const r = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.userId, userId))
+        .limit(1)
+      targetRow = r[0]
+    }
+
+    if (!targetRow) {
       return NextResponse.json(
         { success: false, error: '프로필을 찾을 수 없습니다.' },
         { status: 404 }
       )
     }
 
-    // 업데이트할 수 있는 필드들만 필터링
     const allowedFields = [
       'intro', 'bio', 'location', 'website', 'phone', 'birthdate',
       'skills', 'projects', 'experience', 'education', 'socialLinks',
-      'recentPosts', 'isPublic', 'showEmail', 'showPhone', 'allowComments'
-    ]
-
-    const filteredUpdate: any = {}
-    Object.keys(updateData).forEach(key => {
-      if (allowedFields.includes(key)) {
-        filteredUpdate[key] = updateData[key]
+      'recentPosts', 'isPublic', 'showEmail', 'showPhone', 'allowComments',
+    ] as const
+    const filteredUpdate: Record<string, any> = {}
+    for (const key of Object.keys(updateData)) {
+      if ((allowedFields as readonly string[]).includes(key)) {
+        let val = updateData[key]
+        if (key === 'birthdate' && typeof val === 'string') {
+          val = new Date(val)
+        }
+        filteredUpdate[key] = val
       }
-    })
+    }
 
-    // 프로필 업데이트
-    const updatedProfile = await Profile.findByIdAndUpdate(
-      profile._id,
-      filteredUpdate,
-      { new: true, runValidators: true }
-    ).populate('userId', 'username email profileImage role').lean()
+    if (Object.keys(filteredUpdate).length > 0) {
+      filteredUpdate.updatedAt = new Date()
+      await db.update(profiles).set(filteredUpdate).where(eq(profiles.id, targetRow.id))
+    }
 
-    return NextResponse.json({
-      success: true,
-      profile: updatedProfile
-    })
+    const rows = await db
+      .select({ ...PROFILE_COLS, _user: USER_PUBLIC_COLS })
+      .from(profiles)
+      .leftJoin(users, eq(profiles.userId, users.id))
+      .where(eq(profiles.id, targetRow.id))
+      .limit(1)
 
+    return NextResponse.json({ success: true, profile: shapeRow(rows[0]) })
   } catch (error) {
     console.error('프로필 업데이트 오류:', error)
     return NextResponse.json(
@@ -212,4 +263,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

@@ -90,6 +90,8 @@ export default function WikiEditor({
   const highlightPresets = ['#ffeb3b', '#ffe082', '#ff8a80', '#80deea', '#b388ff', '#1de9b6']
   const [showTemplates, setShowTemplates] = useState(false)
   const [showTableOfContents, setShowTableOfContents] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  const [editorHeight, setEditorHeight] = useState<'normal' | 'tall' | 'full'>('tall')
 
   // Document lock tracking
   const [isLocked, setIsLocked] = useState(false)
@@ -240,6 +242,13 @@ export default function WikiEditor({
       { icon: Palette, label: '색상 텍스트', action: () => insertText('{{{#ff0000 ', '}}}') },
     ],
     [
+      { icon: AlertCircle, label: '콜아웃 (정보)', action: () => insertText('\n:::info\n', '\n:::\n', false) },
+      { icon: AlertCircle, label: '콜아웃 (경고)', action: () => insertText('\n:::warn\n', '\n:::\n', false) },
+      { icon: CheckCircle, label: '콜아웃 (성공)', action: () => insertText('\n:::success\n', '\n:::\n', false) },
+      { icon: ChevronRight, label: '접기 블록', action: () => insertText('\n>>> 자세히 보기\n', '\n<<<\n', false) },
+      { icon: Minus, label: '수평선', action: () => insertText('\n---\n', '', false) },
+    ],
+    [
       { icon: Superscript, label: '상첨자', action: () => insertSuperscript() },
       { icon: Subscript, label: '하첨자', action: () => insertSubscript() },
     ],
@@ -335,8 +344,9 @@ export default function WikiEditor({
       // Insert as block-level image
       insertText(`[이미지:${url}]\n`, '', false)
     } else {
-      // Insert inline
-      insertText(`[이미지:${url}]`, '', false)
+      // 일반 본문 inline: 본문 렌더러(NamuWikiRenderer)는 [이미지:URL]을 line 단독일 때만
+      // 매칭하므로, 항상 단독 라인이 되도록 앞뒤 줄바꿈 보장.
+      insertText(`\n[이미지:${url}]\n`, '', false)
     }
   }
 
@@ -993,12 +1003,28 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                 <span>목차</span>
               </Button>
               <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setEditorHeight(
+                    editorHeight === 'normal' ? 'tall' : editorHeight === 'tall' ? 'full' : 'normal'
+                  )
+                }
+                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
+                title="편집창 크기 (보통 / 크게 / 전체)"
+              >
+                <Layout className="w-4 h-4" />
+                <span>
+                  {editorHeight === 'normal' ? '보통' : editorHeight === 'tall' ? '크게' : '전체'}
+                </span>
+              </Button>
+              <Button
                 variant={showPreview ? "primary" : "ghost"}
                 size="sm"
                 onClick={() => setShowPreview(!showPreview)}
                 className={`flex items-center space-x-1 ${
-                  showPreview 
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                  showPreview
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -1058,34 +1084,36 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
           </div>
         )}
         <CardContent className="space-y-4">
-          <div className="border-b border-gray-600 pb-4">
-            <div className="flex flex-wrap gap-2">
+          {/* 툴바 — 깔끔한 그룹 + 호버 라벨 */}
+          <div className="border-b border-gray-700 pb-3">
+            <div className="flex flex-wrap items-center gap-1 bg-gray-900/40 rounded-lg p-1.5 border border-gray-700/60">
               {toolbarButtons.map((group, groupIndex) => (
                 <React.Fragment key={groupIndex}>
-                  {group.map((button) => (
-                    <motion.button
-                      key={button.label}
-                      className={`p-2 rounded transition-colors relative group ${
-                        button.label.includes('검사 중') 
-                          ? 'bg-gray-600 cursor-not-allowed' 
-                          : 'hover:bg-gray-700'
-                      }`}
-                      onClick={button.label.includes('검사 중') ? undefined : button.action}
-                      whileHover={button.label.includes('검사 중') ? {} : { scale: 1.05 }}
-                      whileTap={button.label.includes('검사 중') ? {} : { scale: 0.95 }}
-                    >
-                      <button.icon className="w-4 h-4 text-gray-400" />
-                      
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {button.label}
-                        {button.shortcut && (
-                          <span className="ml-2 text-gray-400">({button.shortcut})</span>
-                        )}
-                      </div>
-                    </motion.button>
-                  ))}
+                  <div className="flex items-center gap-0.5">
+                    {group.map((button) => (
+                      <motion.button
+                        key={button.label}
+                        className={`px-2.5 py-1.5 rounded-md transition-all relative group inline-flex items-center justify-center ${
+                          button.label.includes('검사 중')
+                            ? 'bg-gray-700 cursor-not-allowed opacity-60'
+                            : 'hover:bg-gray-700/80 active:bg-gray-600 text-gray-400 hover:text-gray-100'
+                        }`}
+                        onClick={button.label.includes('검사 중') ? undefined : button.action}
+                        whileHover={button.label.includes('검사 중') ? {} : { scale: 1.04 }}
+                        whileTap={button.label.includes('검사 중') ? {} : { scale: 0.96 }}
+                      >
+                        <button.icon className="w-4 h-4" />
+                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-black/90 text-white text-[11px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
+                          {button.label}
+                          {button.shortcut && (
+                            <span className="ml-1.5 text-gray-400">{button.shortcut}</span>
+                          )}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
                   {groupIndex < toolbarButtons.length - 1 && (
-                    <div className="w-px bg-gray-600 mx-1" />
+                    <div className="w-px h-5 bg-gray-700 mx-0.5" aria-hidden="true" />
                   )}
                 </React.Fragment>
               ))}
@@ -1404,7 +1432,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="hidden lg:block">
                 <div className="relative">
-                  <div className="flex border border-gray-600 rounded-lg bg-gray-900 h-96">
+                  <div className={`flex border border-gray-600 rounded-lg bg-gray-900 ${editorHeight === 'normal' ? 'h-96' : editorHeight === 'tall' ? 'h-[640px]' : 'h-[80vh]'}`}>
                     {/* 줄 번호 표시 영역 */}
                     <div 
                       ref={lineNumbersRef}
@@ -1438,7 +1466,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
               </div>
 
               <div>
-                <div className="border border-gray-600 rounded-lg p-4 h-96 overflow-y-auto bg-gray-900">
+                <div className={`border border-gray-600 rounded-lg p-4 overflow-y-auto bg-gray-900 ${editorHeight === 'normal' ? 'h-96' : editorHeight === 'tall' ? 'h-[640px]' : 'h-[80vh]'}`}>
                   <h4 className="text-sm font-medium text-gray-400 mb-4 border-b border-gray-600 pb-2">
                     미리보기
                   </h4>
@@ -1490,12 +1518,27 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
             </div>
           )}
 
-          <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-600">
+          {/* 도움말 토글 버튼 */}
+          <div className="mt-3 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setShowHelp(!showHelp)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-800/60 hover:bg-gray-800 border border-gray-700 text-xs text-gray-300 hover:text-gray-100 transition-colors"
+              title={showHelp ? '도움말 숨기기' : '문법 도움말 펼치기'}
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>{showHelp ? '도움말 숨기기' : '문법 도움말'}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {showHelp && (
+          <div className="mt-3 p-4 bg-gray-800 rounded-lg border border-gray-600">
             <div className="flex items-start space-x-2">
               <HelpCircle className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-gray-400 w-full">
                 <h4 className="font-medium mb-2 text-gray-300">편집 도움말</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                   <div>
                     <p className="font-medium mb-1 text-gray-300">기본 서식:</p>
                     <ul className="space-y-0.5 text-gray-400">
@@ -1557,10 +1600,29 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                       <li>템플릿 버튼으로 쉽게 삽입</li>
                     </ul>
                   </div>
+                  <div>
+                    <p className="font-medium mb-1 text-emerald-300">새 기능 (2026):</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li><code className="bg-gray-700 px-1 rounded">{':::info\\n본문\\n:::'}</code> → 정보 박스</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{':::warn'}</code> / <code className="bg-gray-700 px-1 rounded">{':::success'}</code> / <code className="bg-gray-700 px-1 rounded">{':::error'}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">{':::note'}</code> / <code className="bg-gray-700 px-1 rounded">{':::tip'}</code></li>
+                      <li><code className="bg-gray-700 px-1 rounded">{'>>> 제목\\n내용\\n<<<'}</code> → 접기 블록</li>
+                      <li><code className="bg-gray-700 px-1 rounded">---</code> → 수평선</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1 text-blue-300">각주 (개선):</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li><code className="bg-gray-700 px-1 rounded">[*]</code> 자동 번호 / <code className="bg-gray-700 px-1 rounded">[*1]</code> 수동</li>
+                      <li>본문 [N] 클릭 → 각주 영역 점프 + 깜빡임</li>
+                      <li>각주의 <strong>↑[N]</strong> 클릭 → 본문 위치로 복귀</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          )}
 
           {/* 맞춤법 검사 결과 */}
           {showSpellCheckResults && (

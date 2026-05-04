@@ -1,12 +1,12 @@
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
+import { eq, or } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
-import dbConnect from '@/lib/database'
-import { WikiUser } from '@/models/Wiki'
+import { getDb } from '@/db/client'
+import { wikiUsers } from '@/db/schema/wiki'
 import {
   createDoubleJToken,
   createWikiToken,
-  mergeSignupIdentityIntoDiscordIdentity,
   sanitizeCallbackPath,
   setDoubleJAuthCookie,
   setWikiAuthCookie,
@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.DISCORD_CLIENT_ID
   const clientSecret = process.env.DISCORD_CLIENT_SECRET
-
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(new URL('/login?error=discord_not_configured', origin))
   }
@@ -69,44 +68,49 @@ export async function GET(request: NextRequest) {
 
     const profile = await fetchDiscordProfile(tokenData.access_token)
 
-    await dbConnect()
-    let user = await WikiUser.findOne({ discordId: profile.id })
-    if (!user) {
-      user = await WikiUser.findOne({ discordUsername: profile.username })
-    }
+    const db = getDb()
+    const [user] = await db
+      .select()
+      .from(wikiUsers)
+      .where(or(eq(wikiUsers.discordId, profile.id), eq(wikiUsers.discordUsername, profile.username)))
+      .limit(1)
 
     if (!user) {
-      const target = withError('/login', 'discord_not_linked')
-      return NextResponse.redirect(new URL(target, origin))
+      return NextResponse.redirect(new URL(withError('/login', 'discord_not_linked'), origin))
     }
 
     if (!user.isActive) {
-      const target = withError('/login', 'account_inactive')
-      return NextResponse.redirect(new URL(target, origin))
+      return NextResponse.redirect(new URL(withError('/login', 'account_inactive'), origin))
     }
 
-    const isBanned = Boolean((user as any).isBanned || user?.banStatus?.isBanned)
+    const isBanned = Boolean(user.banStatus?.isBanned)
     if (isBanned) {
-      const target = withError('/login', 'account_banned')
-      return NextResponse.redirect(new URL(target, origin))
+      return NextResponse.redirect(new URL(withError('/login', 'account_banned'), origin))
     }
 
-    user.discordUsername = profile.username
-    user.discordId = profile.id
-    user.discordAvatar = buildDiscordAvatarUrl(profile.id, profile.avatar) || user.discordAvatar
-    user.lastLogin = new Date()
-    user.lastActivity = new Date()
-    await user.save()
-    const canonicalUser = await mergeSignupIdentityIntoDiscordIdentity(user, profile.username)
-    if (!canonicalUser) {
-      const target = withError('/login', 'discord_auth_failed')
-      return NextResponse.redirect(new URL(target, origin))
-    }
+    const newAvatar = buildDiscordAvatarUrl(profile.id, profile.avatar)
+    const now = new Date()
+
+    const [updated] = await db
+      .update(wikiUsers)
+      .set({
+        discordUsername: profile.username,
+        discordId: profile.id,
+        discordAvatar: newAvatar || user.discordAvatar,
+        lastLogin: now,
+        lastActivity: now,
+        updatedAt: now,
+      })
+      .where(eq(wikiUsers.id, user.id))
+      .returning()
+
+    // legacy compat
+    ;(updated as any)._id = updated.id
 
     const callbackUrl = sanitizeCallbackPath(state.callbackUrl, '/')
     const response = NextResponse.redirect(new URL(callbackUrl, origin))
-    setDoubleJAuthCookie(response, createDoubleJToken(canonicalUser))
-    setWikiAuthCookie(response, createWikiToken(canonicalUser))
+    setDoubleJAuthCookie(response, createDoubleJToken(updated as any))
+    setWikiAuthCookie(response, createWikiToken(updated as any))
 
     return response
   } catch (error) {

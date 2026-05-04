@@ -53,32 +53,138 @@ interface TableOfContentsItem {
   anchor: string
 }
 
-// 역할 배너 매핑
-const ROLE_BANNERS: Record<string, { title: string; desc: string; color: string; icon: typeof Info }> = {
+// ── 콜아웃 박스 ─────────────────────────────────────────────
+// :::info|warn|success|error|note|tip 본문 ::: 형식
+const CALLOUT_STYLES: Record<string, {
+  border: string
+  bg: string
+  iconBg: string
+  text: string
+  label: string
+  icon: typeof Info
+}> = {
+  info: {
+    border: 'border-sky-500/40',
+    bg: 'bg-sky-500/10',
+    iconBg: 'bg-sky-500/20 text-sky-300',
+    text: 'text-sky-200',
+    label: 'INFO',
+    icon: Info,
+  },
+  warn: {
+    border: 'border-amber-500/40',
+    bg: 'bg-amber-500/10',
+    iconBg: 'bg-amber-500/20 text-amber-300',
+    text: 'text-amber-200',
+    label: 'WARNING',
+    icon: AlertCircle,
+  },
+  success: {
+    border: 'border-emerald-500/40',
+    bg: 'bg-emerald-500/10',
+    iconBg: 'bg-emerald-500/20 text-emerald-300',
+    text: 'text-emerald-200',
+    label: 'SUCCESS',
+    icon: CheckCircle,
+  },
+  error: {
+    border: 'border-rose-500/40',
+    bg: 'bg-rose-500/10',
+    iconBg: 'bg-rose-500/20 text-rose-300',
+    text: 'text-rose-200',
+    label: 'ERROR',
+    icon: XCircle,
+  },
+  note: {
+    border: 'border-indigo-500/40',
+    bg: 'bg-indigo-500/10',
+    iconBg: 'bg-indigo-500/20 text-indigo-300',
+    text: 'text-indigo-200',
+    label: 'NOTE',
+    icon: Quote,
+  },
+  tip: {
+    border: 'border-violet-500/40',
+    bg: 'bg-violet-500/10',
+    iconBg: 'bg-violet-500/20 text-violet-300',
+    text: 'text-violet-200',
+    label: 'TIP',
+    icon: Star,
+  },
+}
+
+const CalloutBox = ({
+  type,
+  content,
+  parseInline,
+}: {
+  type: 'info' | 'warn' | 'success' | 'error' | 'note' | 'tip'
+  content: string
+  parseInline: (text: string) => React.ReactNode
+}) => {
+  const style = CALLOUT_STYLES[type] || CALLOUT_STYLES.info
+  const Icon = style.icon
+  // 줄바꿈 보존 + 인라인 파싱
+  const lines = content.split('\n')
+  return (
+    <div
+      className={`my-4 rounded-md border ${style.border} ${style.bg} px-4 py-3 flex gap-3 items-start`}
+      role="note"
+    >
+      <div className={`flex-shrink-0 w-7 h-7 rounded-full ${style.iconBg} flex items-center justify-center`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`text-[10px] font-bold tracking-[0.16em] mb-1 ${style.text} opacity-80`}>
+          {style.label}
+        </div>
+        <div className="text-sm text-gray-200 leading-relaxed space-y-1">
+          {lines.map((ln, idx) =>
+            ln.trim() ? <p key={idx}>{parseInline(ln)}</p> : <div key={idx} className="h-1" />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 역할 배너 매핑 — namuwiki 인포박스와 동일한 [헤더-본문] 스타일.
+// 헤더 색상: 명확하게 구분되는 단색. 본문: 다크 슬레이트.
+const ROLE_BANNERS: Record<string, {
+  title: string
+  desc: string
+  headerBg: string     // 헤더 배경 (Tailwind class)
+  accentText: string   // 강조 텍스트 색
+  icon: typeof Info
+}> = {
   developer: {
     title: '이랑위키 개발자',
     desc: '이 사람은 이랑위키의 개발자 입니다.',
-    color: 'from-emerald-500/20 via-emerald-400/15 to-emerald-600/20',
-    icon: Info
+    headerBg: 'bg-emerald-700',
+    accentText: 'text-emerald-300',
+    icon: Info,
   },
   admin: {
     title: '이랑위키 운영자',
     desc: '이 사람은 이랑위키 운영자 입니다.',
-    color: 'from-sky-500/20 via-sky-400/15 to-indigo-600/20',
-    icon: AlertCircle
+    headerBg: 'bg-sky-700',
+    accentText: 'text-sky-300',
+    icon: AlertCircle,
   },
   rangu: {
     title: '랑구팸 멤버',
     desc: '이 사람은 랑구팸 입니다.',
-    color: 'from-amber-500/20 via-orange-400/15 to-rose-500/20',
-    icon: Star
+    headerBg: 'bg-amber-700',
+    accentText: 'text-amber-300',
+    icon: Star,
   },
   workshop: {
     title: '작업공작소 운영자',
     desc: '이 사람은 작업공작소 운영자 입니다.',
-    color: 'from-purple-500/20 via-fuchsia-400/15 to-blue-500/20',
-    icon: CheckCircle
-  }
+    headerBg: 'bg-purple-700',
+    accentText: 'text-purple-300',
+    icon: CheckCircle,
+  },
 }
 
 
@@ -121,7 +227,7 @@ const RoleBanner = ({ role }: { role: string }) => {
   if (!banner) return null
   const Icon = banner.icon
 
-  // rangu 전용 추가 메타
+  // rangu 전용 추가 메타 (namuwiki 인포박스 표 형태)
   const ranguMeta = role === 'rangu'
     ? [
         { label: '그룹명', value: '랑구' },
@@ -133,36 +239,46 @@ const RoleBanner = ({ role }: { role: string }) => {
 
   return (
     <motion.div
-      className="relative mb-4 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-white shadow-lg"
-      initial={{ opacity: 0, y: 10 }}
+      className="mb-4 overflow-hidden rounded-md border border-gray-700 bg-gray-900 text-white shadow-md"
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <div className={`absolute inset-0 bg-gradient-to-r ${banner.color} opacity-80`} />
-      <div className="relative flex items-start gap-3">
-        <div className="mt-1">
-          <Icon className="h-5 w-5 text-white" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm uppercase tracking-[0.2em] text-white/80">Role</p>
-          <h4 className="text-lg font-semibold">{banner.title}</h4>
-          <p className="text-sm text-white/85">{banner.desc}</p>
-        </div>
+      {/* 색상 헤더 — namuwiki 인포박스 헤더와 동일한 두께/패딩 */}
+      <div className={`${banner.headerBg} px-4 py-2 flex items-center gap-2`}>
+        <Icon className="h-4 w-4 text-white/90" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+          Role
+        </span>
       </div>
 
+      {/* 본문 */}
+      <div className="px-4 py-3 bg-gray-900">
+        <h4 className={`text-base font-semibold ${banner.accentText}`}>
+          {banner.title}
+        </h4>
+        <p className="mt-1 text-sm text-gray-300">{banner.desc}</p>
+      </div>
+
+      {/* rangu 전용 메타 표 — 인포박스 row 스타일 (헤더 셀 색 = banner.headerBg) */}
       {ranguMeta.length > 0 && (
-        <div className="relative mt-4 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-r from-white/5 via-white/0 to-white/5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 text-sm divide-y divide-white/10 sm:divide-y-0 sm:divide-x">
-            {ranguMeta.map((item) => (
-              <div key={item.label} className="flex min-h-[64px]">
-                <div className="w-28 flex-shrink-0 bg-white/5 px-3 py-2 text-white/70 text-xs uppercase tracking-[0.14em] flex items-center">
-                  {item.label}
-                </div>
-                <div className="flex-1 px-4 py-2 text-white leading-relaxed">
-                  {renderInlineLinks(item.value)}
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="border-t border-gray-700">
+          <table className="w-full text-sm">
+            <tbody>
+              {ranguMeta.map((item, idx) => (
+                <tr
+                  key={item.label}
+                  className={idx > 0 ? 'border-t border-gray-700' : undefined}
+                >
+                  <td className={`${banner.headerBg} text-white px-3 py-2 font-semibold w-24 align-top text-xs`}>
+                    {item.label}
+                  </td>
+                  <td className="px-3 py-2 text-gray-200 leading-relaxed">
+                    {renderInlineLinks(item.value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </motion.div>
@@ -174,6 +290,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   const [footnotes, setFootnotes] = useState<{[key: string]: string}>({})
   const footnoteCounterRef = React.useRef(0)
   const footnoteMappingRef = React.useRef<{[key: string]: number}>({})
+  // 본문에서 각주 번호별 첫 등장 여부 — id="fnref-N" 부여
+  const footnoteRefSeenRef = React.useRef<Set<number>>(new Set())
   const PLACEHOLDER_IMAGE = '/images/default-music-cover.jpg'
 
   const getImageServePathFromSource = (value: string) => {
@@ -246,14 +364,29 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
     }
 
-    imageElement.dataset.fallbackAttempt = '2'
-    imageElement.src = PLACEHOLDER_IMAGE
+    // 모든 fallback 실패 → "이미지 없음" placeholder DOM으로 교체
+    // (음악 커버 이미지로 폴백하면 사진 영역이 잘못된 시각 정보를 줌)
+    if (fallbackAttempt !== 'replaced') {
+      imageElement.dataset.fallbackAttempt = 'replaced'
+      const parent = imageElement.parentElement
+      if (parent) {
+        const placeholder = document.createElement('div')
+        placeholder.className =
+          'flex flex-col items-center justify-center gap-1.5 w-full max-w-56 mx-auto h-40 rounded bg-gray-800/60 border border-dashed border-gray-700 text-gray-400 text-xs'
+        placeholder.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/><line x1="2" y1="2" x2="22" y2="22"/></svg><span>이미지를 불러올 수 없습니다</span>'
+        imageElement.replaceWith(placeholder)
+      } else {
+        imageElement.src = PLACEHOLDER_IMAGE
+      }
+    }
   }
 
   // 컨텐츠가 변경될 때 각주 카운터 리셋
   React.useEffect(() => {
     footnoteCounterRef.current = 0
     footnoteMappingRef.current = {}
+    footnoteRefSeenRef.current = new Set()
     extractFootnotes(content)
   }, [content])
 
@@ -483,17 +616,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               footnoteNumber = footnoteCounterRef.current
               const uniqueAutoKey = `auto_ref_${footnoteCounterRef.current}_${key}`
               footnoteMappingRef.current[uniqueAutoKey] = footnoteNumber
-              console.log(`자동 각주 생성: ${uniqueAutoKey} = ${footnoteNumber}`)
             } else {
               // 수동 번호 지정
               if (!footnoteMappingRef.current[footnoteKey]) {
                 footnoteCounterRef.current += 1
                 footnoteNumber = footnoteCounterRef.current
                 footnoteMappingRef.current[footnoteKey] = footnoteNumber
-                console.log(`수동 각주 생성: ${footnoteKey} = ${footnoteNumber}`)
               } else {
                 footnoteNumber = footnoteMappingRef.current[footnoteKey]
-                console.log(`기존 각주 참조: ${footnoteKey} = ${footnoteNumber}`)
               }
             }
             
@@ -501,17 +631,24 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               const footnoteElement = document.getElementById(`footnote-${footnoteNumber}`)
               if (footnoteElement) {
                 footnoteElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                footnoteElement.style.backgroundColor = '#fef3c7'
+                footnoteElement.classList.add('footnote-flash')
                 setTimeout(() => {
-                  footnoteElement.style.backgroundColor = ''
-                }, 2000)
+                  footnoteElement.classList.remove('footnote-flash')
+                }, 1600)
               }
             }
-            
+
+            // 첫 등장 각주에만 fnref ID 부여 — 각주 영역의 ↩ 버튼이 여기로 점프
+            const isFirstRef = !footnoteRefSeenRef.current.has(footnoteNumber)
+            if (isFirstRef) {
+              footnoteRefSeenRef.current.add(footnoteNumber)
+            }
+
             return (
-              <sup 
-                key={key} 
-                className="text-blue-400 hover:text-blue-300 cursor-pointer text-xs underline"
+              <sup
+                key={key}
+                id={isFirstRef ? `fnref-${footnoteNumber}` : undefined}
+                className="text-blue-400 hover:text-blue-300 cursor-pointer text-xs underline scroll-mt-20"
                 onClick={scrollToFootnote}
                 title={`각주 ${footnoteNumber}로 이동`}
               >
@@ -747,38 +884,48 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       templateStyle.borderColor = templateColors.borderColor
     }
     
-    // 기존 코드에서 복사
     return (
       <React.Fragment key={key}>
-        <div className="group-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]" style={templateStyle}>
-          <div className="bg-blue-700 text-white text-center py-2 px-3">
-            <div className="text-base font-bold mt-2">{params['이름'] || params['그룹명'] || ''}</div>
-            {params['설명'] && <div className="text-xs opacity-80 mt-1">{params['설명']}</div>}
+        <div
+          className="group-infobox bg-gray-900/95 border border-gray-700 rounded-xl shadow-2xl shadow-black/40 float-right ml-6 mb-4 w-full max-w-[340px] overflow-hidden ring-1 ring-white/5"
+          style={templateStyle}
+        >
+          {/* 헤더 — 그라디언트 (블루) */}
+          <div className="bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white text-center py-3 px-4 border-b border-blue-900/40">
+            <div
+              className="text-xl font-bold leading-tight"
+              style={{ fontFamily: "'Gowun Batang', serif" }}
+            >
+              {params['이름'] || params['그룹명'] || ''}
+            </div>
+            {params['설명'] && (
+              <div className="text-[11px] opacity-85 mt-1.5">{params['설명']}</div>
+            )}
           </div>
-          <div className="border-t border-gray-700">
+
+          {/* 정보 표 — 라벨 중앙정렬 + zebra */}
+          <div>
             <table className="w-full text-sm">
               <tbody>
                 {orderedParams.map(([key, value], index) => {
-                  // Parse color attributes from template values
                   const colorAttributes = parseTableColorAttributes(value)
-                  
-                  // 헤더 셀(key)에만 색상 적용, 값 셀은 기본 배경 유지
                   const headerCellStyles = getTableCellStyles(colorAttributes)
-                  const defaultHeaderStyle = { backgroundColor: '#1e40af', color: '#ffffff' } // bg-blue-700
-                  const finalHeaderStyle = {
-                    ...defaultHeaderStyle,
-                    ...headerCellStyles
-                  }
-                  
+                  const defaultHeaderStyle = { backgroundColor: '#1e40af', color: '#ffffff' }
+                  const finalHeaderStyle = { ...defaultHeaderStyle, ...headerCellStyles }
+                  const zebra = index % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-900/30'
+
                   return (
-                    <tr key={index} className="border-b border-gray-700">
-                      <td 
-                        className="px-3 py-2 font-semibold w-24 align-top"
-                        style={finalHeaderStyle}
+                    <tr
+                      key={index}
+                      className={`border-b border-gray-700/60 last:border-b-0 ${zebra} hover:bg-gray-700/30 transition-colors`}
+                    >
+                      <td
+                        className="py-2 px-2 font-semibold w-24 text-center align-middle text-[11px] tracking-[0.05em] border-r border-blue-900/40"
+                        style={{ ...finalHeaderStyle, fontFamily: "'Gowun Batang', serif" }}
                       >
                         {key}
                       </td>
-                      <td className="px-3 py-2 text-gray-200 whitespace-pre-line bg-gray-800">
+                      <td className="px-3 py-2 text-gray-100 whitespace-pre-line leading-relaxed text-[13px]">
                         {parseInlineElements(colorAttributes.content)}
                       </td>
                     </tr>
@@ -846,7 +993,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         // 내용이 실제로 있고, 또 다른 각주 참조가 아닌 경우
         if (content && content.length > 0 && !content.match(/^\[\*/)) {
           footnoteMap[key] = content
-          console.log(`독립 라인 각주 추가: ${key} = ${content}`)
         }
       }
     })
@@ -863,11 +1009,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // 의미있는 내용이 있는 경우만 각주로 인식
       if (content && content.length > 0 && !content.match(/^\[\*/)) {
         footnoteMap[key] = content
-        console.log(`인라인 각주 추가: ${key} = ${content}`)
       }
     }
-    
-    console.log('추출된 각주:', footnoteMap) // 디버깅용
     setFootnotes(footnoteMap)
   }
 
@@ -911,61 +1054,93 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       
       return (
         <React.Fragment key={key}>
-          <div className="person-infobox bg-gray-900 border border-gray-700 rounded-lg shadow-lg float-right ml-6 mb-4 w-full max-w-[340px]" style={templateStyle}>
-            <div className="bg-red-700 text-white text-center py-2 px-3">
-              <div className="text-sm flex items-center justify-center gap-2">
+          <div
+            className="person-infobox bg-gray-900/95 border border-gray-700 rounded-xl shadow-2xl shadow-black/40 float-right ml-6 mb-4 w-full max-w-[340px] overflow-hidden ring-1 ring-white/5"
+            style={templateStyle}
+          >
+            {/* 헤더 — 그라디언트 + 인너 보더 */}
+            <div className="bg-gradient-to-b from-red-600 via-red-700 to-red-800 text-white text-center py-3 px-4 border-b border-red-900/40">
+              <div className="text-[11px] tracking-[0.18em] uppercase font-medium flex items-center justify-center gap-2 opacity-90">
                 {params['상단로고'] && (
-                  <img src={normalizeWikiImageSrc(params['상단로고'])} alt="로고" className="w-6 h-6 object-contain" 
-                       data-fallback-attempt="0"
-                       onError={handleWikiImageError} />
+                  <img
+                    src={normalizeWikiImageSrc(params['상단로고'])}
+                    alt="로고"
+                    className="w-5 h-5 object-contain"
+                    data-fallback-attempt="0"
+                    onError={handleWikiImageError}
+                  />
                 )}
                 {params['상단제목'] || ''}
               </div>
               {params['상단부제목'] && (
                 <>
-                  <hr className="border-white/30 my-1" />
-                  <div className="text-sm">{params['상단부제목']}</div>
+                  <div className="my-1.5 mx-auto h-px w-12 bg-white/30" aria-hidden="true" />
+                  <div className="text-xs opacity-95">{params['상단부제목']}</div>
                 </>
               )}
-              {params['상단설명'] && <div className="text-xs opacity-80 mt-1">{params['상단설명']}</div>}
-              <div className="text-base font-bold mt-2">{params['이름'] || params['본명'] || ''}</div>
-              {params['영문명'] && <div className="text-sm opacity-90 mt-1">{params['영문명']}</div>}
-              {params['한문명'] && <div className="text-sm opacity-90 mt-1">{params['한문명']}</div>}
+              {params['상단설명'] && <div className="text-[11px] opacity-80 mt-1">{params['상단설명']}</div>}
+              <div
+                className="text-xl font-bold mt-2.5 leading-tight"
+                style={{ fontFamily: "'Gowun Batang', serif" }}
+              >
+                {params['이름'] || params['본명'] || ''}
+              </div>
+              {params['영문명'] && (
+                <div className="text-[12px] opacity-85 mt-1 tracking-wide">{params['영문명']}</div>
+              )}
+              {params['한문명'] && (
+                <div className="text-[12px] opacity-85 mt-0.5">{params['한문명']}</div>
+              )}
             </div>
+
+            {/* 이미지 */}
             {params['이미지'] && (
-              <div className="text-center bg-gray-800 p-3">
-                <img src={normalizeWikiImageSrc(params['이미지'])} alt={params['이름'] || '인물 사진'} className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded"
-                     data-fallback-attempt="0"
-                     onError={handleWikiImageError} />
+              <div className="text-center bg-gradient-to-b from-gray-800/80 to-gray-900/80 px-3 py-4 border-b border-gray-700/60">
+                <img
+                  src={normalizeWikiImageSrc(params['이미지'])}
+                  alt={params['이름'] || '인물 사진'}
+                  className="w-full max-w-56 mx-auto max-h-[300px] object-contain rounded-md ring-1 ring-white/5"
+                  data-fallback-attempt="0"
+                  onError={handleWikiImageError}
+                />
                 {params['이미지설명'] && (
-                  <div className="text-xs text-gray-400 mt-2">{parseInlineElements(params['이미지설명'])}</div>
+                  <div className="text-[11px] text-gray-400 mt-2 italic">
+                    {parseInlineElements(params['이미지설명'])}
+                  </div>
                 )}
               </div>
             )}
-            <div className="border-t border-gray-700">
+
+            {/* 정보 표 — 라벨 중앙정렬 + 호버/zebra */}
+            <div>
               <table className="w-full text-sm">
                 <tbody>
                   {(() => {
-                    // 헤더에서 사용하는 특수 필드들만 제외하고, 나머지는 작성 순서대로 표시
                     const excludeFields = new Set([
-                      '상단로고', '상단제목', '상단부제목', '상단설명', 
-                      '이름', '본명', '영문명', '한문명', '이미지', '이미지설명'
+                      '상단로고', '상단제목', '상단부제목', '상단설명',
+                      '이름', '본명', '영문명', '한문명', '이미지', '이미지설명',
                     ])
-                    
+
                     return orderedParams
-                      .filter(([key, value]) => !excludeFields.has(key) && value && value.trim())
+                      .filter(([k, v]) => !excludeFields.has(k) && v && v.trim())
                       .map(([key, value], index) => {
-                        // Parse color attributes from template values
                         const colorAttributes = parseTableColorAttributes(value)
                         const cellStyles = getTableCellStyles(colorAttributes)
-                        
+                        const zebra = index % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-900/30'
+
                         return (
-                          <tr key={index} className="border-b border-gray-700">
-                            <td className="bg-red-700 text-white px-3 py-2 font-semibold w-24 align-top">
+                          <tr
+                            key={index}
+                            className={`border-b border-gray-700/60 last:border-b-0 ${zebra} hover:bg-gray-700/30 transition-colors`}
+                          >
+                            <td
+                              className="bg-gradient-to-r from-red-700 to-red-800 text-white py-2 px-2 font-semibold w-24 text-center align-middle text-[11px] tracking-[0.05em] border-r border-red-900/40"
+                              style={{ fontFamily: "'Gowun Batang', serif" }}
+                            >
                               {key}
                             </td>
-                            <td 
-                              className="px-3 py-2 text-gray-200 whitespace-pre-line"
+                            <td
+                              className="px-3 py-2 text-gray-100 whitespace-pre-line leading-relaxed text-[13px]"
                               style={cellStyles}
                             >
                               {/* 서명 필드는 인라인 이미지만 허용 */}
@@ -1112,6 +1287,76 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       if (roleMatch) {
         const roleKey = roleMatch[1].toLowerCase()
         elements.push(<RoleBanner key={`role-${i}`} role={roleKey} />)
+        continue
+      }
+
+      // 수평선: --- (3개 이상의 dash)
+      if (/^-{3,}$/.test(trimmed)) {
+        elements.push(<hr key={i} className="my-6 border-0 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />)
+        continue
+      }
+
+      // 콜아웃 박스: :::info|warn|success|error|note|tip 첫 줄 + 다음 줄들 + ::: 닫는 줄
+      // 예) :::info
+      //     본문
+      //     :::
+      const calloutOpen = trimmed.match(/^:::(info|warn|warning|success|error|danger|note|tip)\s*(.*)$/i)
+      if (calloutOpen) {
+        const typeRaw = calloutOpen[1].toLowerCase()
+        const type = (typeRaw === 'warning' ? 'warn' : typeRaw === 'danger' ? 'error' : typeRaw) as
+          'info' | 'warn' | 'success' | 'error' | 'note' | 'tip'
+        const inlineRest = calloutOpen[2].trim()
+
+        // 같은 줄에 닫는 ::: 가 있으면 한 줄짜리 callout
+        if (inlineRest.endsWith(':::')) {
+          const inner = inlineRest.slice(0, -3).trim()
+          elements.push(<CalloutBox key={i} type={type} content={inner} parseInline={parseInlineElements} />)
+          continue
+        }
+
+        // 여러 줄 — 다음 ::: 까지 수집
+        const buf: string[] = []
+        if (inlineRest) buf.push(inlineRest)
+        let j = i + 1
+        while (j < lines.length) {
+          const ln = lines[j]
+          if (/^:::\s*$/.test(ln.trim())) break
+          buf.push(ln)
+          j++
+        }
+        i = j // for 루프 i++ 가 ::: 다음 줄로
+        elements.push(
+          <CalloutBox key={i} type={type} content={buf.join('\n')} parseInline={parseInlineElements} />
+        )
+        continue
+      }
+
+      // 접기 (collapsible details): >>> 제목 ... <<< 또는 >>>제목
+      const detailsOpen = trimmed.match(/^>>>\s*(.+)?$/)
+      if (detailsOpen) {
+        const summary = (detailsOpen[1] || '자세히 보기').trim()
+        const buf: string[] = []
+        let j = i + 1
+        while (j < lines.length) {
+          if (/^<<<\s*$/.test(lines[j].trim())) break
+          buf.push(lines[j])
+          j++
+        }
+        i = j
+        elements.push(
+          <details
+            key={i}
+            className="my-4 rounded-md border border-gray-700 bg-gray-900/60 overflow-hidden group"
+          >
+            <summary className="cursor-pointer select-none px-4 py-2.5 bg-gray-800/80 hover:bg-gray-800 text-gray-200 text-sm font-medium flex items-center gap-2 list-none">
+              <span className="inline-block transition-transform group-open:rotate-90 text-gray-400">▶</span>
+              <span>{summary}</span>
+            </summary>
+            <div className="px-4 py-3 text-gray-300 text-sm leading-relaxed">
+              {parseContent(buf.join('\n'))}
+            </div>
+          </details>
+        )
         continue
       }
 
@@ -1370,17 +1615,39 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const level = headingMatch[1].length
         const title = headingMatch[2].trim()
         const anchor = toSlug(title)
-        
+
         const HeadingTag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements
         elements.push(
-          <HeadingTag key={i} id={anchor} className={`
-            font-bold mb-4 mt-6 text-gray-200
-            ${level === 1 ? 'text-3xl border-b-2 border-gray-600 pb-2' : ''}
-            ${level === 2 ? 'text-2xl' : ''}
-            ${level === 3 ? 'text-xl' : ''}
-            ${level >= 4 ? 'text-lg' : ''}
-          `}>
+          <HeadingTag
+            key={i}
+            id={anchor}
+            className={`group font-bold mb-4 mt-6 text-gray-200 scroll-mt-24 relative
+              ${level === 1 ? 'text-3xl border-b-2 border-gray-600 pb-2' : ''}
+              ${level === 2 ? 'text-2xl' : ''}
+              ${level === 3 ? 'text-xl' : ''}
+              ${level >= 4 ? 'text-lg' : ''}
+            `}
+          >
             {parseInlineElements(title)}
+            <a
+              href={`#${anchor}`}
+              onClick={(e) => {
+                // 클릭 시 URL 클립보드 복사 (anchor 포함)
+                e.preventDefault()
+                const target = document.getElementById(anchor)
+                if (target) target.scrollIntoView({ behavior: 'smooth' })
+                try {
+                  const url = `${window.location.origin}${window.location.pathname}#${anchor}`
+                  history.replaceState(null, '', `#${anchor}`)
+                  navigator.clipboard?.writeText(url)
+                } catch {}
+              }}
+              className="ml-2 inline-block opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 text-base font-normal align-middle no-underline"
+              title="이 섹션 링크 복사"
+              aria-label="이 섹션의 링크"
+            >
+              §
+            </a>
           </HeadingTag>
         )
         continue
@@ -1831,9 +2098,18 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         {renderedContent}
       </div>
       {(Object.keys(footnotes).length > 0 || footnoteCounterRef.current > 0) && (
-        <div className="mt-12 pt-6 border-t border-gray-600">
-          <h3 className="font-bold text-lg mb-4 text-gray-200">각주</h3>
-          <div className="space-y-2">
+        <section
+          aria-label="각주"
+          className="mt-14 rounded-lg border border-gray-700 bg-gradient-to-b from-gray-900/80 to-gray-900/40 overflow-hidden"
+        >
+          <div className="px-5 py-3 border-b border-gray-700 bg-gray-800/40 flex items-center gap-2">
+            <span className="inline-block w-1 h-4 bg-amber-500 rounded-sm" aria-hidden="true" />
+            <h3 className="font-bold text-base text-gray-100 tracking-wide">각주</h3>
+            <span className="ml-auto text-[11px] text-gray-500 tabular-nums">
+              {footnoteCounterRef.current}개
+            </span>
+          </div>
+          <div className="px-3 py-2 space-y-0.5">
             {Array.from({ length: footnoteCounterRef.current }, (_, index) => {
               const footnoteNumber = index + 1
               
@@ -1845,42 +2121,44 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               
               if (footnoteKey && footnotes[footnoteKey]) {
                 footnoteText = footnotes[footnoteKey]
-                console.log(`각주 ${footnoteNumber}: 매핑된 키 ${footnoteKey} 사용 = ${footnoteText}`)
               } else if (footnotes[footnoteNumber.toString()]) {
                 footnoteText = footnotes[footnoteNumber.toString()]
-                console.log(`각주 ${footnoteNumber}: 숫자 키 사용 = ${footnoteText}`)
               } else {
                 // auto 키들 중에서 순서대로 찾기
                 const autoKeys = Object.keys(footnotes).filter(key => key.startsWith('auto'))
                 if (autoKeys.length > 0 && index < autoKeys.length) {
                   const autoKey = autoKeys[index]
                   footnoteText = footnotes[autoKey]
-                  console.log(`각주 ${footnoteNumber}: auto 키 ${autoKey} 사용 = ${footnoteText}`)
                 }
               }
               
               return (
-                <div key={footnoteNumber} id={`footnote-${footnoteNumber}`} className="text-sm text-gray-400 scroll-mt-20 p-2 rounded hover:bg-gray-800 transition-colors">
-                  <sup className="text-blue-400 mr-2">
-                    <button
-                      className="hover:text-blue-300 cursor-pointer underline"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        // 각주를 참조하는 곳으로 다시 돌아가기
+                <div key={footnoteNumber} id={`footnote-${footnoteNumber}`} className="text-sm text-gray-400 scroll-mt-20 p-2 rounded hover:bg-gray-800/50 transition-colors flex items-start gap-2">
+                  <button
+                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 cursor-pointer rounded px-1.5 py-0.5 text-xs font-mono transition-colors flex-shrink-0"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const refEl = document.getElementById(`fnref-${footnoteNumber}`)
+                      if (refEl) {
+                        refEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        refEl.classList.add('footnote-flash')
+                        setTimeout(() => refEl.classList.remove('footnote-flash'), 1600)
+                      } else {
                         window.scrollTo({ top: 0, behavior: 'smooth' })
-                      }}
-                      title="본문으로 돌아가기"
-                    >
-                      [{footnoteNumber}]
-                    </button>
-                  </sup>
-                  <span className="text-gray-300">{parseInlineElements(footnoteText)}</span>
+                      }
+                    }}
+                    title="본문 위치로 돌아가기"
+                    aria-label={`각주 ${footnoteNumber} 본문 위치로 이동`}
+                  >
+                    ↑ [{footnoteNumber}]
+                  </button>
+                  <span className="text-gray-300 leading-relaxed">{parseInlineElements(footnoteText)}</span>
                 </div>
               )
             })}
           </div>
-        </div>
+        </section>
       )}
     </div>
   )

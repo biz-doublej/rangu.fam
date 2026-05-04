@@ -1,10 +1,19 @@
 import { getRequiredEnv } from '@/lib/env'
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import { IWikiUser, WikiUser } from '@/models/Wiki'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiUsers, type WikiUser as DrizzleWikiUser } from '@/db/schema/wiki'
 import crypto from 'crypto'
-import bcrypt from 'bcryptjs'
+
+// Drizzle row를 IWikiUser shape (legacy) 으로 다루기 위한 alias.
+// _id 필드는 호출자 측에서 user.id 값으로 채워줌.
+export type IWikiUser = DrizzleWikiUser & {
+  _id?: string
+  // legacy Mongoose API 호환 — Drizzle row에선 동작 안 함
+  save?: () => Promise<unknown>
+  toObject?: () => unknown
+}
 
 
 export const DOUBLEJ_AUTH_COOKIE = 'doublej-token'
@@ -37,6 +46,57 @@ const CORE_MEMBER_USERNAMES = new Set([
   'seungchan',
 ])
 
+/**
+ * DoubleJ SSO `preferred_username` → 코어 멤버 슬러그 매핑.
+ *
+ * SSO 가입 시점에 멤버명과 다른 사용자명을 쓴 사람들을 위한 별칭. 신규 멤버가
+ * 합류할 때마다 한 줄 추가하면 됨. 키는 항상 소문자/공백제거 정규화.
+ */
+const USERNAME_ALIAS_TO_MEMBER_ID: Record<string, string> = {
+  jung051004: 'jaewon', // 정재원
+}
+
+/**
+ * 이메일 → 멤버 슬러그 매핑.
+ *
+ * SSO username 이 무엇이든 IdP 가 발급한 email 로 매칭. username/discord 둘 다
+ * 모를 때 가장 안정적인 fallback. 키는 항상 소문자/공백제거 정규화.
+ */
+const EMAIL_TO_MEMBER_ID: Record<string, string> = {
+  'jaewonjung1004@gmail.com': 'jaewon',
+  'kanghu05@gmail.com': 'hanul',
+  'jinq0901@gmail.com': 'jinkyu',
+  '05alstjr@gmail.com': 'minseok',
+  'mushbit@naver.com': 'seungchan',
+  '3gb3gb1004@gmail.com': 'seungchan', // 연결된 보조 이메일
+}
+
+/**
+ * 위키 관리자 이메일 화이트리스트.
+ * Discord 연동 안 됐어도 email 만으로 admin 권한 부여.
+ */
+const WIKI_ADMIN_EMAILS = new Set([
+  'jaewonjung1004@gmail.com',
+  'kanghu05@gmail.com',
+])
+
+/**
+ * 위키 관리자 username 화이트리스트.
+ * email/Discord 둘 다 못 받는 경우의 마지막 fallback.
+ * 위키 username 은 SSO username 또는 wiki_users 에 저장된 값.
+ */
+const WIKI_ADMIN_USERNAMES = new Set([
+  'gabriel0727', // 정재원
+  'kanghu05',    // 강한울
+  'jung051004',  // 정재원 (alias)
+])
+
+function normalizeEmail(input?: string | null): string | null {
+  if (!input) return null
+  const v = input.toString().trim().toLowerCase()
+  return v || null
+}
+
 export interface DoubleJTokenPayload {
   userId: string
   username: string
@@ -54,6 +114,9 @@ export function normalizeDiscordIdentifier(input?: string | null): string | null
 export function resolveMemberIdFromUsername(username?: string | null): string | null {
   if (!username) return null
   const normalized = username.toLowerCase().trim()
+  if (USERNAME_ALIAS_TO_MEMBER_ID[normalized]) {
+    return USERNAME_ALIAS_TO_MEMBER_ID[normalized]
+  }
   if (!CORE_MEMBER_USERNAMES.has(normalized)) return null
   if (normalized === 'jingyu') return 'jinkyu'
   return normalized
@@ -64,19 +127,32 @@ export function isCoreMember(username?: string | null): boolean {
 }
 
 export function resolveMemberIdForUser(
-  user: Pick<IWikiUser, 'username' | 'discordUsername' | 'discordId'>
+  user: Pick<IWikiUser, 'username' | 'discordUsername' | 'discordId' | 'email'>
 ): string | null {
+  // 1. 이메일 매핑 (가장 안정적, IdP 가 어떤 username 으로 발급해도 작동)
+  const email = normalizeEmail(user.email)
+  if (email && EMAIL_TO_MEMBER_ID[email]) {
+    return EMAIL_TO_MEMBER_ID[email]
+  }
+  // 2. Discord 연동 매핑
   const discordKey = normalizeDiscordIdentifier(user.discordUsername || user.discordId)
   if (discordKey && MEMBER_DISCORD_TO_MEMBER_ID[discordKey]) {
     return MEMBER_DISCORD_TO_MEMBER_ID[discordKey]
   }
+  // 3. username (alias 또는 코어 슬러그)
   return resolveMemberIdFromUsername(user.username)
 }
 
 export function isWhitelistedWikiAdmin(
-  user: Pick<IWikiUser, 'username' | 'discordUsername' | 'discordId'>
+  user: Pick<IWikiUser, 'username' | 'discordUsername' | 'discordId' | 'email'>
 ): boolean {
-  const usernameKey = user.username?.toLowerCase().trim()
+  // 1. username 직접 화이트리스트 — IdP/Discord 무관, 가장 단순
+  const usernameKey = user.username?.toLowerCase().trim() || ''
+  if (usernameKey && WIKI_ADMIN_USERNAMES.has(usernameKey)) return true
+  // 2. 이메일 화이트리스트
+  const email = normalizeEmail(user.email)
+  if (email && WIKI_ADMIN_EMAILS.has(email)) return true
+  // 3. legacy Discord 연동 검증
   const expectedDiscord = WIKI_ADMIN_DISCORD_BY_USERNAME[usernameKey]
   if (!expectedDiscord) return false
   const linkedDiscord = normalizeDiscordIdentifier(user.discordUsername || user.discordId)
@@ -141,143 +217,40 @@ export async function enforceUserAccessPolicy(user: IWikiUser | null): Promise<I
     }
   }
 
+  // Mongoose 문서는 .save() — Drizzle row은 plain object. 호출자에서 persist.
   if (dirty) {
-    await user.save()
+    if (typeof (user as any).save === 'function') {
+      // legacy mongoose
+      await (user as any).save()
+    } else if ((user as any).id) {
+      // Drizzle row — 직접 DB 업데이트 (이게 빠져있어서 admin 승격이 메모리에만 적용되고
+      // 다음 요청에서 role 이 다시 'editor' 로 돌아가는 버그가 있었음).
+      try {
+        const db = getDb()
+        await db
+          .update(wikiUsers)
+          .set({
+            role: user.role,
+            permissions: user.permissions,
+            updatedAt: new Date(),
+          })
+          .where(eq(wikiUsers.id, (user as any).id))
+      } catch (e) {
+        console.error('enforceUserAccessPolicy persist failed:', e)
+      }
+    }
   }
 
   return user
 }
 
-function isLegacyAdminUsername(username?: string | null): boolean {
-  if (!username) return false
-  const key = username.toLowerCase().trim()
-  return Boolean(WIKI_ADMIN_DISCORD_BY_USERNAME[key])
-}
-
-function pickLatestDate(a?: Date, b?: Date): Date | undefined {
-  if (!a && !b) return undefined
-  if (!a) return b
-  if (!b) return a
-  return a > b ? a : b
-}
-
-// Discord 식별자(간편로그인 아이디)를 우선시하여 계정 아이디를 병합/정규화
-export async function mergeSignupIdentityIntoDiscordIdentity(
-  user: IWikiUser | null,
-  discordIdentityRaw?: string | null
-): Promise<IWikiUser | null> {
-  if (!user) return null
-
-  const discordIdentity = normalizeDiscordIdentifier(discordIdentityRaw)
-  if (!discordIdentity) return user
-
-  const currentUsername = user.username?.toLowerCase().trim()
-  if (!currentUsername) return user
-
-  // 기존 위키 관리자 계정명은 유지 (요구사항: 기존 username + 지정된 discord_id 조합으로 관리자 부여)
-  if (isLegacyAdminUsername(currentUsername)) {
-    if (user.discordUsername !== discordIdentity) {
-      user.discordUsername = discordIdentity
-      await user.save()
-    }
-    return enforceUserAccessPolicy(user)
-  }
-
-  if (currentUsername === discordIdentity) {
-    if (user.discordUsername !== discordIdentity) {
-      user.discordUsername = discordIdentity
-      await user.save()
-    }
-    return enforceUserAccessPolicy(user)
-  }
-
-  await dbConnect()
-
-  const candidateQuery: any[] = [
-    { username: discordIdentity },
-    { discordUsername: discordIdentity },
-  ]
-  if (user.discordId) {
-    candidateQuery.push({ discordId: user.discordId })
-  }
-
-  const existingDiscordIdentityUser = await WikiUser.findOne({
-    _id: { $ne: user._id },
-    $or: candidateQuery,
-  })
-
-  if (existingDiscordIdentityUser) {
-    existingDiscordIdentityUser.discordId = user.discordId || existingDiscordIdentityUser.discordId
-    existingDiscordIdentityUser.discordUsername = discordIdentity
-    existingDiscordIdentityUser.discordAvatar =
-      user.discordAvatar || existingDiscordIdentityUser.discordAvatar
-    existingDiscordIdentityUser.avatar = existingDiscordIdentityUser.avatar || user.avatar
-    ;(existingDiscordIdentityUser as any).mainUserId =
-      (existingDiscordIdentityUser as any).mainUserId || (user as any).mainUserId
-    existingDiscordIdentityUser.edits = Math.max(
-      existingDiscordIdentityUser.edits || 0,
-      user.edits || 0
-    )
-    existingDiscordIdentityUser.pagesCreated = Math.max(
-      existingDiscordIdentityUser.pagesCreated || 0,
-      user.pagesCreated || 0
-    )
-    ;(existingDiscordIdentityUser as any).discussionPosts = Math.max(
-      (existingDiscordIdentityUser as any).discussionPosts || 0,
-      (user as any).discussionPosts || 0
-    )
-    existingDiscordIdentityUser.reputation = Math.max(
-      existingDiscordIdentityUser.reputation || 0,
-      user.reputation || 0
-    )
-    existingDiscordIdentityUser.lastLogin = pickLatestDate(
-      existingDiscordIdentityUser.lastLogin,
-      user.lastLogin
-    )
-    existingDiscordIdentityUser.lastActivity = pickLatestDate(
-      existingDiscordIdentityUser.lastActivity,
-      user.lastActivity
-    )
-    await existingDiscordIdentityUser.save()
-
-    user.isActive = false
-    user.discordId = undefined
-    user.discordUsername = `${discordIdentity}__merged`
-    user.discordAvatar = undefined
-    if (user.displayName && !user.displayName.includes('(merged)')) {
-      user.displayName = `${user.displayName} (merged)`
-    }
-    await user.save()
-
-    return enforceUserAccessPolicy(existingDiscordIdentityUser)
-  }
-
-  user.username = discordIdentity
-  user.discordUsername = discordIdentity
-
-  // 자동 생성된 이메일 규칙이면 새 username 규칙으로 맞춤
-  if (user.email?.endsWith('@doublej.local')) {
-    const emailLocal = user.email.split('@')[0]
-    if (emailLocal === currentUsername || emailLocal.startsWith(`${currentUsername}-`)) {
-      const desiredEmail = `${discordIdentity}@doublej.local`
-      const emailConflict = await WikiUser.exists({
-        _id: { $ne: user._id },
-        email: desiredEmail,
-      })
-      user.email = emailConflict
-        ? `${discordIdentity}-${Date.now()}@doublej.local`
-        : desiredEmail
-    }
-  }
-
-  await user.save()
-  return enforceUserAccessPolicy(user)
-}
+// (구) mergeSignupIdentityIntoDiscordIdentity / isLegacyAdminUsername / pickLatestDate
+// — 마이그레이션 후 모두 미사용. 제거됨. 필요 시 git history 참고 (commit b816569).
 
 export function createDoubleJToken(user: Pick<IWikiUser, '_id' | 'username' | 'role'>): string {
   return jwt.sign(
     {
-      userId: String(user._id),
+      userId: String(user._id || (user as any).id),
       username: user.username,
       role: user.role,
     },
@@ -300,13 +273,22 @@ function normalizeUsernameForStorage(rawInput?: string | null): string {
 
 async function resolveUniqueUsername(baseUsername: string): Promise<string> {
   const base = normalizeUsernameForStorage(baseUsername)
-  const exists = await WikiUser.exists({ username: base })
-  if (!exists) return base
+  const db = getDb()
+
+  const existsBy = async (username: string): Promise<boolean> => {
+    const [row] = await db
+      .select({ id: wikiUsers.id })
+      .from(wikiUsers)
+      .where(eq(wikiUsers.username, username))
+      .limit(1)
+    return !!row
+  }
+
+  if (!(await existsBy(base))) return base
 
   for (let index = 1; index < 1000; index += 1) {
     const candidate = `${base}-${index}`.slice(0, 20)
-    const duplicated = await WikiUser.exists({ username: candidate })
-    if (!duplicated) return candidate
+    if (!(await existsBy(candidate))) return candidate
   }
 
   return `${base.slice(0, 12)}-${Date.now().toString().slice(-6)}`.slice(0, 20)
@@ -315,16 +297,25 @@ async function resolveUniqueUsername(baseUsername: string): Promise<string> {
 async function resolveUniqueEmail(baseEmail: string): Promise<string> {
   const normalized = (baseEmail || '').trim().toLowerCase()
   const fallbackBase = normalized || `user-${Date.now().toString().slice(-6)}@doublej.local`
-  const exists = await WikiUser.exists({ email: fallbackBase })
-  if (!exists) return fallbackBase
+  const db = getDb()
+
+  const existsBy = async (email: string): Promise<boolean> => {
+    const [row] = await db
+      .select({ id: wikiUsers.id })
+      .from(wikiUsers)
+      .where(eq(wikiUsers.email, email))
+      .limit(1)
+    return !!row
+  }
+
+  if (!(await existsBy(fallbackBase))) return fallbackBase
 
   const [localPart, domainPart] = fallbackBase.split('@')
   const domain = domainPart || 'doublej.local'
 
   for (let index = 1; index < 1000; index += 1) {
     const candidate = `${localPart}-${index}@${domain}`
-    const duplicated = await WikiUser.exists({ email: candidate })
-    if (!duplicated) return candidate
+    if (!(await existsBy(candidate))) return candidate
   }
 
   return `${localPart.slice(0, 12)}-${Date.now().toString().slice(-6)}@${domain}`
@@ -341,7 +332,7 @@ export interface OidcUserProfile {
 export async function findOrCreateWikiUserFromOidcProfile(
   profile: OidcUserProfile
 ): Promise<IWikiUser | null> {
-  await dbConnect()
+  const db = getDb()
 
   const subject = profile.subject?.trim()
   if (!subject) return null
@@ -351,85 +342,113 @@ export async function findOrCreateWikiUserFromOidcProfile(
   const displayName = profile.displayName?.trim()
   const avatar = profile.avatar?.trim()
 
-  let user =
-    (await WikiUser.findOne({ ssoSubject: subject })) ||
-    (normalizedEmail ? await WikiUser.findOne({ email: normalizedEmail }) : null) ||
-    (await WikiUser.findOne({ username: normalizedUsername }))
+  // ssoSubject → email → username 순으로 매칭
+  let [user] = await db
+    .select()
+    .from(wikiUsers)
+    .where(eq(wikiUsers.ssoSubject, subject))
+    .limit(1)
+
+  if (!user && normalizedEmail) {
+    const [byEmail] = await db
+      .select()
+      .from(wikiUsers)
+      .where(eq(wikiUsers.email, normalizedEmail))
+      .limit(1)
+    user = byEmail
+  }
+
+  if (!user) {
+    const [byUsername] = await db
+      .select()
+      .from(wikiUsers)
+      .where(eq(wikiUsers.username, normalizedUsername))
+      .limit(1)
+    user = byUsername
+  }
+
+  const now = new Date()
 
   if (!user) {
     const username = await resolveUniqueUsername(normalizedUsername)
     const email = await resolveUniqueEmail(normalizedEmail || `${username}@doublej.local`)
-    const placeholderPassword = await bcrypt.hash(`__oidc__${crypto.randomUUID()}`, 12)
-    user = await WikiUser.create({
-      username,
-      email,
-      password: placeholderPassword,
-      ssoSubject: subject,
-      displayName: displayName || username,
-      avatar,
-      role: 'editor',
-      permissions: {
-        canEdit: true,
-        canDelete: false,
-        canProtect: false,
-        canBan: false,
-        canManageUsers: false,
-      },
-      edits: 0,
-      pagesCreated: 0,
-      discussionPosts: 0,
-      reputation: 0,
-      preferences: {
-        theme: 'auto',
-        timezone: 'Asia/Seoul',
-        emailNotifications: true,
-        showEmail: false,
-        autoWatchPages: true,
-      },
-      isActive: true,
-      lastLogin: new Date(),
-      lastActivity: new Date(),
-    })
+    // 로컬 password auth는 제거됐지만 wiki_users.password 컬럼이 NOT NULL이라 placeholder 필요.
+    // SSO-only 사용자는 이 값으로 절대 로그인 불가 (bcrypt가 아닌 임의 base64 문자열).
+    const placeholderPassword = `__oidc__${crypto.randomBytes(48).toString('base64')}`
+
+    const [created] = await db
+      .insert(wikiUsers)
+      .values({
+        username,
+        email,
+        password: placeholderPassword,
+        ssoSubject: subject,
+        displayName: displayName || username,
+        avatar: avatar || null,
+        role: 'editor',
+        permissions: {
+          canEdit: true,
+          canDelete: false,
+          canProtect: false,
+          canBan: false,
+          canManageUsers: false,
+        },
+        edits: 0,
+        pagesCreated: 0,
+        discussionPosts: 0,
+        reputation: 0,
+        preferences: {
+          theme: 'auto',
+          timezone: 'Asia/Seoul',
+          emailNotifications: true,
+          showEmail: false,
+          autoWatchPages: true,
+        },
+        isActive: true,
+        lastLogin: now,
+        lastActivity: now,
+      })
+      .returning()
+    user = created
   } else {
-    let dirty = false
+    const updates: Record<string, any> = { lastLogin: now, lastActivity: now, updatedAt: now }
 
     if (!user.ssoSubject || user.ssoSubject !== subject) {
-      user.ssoSubject = subject
-      dirty = true
+      updates.ssoSubject = subject
     }
 
     if (normalizedEmail && user.email !== normalizedEmail) {
-      const emailConflict = await WikiUser.exists({
-        _id: { $ne: user._id },
-        email: normalizedEmail,
-      })
-      if (!emailConflict) {
-        user.email = normalizedEmail
-        dirty = true
+      // 이메일 충돌 체크 (자기 자신 제외)
+      const [conflict] = await db
+        .select({ id: wikiUsers.id })
+        .from(wikiUsers)
+        .where(eq(wikiUsers.email, normalizedEmail))
+        .limit(1)
+      if (!conflict || conflict.id === user.id) {
+        updates.email = normalizedEmail
       }
     }
 
     if (displayName && user.displayName !== displayName) {
-      user.displayName = displayName
-      dirty = true
+      updates.displayName = displayName
     }
 
     if (avatar && user.avatar !== avatar) {
-      user.avatar = avatar
-      dirty = true
+      updates.avatar = avatar
     }
 
-    user.lastLogin = new Date()
-    user.lastActivity = new Date()
-    dirty = true
-
-    if (dirty) {
-      await user.save()
-    }
+    const [updated] = await db
+      .update(wikiUsers)
+      .set(updates)
+      .where(eq(wikiUsers.id, user.id))
+      .returning()
+    user = updated
   }
 
   if (!user) return null
-  return enforceUserAccessPolicy(user)
+  // legacy compat
+  ;(user as any)._id = user.id
+  return enforceUserAccessPolicy(user as any)
 }
 
 export function verifyDoubleJToken(token: string): DoubleJTokenPayload | null {
@@ -443,7 +462,7 @@ export function verifyDoubleJToken(token: string): DoubleJTokenPayload | null {
 export function createWikiToken(user: Pick<IWikiUser, '_id' | 'username' | 'role' | 'permissions'>): string {
   return jwt.sign(
     {
-      userId: String(user._id),
+      userId: String(user._id || (user as any).id),
       username: user.username,
       role: user.role,
       permissions: user.permissions,
@@ -492,15 +511,21 @@ export async function getAuthenticatedWikiUser(request: NextRequest): Promise<IW
   const payload = verifyDoubleJToken(token)
   if (!payload?.userId) return null
 
-  await dbConnect()
-  const user = await WikiUser.findById(payload.userId)
+  const db = getDb()
+  const [user] = await db
+    .select()
+    .from(wikiUsers)
+    .where(eq(wikiUsers.id, payload.userId))
+    .limit(1)
   if (!user) return null
 
   if (!user.isActive) return null
-  const isBanned = Boolean((user as any).isBanned || (user as any).banStatus?.isBanned)
+  const isBanned = Boolean((user as any).banStatus?.isBanned)
   if (isBanned) return null
 
-  return enforceUserAccessPolicy(user)
+  // Drizzle row 호환 형태로 IWikiUser shape 변환 — _id 필드 추가 (legacy code 호환)
+  ;(user as any)._id = user.id
+  return enforceUserAccessPolicy(user as any)
 }
 
 export function buildClientUser(
@@ -509,7 +534,7 @@ export function buildClientUser(
   const memberId = resolveMemberIdForUser(user)
 
   return {
-    id: String(user._id),
+    id: String(user._id || (user as any).id),
     username: user.username,
     email: user.email || '',
     role: memberId ? 'member' as const : 'guest' as const,

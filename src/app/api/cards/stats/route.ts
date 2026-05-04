@@ -1,75 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { UserCardStats } from '@/models/UserCardStats'
-import { CardService } from '@/services/cardService'
-import connectDB from '@/lib/database'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { userCardStats } from '@/db/schema/cards'
+import { normalizeUserIdToUuid } from '@/lib/cardHelpers'
+
 export const dynamic = 'force-dynamic'
+
+const DROP_WINDOW_MS = 24 * 60 * 60 * 1000
+const MAX_DROPS_PER_WINDOW = 5
 
 // GET: 사용자 카드 통계 조회
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
-    
+    const db = getDb()
+
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: '사용자 ID가 필요합니다.' },
         { status: 400 }
       )
     }
-    
-    const userObjectId = CardService.normalizeUserId(userId)
-    
-    // 사용자 통계 조회
-    let userStats = await UserCardStats.findOne({ userId: userObjectId })
-    
-    if (!userStats) {
-      // 통계가 없으면 초기 통계 생성
-      userStats = new UserCardStats({
-        userId: userObjectId,
-        lastDropDate: new Date(),
-        dailyDropsUsed: 0
-      })
-      await userStats.save()
+
+    const userUuid = normalizeUserIdToUuid(userId)
+
+    let [stats] = await db
+      .select()
+      .from(userCardStats)
+      .where(eq(userCardStats.userId, userUuid))
+      .limit(1)
+
+    if (!stats) {
+      const [created] = await db
+        .insert(userCardStats)
+        .values({
+          userId: userUuid,
+          lastDropDate: new Date(),
+          dailyDropsUsed: 0,
+        })
+        .returning()
+      stats = created
     }
-    
-    // 24시간 경과 시 드랍 횟수 자동 리셋
+
+    // 24시간 경과 시 드랍 윈도우 자동 리셋
     const now = new Date()
-    const lastDrop = new Date(userStats.lastDropDate)
+    const lastDrop = new Date(stats.lastDropDate)
     const elapsedMs = now.getTime() - lastDrop.getTime()
-    const shouldResetWindow = Number.isNaN(lastDrop.getTime()) || elapsedMs >= 24 * 60 * 60 * 1000 || elapsedMs < 0
+    const shouldResetWindow =
+      Number.isNaN(lastDrop.getTime()) || elapsedMs >= DROP_WINDOW_MS || elapsedMs < 0
 
     if (shouldResetWindow) {
-      userStats.dailyDropsUsed = 0
-      userStats.lastDropDate = now
-      await userStats.save()
+      const [updated] = await db
+        .update(userCardStats)
+        .set({ dailyDropsUsed: 0, lastDropDate: now, updatedAt: now })
+        .where(eq(userCardStats.userId, userUuid))
+        .returning()
+      stats = updated
     }
-    
-    // 남은 드랍 횟수 계산
-    const remainingDrops = Math.max(0, 5 - userStats.dailyDropsUsed)
-    
-    // 컬렉션 완성도 계산
-    const collectionProgress = {
-      totalProgress: 0,
-      yearlyProgress: userStats.yearCardCompletion || [],
-      overallCompletionRate: 0
-    }
-    
-    if (userStats.yearCardCompletion && userStats.yearCardCompletion.length > 0) {
-      const totalRate = userStats.yearCardCompletion.reduce((sum: number, year: any) => sum + year.completionRate, 0)
-      collectionProgress.overallCompletionRate = totalRate / userStats.yearCardCompletion.length
-    }
-    
+
+    const remainingDrops = Math.max(0, MAX_DROPS_PER_WINDOW - (stats.dailyDropsUsed || 0))
+
+    const yearProgress = (stats.yearCardCompletion || []) as Array<{
+      year: number
+      totalCards: number
+      ownedCards: number
+      completionRate: number
+    }>
+    const overallCompletionRate =
+      yearProgress.length > 0
+        ? yearProgress.reduce((sum, y) => sum + (y.completionRate || 0), 0) / yearProgress.length
+        : 0
+
     return NextResponse.json({
       success: true,
       stats: {
-        ...userStats.toObject(),
+        ...stats,
         remainingDrops,
-        collectionProgress
-      }
+        collectionProgress: {
+          totalProgress: 0,
+          yearlyProgress: yearProgress,
+          overallCompletionRate,
+        },
+      },
     })
-    
   } catch (error) {
     console.error('Stats GET error:', error)
     return NextResponse.json(

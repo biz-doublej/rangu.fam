@@ -11,8 +11,6 @@ const DEFAULT_ACCOUNTS_BASE = 'https://accounts.doublej.app'
 const DEFAULT_SCOPE = 'openid profile email offline_access'
 const STATE_TTL_SECONDS = 10 * 60
 
-type OidcScreen = 'signin' | 'signup'
-
 interface OidcStatePayload {
   state: string
   codeVerifier: string
@@ -126,6 +124,24 @@ export function resolveOidcRedirectUri(origin: string): string {
   return getOptionalEnv('OIDC_REDIRECT_URI') || `${origin}/auth/callback`
 }
 
+/**
+ * Resolve the public-facing origin of the incoming request.
+ *
+ * Behind a reverse proxy (Cloud Run, Netlify, Cloudflare) the raw `request.url`
+ * uses the internal listener (e.g. `https://0.0.0.0:8080`) which would leak
+ * into OIDC `redirect_uri`. We trust standard `X-Forwarded-Host` /
+ * `X-Forwarded-Proto` headers since Cloud Run terminates TLS upstream.
+ */
+export function resolvePublicOrigin(request: { url: string; headers: Headers }): string {
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const host = forwardedHost?.split(',')[0]?.trim()
+  if (host) {
+    const proto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https'
+    return `${proto}://${host}`
+  }
+  return new URL(request.url).origin
+}
+
 export function createPkcePair(): { codeVerifier: string; codeChallenge: string } {
   const codeVerifier = base64UrlEncode(crypto.randomBytes(64))
   const codeChallenge = base64UrlEncode(crypto.createHash('sha256').update(codeVerifier).digest())
@@ -185,14 +201,6 @@ export function buildAuthorizeUrl(params: {
   return authorizeUrl.toString()
 }
 
-export function buildAccountsContinueUrl(authorizeUrl: string, screen: OidcScreen): string {
-  const accountsBaseUrl = getAccountsBaseUrl().replace(/\/+$/, '')
-  const path = screen === 'signup' ? '/signup' : '/signin'
-  const url = new URL(`${accountsBaseUrl}${path}`)
-  url.searchParams.set('continue', authorizeUrl)
-  return url.toString()
-}
-
 export function getOidcStateCookieOptions() {
   return {
     httpOnly: true,
@@ -201,10 +209,6 @@ export function getOidcStateCookieOptions() {
     maxAge: STATE_TTL_SECONDS,
     path: '/',
   }
-}
-
-export function resolveAuthScreen(input?: string | null): OidcScreen {
-  return input?.toLowerCase() === 'signup' ? 'signup' : 'signin'
 }
 
 export async function fetchOpenIdConfiguration(issuer: string): Promise<OpenIdConfiguration | null> {

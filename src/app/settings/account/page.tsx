@@ -2,106 +2,253 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, ExternalLink, LogIn, ShieldCheck, UserPlus } from 'lucide-react'
-import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { useRouter } from 'next/navigation'
+import {
+  ArrowRight,
+  ChevronLeft,
+  CreditCard,
+  ExternalLink,
+  Home,
+  KeyRound,
+  Link2,
+  Lock,
+  LogIn,
+  ShieldCheck,
+  User,
+  UserPlus,
+} from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import {
+  CaveatText,
+  Handwritten,
+  InkUnderline,
+  PaperCard,
+  Pin,
+  TapeStrip,
+} from '@/components/scrapbook'
 
-const ACCOUNT_LINKS = [
-  { label: '계정 홈', path: '/account' },
-  { label: '개인정보', path: '/account/personal-info' },
-  { label: '보안', path: '/account/security' },
-  { label: '연결 관리', path: '/account/connections' },
-  { label: '결제', path: '/account/billing' },
+type LinkAccent = 'coral' | 'sage' | 'mustard'
+
+const ACCOUNT_LINKS: Array<{
+  label: string
+  caption: string
+  path: string
+  icon: React.ComponentType<{ className?: string }>
+  accent: LinkAccent
+}> = [
+  { label: '계정 홈', caption: '한눈에 보는 통합 계정', path: '/account', icon: Home, accent: 'coral' },
+  { label: '개인정보', caption: '이름·이메일·아바타', path: '/account/personal-info', icon: User, accent: 'sage' },
+  { label: '보안', caption: '비밀번호·2단계 인증', path: '/account/security', icon: Lock, accent: 'mustard' },
+  { label: '연결 관리', caption: '서드파티 앱·서비스', path: '/account/connections', icon: Link2, accent: 'coral' },
+  { label: '결제', caption: '구독·결제수단', path: '/account/billing', icon: CreditCard, accent: 'sage' },
 ]
 
+const accentToTextClass: Record<LinkAccent, string> = {
+  coral: 'text-coral-500',
+  sage: 'text-sage-500',
+  mustard: 'text-mustard-500',
+}
+
+const accentToBgClass: Record<LinkAccent, string> = {
+  coral: 'bg-coral-500/10',
+  sage: 'bg-sage-500/10',
+  mustard: 'bg-mustard-500/10',
+}
+
 export default function AccountSettingsPage() {
-  const { isLoggedIn, user, startSignIn, startSignUp, openAccountCenter } = useAuth()
+  const router = useRouter()
+  const { isLoggedIn, user, isLoading, startSignIn, startSignUp, openAccountCenter } = useAuth()
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#050918] via-[#060312] to-[#020205]" />
-      <div className="absolute -top-32 right-0 w-[32rem] h-[32rem] bg-primary-500/30 blur-[180px]" />
-      <div className="absolute bottom-[-10rem] left-[-6rem] w-[28rem] h-[28rem] bg-cyan-500/20 blur-[160px]" />
+    <div className="min-h-screen px-4 py-12 sm:py-16">
+      <div className="mx-auto max-w-2xl">
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="mb-6 inline-flex items-center gap-1 text-sm text-ink-300 transition hover:text-ink-500"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          홈으로
+        </button>
 
-      <div className="relative z-10 px-4 py-14 lg:py-16">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl"
-          >
-            <p className="text-sm uppercase tracking-[0.3em] text-white/60 mb-2">DoubleJ Account Center</p>
-            <h1 className="text-3xl lg:text-4xl font-bold mb-2">통합 계정 설정</h1>
-            <p className="text-white/70">
-              로그인/회원가입/계정설정은 `accounts.doublej.app`에서 통합 관리됩니다.
-              이 페이지는 계정센터 이동 링크만 제공합니다.
-            </p>
-          </motion.div>
+        {/* ── 헤더 카드 ─────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="relative"
+        >
+          <div className="absolute -left-3 -top-4 hidden md:block">
+            <CaveatText className="text-xl text-coral-500">your account →</CaveatText>
+          </div>
 
+          <PaperCard className="relative !p-0 overflow-visible">
+            <TapeStrip className="tape--top" color="coral" />
+            <div className="px-7 pb-7 pt-9 sm:px-9 sm:pb-9">
+              <CaveatText className="text-lg text-coral-500">DoubleJ Account Center</CaveatText>
+              <h1 className="display-han mt-1 text-3xl text-ink-500 sm:text-4xl">
+                <InkUnderline variant="coral">통합</InkUnderline> 계정 설정.
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-ink-300">
+                로그인·회원가입·계정설정은 모두{' '}
+                <strong className="font-bold text-ink-500">accounts.doublej.app</strong>에서 통합 관리됩니다.
+                이 페이지는 계정센터 이동 링크만 제공해요.
+              </p>
+            </div>
+          </PaperCard>
+        </motion.div>
+
+        {/* ── 본문: 로그인 상태에 따라 ─────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          className="mt-6"
+        >
           {!isLoggedIn ? (
-            <Card className="bg-white/5 border-white/10 text-white shadow-xl">
-              <CardHeader>
-                <h2 className="text-lg font-semibold">로그인이 필요합니다.</h2>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm text-white/80">
-                <p>서비스 로그인은 `/auth/start`를 통해 OIDC(PKCE)로 시작됩니다.</p>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-2">
-                <Button type="button" variant="primary" className="w-full" onClick={() => startSignIn('/settings/account')}>
-                  <LogIn className="w-4 h-4 mr-2" />
-                  통합 로그인
-                </Button>
-                <Button type="button" variant="ghost" className="w-full border border-white/20 text-white" onClick={() => startSignUp('/settings/account')}>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  통합 회원가입
-                </Button>
-              </CardFooter>
-            </Card>
-          ) : (
-            <Card className="bg-white/5 border-white/10 text-white shadow-xl">
-              <CardHeader>
-                <h2 className="text-lg font-semibold">{user?.username} 계정</h2>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {ACCOUNT_LINKS.map((link) => (
-                  <button
-                    key={link.path}
-                    type="button"
-                    onClick={() => openAccountCenter(link.path)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-left hover:border-white/30 transition-colors"
-                  >
-                    <span className="flex items-center justify-between">
-                      <span>{link.label}</span>
-                      <ExternalLink className="w-4 h-4 text-white/60" />
-                    </span>
-                  </button>
-                ))}
-              </CardContent>
-              <CardFooter>
-                <Button type="button" variant="primary" className="w-full" onClick={() => openAccountCenter('/account')}>
-                  <ArrowRight className="w-4 h-4 mr-2" />
-                  계정센터 열기
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
+            <PaperCard className="relative !p-0 overflow-visible">
+              <TapeStrip className="tape--top" color="sage" />
+              <div className="px-7 pb-7 pt-9 sm:px-9 sm:pb-9">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CaveatText className="text-lg text-sage-500">sign in first</CaveatText>
+                    <h2 className="display-han mt-1 text-2xl text-ink-500">
+                      로그인이 필요해요.
+                    </h2>
+                  </div>
+                  <Pin color="sage" />
+                </div>
+                <p className="mt-4 text-sm leading-relaxed text-ink-300">
+                  서비스 로그인은 <Handwritten className="text-coral-500">/auth/start</Handwritten> 를 통해
+                  OIDC(PKCE) 흐름으로 시작됩니다.
+                </p>
 
-          <Card className="bg-white/5 border-white/10">
-            <CardHeader>
-              <h4 className="font-semibold text-white flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                연동 안내
-              </h4>
-            </CardHeader>
-            <CardContent className="text-sm text-white/70 space-y-2">
-              <p>• 서비스 로그인 시작: `/auth/start`</p>
-              <p>• 인증 UI: `https://accounts.doublej.app/signin` / `https://accounts.doublej.app/signup`</p>
-              <p>• 계정 설정: `https://accounts.doublej.app/account/*`</p>
-              <p>• 랑구팸/이랑위키는 자체 세션만 유지하고 인증 소스는 DoubleJ 플랫폼을 사용합니다.</p>
-            </CardContent>
-          </Card>
-        </div>
+                <div className="mt-6 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="ink-button justify-center"
+                    onClick={() => startSignIn('/settings/account')}
+                    disabled={isLoading}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    로그인
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button justify-center"
+                    onClick={() => startSignUp('/settings/account')}
+                    disabled={isLoading}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    회원가입
+                  </button>
+                </div>
+              </div>
+            </PaperCard>
+          ) : (
+            <PaperCard className="relative !p-0 overflow-visible">
+              <TapeStrip className="tape--top" color="sage" />
+              <div className="px-7 pb-7 pt-9 sm:px-9 sm:pb-9">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CaveatText className="text-lg text-sage-500">signed in as</CaveatText>
+                    <h2 className="display-han mt-1 text-2xl text-ink-500">
+                      <Handwritten className="text-coral-500">{user?.username}</Handwritten> 계정
+                    </h2>
+                  </div>
+                  <Pin color="coral" />
+                </div>
+
+                <ul className="mt-6 space-y-2">
+                  {ACCOUNT_LINKS.map((link) => {
+                    const Icon = link.icon
+                    return (
+                      <li key={link.path}>
+                        <button
+                          type="button"
+                          onClick={() => openAccountCenter(link.path)}
+                          className="group flex w-full items-center gap-3 rounded-xl border border-ink-500/10 bg-paper-50/60 px-4 py-3 text-left transition hover:border-ink-500/25 hover:bg-paper-50"
+                        >
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accentToBgClass[link.accent]}`}
+                          >
+                            <Icon className={`h-4 w-4 ${accentToTextClass[link.accent]}`} />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-ink-500">{link.label}</span>
+                            <span className="block text-xs text-ink-300">{link.caption}</span>
+                          </span>
+                          <ExternalLink className="h-4 w-4 shrink-0 text-ink-300 transition group-hover:text-ink-500" />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+
+                <div className="mt-6 border-t border-dashed border-ink-500/15 pt-5">
+                  <button
+                    type="button"
+                    className="ink-button w-full justify-center"
+                    onClick={() => openAccountCenter('/account')}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    계정센터 열기
+                  </button>
+                </div>
+              </div>
+            </PaperCard>
+          )}
+        </motion.div>
+
+        {/* ── 연동 안내 카드 (노트지) ──────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="mt-6"
+        >
+          <PaperCard lined className="relative !p-0 overflow-visible">
+            <TapeStrip className="tape--top" color="yellow" />
+            <div className="px-7 pb-7 pt-9 sm:px-9 sm:pb-9">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-sage-500" />
+                <CaveatText className="text-base text-ink-500">연동 안내</CaveatText>
+              </div>
+
+              <dl className="mt-4 space-y-2 text-sm leading-relaxed text-ink-300">
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="font-semibold text-ink-500">서비스 로그인 시작</dt>
+                  <dd>
+                    <Handwritten className="text-coral-500">/auth/start</Handwritten>
+                  </dd>
+                </div>
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="font-semibold text-ink-500">인증 UI</dt>
+                  <dd className="break-all">
+                    <Handwritten className="text-sage-500">accounts.doublej.app/signin</Handwritten>
+                    <span className="mx-1 text-ink-300">·</span>
+                    <Handwritten className="text-sage-500">/signup</Handwritten>
+                  </dd>
+                </div>
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="font-semibold text-ink-500">계정 설정</dt>
+                  <dd className="break-all">
+                    <Handwritten className="text-mustard-500">accounts.doublej.app/account/*</Handwritten>
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="mt-4 text-xs leading-relaxed text-ink-300">
+                <KeyRound className="mr-1 inline h-3 w-3 align-[-2px] text-ink-300" />
+                랑구팸과 이랑위키는 자체 세션만 유지하고, 인증 소스는 DoubleJ 플랫폼을 사용합니다.
+              </p>
+            </div>
+          </PaperCard>
+        </motion.div>
+
+        <p className="mt-8 text-center text-xs text-ink-300">
+          <CaveatText className="text-base">— rangu.fam, 2026</CaveatText>
+        </p>
       </div>
     </div>
   )

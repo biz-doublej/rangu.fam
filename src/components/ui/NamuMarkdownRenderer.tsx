@@ -1004,32 +1004,42 @@ function preprocessNamuWikiSyntax(content: string): string {
   return processed;
 }
 
-// 역할 배너 데이터
-const ROLE_BANNERS: Record<string, { title: string; desc: string; color: string; icon: typeof Info }> = {
+// 역할 배너 데이터 — namuwiki 인포박스와 통일된 [헤더-본문] 스타일
+const ROLE_BANNERS: Record<string, {
+  title: string
+  desc: string
+  headerBg: string
+  accentText: string
+  icon: typeof Info
+}> = {
   developer: {
     title: '이랑위키 개발자',
     desc: '이 사람은 이랑위키의 개발자 입니다.',
-    color: 'from-emerald-500/20 via-emerald-400/15 to-emerald-600/20',
-    icon: Info
+    headerBg: 'bg-emerald-700',
+    accentText: 'text-emerald-300',
+    icon: Info,
   },
   admin: {
     title: '이랑위키 운영자',
     desc: '이 사람은 이랑위키 운영자 입니다.',
-    color: 'from-sky-500/20 via-sky-400/15 to-indigo-600/20',
-    icon: AlertTriangle
+    headerBg: 'bg-sky-700',
+    accentText: 'text-sky-300',
+    icon: AlertTriangle,
   },
   rangu: {
     title: '랑구팸 멤버',
     desc: '이 사람은 랑구팸 입니다.',
-    color: 'from-amber-500/20 via-orange-400/15 to-rose-500/20',
-    icon: Star
+    headerBg: 'bg-amber-700',
+    accentText: 'text-amber-300',
+    icon: Star,
   },
   workshop: {
     title: '작업공작소 운영자',
     desc: '이 사람은 작업공작소 운영자 입니다.',
-    color: 'from-purple-500/20 via-fuchsia-400/15 to-blue-500/20',
-    icon: CheckCircle
-  }
+    headerBg: 'bg-purple-700',
+    accentText: 'text-purple-300',
+    icon: CheckCircle,
+  },
 }
 
 const RoleBanner = ({ role }: { role: string }) => {
@@ -1038,20 +1048,21 @@ const RoleBanner = ({ role }: { role: string }) => {
   const Icon = banner.icon
   return (
     <motion.div
-      className="relative mb-4 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-white shadow-lg"
-      initial={{ opacity: 0, y: 10 }}
+      className="mb-4 overflow-hidden rounded-md border border-gray-700 bg-gray-900 text-white shadow-md"
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <div className={`absolute inset-0 bg-gradient-to-r ${banner.color} opacity-80`} />
-      <div className="relative flex items-start gap-3">
-        <div className="mt-1">
-          <Icon className="h-5 w-5 text-white" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm uppercase tracking-[0.2em] text-white/80">Role</p>
-          <h4 className="text-lg font-semibold">{banner.title}</h4>
-          <p className="text-sm text-white/85">{banner.desc}</p>
-        </div>
+      <div className={`${banner.headerBg} px-4 py-2 flex items-center gap-2`}>
+        <Icon className="h-4 w-4 text-white/90" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+          Role
+        </span>
+      </div>
+      <div className="px-4 py-3 bg-gray-900">
+        <h4 className={`text-base font-semibold ${banner.accentText}`}>
+          {banner.title}
+        </h4>
+        <p className="mt-1 text-sm text-gray-300">{banner.desc}</p>
       </div>
     </motion.div>
   )

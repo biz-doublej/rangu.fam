@@ -1,26 +1,63 @@
 'use client'
 
-import React, { useEffect, useState, Suspense } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
-import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Search } from 'lucide-react'
+import { WikiShell, WikiPageHeader } from '@/components/wiki'
+
+interface SearchResult {
+  title: string
+  slug: string
+  namespace?: string
+  summary?: string
+  snippet?: string | null
+  categories?: string[]
+  lastEditDate?: string
+  lastEditor?: string
+  views?: number
+  edits?: number
+}
+
+// "정재원" 같은 query를 텍스트 안에서 강조
+function HighlightText({ text, term }: { text: string; term: string }) {
+  if (!text || !term) return <>{text}</>
+  // 정규식 특수문자 이스케이프
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(${escaped})`, 'ig')
+  const parts = text.split(re)
+  return (
+    <>
+      {parts.map((p, i) =>
+        re.test(p) ? (
+          <mark
+            key={i}
+            className="bg-amber-300/30 text-amber-100 rounded-sm px-0.5"
+            style={{ backgroundColor: 'rgba(251,191,36,0.25)' }}
+          >
+            {p}
+          </mark>
+        ) : (
+          <React.Fragment key={i}>{p}</React.Fragment>
+        )
+      )}
+    </>
+  )
+}
 
 function WikiSearchPageContent() {
   const params = useSearchParams()
   const router = useRouter()
   const [q, setQ] = useState(params.get('q') || '')
-  const [results, setResults] = useState<any[]>([])
+  const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [total, setTotal] = useState(0)
   const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
-    const initialQ = params.get('q') || ''
-    if (initialQ) {
-      setQ(initialQ)
-      doSearch(initialQ)
+    const initial = params.get('q') || ''
+    if (initial) {
+      setQ(initial)
+      doSearch(initial)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -28,17 +65,17 @@ function WikiSearchPageContent() {
   const doSearch = async (term: string) => {
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/wiki/search?q=${encodeURIComponent(term)}`)
-      const data = await res.json()
-      if (data.success) {
-        setResults(data.results || [])
-        setTotal(data.total || 0)
-        // 정확 일치 여부 판단하여 새 문서 만들기 노출 결정
-        const hasExact = (data.results || []).some((r: any) => String(r.title).toLowerCase() === term.toLowerCase())
+      const r = await fetch(`/api/wiki/search?q=${encodeURIComponent(term)}`)
+      const d = await r.json()
+      if (d.success) {
+        setResults(d.results || [])
+        setTotal(d.total || 0)
+        const hasExact = (d.results || []).some(
+          (x: SearchResult) => String(x.title).toLowerCase() === term.toLowerCase()
+        )
         setShowCreate(!hasExact && term.trim().length > 0)
       } else {
-        setResults([])
-        setTotal(0)
+        setResults([]); setTotal(0)
         setShowCreate(term.trim().length > 0)
       }
     } finally {
@@ -47,96 +84,166 @@ function WikiSearchPageContent() {
   }
 
   return (
-    <div className="min-h-screen theme-surface text-gray-100">
-      <div className="max-w-5xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="검색어를 입력하세요"
-            className="bg-gray-800 border-gray-700 text-gray-200"
-            onKeyDown={(e) => { if (e.key === 'Enter') doSearch(q) }}
-          />
-          <Button onClick={() => doSearch(q)} className="bg-gray-700 hover:bg-gray-600 text-gray-200">
-            <Search className="w-4 h-4 mr-1" />
+    <WikiShell
+      activeNav="search"
+      pageHeader={
+        <WikiPageHeader
+          title={q ? `"${q}" 검색 결과` : '문서 검색'}
+          subtitle={
+            q
+              ? `이랑위키 본문/제목/요약/분류에서 "${q}"를 검색했습니다.`
+              : '제목, 본문, 분류 등에서 키워드를 검색할 수 있습니다.'
+          }
+          hatnote={
+            <>찾는 문서가 없다면 결과 우측의 <strong>새 문서 만들기</strong> 버튼으로 직접 작성할 수 있습니다.</>
+          }
+        />
+      }
+    >
+      {/* 검색 박스 */}
+      <section className="wiki-panel mb-4">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--wiki-ink-muted)]" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') doSearch(q) }}
+              placeholder="검색어를 입력하세요"
+              className="w-full pl-8 pr-3 py-1.5 bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule-strong)] rounded-sm text-sm text-[color:var(--wiki-ink)]"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => doSearch(q)}
+            className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+          >
             검색
-          </Button>
+          </button>
+        </div>
+      </section>
+
+      {/* 결과 */}
+      <section className="wiki-panel">
+        <div className="flex items-center justify-between mb-2 text-xs text-[color:var(--wiki-ink-muted)]">
+          <span>{isLoading ? '검색 중…' : `검색 결과 ${total.toLocaleString()}건`}</span>
+          {showCreate && (
+            <button
+              type="button"
+              onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)}
+              className="rounded-sm bg-[color:var(--wiki-accent)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+            >
+              {`"${q}" 새 문서 만들기`}
+            </button>
+          )}
         </div>
 
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <span>{isLoading ? '검색 중...' : `검색 결과 (${total})`}</span>
-              {showCreate && (
-                <Button
-                  onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white h-8 px-3"
-                  title={`새 문서 만들기: ${q}`}
-                >
-                  새 문서 만들기
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {results.length === 0 ? (
-              <div className="text-gray-400 text-sm">
-                결과가 없습니다.
-                {q.trim() && (
-                  <div className="mt-3">
-                    <Button onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)} className="bg-gray-700 hover:bg-gray-600 text-gray-200">
-                      &quot;{q}&quot; 새 문서 만들기
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {results.map((r) => (
-                  <div key={r.slug} className="bg-gray-900 rounded px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <button
-                        className="text-blue-400 hover:underline text-sm"
-                        onClick={() => router.push(`/wiki/${encodeURIComponent(r.title)}`)}
-                      >
-                        {r.title}
-                      </button>
-                      <span className="text-xs text-gray-500">{r.namespace}</span>
-                  </div>
-                  {r.summary && (
-                    <div className="text-gray-400 text-xs mt-1">{r.summary}</div>
-                  )}
-                  {r.categories?.length > 0 && (
-                    <div className="text-xs text-gray-500 mt-1">분류: {r.categories.join(', ')}</div>
+        {isLoading ? (
+          <p className="py-6 text-center text-sm text-[color:var(--wiki-ink-muted)]">검색 중입니다…</p>
+        ) : results.length === 0 ? (
+          <div className="py-6 text-center text-sm text-[color:var(--wiki-ink-muted)]">
+            <p>일치하는 문서가 없습니다.</p>
+            {q.trim() && (
+              <button
+                type="button"
+                onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)}
+                className="mt-3 inline-flex rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] px-3 py-1.5 text-xs text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]"
+              >
+                {`"${q}" 새 문서 만들기`}
+              </button>
+            )}
+          </div>
+        ) : (
+          <ul className="divide-y divide-[color:var(--wiki-rule)]">
+            {results.map(r => (
+              <li key={r.slug} className="py-3 px-1 hover:bg-[color:var(--wiki-bg-2)]/50 transition-colors">
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/wiki/${encodeURIComponent(r.title)}`)}
+                    className="wiki-serif text-base text-[color:var(--wiki-link)] hover:underline text-left"
+                  >
+                    <HighlightText text={r.title} term={q} />
+                  </button>
+                  {r.namespace && r.namespace !== 'main' && (
+                    <span className="wiki-chip shrink-0 text-[10px]">{r.namespace}</span>
                   )}
                 </div>
-              ))}
-              {/* 정확히 "q" 제목이 없을 때 바로 만들기 CTA 노출 */}
-              {showCreate && (
-                <div className="bg-gray-900 rounded px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-300">정확히 &quot;{q}&quot; 제목의 문서가 없습니다.</div>
-                    <Button onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)} className="bg-gray-700 hover:bg-gray-600 text-gray-200 h-8 px-3">
-                      &quot;{q}&quot; 새 문서 만들기
-                    </Button>
-                  </div>
+
+                {/* 본문 매칭 스니펫 (있으면 우선 표시) */}
+                {r.snippet ? (
+                  <p className="text-sm text-[color:var(--wiki-ink-soft)] leading-relaxed line-clamp-2 mb-1">
+                    <HighlightText text={r.snippet} term={q} />
+                  </p>
+                ) : r.summary ? (
+                  <p className="text-sm text-[color:var(--wiki-ink-soft)] leading-relaxed line-clamp-2 mb-1">
+                    <HighlightText text={r.summary} term={q} />
+                  </p>
+                ) : null}
+
+                {/* 메타 라인: 분류 + 편집자 + 조회수 */}
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--wiki-ink-muted)]">
+                  {r.categories && r.categories.length > 0 && (
+                    <span>
+                      분류:{' '}
+                      {r.categories.slice(0, 3).map((c, i) => (
+                        <button
+                          key={`${c}-${i}`}
+                          type="button"
+                          onClick={() => router.push(`/wiki/category/${encodeURIComponent(c)}`)}
+                          className="text-[color:var(--wiki-link)] hover:underline mr-1"
+                        >
+                          {c}
+                        </button>
+                      ))}
+                      {r.categories.length > 3 && <span className="opacity-60">+{r.categories.length - 3}</span>}
+                    </span>
+                  )}
+                  {r.lastEditor && r.lastEditDate && (
+                    <span>
+                      편집 <strong className="text-[color:var(--wiki-ink-soft)]">{r.lastEditor}</strong>{' '}
+                      · {new Date(r.lastEditDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
+                  {typeof r.views === 'number' && r.views > 0 && (
+                    <span className="tabular-nums">조회 {r.views.toLocaleString()}</span>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  </div>
+              </li>
+            ))}
+            {showCreate && (
+              <li className="py-2">
+                <div className="flex items-center justify-between gap-2 wiki-panel--inset px-2 py-1.5">
+                  <span className="text-xs text-[color:var(--wiki-ink-soft)]">
+                    {`정확히 "${q}" 제목의 문서가 없습니다.`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)}
+                    className="rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] px-2.5 py-1 text-xs text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]"
+                  >
+                    {`"${q}" 새 문서 만들기`}
+                  </button>
+                </div>
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
+    </WikiShell>
   )
 }
 
 export default function WikiSearchPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen theme-surface text-gray-100 flex items-center justify-center">Loading...</div>}>
+    <Suspense
+      fallback={
+        <WikiShell>
+          <div className="text-center py-24 text-sm text-[color:var(--wiki-ink-muted)]">불러오는 중…</div>
+        </WikiShell>
+      }
+    >
       <WikiSearchPageContent />
     </Suspense>
   )
 }
-
-

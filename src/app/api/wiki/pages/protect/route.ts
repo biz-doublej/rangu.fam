@@ -1,9 +1,11 @@
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import { WikiPage, WikiUser } from '@/models/Wiki'
+import { and, eq, ne, or } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
+import { getDb } from '@/db/client'
+import { wikiPages, wikiUsers } from '@/db/schema/wiki'
 import { canProtectPage } from '@/app/api/wiki/_utils/policy'
+import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,19 +16,26 @@ async function getUserFromToken(request: NextRequest) {
   if (!token) return null
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any
-    const user = await WikiUser.findById(decoded.userId)
-    return user
+    if (!decoded?.userId) return null
+    const db = getDb()
+    const [user] = await db
+      .select()
+      .from(wikiUsers)
+      .where(eq(wikiUsers.id, decoded.userId))
+      .limit(1)
+    if (!user) return null
+    return enforceUserAccessPolicy(user as any)
   } catch {
     return null
   }
 }
 
-// POST: 보호 설정 변경
+// POST: 문서 보호 설정 변경
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect()
+    const db = getDb()
     const user = await getUserFromToken(request)
-    if (!user || !canProtectPage(user)) {
+    if (!user || !canProtectPage(user as any)) {
       return NextResponse.json(
         { success: false, error: '문서 보호 권한이 없습니다.' },
         { status: 403 }
@@ -41,10 +50,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const page = await WikiPage.findOne({
-      $or: [ { title }, { slug: title } ],
-      isDeleted: { $ne: true }
-    })
+    const [page] = await db
+      .select()
+      .from(wikiPages)
+      .where(
+        and(
+          ne(wikiPages.isDeleted, true),
+          or(eq(wikiPages.title, title), eq(wikiPages.slug, title))
+        )
+      )
+      .limit(1)
 
     if (!page) {
       return NextResponse.json(
@@ -53,17 +68,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    page.protection = {
+    const currentProtection = (page.protection as any) || {}
+    const nextProtection = {
       level,
-      reason: reason || page.protection?.reason,
+      reason: reason ?? currentProtection.reason,
       protectedBy: user.username,
-      protectedUntil: protectedUntil ? new Date(protectedUntil) : page.protection?.protectedUntil,
-      allowedRoles: Array.isArray(allowedRoles) ? allowedRoles : page.protection?.allowedRoles
-    } as any
+      protectedUntil: protectedUntil
+        ? new Date(protectedUntil).toISOString()
+        : currentProtection.protectedUntil,
+      allowedRoles: Array.isArray(allowedRoles)
+        ? allowedRoles
+        : currentProtection.allowedRoles || [],
+    }
 
-    await page.save()
+    await db
+      .update(wikiPages)
+      .set({ protection: nextProtection, updatedAt: new Date() })
+      .where(eq(wikiPages.id, page.id))
 
-    return NextResponse.json({ success: true, message: '문서 보호 설정이 업데이트되었습니다.' })
+    return NextResponse.json({
+      success: true,
+      message: '문서 보호 설정이 업데이트되었습니다.',
+    })
   } catch (error) {
     console.error('문서 보호 설정 오류:', error)
     return NextResponse.json(
@@ -72,5 +98,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-

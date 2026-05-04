@@ -1,78 +1,38 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { Card, CardHeader, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { 
-  Settings, 
-  FileText, 
-  Bell, 
-  Users, 
+import {
+  Activity,
+  AlertTriangle,
   BarChart3,
+  CheckCircle2,
   Clock,
-  Ban,
-  RefreshCw,
-  Shield,
+  FileText,
+  Flag,
+  Inbox,
   LogIn,
   LogOut,
-  User,
-  Activity,
-  TrendingUp,
-  Database,
-  Globe,
-  Image as ImageIcon,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
   Pause,
-  Eye,
-  PieChart,
-  Zap,
-  Heart,
-  Star,
-  Target,
-  Wifi,
-  Server,
-  Monitor
+  RefreshCw,
+  Settings,
+  Shield,
+  Users,
+  XCircle,
 } from 'lucide-react'
 
-// 컴포넌트 임포트
 import DocumentManagement from './components/DocumentManagement'
 import UserManagement from './components/UserManagement'
 import PageManagement from './components/PageManagement'
 
+// ── 타입 ────────────────────────────────────────────────
 interface DashboardStats {
-  users: {
-    total: number
-    active: number
-    banned: number
-    newToday: number
-  }
-  wiki: {
-    totalPages: number
-    pending: number
-    approved: number
-    rejected: number
-    onhold: number
-  }
-  cards: {
-    totalDrops: number
-    activeCollectors: number
-    rareCards: number
-  }
-  images: {
-    totalImages: number
-    uploadsToday: number
-    storageUsed: string
-  }
-  system: {
-    uptime: string
-    responseTime: number
-    activeConnections: number
-    serverLoad: number
-  }
+  users: { total: number; active: number; banned: number; newToday: number }
+  wiki: { totalPages: number; pending: number; approved: number; rejected: number; onhold: number }
+  cards?: any
+  images?: any
+  system?: { uptime?: string; responseTime?: number; activeConnections?: number; serverLoad?: number }
 }
 
 interface PageData {
@@ -94,23 +54,24 @@ interface WikiSubmission {
 }
 
 interface WikiUser {
-  _id: string
+  _id?: string
+  id?: string
   username: string
   email: string
   role: string
   isActive: boolean
-  createdAt: string
+  banStatus?: { isBanned?: boolean; reason?: string } | null
+  warnings?: any[]
+  createdAt?: string
   lastActive?: string
-  banStatus?: {
-    isBanned: boolean
-    reason: string
-    bannedUntil?: string
-  }
-  warnings?: Array<{
-    reason: string
-    warnedBy: string
-    warnedAt: string
-  }>
+}
+
+interface RecentActivity {
+  id: string
+  type: 'login' | 'edit' | 'upload' | 'card' | 'admin'
+  user: string
+  action: string
+  timestamp: string
 }
 
 interface AdminUser {
@@ -118,1251 +79,774 @@ interface AdminUser {
   username: string
   displayName?: string
   role: string
-  avatar?: string
-  isAdmin: boolean
 }
 
-interface RecentActivity {
-  id: string
-  type: 'login' | 'edit' | 'upload' | 'game' | 'card' | 'admin'
-  user: string
-  action: string
-  timestamp: string
-  details?: any
-}
+type TabKey = 'overview' | 'submissions' | 'users' | 'documents' | 'pages' | 'system'
 
+const TABS: Array<{ key: TabKey; label: string; icon: any; desc?: string }> = [
+  { key: 'overview', label: '개요', icon: BarChart3 },
+  { key: 'submissions', label: '검수 큐', icon: Inbox },
+  { key: 'users', label: '사용자', icon: Users },
+  { key: 'documents', label: '문서 관리', icon: FileText },
+  { key: 'pages', label: '정적 페이지', icon: Settings, desc: '회사·약관·개인정보' },
+  { key: 'system', label: '시스템', icon: Activity },
+]
+
+// ── 메인 ────────────────────────────────────────────────
 export default function AdminDashboard() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState('overview')
-  const [activeSubTab, setActiveSubTab] = useState('')
-  
-  // 인증 상태
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
-  
-  // 데이터 상태들
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [activeTab, setActiveTab] = useState<TabKey>('overview')
+
+  // 인증
+  const [authLoading, setAuthLoading] = useState(true)
+  const [me, setMe] = useState<AdminUser | null>(null)
+
+  // 데이터
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-  const [pageData, setPageData] = useState<PageData | null>(null)
   const [submissions, setSubmissions] = useState<WikiSubmission[]>([])
   const [users, setUsers] = useState<WikiUser[]>([])
-  const [loading, setLoading] = useState(false)
+  const [pageData, setPageData] = useState<PageData | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null)
-  
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken')
-    setIsAuthenticated(false)
-    setCurrentUser(null)
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
-      setRefreshInterval(null)
-    }
-  }
+  const [loading, setLoading] = useState(false)
 
-  const checkAuth = async () => {
-    try {
-      setInitialLoading(true)
-      const response = await fetch('/api/wiki/auth/me', {
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        const user = result.user
-
-        if (user && user.role === 'admin') {
-          // 사용자 정보를 직접 설정
-          setCurrentUser({
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName || user.username,
-            role: user.role,
-            isAdmin: true
-          })
-          setIsAuthenticated(true)
-          
-          // 관리자 API 호출을 위한 세션 표식 (권한 검증은 서버에서 wiki-token으로 재검증)
-          localStorage.setItem('adminToken', 'doublej-admin')
-          loadDashboardData()
-          startAutoRefresh()
-          setInitialLoading(false)
-          return
-        }
-      }
-
-      localStorage.removeItem('adminToken')
-      setIsAuthenticated(false)
-      setCurrentUser(null)
-    } catch (error) {
-      console.error('위키 인증 확인 오류:', error)
-      localStorage.removeItem('adminToken')
-      setIsAuthenticated(false)
-      setCurrentUser(null)
-    } finally {
-      setInitialLoading(false)
-    }
-  }
-
+  // 인증 체크
   useEffect(() => {
-    checkAuth()
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/wiki/auth/me', { credentials: 'include' })
+        if (!cancelled && r.ok) {
+          const d = await r.json()
+          if (d?.user?.role === 'admin') {
+            setMe({
+              id: d.user.id,
+              username: d.user.username,
+              displayName: d.user.displayName || d.user.username,
+              role: d.user.role,
+            })
+            loadAll()
+            return
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setAuthLoading(false)
       }
+    })()
+    return () => {
+      cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 통계 데이터 로드
-  const loadDashboardStats = async () => {
+  // 데이터 로드
+  const loadAll = async () => {
+    setLoading(true)
     try {
-      const response = await fetch('/api/admin/dashboard-stats', {
-        credentials: 'include',
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setDashboardStats(data.stats)
-        setRecentActivity(data.recentActivity || [])
-      }
-      
-    } catch (error) {
-      console.error('통계 로드 오류:', error)
-    }
-  }
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true)
-
-      // 기존 데이터 로드
-      const [pagesRes, submissionsRes, usersRes] = await Promise.all([
-        fetch('/api/admin/pages', {
-          credentials: 'include',
-        }).catch(() => null),
-        fetch('/api/wiki/mod', {
-          credentials: 'include',
-        }).catch(() => null),
-        fetch('/api/wiki/users', {
-          credentials: 'include',
-        }).catch(() => null)
+      const [statsR, subR, userR, pagesR] = await Promise.all([
+        fetch('/api/admin/dashboard-stats', { credentials: 'include' }).catch(() => null),
+        fetch('/api/wiki/mod', { credentials: 'include' }).catch(() => null),
+        // ssoOnly=true → DoubleJ OIDC 로 가입한 사용자만 가져옴 (옛 위키 자체 가입 row 제외)
+        fetch('/api/wiki/users?limit=100&ssoOnly=true', { credentials: 'include' }).catch(() => null),
+        fetch('/api/admin/pages', { credentials: 'include' }).catch(() => null),
       ])
-
-      if (pagesRes?.ok) {
-        const pagesData = await pagesRes.json()
-        setPageData(pagesData.data)
+      if (statsR?.ok) {
+        const d = await statsR.json()
+        setStats(d.stats)
+        setRecentActivity(d.recentActivity || [])
       }
-
-      if (submissionsRes?.ok) {
-        const submissionsData = await submissionsRes.json()
-        setSubmissions(submissionsData.submissions || [])
+      if (subR?.ok) {
+        const d = await subR.json()
+        setSubmissions(d.submissions || [])
       }
-
-      if (usersRes?.ok) {
-        const usersData = await usersRes.json()
-        setUsers(usersData.users || [])
+      if (userR?.ok) {
+        const d = await userR.json()
+        setUsers(d.users || [])
       }
-
-      // 통계 데이터 로드
-      await loadDashboardStats()
-
-    } catch (error) {
-      console.error('데이터 로드 오류:', error)
+      if (pagesR?.ok) {
+        const d = await pagesR.json()
+        setPageData(d.data)
+      }
+      setAuthLoading(false)
+    } catch (e) {
+      console.error('admin load failed', e)
     } finally {
       setLoading(false)
     }
   }
 
-  const startAutoRefresh = () => {
-    if (refreshInterval) clearInterval(refreshInterval)
-    
-    const interval = setInterval(() => {
-      loadDashboardStats()
-    }, 30000) // 30초마다 통계 새로고침
-    
-    setRefreshInterval(interval)
-  }
-
-  const handleSubmissionAction = async (submissionId: string, action: 'approve' | 'reject' | 'hold', reason?: string) => {
-    try {
-      const response = await fetch('/api/wiki/mod', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ action, submissionId, reason })
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        alert(result.message)
-        loadDashboardData()
-      } else {
-        const error = await response.json()
-        alert(error.error || '처리 중 오류가 발생했습니다.')
-      }
-    } catch (error) {
-      console.error('처리 오류:', error)
-      alert('처리 중 오류가 발생했습니다.')
+  const handleSubmissionAction = async (
+    submissionId: string,
+    action: 'approve' | 'reject' | 'hold',
+    reason?: string
+  ) => {
+    const r = await fetch('/api/wiki/mod', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action, submissionId, reason }),
+    })
+    const d = await r.json()
+    if (d.success) {
+      alert(d.message || '처리되었습니다.')
+      loadAll()
+    } else {
+      alert(d.error || '처리 실패')
     }
   }
 
-  const handleUserAction = async (userId: string, action: 'ban' | 'unban' | 'warn' | 'role', data?: any) => {
-    try {
-      const response = await fetch('/api/wiki/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ action, userId, data })
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        alert(result.message)
-        loadDashboardData()
-      } else {
-        const error = await response.json()
-        alert(error.error || '처리 중 오류가 발생했습니다.')
-      }
-    } catch (error) {
-      console.error('사용자 관리 오류:', error)
-      alert('사용자 관리 중 오류가 발생했습니다.')
+  const handleUserAction = async (userId: string, action: string, data?: any) => {
+    const r = await fetch('/api/wiki/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action, userId, data }),
+    })
+    const d = await r.json()
+    if (d.success) {
+      alert(d.message || '처리되었습니다.')
+      loadAll()
+    } else {
+      alert(d.error || '처리 실패')
     }
   }
 
-  // 메뉴 구성
-  const menuItems = [
-    {
-      id: 'overview',
-      label: '대시보드 개요',
-      icon: BarChart3,
-      subItems: []
-    },
-    {
-      id: 'analytics',
-      label: '실시간 분석',
-      icon: Activity,
-      subItems: [
-        { id: 'realtime', label: '실시간 현황' },
-        { id: 'trends', label: '트렌드 분석' },
-        { id: 'performance', label: '성능 모니터링' }
-      ]
-    },
-    {
-      id: 'documents',
-      label: '문서 관리',
-      icon: FileText,
-      subItems: [
-        { id: 'pending', label: '승인 대기', count: submissions.filter(s => s.status === 'pending').length },
-        { id: 'approved', label: '승인 목록', count: submissions.filter(s => s.status === 'approved').length },
-        { id: 'rejected', label: '불허 목록', count: submissions.filter(s => s.status === 'rejected').length },
-        { id: 'onhold', label: '보류 목록', count: submissions.filter(s => s.status === 'onhold').length }
-      ]
-    },
-    {
-      id: 'users',
-      label: '사용자 관리',
-      icon: Users,
-      subItems: [
-        { id: 'userlist', label: '사용자 목록', count: users.length },
-        { id: 'banned', label: '차단된 사용자', count: users.filter(u => u.banStatus?.isBanned).length },
-        { id: 'roles', label: '권한 관리' }
-      ]
-    },
-    {
-      id: 'content',
-      label: '콘텐츠 관리',
-      icon: Database,
-      subItems: [
-        { id: 'cards', label: '카드 관리' },
-        { id: 'images', label: '이미지 관리' }
-      ]
-    },
-    {
-      id: 'system',
-      label: '시스템 관리',
-      icon: Settings,
-      subItems: [
-        { id: 'pages', label: '페이지 관리' },
-        { id: 'server', label: '서버 상태' }
-      ]
-    }
-  ]
-
-  // 초기 로딩 상태 추가
-  const [initialLoading, setInitialLoading] = useState(true)
-
-  // 초기 로딩 중이면 로딩 화면 표시
-  if (initialLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-gray-100 flex items-center justify-center">
-        <div className="absolute inset-0 bg-black bg-opacity-30"></div>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="relative z-10 text-center"
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="inline-block mb-4"
-          >
-            <Shield className="w-16 h-16 text-blue-400 mx-auto" />
-          </motion.div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            RangU 관리자 대시보드
-          </h2>
-          <p className="text-gray-400 mt-2">인증 상태를 확인하는 중...</p>
-        </motion.div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-gray-100 flex items-center justify-center">
-        <div className="absolute inset-0 bg-black bg-opacity-30"></div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative w-full max-w-md z-10"
-        >
-          <Card className="bg-gray-800/90 border-gray-700 backdrop-blur-sm">
-            <CardHeader>
-              <div className="text-center">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                  className="inline-block"
-                >
-                  <Shield className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-                </motion.div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  RangU 관리자 대시보드
-                </h1>
-                <p className="text-gray-400 mt-2">관리자 전용 페이지입니다.</p>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <Button 
-                  onClick={() => router.push('/auth/start?callbackUrl=%2Fadmin')} 
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0"
-                >
-                  <LogIn className="w-4 h-4 mr-2" />
-                  DoubleJ 통합 로그인으로 이동
-                </Button>
-                <div className="text-center text-sm text-gray-500">
-                  ⚠️ 관리자 개별 로그인은 제거되었습니다.<br/>
-                  통합 로그인 후 관리자 권한 계정만 접근할 수 있습니다.
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    )
-  }
+  // ── 인증 분기 ──────────────────────────────────────────
+  if (authLoading) return <LoadingScreen />
+  if (!me) return <UnauthScreen onLogin={() => router.push('/auth/start?callbackUrl=%2Fadmin')} />
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-gray-100">
-      <div className="absolute inset-0 bg-black bg-opacity-20"></div>
-      
-      <div className="relative z-10">
-        {/* 상단 헤더 */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-800/90 backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-50"
-        >
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Shield className="w-8 h-8 text-blue-400" />
-                  </motion.div>
-                  <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                      RangU 관리자 대시보드
-                    </h1>
-                    <p className="text-gray-400 text-sm">
-                      실시간 모니터링 & 관리 시스템
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2 ml-8">
-                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/20 rounded-full">
-                    <Zap className="w-3 h-3 text-blue-400" />
-                    <span className="text-xs text-blue-400">
-                      {dashboardStats?.system.responseTime || 0}ms
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-3 py-2 bg-gray-700/50 rounded-lg">
-                  <User className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-300">{currentUser?.username}</span>
-                  <span className="px-2 py-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full text-xs">
-                    {currentUser?.role}
-                  </span>
-                </div>
-                <Button 
-                  onClick={handleLogout} 
-                  variant="ghost"
-                  className="text-gray-400 hover:text-white hover:bg-gray-700/50"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  로그아웃
-                </Button>
-              </div>
+    <div className="min-h-screen bg-slate-950 text-slate-200">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-cyan-500/30 bg-cyan-500/10">
+              <Shield className="h-4 w-4 text-cyan-400" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                이랑위키 운영 대시보드
+              </h1>
+              <p className="hidden text-[11px] text-slate-400 sm:block">
+                관리자 전용 — 검수 / 사용자 / 문서 / 시스템 통합 관리
+              </p>
             </div>
           </div>
-        </motion.div>
-
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="grid grid-cols-12 gap-6">
-            {/* 사이드바 메뉴 */}
-            <div className="col-span-3">
-              <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm sticky top-24">
-                <CardContent className="p-4">
-                  <nav className="space-y-2">
-                    {menuItems.map((item) => (
-                      <div key={item.id}>
-                        <button
-                          onClick={() => {
-                            setActiveTab(item.id)
-                            setActiveSubTab(item.subItems.length > 0 ? item.subItems[0].id : '')
-                          }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-300 ${
-                            activeTab === item.id
-                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-                              : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
-                          }`}
-                        >
-                          <item.icon className="w-5 h-5" />
-                          {item.label}
-                        </button>
-                        
-                        {/* 서브메뉴 */}
-                        {activeTab === item.id && item.subItems.length > 0 && (
-                          <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            transition={{ duration: 0.3 }}
-                            className="ml-6 mt-2 space-y-1"
-                          >
-                            {item.subItems.map((subItem) => (
-                              <button
-                                key={subItem.id}
-                                onClick={() => setActiveSubTab(subItem.id)}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                                  activeSubTab === subItem.id
-                                    ? 'bg-gray-700/70 text-blue-400'
-                                    : 'text-gray-500 hover:bg-gray-700/30 hover:text-gray-300'
-                                }`}
-                              >
-                                <span>{subItem.label}</span>
-                                {subItem.count !== undefined && (
-                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                    subItem.count > 0 
-                                      ? 'bg-gradient-to-r from-red-600 to-red-700 text-white' 
-                                      : 'bg-gray-600 text-gray-300'
-                                  }`}>
-                                    {subItem.count}
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </div>
-                    ))}
-                  </nav>
-                  
-                  {/* 빠른 액션 버튼들 */}
-                  <div className="mt-6 pt-6 border-t border-gray-700/50">
-                    <h3 className="text-sm font-medium text-gray-400 mb-3">빠른 액션</h3>
-                    <div className="space-y-2">
-                      <Button 
-                        size="sm" 
-                        className="w-full bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/30"
-                        onClick={() => loadDashboardData()}
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        새로고침
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        className="w-full bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/30"
-                        onClick={() => {
-                          setActiveTab('documents')
-                          setActiveSubTab('pending')
-                        }}
-                      >
-                        <AlertTriangle className="w-4 h-4 mr-2" />
-                        승인 대기
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden items-center gap-2 rounded-md border border-slate-800 bg-slate-900 px-3 py-1.5 sm:flex">
+              <span className="text-xs text-slate-400">{me.displayName}</span>
+              <span className="rounded bg-rose-500/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-rose-300">
+                admin
+              </span>
             </div>
-
-            {/* 메인 콘텐츠 */}
-            <div className="col-span-9">
-              <AnimatePresence mode="wait">
-                {loading && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex flex-col items-center justify-center py-12"
-                  >
-                    <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mb-4" />
-                    <span className="text-gray-400">데이터를 불러오는 중...</span>
-                  </motion.div>
-                )}
-
-                {/* 대시보드 개요 */}
-                {activeTab === 'overview' && !loading && (
-                  <DashboardOverview 
-                    dashboardStats={dashboardStats}
-                    recentActivity={recentActivity}
-                    submissions={submissions}
-                    users={users}
-                  />
-                )}
-
-                {/* 실시간 분석 */}
-                {activeTab === 'analytics' && !loading && (
-                  <AnalyticsDashboard 
-                    dashboardStats={dashboardStats}
-                    activeSubTab={activeSubTab}
-                  />
-                )}
-
-                {/* 문서 관리 */}
-                {activeTab === 'documents' && !loading && (
-                  <DocumentManagement 
-                    submissions={submissions}
-                    activeSubTab={activeSubTab}
-                    onSubmissionAction={handleSubmissionAction}
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                  />
-                )}
-
-                {/* 사용자 관리 */}
-                {activeTab === 'users' && !loading && (
-                  <UserManagement 
-                    users={users}
-                    activeSubTab={activeSubTab}
-                    onUserAction={handleUserAction}
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                  />
-                )}
-
-                {/* 콘텐츠 관리 */}
-                {activeTab === 'content' && !loading && (
-                  <ContentManagement 
-                    activeSubTab={activeSubTab}
-                    dashboardStats={dashboardStats}
-                  />
-                )}
-
-                {/* 시스템 관리 */}
-                {activeTab === 'system' && activeSubTab === 'pages' && !loading && pageData && (
-                  <PageManagement pageData={pageData} />
-                )}
-
-                {activeTab === 'system' && activeSubTab === 'server' && !loading && (
-                  <ServerMonitoring dashboardStats={dashboardStats} />
-                )}
-              </AnimatePresence>
-            </div>
+            <button
+              type="button"
+              onClick={() => loadAll()}
+              disabled={loading}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:border-cyan-500/40 hover:text-cyan-300 disabled:opacity-50"
+              title="새로고침"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">새로고침</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-200"
+              title="메인으로"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">메인</span>
+            </button>
           </div>
         </div>
+
+        {/* Tabs */}
+        <nav className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex flex-wrap gap-1 overflow-x-auto pb-2">
+            {TABS.map((t) => {
+              const Icon = t.icon
+              const active = activeTab === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setActiveTab(t.key)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    active
+                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                      : 'border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      </header>
+
+      {/* Main */}
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {activeTab === 'overview' && (
+          <OverviewTab
+            stats={stats}
+            submissions={submissions}
+            users={users}
+            recentActivity={recentActivity}
+            onJump={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'submissions' && (
+          <DocumentManagement
+            submissions={submissions}
+            activeSubTab="pending"
+            onSubmissionAction={handleSubmissionAction}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+          />
+        )}
+
+        {activeTab === 'users' && (
+          <UserManagement
+            // DoubleJ Account mirror — system/inactive 가짜 row 는 표시에서 제외
+            users={users.filter(
+              (u) =>
+                u.isActive !== false &&
+                u.username?.toLowerCase() !== 'system' &&
+                !u.username?.toLowerCase().startsWith('__')
+            ) as any}
+            activeSubTab="userlist"
+            onUserAction={handleUserAction}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+          />
+        )}
+
+        {activeTab === 'documents' && <DocumentsTab />}
+
+        {activeTab === 'pages' && pageData && <PageManagement pageData={pageData} />}
+        {activeTab === 'pages' && !pageData && (
+          <EmptyTab
+            icon={Settings}
+            message="정적 페이지 데이터를 불러오는 중입니다… (`/api/admin/pages` 응답 대기)"
+          />
+        )}
+
+        {activeTab === 'system' && <SystemTab stats={stats} />}
+      </main>
+    </div>
+  )
+}
+
+// ── 인증 화면 ────────────────────────────────────────────
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200">
+      <div className="text-center">
+        <Shield className="mx-auto h-10 w-10 animate-pulse text-cyan-400" />
+        <p className="mt-3 text-sm text-slate-400">인증 확인 중…</p>
       </div>
     </div>
   )
 }
 
-// 대시보드 개요 컴포넌트
-function DashboardOverview({ 
-  dashboardStats, 
-  recentActivity, 
-  submissions, 
-  users
+function UnauthScreen({ onLogin }: { onLogin: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-200">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900/80 p-8 text-center backdrop-blur"
+      >
+        <Shield className="mx-auto h-12 w-12 text-cyan-400" />
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">이랑위키 운영 대시보드</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-400">
+          관리자 권한 계정만 접근할 수 있습니다.
+          <br />
+          DoubleJ 통합 로그인 후 자동 인증됩니다.
+        </p>
+        <button
+          type="button"
+          onClick={onLogin}
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-400"
+        >
+          <LogIn className="h-4 w-4" />
+          DoubleJ 통합 로그인
+        </button>
+        <p className="mt-3 text-[11px] text-slate-500">
+          ⚠ 관리자는 <strong className="text-slate-300">강한울 / 정재원</strong> 만 등록되어 있습니다.
+        </p>
+      </motion.div>
+    </div>
+  )
+}
+
+// ── 개요 탭 ─────────────────────────────────────────────
+function OverviewTab({
+  stats,
+  submissions,
+  users,
+  recentActivity,
+  onJump,
 }: {
-  dashboardStats: DashboardStats | null
-  recentActivity: RecentActivity[]
+  stats: DashboardStats | null
   submissions: WikiSubmission[]
   users: WikiUser[]
+  recentActivity: RecentActivity[]
+  onJump: (t: TabKey) => void
 }) {
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'login': return <LogIn className="w-4 h-4" />
-      case 'edit': return <FileText className="w-4 h-4" />
-      case 'upload': return <ImageIcon className="w-4 h-4" />
-      case 'card': return <Star className="w-4 h-4" />
-      case 'admin': return <Shield className="w-4 h-4" />
-      default: return <Activity className="w-4 h-4" />
+  const pendingCount = stats?.wiki.pending ?? submissions.filter((s) => s.status === 'pending').length
+  const totalUsers = stats?.users.total ?? users.length
+  const bannedCount =
+    stats?.users.banned ?? users.filter((u) => u.banStatus?.isBanned).length
+  const totalPages = stats?.wiki.totalPages ?? 0
+
+  const cards = [
+    {
+      label: '검수 대기',
+      value: pendingCount,
+      sub: '확인이 필요한 새 문서/편집',
+      tone: 'amber' as const,
+      icon: Inbox,
+      onClick: () => onJump('submissions'),
+    },
+    {
+      label: '전체 사용자',
+      value: totalUsers,
+      sub: '이랑위키 등록 계정',
+      tone: 'cyan' as const,
+      icon: Users,
+      onClick: () => onJump('users'),
+    },
+    {
+      label: '차단된 사용자',
+      value: bannedCount,
+      sub: '활성 ban 상태',
+      tone: 'rose' as const,
+      icon: Shield,
+      onClick: () => onJump('users'),
+    },
+    {
+      label: '전체 문서',
+      value: totalPages,
+      sub: '위키 문서 총 수',
+      tone: 'emerald' as const,
+      icon: FileText,
+      onClick: () => onJump('documents'),
+    },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((c) => {
+          const Icon = c.icon
+          return (
+            <button
+              key={c.label}
+              type="button"
+              onClick={c.onClick}
+              className="group rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-left transition hover:border-cyan-500/40 hover:bg-slate-900"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">
+                    {c.label}
+                  </p>
+                  <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-white">
+                    {c.value.toLocaleString()}
+                  </p>
+                  <p className="mt-1.5 text-xs text-slate-400">{c.sub}</p>
+                </div>
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${toneClasses(
+                    c.tone
+                  )}`}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* 검수 큐 단축 */}
+      <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-5">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-amber-300" />
+            <h3 className="text-sm font-semibold text-white">최근 검수 대기 (상위 5건)</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => onJump('submissions')}
+            className="text-xs text-cyan-400 hover:text-cyan-300"
+          >
+            전체 보기 →
+          </button>
+        </div>
+        {pendingCount === 0 ? (
+          <p className="py-6 text-center text-xs text-slate-500">처리 대기 중인 항목이 없습니다.</p>
+        ) : (
+          <ul className="space-y-2">
+            {submissions
+              .filter((s) => s.status === 'pending')
+              .slice(0, 5)
+              .map((s) => (
+                <li
+                  key={s._id}
+                  className="flex items-start justify-between gap-3 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white">
+                      <span className="mr-2 inline-block rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono uppercase text-slate-300">
+                        {s.type === 'create' ? '신규' : '편집'}
+                      </span>
+                      {s.targetTitle}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      {s.author} · {new Date(s.createdAt).toLocaleString('ko-KR')}
+                    </p>
+                  </div>
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                </li>
+              ))}
+          </ul>
+        )}
+      </section>
+
+      {/* 위키 상태 */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-cyan-400" />
+            <h3 className="text-sm font-semibold text-white">위키 검수 분포</h3>
+          </div>
+          <ul className="space-y-2 text-sm">
+            <StatRow
+              icon={CheckCircle2}
+              label="승인됨"
+              value={stats?.wiki.approved ?? 0}
+              color="text-emerald-400"
+            />
+            <StatRow
+              icon={XCircle}
+              label="반려됨"
+              value={stats?.wiki.rejected ?? 0}
+              color="text-rose-400"
+            />
+            <StatRow
+              icon={Pause}
+              label="보류됨"
+              value={stats?.wiki.onhold ?? 0}
+              color="text-amber-400"
+            />
+            <StatRow
+              icon={Inbox}
+              label="대기 중"
+              value={pendingCount}
+              color="text-cyan-400"
+            />
+          </ul>
+        </div>
+
+        <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-cyan-400" />
+            <h3 className="text-sm font-semibold text-white">실시간 활동 ({recentActivity.length}건)</h3>
+          </div>
+          {recentActivity.length === 0 ? (
+            <p className="py-6 text-center text-xs text-slate-500">최근 활동이 없습니다.</p>
+          ) : (
+            <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+              {recentActivity.slice(0, 8).map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-start gap-2 rounded px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-800/50"
+                >
+                  <span className={`mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${activityColor(a.type)}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate">
+                      <strong className="text-white">{a.user}</strong> · {a.action}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {new Date(a.timestamp).toLocaleTimeString('ko-KR')}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function StatRow({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: any
+  label: string
+  value: number
+  color: string
+}) {
+  return (
+    <li className="flex items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-slate-800/40">
+      <span className="inline-flex items-center gap-2 text-slate-400">
+        <Icon className={`h-3.5 w-3.5 ${color}`} />
+        {label}
+      </span>
+      <span className={`font-mono tabular-nums font-semibold ${color}`}>{value.toLocaleString()}</span>
+    </li>
+  )
+}
+
+function activityColor(type: string) {
+  switch (type) {
+    case 'login': return 'bg-emerald-400'
+    case 'edit': return 'bg-cyan-400'
+    case 'upload': return 'bg-purple-400'
+    case 'card': return 'bg-pink-400'
+    case 'admin': return 'bg-rose-400'
+    default: return 'bg-slate-400'
+  }
+}
+
+function toneClasses(tone: 'amber' | 'cyan' | 'rose' | 'emerald' | 'slate'): string {
+  switch (tone) {
+    case 'amber': return 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+    case 'cyan': return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
+    case 'rose': return 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+    case 'emerald': return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+    case 'slate': return 'border-slate-500/40 bg-slate-500/10 text-slate-300'
+  }
+}
+
+// ── 문서 관리 탭 ─────────────────────────────────────────
+function DocumentsTab() {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-8 text-center">
+      <FileText className="mx-auto h-10 w-10 text-slate-600" />
+      <h3 className="mt-3 text-base font-semibold text-white">문서 관리</h3>
+      <p className="mt-2 text-sm text-slate-400">
+        문서 목록·잠금·이동·되돌리기·삭제 도구는 다음 라운드에 통합됩니다.
+        <br />
+        지금은 위키 페이지의 보호/잠금/되돌리기 API 가 백엔드에 이미 있습니다.
+      </p>
+      <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-slate-500">
+        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/lock</code>
+        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/protect</code>
+        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/move</code>
+        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/revert</code>
+      </div>
+    </div>
+  )
+}
+
+// ── 시스템 탭 ───────────────────────────────────────────
+function SystemTab({ stats }: { stats: DashboardStats | null }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-cyan-400" />
+          <h3 className="text-sm font-semibold text-white">시스템 현황</h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SystemCard label="응답 시간" value={`${stats?.system?.responseTime ?? 0}ms`} />
+          <SystemCard label="활성 연결" value={String(stats?.system?.activeConnections ?? 0)} />
+          <SystemCard label="서버 로드" value={`${stats?.system?.serverLoad ?? 0}%`} />
+          <SystemCard label="업타임" value={stats?.system?.uptime ?? '—'} />
+        </div>
+        <p className="mt-4 text-[11px] text-slate-500">
+          <AlertTriangle className="mr-1 inline h-3 w-3 align-[-2px]" />
+          이 통계는 `/api/admin/dashboard-stats` 가 노출하는 값입니다. 실제 인프라 메트릭이 필요하면 Cloud Monitoring 대시보드 사용을 권장합니다.
+        </p>
+      </div>
+
+      <DangerZone />
+    </div>
+  )
+}
+
+// ── 위험 영역 (Danger Zone) ──────────────────────────────
+function DangerZone() {
+  return (
+    <div className="rounded-lg border-2 border-rose-500/30 bg-rose-500/5 p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <Flag className="h-4 w-4 text-rose-400" />
+        <h3 className="text-sm font-semibold text-rose-300">위험 영역 (Danger Zone)</h3>
+      </div>
+
+      <div className="space-y-4">
+        <DestructiveAction
+          title="랭킹·통계 초기화"
+          confirmText="랭킹초기화"
+          buttonLabel="랭킹/통계 초기화 실행"
+          endpoint="/api/admin/reset-rankings"
+          confirmMessage={
+            '정말로 모든 사용자의 랭킹/통계(edits, pagesCreated, reputation, discussionPosts) 를 0 으로 초기화할까요?\n\n' +
+            '※ 위키 본문/편집 이력(wiki_revisions) 은 보존됩니다.\n※ 되돌릴 수 없습니다.'
+          }
+          description={
+            <>
+              모든 사용자의 통계 컬럼(<code className="text-cyan-300">edits</code>,{' '}
+              <code className="text-cyan-300">pagesCreated</code>,{' '}
+              <code className="text-cyan-300">reputation</code>,{' '}
+              <code className="text-cyan-300">discussionPosts</code>) 을{' '}
+              <strong className="text-white">0</strong> 으로 reset. 기여자 페이지 / 활동 점수 / 랭킹이 모두 0 부터 다시 누적됩니다.
+            </>
+          }
+          notes={[
+            '위키 본문(wiki_pages) 은 그대로 유지됩니다.',
+            '편집 이력(wiki_revisions) 은 보존됩니다 — 사용자가 다시 편집하면 통계가 새로 누적.',
+            '차단 상태(banStatus) 와 권한(role / permissions) 은 영향 없음.',
+          ]}
+        />
+
+        <DestructiveAction
+          title="검수 큐 초기화"
+          confirmText="검수큐초기화"
+          buttonLabel="검수 큐 전체 삭제"
+          endpoint="/api/admin/reset-submissions"
+          confirmMessage={
+            '정말로 wiki_submissions 의 모든 검수 큐 항목(대기/승인/반려/보류 전부)을 삭제할까요?\n\n' +
+            '※ 위키 본문/리비전은 손대지 않습니다.\n※ 되돌릴 수 없습니다.'
+          }
+          description={
+            <>
+              <code className="text-cyan-300">wiki_submissions</code> 테이블의 모든 row 를 삭제. 검수
+              대기/승인/반려/보류 상태 모두 비웁니다.
+            </>
+          }
+          notes={[
+            '위키 본문(wiki_pages) 과 편집 이력(wiki_revisions) 은 영향 없음.',
+            '관리자/모더레이터는 isWhitelistedWikiAdmin 우회로 검수 큐를 거치지 않으므로, 큐는 일반 사용자 제출만 누적된 상태였음.',
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
+function DestructiveAction({
+  title,
+  confirmText: REQUIRED_TEXT,
+  buttonLabel,
+  endpoint,
+  confirmMessage,
+  description,
+  notes,
+}: {
+  title: string
+  confirmText: string
+  buttonLabel: string
+  endpoint: string
+  confirmMessage: string
+  description: React.ReactNode
+  notes: string[]
+}) {
+  const [confirmInput, setConfirmInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  const onRun = async () => {
+    if (confirmInput !== REQUIRED_TEXT) return
+    if (!confirm(confirmMessage)) return
+    setBusy(true)
+    setResult(null)
+    try {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ confirm: true, confirmText: REQUIRED_TEXT }),
+      })
+      const d = await r.json()
+      if (d.success) {
+        setResult(`✅ ${d.message}`)
+        setConfirmInput('')
+      } else {
+        setResult(`❌ ${d.error || '초기화 실패'}`)
+      }
+    } catch {
+      setResult('❌ 네트워크 오류')
+    } finally {
+      setBusy(false)
     }
   }
 
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case 'login': return 'text-green-400 bg-green-400/20'
-      case 'edit': return 'text-blue-400 bg-blue-400/20'
-      case 'upload': return 'text-purple-400 bg-purple-400/20'
-      case 'card': return 'text-pink-400 bg-pink-400/20'
-      case 'admin': return 'text-red-400 bg-red-400/20'
-      default: return 'text-gray-400 bg-gray-400/20'
-    }
-  }
-
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      {/* 핵심 지표 카드들 */}
-      <div className="grid grid-cols-4 gap-4">
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <Card className="bg-gradient-to-br from-blue-600/20 to-blue-700/20 border-blue-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-300 text-sm font-medium">총 사용자</p>
-                  <p className="text-3xl font-bold text-white">
-                    {dashboardStats?.users.total || users.length}
-                  </p>
-                  <p className="text-blue-400 text-xs mt-1">
-                    활성: {dashboardStats?.users.active || 0}
-                  </p>
-                </div>
-                <div className="relative">
-                  <Users className="w-8 h-8 text-blue-400" />
-                  <motion.div
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <Card className="bg-gradient-to-br from-yellow-600/20 to-yellow-700/20 border-yellow-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-yellow-300 text-sm font-medium">승인 대기</p>
-                  <p className="text-3xl font-bold text-white">
-                    {dashboardStats?.wiki.pending || submissions.filter(s => s.status === 'pending').length}
-                  </p>
-                  <p className="text-yellow-400 text-xs mt-1">
-                    총 페이지: {dashboardStats?.wiki.totalPages || 0}
-                  </p>
-                </div>
-                <div className="relative">
-                  <Clock className="w-8 h-8 text-yellow-400" />
-                  {(dashboardStats?.wiki.pending || 0) > 0 && (
-                    <motion.div
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 1, repeat: Infinity }}
-                      className="absolute -top-1 -right-1 w-3 h-3 bg-red-400 rounded-full"
-                    />
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          <Card className="bg-gradient-to-br from-green-600/20 to-green-700/20 border-green-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-300 text-sm font-medium">시스템 상태</p>
-                  <p className="text-3xl font-bold text-white">
-                    {dashboardStats?.system.responseTime || 0}ms
-                  </p>
-                  <p className="text-green-400 text-xs mt-1">
-                    서버 로드: {dashboardStats?.system.serverLoad || 0}%
-                  </p>
-                </div>
-                <div className="relative">
-                  <Server className="w-8 h-8 text-green-400" />
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                    className="absolute inset-0"
-                  >
-                    <div className="w-2 h-2 bg-green-400 rounded-full absolute top-0 left-1/2 transform -translate-x-1/2" />
-                  </motion.div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+    <div className="rounded-md border border-rose-500/20 bg-slate-900/60 p-4">
+      <h4 className="text-sm font-semibold text-white">{title}</h4>
+      <p className="mt-2 text-xs leading-relaxed text-slate-400">{description}</p>
+      <ul className="mt-2 space-y-1 text-[11px] text-slate-500">
+        {notes.map((n, i) => (
+          <li key={i}>• {n}</li>
+        ))}
+      </ul>
 
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          transition={{ type: "spring", stiffness: 300 }}
+      <div className="mt-4 space-y-2">
+        <label className="block text-[11px] font-mono text-slate-400">
+          실행하려면 아래에 정확히{' '}
+          <code className="rounded bg-slate-800 px-1.5 text-cyan-300">{REQUIRED_TEXT}</code> 를 입력
+        </label>
+        <input
+          type="text"
+          value={confirmInput}
+          onChange={(e) => setConfirmInput(e.target.value)}
+          placeholder={REQUIRED_TEXT}
+          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-rose-500 focus:outline-none"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={busy || confirmInput !== REQUIRED_TEXT}
+          className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Card className="bg-gradient-to-br from-purple-600/20 to-purple-700/20 border-purple-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-300 text-sm font-medium">활성 연결</p>
-                  <p className="text-3xl font-bold text-white">
-                    {dashboardStats?.system.activeConnections || 0}
-                  </p>
-                  <p className="text-purple-400 text-xs mt-1">
-                    업타임: {dashboardStats?.system.uptime || '0h'}
-                  </p>
-                </div>
-                <div className="relative">
-                  <Globe className="w-8 h-8 text-purple-400" />
-                  <motion.div
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute inset-0 border-2 border-purple-400 rounded-full"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+          {busy ? '실행 중…' : buttonLabel}
+        </button>
+        {result && (
+          <p
+            className={`text-xs ${
+              result.startsWith('✅') ? 'text-emerald-300' : 'text-rose-300'
+            }`}
+          >
+            {result}
+          </p>
+        )}
       </div>
-
-      {/* 상세 통계 그리드 */}
-      <div className="grid grid-cols-3 gap-6">
-        {/* 위키 통계 */}
-        <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-400" />
-              위키 현황
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">승인됨</span>
-                <span className="text-green-400 font-semibold">
-                  {dashboardStats?.wiki.approved || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">거부됨</span>
-                <span className="text-red-400 font-semibold">
-                  {dashboardStats?.wiki.rejected || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">보류됨</span>
-                <span className="text-yellow-400 font-semibold">
-                  {dashboardStats?.wiki.onhold || 0}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 콘텐츠 통계 */}
-        <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-              <Database className="w-5 h-5 text-purple-400" />
-              콘텐츠 현황
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <Star className="w-4 h-4" />
-                  카드 드랍
-                </span>
-                <span className="text-pink-400 font-semibold">
-                  {dashboardStats?.cards.totalDrops || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <ImageIcon className="w-4 h-4" />
-                  이미지
-                </span>
-                <span className="text-green-400 font-semibold">
-                  {dashboardStats?.images.totalImages || 0}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 사용자 활동 */}
-        <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-green-400" />
-              사용자 활동
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">신규 가입</span>
-                <span className="text-blue-400 font-semibold">
-                  {dashboardStats?.users.newToday || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">차단된 사용자</span>
-                <span className="text-red-400 font-semibold">
-                  {dashboardStats?.users.banned || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">오늘 카드 수집</span>
-                <span className="text-pink-400 font-semibold">
-                  {dashboardStats?.cards.activeCollectors || 0}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 최근 활동 */}
-      <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-200 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-400" />
-              실시간 활동
-            </h2>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {/* 새로고침 로직 */}}
-              className="text-gray-400 hover:text-gray-200"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {recentActivity.map((activity, index) => (
-              <motion.div
-                key={activity.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-center gap-4 p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700/70 transition-colors"
-              >
-                <div className={`p-2 rounded-full ${getActivityColor(activity.type)}`}>
-                  {getActivityIcon(activity.type)}
-                </div>
-                <div className="flex-1">
-                  <p className="text-gray-200 font-medium">{activity.action}</p>
-                  <p className="text-gray-400 text-sm">
-                    {activity.user} • {new Date(activity.timestamp).toLocaleString('ko-KR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit'
-                    })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-gray-400">
-                  <Clock className="w-3 h-3" />
-                  <span className="text-xs">
-                    {Math.floor((Date.now() - new Date(activity.timestamp).getTime()) / 60000)}분 전
-                  </span>
-                </div>
-              </motion.div>
-            ))}
-            {recentActivity.length === 0 && (
-              <div className="text-center py-8 text-gray-400">
-                <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>최근 활동이 없습니다.</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+    </div>
   )
 }
 
-// 실시간 분석 컴포넌트
-function AnalyticsDashboard({ dashboardStats, activeSubTab }: {
-  dashboardStats: DashboardStats | null
-  activeSubTab: string
-}) {
-  const [timeRange, setTimeRange] = useState('24h')
-  
+function SystemCard({ label, value }: { label: string; value: string }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-200 flex items-center gap-2">
-          <BarChart3 className="w-6 h-6 text-blue-400" />
-          실시간 분석
-        </h2>
-        <div className="flex gap-2">
-          {['1h', '24h', '7d', '30d'].map((range) => (
-            <Button
-              key={range}
-              size="sm"
-              variant={timeRange === range ? "primary" : "ghost"}
-              onClick={() => setTimeRange(range)}
-              className={timeRange === range ? "bg-blue-600" : "text-gray-400"}
-            >
-              {range}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {activeSubTab === 'realtime' && (
-        <div className="grid grid-cols-2 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200">실시간 트래픽</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">동시 접속자</span>
-                  <span className="text-2xl font-bold text-blue-400">
-                    {dashboardStats?.system.activeConnections || 0}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((dashboardStats?.system.activeConnections || 0) / 50 * 100, 100)}%` }}
-                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200">시스템 성능</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">응답 시간</span>
-                  <span className="text-2xl font-bold text-green-400">
-                    {dashboardStats?.system.responseTime || 0}ms
-                  </span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((dashboardStats?.system.responseTime || 0) / 200 * 100, 100)}%` }}
-                    className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {activeSubTab === 'trends' && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200">사용자 활동 트렌드</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-400">
-                    {dashboardStats?.users.total || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">총 사용자</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-400">
-                    {dashboardStats?.wiki.approved || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">승인된 문서</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-400">
-                    {dashboardStats?.cards.totalDrops || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">카드 드랍</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-400">
-                    {dashboardStats?.cards.rareCards || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">희귀 카드</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {activeSubTab === 'performance' && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200">성능 모니터링</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-6">
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <Server className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">
-                    {dashboardStats?.system.serverLoad || 0}%
-                  </div>
-                  <div className="text-sm text-gray-400">서버 로드</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <Monitor className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">
-                    {dashboardStats?.system.responseTime || 0}ms
-                  </div>
-                  <div className="text-sm text-gray-400">응답 시간</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <Wifi className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">
-                    {dashboardStats?.system.uptime || '0h'}
-                  </div>
-                  <div className="text-sm text-gray-400">업타임</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </motion.div>
+    <div className="rounded-md border border-slate-800 bg-slate-950/60 px-4 py-3">
+      <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{label}</p>
+      <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-white">{value}</p>
+    </div>
   )
 }
 
-// 콘텐츠 관리 컴포넌트
-function ContentManagement({ activeSubTab, dashboardStats }: {
-  activeSubTab: string
-  dashboardStats: DashboardStats | null
-}) {
+function EmptyTab({ icon: Icon, message }: { icon: any; message: string }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-200 flex items-center gap-2">
-          <Database className="w-6 h-6 text-purple-400" />
-          콘텐츠 관리
-        </h2>
-      </div>
-
-      {activeSubTab === 'cards' && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-                <Star className="w-5 h-5 text-pink-400" />
-                카드 컬렉션
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-pink-400">
-                    {dashboardStats?.cards.totalDrops || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">총 드랍 수</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-400">
-                    {dashboardStats?.cards.activeCollectors || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">활성 수집가</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-400">
-                    {dashboardStats?.cards.rareCards || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">레어 카드</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {activeSubTab === 'images' && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-green-400" />
-                이미지 관리
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-400">
-                    {dashboardStats?.images.totalImages || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">총 이미지 수</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-400">
-                    {dashboardStats?.images.uploadsToday || 0}
-                  </div>
-                  <div className="text-sm text-gray-400">오늘 업로드</div>
-                </div>
-                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-400">
-                    {dashboardStats?.images.storageUsed || '0 MB'}
-                  </div>
-                  <div className="text-sm text-gray-400">사용 용량</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </motion.div>
-  )
-}
-
-// 서버 모니터링 컴포넌트
-function ServerMonitoring({ dashboardStats }: {
-  dashboardStats: DashboardStats | null
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-200 flex items-center gap-2">
-          <Server className="w-6 h-6 text-green-400" />
-          서버 모니터링
-        </h2>
-        <div className="flex items-center gap-2 px-3 py-1 bg-green-600/20 rounded-full">
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="w-2 h-2 bg-green-400 rounded-full"
-          />
-          <span className="text-green-400 text-sm">시스템 정상</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-gray-200">시스템 리소스</h3>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-400">서버 로드</span>
-                  <span className="text-white">{dashboardStats?.system.serverLoad || 0}%</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${dashboardStats?.system.serverLoad || 0}%` }}
-                    className="bg-gradient-to-r from-green-500 to-yellow-500 h-2 rounded-full"
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-400">응답 시간</span>
-                  <span className="text-white">{dashboardStats?.system.responseTime || 0}ms</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((dashboardStats?.system.responseTime || 0) / 200 * 100, 100)}%` }}
-                    className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gray-800/90 border-gray-700/50 backdrop-blur-sm">
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-gray-200">네트워크 상태</h3>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-gray-400">활성 연결</span>
-                <span className="text-blue-400 font-semibold">
-                  {dashboardStats?.system.activeConnections || 0}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">업타임</span>
-                <span className="text-green-400 font-semibold">
-                  {dashboardStats?.system.uptime || '0h'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">상태</span>
-                <span className="text-green-400 font-semibold flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" />
-                  정상
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </motion.div>
+    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-10 text-center">
+      <Icon className="mx-auto h-10 w-10 text-slate-600" />
+      <p className="mt-4 text-sm text-slate-400">{message}</p>
+    </div>
   )
 }

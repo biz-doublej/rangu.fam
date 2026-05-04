@@ -1,160 +1,180 @@
-import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import { WikiUser, WikiSubmission } from '@/models/Wiki'
-import User from '@/models/User'
-import Image from '@/models/Image'
-import { UserCardStats } from '@/models/UserCardStats'
-import jwt from 'jsonwebtoken'
-import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
-
+import { desc, eq, gte, sql } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiUsers, wikiSubmissions } from '@/db/schema/wiki'
+import { users } from '@/db/schema/users'
+import { images } from '@/db/schema/media'
+import { userCardStats } from '@/db/schema/cards'
+import { checkAdminAuth } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = getRequiredEnv('JWT_SECRET')
-
-async function verifyAdmin(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
-  const cookieToken = request.cookies.get('wiki-token')?.value || null
-  const tokens = [bearerToken, cookieToken].filter(Boolean) as string[]
-  if (tokens.length === 0) return null
-
-  await dbConnect()
-
-  for (const token of tokens) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any
-      let user
-      if (decoded.userId) {
-        // Admin JWT 토큰 형식
-        user = await WikiUser.findById(decoded.userId)
-      } else if (decoded.username) {
-        // Wiki JWT 토큰 형식
-        user = await WikiUser.findOne({ username: decoded.username })
-      } else {
-        continue
-      }
-
-      if (!user) continue
-      user = await enforceUserAccessPolicy(user as any)
-      if (!user || user.role !== 'admin') continue
-
-      return user
-    } catch {
-      continue
-    }
-  }
-
-  return null
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const user = await verifyAdmin(request)
-    if (!user) {
+    const admin = await checkAdminAuth(request)
+    if (!admin) {
       return NextResponse.json(
         { success: false, error: '관리자 권한이 필요합니다.' },
         { status: 403 }
       )
     }
 
-    await dbConnect()
-
-    // 현재 시간 계산
+    const db = getDb()
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
 
-    // 병렬로 데이터 수집
+    // 카운트 + 통계 — count 쿼리들을 병렬 실행
     const [
-      wikiUsers,
-      regularUsers,
-      wikiSubmissions,
-      images,
-      cardStats
+      [{ wikiUserTotal }],
+      [{ wikiUserActive }],
+      [{ wikiUserBanned }],
+      [{ wikiUserNewToday }],
+      [{ submissionTotal }],
+      [{ submissionPending }],
+      [{ submissionApproved }],
+      [{ submissionRejected }],
+      [{ submissionOnhold }],
+      [{ imageTotal }],
+      [{ imageToday }],
+      [{ imageBytesSum }],
+      [{ cardStatsTotal }],
+      [{ cardActiveCollectors }],
+      [{ cardTotalDrops }],
+      [{ recentLogins }],
     ] = await Promise.all([
-      WikiUser.find({}).lean(),
-      User.find({}).lean(),
-      WikiSubmission.find({}).lean(),
-      Image.find({}).lean(),
-      UserCardStats.find({}).lean()
+      db.select({ wikiUserTotal: sql<number>`count(*)::int` }).from(wikiUsers),
+      db.select({ wikiUserActive: sql<number>`count(*)::int` }).from(wikiUsers).where(eq(wikiUsers.isActive, true)),
+      db.select({ wikiUserBanned: sql<number>`count(*) FILTER (WHERE ban_status->>'isBanned' = 'true')::int` }).from(wikiUsers),
+      db.select({ wikiUserNewToday: sql<number>`count(*)::int` }).from(wikiUsers).where(gte(wikiUsers.createdAt, today)),
+      db.select({ submissionTotal: sql<number>`count(*)::int` }).from(wikiSubmissions),
+      db.select({ submissionPending: sql<number>`count(*)::int` }).from(wikiSubmissions).where(eq(wikiSubmissions.status, 'pending')),
+      db.select({ submissionApproved: sql<number>`count(*)::int` }).from(wikiSubmissions).where(eq(wikiSubmissions.status, 'approved')),
+      db.select({ submissionRejected: sql<number>`count(*)::int` }).from(wikiSubmissions).where(eq(wikiSubmissions.status, 'rejected')),
+      db.select({ submissionOnhold: sql<number>`count(*)::int` }).from(wikiSubmissions).where(eq(wikiSubmissions.status, 'onhold')),
+      db.select({ imageTotal: sql<number>`count(*)::int` }).from(images),
+      db.select({ imageToday: sql<number>`count(*)::int` }).from(images).where(gte(images.createdAt, today)),
+      db.select({ imageBytesSum: sql<number>`COALESCE(sum(size), 0)::bigint` }).from(images),
+      db.select({ cardStatsTotal: sql<number>`count(*)::int` }).from(userCardStats),
+      db.select({ cardActiveCollectors: sql<number>`count(*)::int` }).from(userCardStats).where(gte(userCardStats.lastDropDate, yesterday)),
+      db.select({ cardTotalDrops: sql<number>`COALESCE(sum(total_drops_used), 0)::int` }).from(userCardStats),
+      db.select({ recentLogins: sql<number>`count(*)::int` }).from(wikiUsers).where(gte(wikiUsers.lastLogin, yesterday)),
     ])
 
-    // 타입 캐스팅
-    const typedWikiUsers = wikiUsers as any[]
-    const typedRegularUsers = regularUsers as any[]
-    const typedWikiSubmissions = wikiSubmissions as any[]
-    const typedImages = images as any[]
-    const typedCardStats = cardStats as any[]
-
-    // 사용자 통계
     const userStats = {
-      total: typedWikiUsers.length,
-      active: typedWikiUsers.filter((u: any) => u.isActive).length,
-      banned: typedWikiUsers.filter((u: any) => u.banStatus?.isBanned).length,
-      newToday: typedWikiUsers.filter((u: any) => 
-        new Date(u.createdAt) >= today
-      ).length
+      total: Number(wikiUserTotal),
+      active: Number(wikiUserActive),
+      banned: Number(wikiUserBanned),
+      newToday: Number(wikiUserNewToday),
     }
 
-    // 위키 통계
     const wikiStats = {
-      totalPages: typedWikiSubmissions.length,
-      pending: typedWikiSubmissions.filter((s: any) => s.status === 'pending').length,
-      approved: typedWikiSubmissions.filter((s: any) => s.status === 'approved').length,
-      rejected: typedWikiSubmissions.filter((s: any) => s.status === 'rejected').length,
-      onhold: typedWikiSubmissions.filter((s: any) => s.status === 'onhold').length
+      totalPages: Number(submissionTotal),
+      pending: Number(submissionPending),
+      approved: Number(submissionApproved),
+      rejected: Number(submissionRejected),
+      onhold: Number(submissionOnhold),
     }
 
-    // 카드 통계
     const cardStatsData = {
-      totalDrops: typedCardStats.reduce((sum: number, stat: any) => sum + (stat.totalDrops || 0), 0),
-      activeCollectors: typedCardStats.filter((stat: any) => 
-        new Date(stat.lastDropDate) >= yesterday
-      ).length,
-      rareCards: typedCardStats.reduce((sum: number, stat: any) => sum + (stat.rareCardCount || 0), 0)
+      totalDrops: Number(cardTotalDrops),
+      activeCollectors: Number(cardActiveCollectors),
+      rareCards: 0, // 필드가 schema 에 없음 — 향후 별도 집계
     }
 
-    // 이미지 통계
+    const totalBytes = Number(imageBytesSum)
     const imageStats = {
-      totalImages: typedImages.length,
-      uploadsToday: typedImages.filter((img: any) => new Date(img.createdAt) >= today).length,
-      storageUsed: `${(typedImages.reduce((sum: number, img: any) => sum + (img.size || 0), 0) / (1024 * 1024 * 1024)).toFixed(2)} GB`
+      totalImages: Number(imageTotal),
+      uploadsToday: Number(imageToday),
+      storageUsed: `${(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`,
     }
 
-    // 시스템 통계 (임의 값 제거: 로그인/최근활동 기반 산출)
-    const recentLogins = typedWikiUsers.filter((u: any) => u.lastLogin && new Date(u.lastLogin) >= yesterday).length
-    const activeConnections = Math.max(recentLogins, 5)
-    const responseTime = Math.max(20, Math.min(120, 30 + Math.floor(typedWikiSubmissions.length / 5) + Math.floor(typedImages.length / 10)))
-    const serverLoad = Math.min(95, Math.floor((activeConnections * 3 + typedImages.length) / 2))
+    // System stats — 휴리스틱 (실제 메트릭은 GCP에서 별도 수집)
+    const activeConnections = Math.max(Number(recentLogins), 5)
+    const responseTime = Math.max(20, Math.min(120, 30 + Math.floor(Number(submissionTotal) / 5) + Math.floor(Number(imageTotal) / 10)))
+    const serverLoad = Math.min(95, Math.floor((activeConnections * 3 + Number(imageTotal)) / 2))
     const uptimeHours = Math.max(1, Math.floor((Date.now() - today.getTime()) / (1000 * 60 * 60)))
 
     const systemStats = {
       uptime: formatUptime(uptimeHours),
       responseTime,
       activeConnections,
-      serverLoad
+      serverLoad,
     }
 
-    // 최근 활동 데이터
-    const recentActivity = await generateRecentActivity(typedWikiSubmissions, typedWikiUsers)
+    // 최근 활동 — 위키 제출 + 로그인 합쳐서 시간순
+    const [recentSubmissions, recentLoggedInUsers] = await Promise.all([
+      db
+        .select({
+          id: wikiSubmissions.id,
+          type: wikiSubmissions.type,
+          targetTitle: wikiSubmissions.targetTitle,
+          author: wikiSubmissions.author,
+          createdAt: wikiSubmissions.createdAt,
+        })
+        .from(wikiSubmissions)
+        .orderBy(desc(wikiSubmissions.createdAt))
+        .limit(3),
+      db
+        .select({
+          id: wikiUsers.id,
+          username: wikiUsers.username,
+          lastLogin: wikiUsers.lastLogin,
+        })
+        .from(wikiUsers)
+        .orderBy(desc(wikiUsers.lastLogin))
+        .limit(2),
+    ])
 
-    const dashboardStats = {
-      users: userStats,
-      wiki: wikiStats,
-      cards: cardStatsData,
-      images: imageStats,
-      system: systemStats
+    const activities: Array<{
+      id: string
+      type: 'edit' | 'login'
+      user: string
+      action: string
+      timestamp: Date | string | null
+      details: Record<string, any>
+    }> = []
+
+    for (const s of recentSubmissions) {
+      activities.push({
+        id: `wiki-${s.id}`,
+        type: 'edit',
+        user: s.author,
+        action: `${s.targetTitle} ${s.type === 'create' ? '페이지 생성' : '편집'}`,
+        timestamp: s.createdAt,
+        details: { submissionId: s.id },
+      })
     }
+    for (const u of recentLoggedInUsers) {
+      if (!u.lastLogin) continue
+      activities.push({
+        id: `login-${u.id}`,
+        type: 'login',
+        user: u.username,
+        action: '로그인',
+        timestamp: u.lastLogin,
+        details: { userId: u.id },
+      })
+    }
+
+    activities.sort((a, b) => {
+      const at = a.timestamp ? new Date(a.timestamp).getTime() : 0
+      const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0
+      return bt - at
+    })
 
     return NextResponse.json({
       success: true,
-      stats: dashboardStats,
-      recentActivity,
-      lastUpdated: new Date().toISOString()
+      stats: {
+        users: userStats,
+        wiki: wikiStats,
+        cards: cardStatsData,
+        images: imageStats,
+        system: systemStats,
+      },
+      recentActivity: activities.slice(0, 10),
+      lastUpdated: new Date().toISOString(),
     })
-
   } catch (error) {
     console.error('대시보드 통계 조회 오류:', error)
     return NextResponse.json(
@@ -166,56 +186,8 @@ export async function GET(request: NextRequest) {
 
 function formatUptime(hours: number): string {
   const h = Math.max(1, hours)
-  if (h < 24) {
-    const minutes = Math.floor((h % 1) * 60)
-    return `${Math.floor(h)}h ${minutes}m`
-  }
+  if (h < 24) return `${Math.floor(h)}h`
   const days = Math.floor(h / 24)
   const remainingHours = Math.floor(h % 24)
   return `${days}d ${remainingHours}h`
-}
-
-async function generateRecentActivity(
-  submissions: any[],
-  users: any[]
-): Promise<any[]> {
-  const activities: any[] = []
-  
-  // 최근 위키 편집
-  const recentSubmissions = submissions
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 3)
-  
-  recentSubmissions.forEach(submission => {
-    activities.push({
-      id: `wiki-${submission._id}`,
-      type: submission.type === 'create' ? 'edit' : 'edit',
-      user: submission.author,
-      action: `${submission.targetTitle} ${submission.type === 'create' ? '페이지 생성' : '편집'}`,
-      timestamp: submission.createdAt,
-      details: { submissionId: submission._id }
-    })
-  })
-
-  // 최근 사용자 로그인
-  const recentUsers = users
-    .filter(u => u.lastLogin)
-    .sort((a, b) => new Date(b.lastLogin).getTime() - new Date(a.lastLogin).getTime())
-    .slice(0, 2)
-  
-  recentUsers.forEach(user => {
-    activities.push({
-      id: `login-${user._id}`,
-      type: 'login',
-      user: user.username,
-      action: '로그인',
-      timestamp: user.lastLogin,
-      details: { userId: user._id }
-    })
-  })
-
-  // 시간순 정렬
-  return activities
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 10)
 }

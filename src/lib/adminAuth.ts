@@ -1,10 +1,10 @@
 import { getRequiredEnv } from '@/lib/env'
 import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
-import dbConnect from '@/lib/database'
-import { WikiUser } from '@/models/Wiki'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiUsers } from '@/db/schema/wiki'
 import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
-
 
 const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
@@ -22,7 +22,7 @@ export async function checkAdminAuth(request: NextRequest): Promise<AdminUser | 
     const tokens = [bearerToken, cookieToken].filter(Boolean) as string[]
     if (tokens.length === 0) return null
 
-    await dbConnect()
+    const db = getDb()
 
     for (const token of tokens) {
       try {
@@ -31,11 +31,21 @@ export async function checkAdminAuth(request: NextRequest): Promise<AdminUser | 
         const username = decoded?.username
         if (!userId && !username) continue
 
-        let user = null as any
+        let user: any = null
         if (userId) {
-          user = await WikiUser.findById(userId)
+          const [row] = await db
+            .select()
+            .from(wikiUsers)
+            .where(eq(wikiUsers.id, userId))
+            .limit(1)
+          user = row
         } else if (username) {
-          user = await WikiUser.findOne({ username })
+          const [row] = await db
+            .select()
+            .from(wikiUsers)
+            .where(eq(wikiUsers.username, username))
+            .limit(1)
+          user = row
         }
         if (!user) continue
 
@@ -43,7 +53,7 @@ export async function checkAdminAuth(request: NextRequest): Promise<AdminUser | 
         if (user.role !== 'admin') continue
 
         return {
-          userId: String(user._id),
+          userId: user.id,
           username: user.username,
           role: 'admin',
         }

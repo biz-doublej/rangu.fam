@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dbConnect from '@/lib/database'
-import Profile from '@/models/Profile'
+import { eq, inArray } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { profiles } from '@/db/schema/profiles'
+import { users } from '@/db/schema/users'
+
 export const dynamic = 'force-dynamic'
 
 // GET - 팔로잉 목록 조회
@@ -9,37 +12,40 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await dbConnect()
-    
+    const db = getDb()
     const { id } = params
 
-    // ID가 ObjectId 형식인지 확인
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id)
-    
-    // 프로필 찾기
-    let profile
-    if (isObjectId) {
-      // ObjectId로 조회 (userId 기준)
-      profile = await Profile.findOne({ userId: id })
-        .populate('following', 'username email').lean()
-    } else {
-      // username으로 조회
-      profile = await Profile.findOne({ username: id })
-        .populate('following', 'username email').lean()
-    }
+    const isIdLike = /^[0-9a-fA-F-]{24,36}$/.test(id)
 
-    if (!profile) {
+    const profileRows = await db
+      .select({ following: profiles.following })
+      .from(profiles)
+      .where(isIdLike ? eq(profiles.userId, id) : eq(profiles.username, id))
+      .limit(1)
+
+    if (profileRows.length === 0) {
       return NextResponse.json(
         { success: false, error: '프로필을 찾을 수 없습니다.' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      following: (profile as any).following || []
-    })
+    const followingIds = (profileRows[0].following ?? []).filter(Boolean)
 
+    if (followingIds.length === 0) {
+      return NextResponse.json({ success: true, following: [] })
+    }
+
+    const followingUsers = await db
+      .select({
+        _id: users.id,
+        username: users.username,
+        email: users.email,
+      })
+      .from(users)
+      .where(inArray(users.id, followingIds))
+
+    return NextResponse.json({ success: true, following: followingUsers })
   } catch (error) {
     console.error('팔로잉 목록 조회 오류:', error)
     return NextResponse.json(

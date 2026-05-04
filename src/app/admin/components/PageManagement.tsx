@@ -85,7 +85,7 @@ export default function PageManagement({ pageData }: PageManagementProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">📄 페이지 관리</h2>
-          <p className="text-gray-400 mt-1">정적 페이지의 내용을 편집할 수 있습니다.</p>
+          <p className="text-slate-400 mt-1">정적 페이지의 내용을 편집할 수 있습니다.</p>
         </div>
       </div>
 
@@ -97,21 +97,21 @@ export default function PageManagement({ pageData }: PageManagementProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 * Object.keys(pageData).indexOf(key) }}
           >
-            <Card className="bg-gray-800 border-gray-700">
+            <Card className="bg-slate-900 border-slate-800">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-200 flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-slate-200 flex items-center gap-2">
                       <FileText className="w-5 h-5" />
                       {getPageDisplayName(key)}
                     </h3>
-                    <p className="text-gray-400 text-sm mt-1">{getPageDescription(key)}</p>
+                    <p className="text-slate-400 text-sm mt-1">{getPageDescription(key)}</p>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       onClick={() => setPreviewMode(previewMode === key ? null : key)}
-                      className={`${previewMode === key ? 'bg-blue-700' : 'bg-blue-600'} hover:bg-blue-700`}
+                      className={`${previewMode === key ? 'bg-cyan-600' : 'bg-cyan-500'} hover:bg-cyan-400`}
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       {previewMode === key ? '편집' : '미리보기'}
@@ -138,28 +138,28 @@ export default function PageManagement({ pageData }: PageManagementProps) {
                   // 편집 모드
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
                         페이지 제목
                       </label>
                       <Input
                         placeholder="페이지 제목을 입력하세요"
                         defaultValue={data.title}
-                        className="bg-gray-700 border-gray-600 text-gray-200"
+                        className="bg-slate-800 border-slate-700 text-slate-200"
                         id={`${key}-title`}
                       />
                     </div>
-                    
+
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
                         페이지 내용
                       </label>
                       <textarea
                         placeholder="페이지 내용을 입력하세요"
                         defaultValue={data.content}
-                        className="w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-200 min-h-[300px] font-mono text-sm leading-relaxed resize-y"
+                        className="w-full p-4 bg-slate-800 border border-slate-700 rounded-md text-slate-200 min-h-[300px] font-mono text-sm leading-relaxed resize-y"
                         id={`${key}-content`}
                       />
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-slate-500 mt-2">
                         💡 줄바꿈은 자동으로 문단으로 변환됩니다. HTML 태그를 사용할 수 있습니다.
                       </p>
                     </div>
@@ -189,28 +189,28 @@ export default function PageManagement({ pageData }: PageManagementProps) {
       </div>
 
       {/* 페이지 관리 팁 */}
-      <Card className="bg-blue-600/10 border-blue-600/20">
+      <Card className="bg-cyan-500/10 border-cyan-500/40">
         <CardHeader>
-          <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
             💡 페이지 관리 팁
           </h3>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 text-sm text-gray-300">
+          <div className="space-y-3 text-sm text-slate-300">
             <div className="flex items-start gap-2">
-              <span className="text-blue-400 font-bold">•</span>
+              <span className="text-cyan-400 font-bold">•</span>
               <span>미리보기 기능을 활용하여 변경사항을 저장하기 전에 확인하세요.</span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-blue-400 font-bold">•</span>
+              <span className="text-cyan-400 font-bold">•</span>
               <span>이용약관과 개인정보처리방침은 법적 효력이 있으므로 신중하게 수정하세요.</span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-blue-400 font-bold">•</span>
+              <span className="text-cyan-400 font-bold">•</span>
               <span>HTML 태그를 사용하여 더 풍부한 서식을 적용할 수 있습니다.</span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-blue-400 font-bold">•</span>
+              <span className="text-cyan-400 font-bold">•</span>
               <span>변경사항은 즉시 반영되므로 백업을 위해 중요한 내용은 별도로 보관하세요.</span>
             </div>
           </div>
@@ -218,18 +218,18 @@ export default function PageManagement({ pageData }: PageManagementProps) {
       </Card>
 
       {/* 최근 수정 내역 */}
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
-          <h3 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-slate-200 flex items-center gap-2">
             📊 페이지 현황
           </h3>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             {Object.entries(pageData).map(([key, data]) => (
-              <div key={key} className="bg-gray-700 p-4 rounded-lg">
-                <h4 className="font-semibold text-gray-200 mb-2">{getPageDisplayName(key)}</h4>
-                <div className="space-y-1 text-sm text-gray-400">
+              <div key={key} className="bg-slate-800 p-4 rounded-lg">
+                <h4 className="font-semibold text-slate-200 mb-2">{getPageDisplayName(key)}</h4>
+                <div className="space-y-1 text-sm text-slate-400">
                   <p>제목 길이: {data.title.length}자</p>
                   <p>내용 길이: {data.content.length}자</p>
                   <p>문단 수: {data.content.split('\n').filter((p: string) => p.trim()).length}개</p>

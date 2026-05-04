@@ -1,3 +1,13 @@
+/* ============================================
+   외부 폰트 — @import 규칙은 어떤 스타일 선언보다 먼저 와야 한다.
+   (브라우저가 후행 @import를 무시하면 폰트가 로드되지 않음.)
+   Tailwind 디렉티브는 빌드 타임에 실제 CSS 룰로 펼쳐지므로,
+   그 뒤에 @import를 두면 사실상 "스타일 뒤의 @import"가 되어 무효.
+   ============================================ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -961,10 +971,1229 @@ video:hover {
 .simple-infobox table td {
   vertical-align: top;
   word-break: break-word;
-} 
+}
+
+/* ============================================================
+   ★ Rangu.fam — Refined Polaroid Editorial design system
+   (스코프: [data-section="rangu"]. 위키/대학 페이지엔 영향 없음)
+   ============================================================ */
+
+[data-section='rangu'] {
+  --paper-base: #F8F1E5;
+  --paper-warm: #F2E8D4;
+  --paper-deep: #E8DAB9;
+  --ink-primary: #2B2118;
+  --ink-soft: #5C5046;
+  --ink-muted: #8C7E6A;
+  --coral: #E0654E;
+  --sage: #3E5C4A;
+  --mustard: #C28A2D;
+
+  background:
+    radial-gradient(1200px 500px at 10% 0%, rgba(196, 138, 45, 0.08), transparent 60%),
+    radial-gradient(900px 700px at 100% 100%, rgba(62, 92, 74, 0.07), transparent 65%),
+    var(--paper-base);
+  color: var(--ink-primary);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  min-height: 100vh;
+
+  /* 노트 페이퍼 텍스처 (미세 그레인 + 점 패턴) */
+  background-image:
+    radial-gradient(rgba(43, 33, 24, 0.045) 1px, transparent 1px),
+    radial-gradient(1200px 500px at 10% 0%, rgba(196, 138, 45, 0.08), transparent 60%),
+    radial-gradient(900px 700px at 100% 100%, rgba(62, 92, 74, 0.07), transparent 65%);
+  background-size: 22px 22px, auto, auto;
+  background-position: 0 0, 0 0, 0 0;
+}
+
+[data-section='rangu'] body,
+[data-section='rangu'].theme-surface {
+  background: transparent;
+  color: var(--ink-primary);
+}
+
+/* ── 타이포 ──────────────────────────────────────── */
+[data-section='rangu'] .display-han {
+  font-family: var(--font-han, 'Pretendard'), 'Pretendard', sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: var(--ink-primary);
+}
+
+[data-section='rangu'] .handwritten {
+  font-family: var(--font-gaegu, var(--font-caveat, 'cursive'));
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+[data-section='rangu'] .caveat {
+  font-family: var(--font-caveat, 'cursive');
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+[data-section='rangu'] .ink-soft { color: var(--ink-soft); }
+[data-section='rangu'] .ink-muted { color: var(--ink-muted); }
+
+/* ── 폴라로이드 ─────────────────────────────────── */
+[data-section='rangu'] .polaroid {
+  background: #FFFFFF;
+  padding: 14px 14px 56px 14px;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.04),
+    0 6px 20px -8px rgba(43, 33, 24, 0.35),
+    0 18px 40px -12px rgba(43, 33, 24, 0.25);
+  position: relative;
+  display: inline-block;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+}
+
+[data-section='rangu'] .polaroid:hover {
+  transform: translateY(-4px) rotate(0deg) !important;
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.04),
+    0 12px 30px -8px rgba(43, 33, 24, 0.45),
+    0 30px 60px -12px rgba(43, 33, 24, 0.3);
+}
+
+[data-section='rangu'] .polaroid--rot-l { transform: rotate(-2.5deg); }
+[data-section='rangu'] .polaroid--rot-r { transform: rotate(2deg); }
+[data-section='rangu'] .polaroid--rot-xl { transform: rotate(-4deg); }
+
+[data-section='rangu'] .polaroid > .polaroid-photo {
+  position: relative;
+  width: 100%;
+  background: var(--paper-deep);
+  overflow: hidden;
+}
+
+[data-section='rangu'] .polaroid-caption {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-gaegu, var(--font-caveat, 'cursive'));
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  letter-spacing: -0.01em;
+}
+
+/* ── 와시 테이프 ──────────────────────────────── */
+[data-section='rangu'] .tape {
+  position: absolute;
+  z-index: 5;
+  width: 90px;
+  height: 22px;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 6px,
+      rgba(255, 255, 255, 0.18) 6px 8px
+    ),
+    rgba(255, 222, 142, 0.78);
+  border-left: 1px dashed rgba(180, 140, 60, 0.25);
+  border-right: 1px dashed rgba(180, 140, 60, 0.25);
+  box-shadow: 0 2px 6px -2px rgba(180, 140, 60, 0.4);
+  pointer-events: none;
+}
+
+[data-section='rangu'] .tape--coral {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 6px,
+      rgba(255, 255, 255, 0.18) 6px 8px
+    ),
+    rgba(238, 133, 105, 0.7);
+}
+
+[data-section='rangu'] .tape--sage {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 6px,
+      rgba(255, 255, 255, 0.18) 6px 8px
+    ),
+    rgba(111, 137, 115, 0.7);
+}
+
+[data-section='rangu'] .tape--top { top: -10px; left: 50%; transform: translateX(-50%) rotate(-3deg); }
+[data-section='rangu'] .tape--top-left { top: -10px; left: 14px; transform: rotate(-12deg); }
+[data-section='rangu'] .tape--top-right { top: -10px; right: 14px; transform: rotate(8deg); }
+[data-section='rangu'] .tape--bottom-right { bottom: -8px; right: 18px; transform: rotate(-6deg); }
+
+/* ── Paper card / 카드 ─────────────────────────── */
+[data-section='rangu'] .paper-card {
+  background: rgba(255, 252, 244, 0.85);
+  border: 1px solid rgba(43, 33, 24, 0.08);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 0 rgba(43, 33, 24, 0.04),
+    0 4px 14px -8px rgba(43, 33, 24, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+[data-section='rangu'] .paper-card--lined {
+  background:
+    linear-gradient(transparent 27px, rgba(43, 33, 24, 0.06) 28px),
+    rgba(255, 252, 244, 0.9);
+  background-size: 100% 28px;
+}
+
+[data-section='rangu'] .ink-button {
+  background: var(--ink-primary);
+  color: var(--paper-base);
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-section='rangu'] .ink-button:hover {
+  background: #1B130A;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -4px rgba(43, 33, 24, 0.35);
+}
+
+[data-section='rangu'] .ghost-button {
+  border: 1.5px solid var(--ink-primary);
+  color: var(--ink-primary);
+  padding: 0.6rem 1.3rem;
+  border-radius: 999px;
+  font-weight: 600;
+  background: transparent;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-section='rangu'] .ghost-button:hover {
+  background: var(--ink-primary);
+  color: var(--paper-base);
+}
+
+[data-section='rangu'] .pill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(43, 33, 24, 0.06);
+  border: 1px solid rgba(43, 33, 24, 0.1);
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+[data-section='rangu'] .pill-tag--coral {
+  background: rgba(224, 101, 78, 0.1);
+  border-color: rgba(224, 101, 78, 0.25);
+  color: var(--coral);
+}
+
+[data-section='rangu'] .pill-tag--sage {
+  background: rgba(62, 92, 74, 0.1);
+  border-color: rgba(62, 92, 74, 0.25);
+  color: var(--sage);
+}
+
+[data-section='rangu'] .pill-tag--mustard {
+  background: rgba(194, 138, 45, 0.12);
+  border-color: rgba(194, 138, 45, 0.3);
+  color: var(--mustard);
+}
+
+/* 손글씨 밑줄 효과 (제목 강조) */
+[data-section='rangu'] .ink-underline {
+  position: relative;
+  display: inline-block;
+}
+
+[data-section='rangu'] .ink-underline::after {
+  content: '';
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: 0.05em;
+  height: 0.4em;
+  background: var(--coral);
+  opacity: 0.35;
+  z-index: -1;
+  border-radius: 8px;
+  transform: skew(-2deg);
+}
+
+[data-section='rangu'] .ink-underline--mustard::after { background: var(--mustard); }
+[data-section='rangu'] .ink-underline--sage::after { background: var(--sage); }
+
+/* 손그림 화살표 / 동그라미를 위한 SVG hover wrapper */
+[data-section='rangu'] .doodle {
+  pointer-events: none;
+  position: absolute;
+  color: var(--ink-soft);
+  opacity: 0.55;
+}
+
+/* 스크랩북 섹션 헤더 */
+[data-section='rangu'] .scrap-eyebrow {
+  font-family: var(--font-caveat, 'cursive');
+  font-size: 1.1rem;
+  color: var(--coral);
+  letter-spacing: 0.02em;
+}
+
+[data-section='rangu'] .scrap-h1 {
+  font-family: var(--font-han, 'Pretendard'), sans-serif;
+  font-weight: 900;
+  font-size: clamp(2.5rem, 5vw, 4.25rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--ink-primary);
+}
+
+[data-section='rangu'] .scrap-h2 {
+  font-family: var(--font-han, 'Pretendard'), sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  letter-spacing: -0.03em;
+  color: var(--ink-primary);
+}
+
+/* 스크롤바도 종이 톤으로 */
+[data-section='rangu'] ::-webkit-scrollbar {
+  width: 10px;
+}
+[data-section='rangu'] ::-webkit-scrollbar-track {
+  background: rgba(43, 33, 24, 0.05);
+}
+[data-section='rangu'] ::-webkit-scrollbar-thumb {
+  background: rgba(43, 33, 24, 0.2);
+  border-radius: 10px;
+}
+[data-section='rangu'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(43, 33, 24, 0.35);
+}
+
+/* 선택 색상 */
+[data-section='rangu'] ::selection {
+  background: rgba(224, 101, 78, 0.3);
+  color: var(--ink-primary);
+}
+
+/* 포커스 */
+[data-section='rangu'] :focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* 푸터에서 글래스 톤 제거 */
+[data-section='rangu'] footer {
+  background: transparent !important;
+  color: var(--ink-soft);
+  border-top: 1px dashed rgba(43, 33, 24, 0.15);
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+  [data-section='rangu'] .polaroid--rot-l,
+  [data-section='rangu'] .polaroid--rot-r,
+  [data-section='rangu'] .polaroid--rot-xl {
+    transform: none;
+  }
+  [data-section='rangu'] .scrap-h1 {
+    font-size: clamp(2rem, 9vw, 2.75rem);
+  }
+}
+
+/* ============================================================
+   ★ 이랑위키 — Holographic / HUD design system
+   (스코프: [data-section="wiki"]. 다른 섹션엔 영향 없음)
+   - 깊은 우주 배경 + 사이언/바이올렛/마젠타 홀로그램 액센트
+   - 글래스모픽 패널 + 코너 브래킷 + 글로우 보더
+   - 모노 누메릭 + 와이드 트래킹 라벨
+   ============================================================ */
+
+:root[data-section='wiki'],
+[data-section='wiki'] {
+  /* 베이스 톤 */
+  --wiki-bg-deep:        #04070d;
+  --wiki-bg:             #080d18;
+  --wiki-bg-2:           #0c1322;
+  --wiki-panel:          rgba(15, 23, 42, 0.62);
+  --wiki-panel-strong:   rgba(15, 23, 42, 0.88);
+  --wiki-chrome:         rgba(8, 13, 24, 0.85);
+
+  /* 잉크 */
+  --wiki-ink:            #E6F0FF;
+  --wiki-ink-soft:       #B8C7E0;
+  --wiki-ink-muted:      #6E7E9E;
+  --wiki-ink-faint:      #485472;
+
+  /* 룰 / 글로우 */
+  --wiki-rule:           rgba(125, 211, 252, 0.16);
+  --wiki-rule-strong:    rgba(125, 211, 252, 0.36);
+  --wiki-glow-cyan:      0 0 0 1px rgba(34,211,238,0.35), 0 0 24px rgba(34,211,238,0.18);
+  --wiki-glow-violet:    0 0 0 1px rgba(167,139,250,0.35), 0 0 28px rgba(167,139,250,0.20);
+  --wiki-glow-magenta:   0 0 0 1px rgba(244,114,182,0.35), 0 0 24px rgba(244,114,182,0.18);
+
+  /* 액센트 */
+  --wiki-cyan:           #22D3EE;
+  --wiki-violet:         #A78BFA;
+  --wiki-magenta:        #F472B6;
+  --wiki-success:        #34D399;
+  --wiki-warning:        #FBBF24;
+  --wiki-danger:         #FB7185;
+
+  /* 의미 매핑 */
+  --wiki-link:           var(--wiki-cyan);
+  --wiki-link-hover:     #67E8F9;
+  --wiki-link-visited:   var(--wiki-violet);
+  --wiki-link-redlink:   var(--wiki-magenta);
+  --wiki-accent:         var(--wiki-cyan);
+  --wiki-accent-soft:    rgba(34, 211, 238, 0.10);
+
+  /* 호환용(과거 코드용) */
+  --wiki-paper:          var(--wiki-bg);
+  --wiki-paper-2:        var(--wiki-bg-2);
+  --wiki-tab-active:     var(--wiki-bg-2);
+  --wiki-tab-rest:       transparent;
+
+  /* 전역 페이지 변수 덮어쓰기 — theme-surface가 이걸 사용 */
+  --page-background:     var(--wiki-bg-deep);
+  --page-foreground:     var(--wiki-ink);
+  --surface-background:  var(--wiki-bg-deep);
+  --surface-shadow:      none;
+
+  background: var(--wiki-bg-deep);
+  color: var(--wiki-ink);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0;
+  min-height: 100vh;
+}
+
+/* 페이지 자체와 theme-surface 컨테이너에 우주 배경을 적용 */
+[data-section='wiki'] body,
+[data-section='wiki'] .theme-surface {
+  background:
+    radial-gradient(900px 500px at 12% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
+    radial-gradient(800px 600px at 100% 10%, rgba(167, 139, 250, 0.10), transparent 65%),
+    radial-gradient(700px 600px at 50% 110%, rgba(244, 114, 182, 0.08), transparent 60%),
+    var(--wiki-bg-deep) !important;
+  color: var(--wiki-ink) !important;
+  box-shadow: none !important;
+}
+
+/* 미세 그리드 + 스캔 라인 텍스처 (포인터 이벤트 방해 없음) */
+[data-section='wiki'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.05) 1px, transparent 1px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 3px);
+  background-size: 48px 48px, 48px 48px, 100% 3px;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+
+/* ── 타이포 ──────────────────────────────────── */
+[data-section='wiki'] .wiki-display {
+  font-family: 'Space Grotesk', 'Pretendard', -apple-system, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+[data-section='wiki'] .wiki-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+}
+[data-section='wiki'] .wiki-label {
+  font-family: 'JetBrains Mono', 'Space Grotesk', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--wiki-ink-muted);
+}
+[data-section='wiki'] .wiki-serif {
+  font-family: 'Space Grotesk', 'Pretendard', sans-serif;
+  letter-spacing: -0.005em;
+}
+
+[data-section='wiki'] .wiki-h1 {
+  font-family: 'Space Grotesk', 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.85rem, 3vw, 2.4rem);
+  line-height: 1.18;
+  margin: 0;
+  background: linear-gradient(92deg, #E6F0FF 0%, #67E8F9 35%, #C4B5FD 65%, #F9A8D4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 32px rgba(167, 139, 250, 0.12);
+  padding-bottom: 0.6rem;
+  position: relative;
+}
+[data-section='wiki'] .wiki-h1::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin-top: 0.55rem;
+  background: linear-gradient(90deg, var(--wiki-cyan), var(--wiki-violet) 50%, transparent);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
+}
+
+[data-section='wiki'] .wiki-h2 {
+  font-family: 'Space Grotesk', 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: var(--wiki-ink);
+  margin: 1.8em 0 0.6em;
+  padding-left: 0.7rem;
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, var(--wiki-cyan), var(--wiki-violet)) 1;
+  position: relative;
+}
+[data-section='wiki'] .wiki-h2::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: linear-gradient(180deg, var(--wiki-cyan), var(--wiki-violet));
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+}
+
+[data-section='wiki'] .wiki-h3 {
+  font-family: 'Space Grotesk', 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: var(--wiki-ink);
+  margin: 1.5em 0 0.4em;
+}
+
+/* ── 링크 ──────────────────────────────────── */
+[data-section='wiki'] a.wiki-link,
+[data-section='wiki'] .wiki-link a {
+  color: var(--wiki-link);
+  text-decoration: none;
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.18);
+  transition: color .15s ease, text-shadow .15s ease;
+}
+[data-section='wiki'] a.wiki-link:hover,
+[data-section='wiki'] .wiki-link a:hover {
+  color: var(--wiki-link-hover);
+  text-shadow: 0 0 22px rgba(103, 232, 249, 0.55);
+}
+[data-section='wiki'] a.wiki-link.wiki-redlink {
+  color: var(--wiki-link-redlink);
+}
+
+/* ── 칩 / 태그 ──────────────────────────────── */
+[data-section='wiki'] .wiki-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  background: rgba(34, 211, 238, 0.06);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  color: var(--wiki-ink-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+[data-section='wiki'] .wiki-chip.is-active {
+  background: rgba(34, 211, 238, 0.16);
+  border-color: rgba(34, 211, 238, 0.6);
+  color: var(--wiki-cyan);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
+}
+
+/* ── 패널 (HUD) ──────────────────────────── */
+[data-section='wiki'] .wiki-panel {
+  position: relative;
+  background: var(--wiki-panel);
+  border: 1px solid var(--wiki-rule);
+  border-radius: 6px;
+  padding: 14px 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+[data-section='wiki'] .wiki-panel:hover {
+  border-color: rgba(125, 211, 252, 0.42);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.18), 0 12px 36px -16px rgba(34, 211, 238, 0.4);
+}
+[data-section='wiki'] .wiki-panel--inset {
+  background: rgba(8, 13, 24, 0.55);
+  border: 1px solid var(--wiki-rule);
+  border-radius: 4px;
+}
+/* 코너 브래킷 (4모서리에 ⌐ ¬ ⌐ ¬ 효과) */
+[data-section='wiki'] .wiki-panel::before,
+[data-section='wiki'] .wiki-panel::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  pointer-events: none;
+}
+[data-section='wiki'] .wiki-panel::before {
+  top: -1px; left: -1px;
+  border-right: 0; border-bottom: 0;
+  border-top-left-radius: 6px;
+}
+[data-section='wiki'] .wiki-panel::after {
+  bottom: -1px; right: -1px;
+  border-left: 0; border-top: 0;
+  border-bottom-right-radius: 6px;
+}
+[data-section='wiki'] .wiki-panel:hover::before,
+[data-section='wiki'] .wiki-panel:hover::after {
+  border-color: rgba(167, 139, 250, 0.85);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.45);
+}
+
+[data-section='wiki'] .wiki-divider {
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--wiki-rule-strong) 50%, transparent);
+  margin: 1rem 0;
+}
+
+/* ── 인포박스 (HUD 모니터) ──────────────────── */
+[data-section='wiki'] .wiki-infobox {
+  background: rgba(8, 13, 24, 0.78);
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  font-family: 'JetBrains Mono', 'Pretendard', monospace;
+  font-size: 0.78rem;
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.10), 0 18px 50px -24px rgba(34, 211, 238, 0.35);
+}
+[data-section='wiki'] .wiki-infobox caption {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.18), rgba(167, 139, 250, 0.18));
+  color: var(--wiki-ink);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.4);
+  text-align: left;
+}
+[data-section='wiki'] .wiki-infobox th,
+[data-section='wiki'] .wiki-infobox td {
+  border-top: 1px dashed rgba(125, 211, 252, 0.15);
+  padding: 6px 10px;
+  vertical-align: top;
+  color: var(--wiki-ink-soft);
+}
+[data-section='wiki'] .wiki-infobox th {
+  color: var(--wiki-ink-muted);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  width: 42%;
+}
+[data-section='wiki'] .wiki-infobox td {
+  color: var(--wiki-ink);
+}
+
+/* ── 사이드바 ───────────────────────────────── */
+[data-section='wiki'] .wiki-sidebar {
+  background: linear-gradient(180deg, rgba(8, 13, 24, 0.92), rgba(8, 13, 24, 0.78));
+  border-right: 1px solid var(--wiki-rule);
+  position: relative;
+}
+[data-section='wiki'] .wiki-sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.5) 30%, rgba(167, 139, 250, 0.4) 70%, transparent);
+  pointer-events: none;
+}
+[data-section='wiki'] .wiki-sidebar h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--wiki-ink-faint);
+  padding: 0 14px;
+  margin: 16px 0 6px;
+  position: relative;
+}
+[data-section='wiki'] .wiki-sidebar h4::before {
+  content: '◇';
+  margin-right: 6px;
+  color: rgba(34, 211, 238, 0.7);
+}
+[data-section='wiki'] .wiki-sidebar nav a,
+[data-section='wiki'] .wiki-sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  color: var(--wiki-ink-soft);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
+  position: relative;
+}
+[data-section='wiki'] .wiki-sidebar nav a:hover,
+[data-section='wiki'] .wiki-sidebar nav button:hover {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.10), transparent 80%);
+  color: var(--wiki-cyan);
+  border-left-color: rgba(34, 211, 238, 0.55);
+}
+[data-section='wiki'] .wiki-sidebar nav a.is-active,
+[data-section='wiki'] .wiki-sidebar nav button.is-active {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.18), rgba(167, 139, 250, 0.10) 60%, transparent);
+  border-left: 2px solid var(--wiki-cyan);
+  color: var(--wiki-ink);
+  font-weight: 600;
+  text-shadow: 0 0 14px rgba(34, 211, 238, 0.4);
+}
+
+/* ── 상단 헤더 ──────────────────────────────── */
+[data-section='wiki'] .wiki-topbar {
+  background: linear-gradient(180deg, rgba(8, 13, 24, 0.92), rgba(8, 13, 24, 0.72));
+  border-bottom: 1px solid var(--wiki-rule);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+[data-section='wiki'] .wiki-topbar::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--wiki-cyan) 25%, var(--wiki-violet) 55%, var(--wiki-magenta) 80%, transparent);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
+  pointer-events: none;
+}
+[data-section='wiki'] .wiki-topbar a,
+[data-section='wiki'] .wiki-topbar button {
+  color: var(--wiki-ink-soft);
+}
+[data-section='wiki'] .wiki-topbar a:hover,
+[data-section='wiki'] .wiki-topbar button:hover {
+  color: var(--wiki-ink);
+}
+
+/* 입력 필드 (검색 등) */
+[data-section='wiki'] input,
+[data-section='wiki'] textarea,
+[data-section='wiki'] select {
+  background: rgba(8, 13, 24, 0.6);
+  border: 1px solid var(--wiki-rule-strong);
+  color: var(--wiki-ink);
+  border-radius: 4px;
+}
+[data-section='wiki'] input::placeholder,
+[data-section='wiki'] textarea::placeholder {
+  color: var(--wiki-ink-faint);
+}
+[data-section='wiki'] input:focus,
+[data-section='wiki'] textarea:focus,
+[data-section='wiki'] select:focus {
+  outline: none;
+  border-color: var(--wiki-cyan);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18);
+}
+
+/* ── 위키 탭 (작전 모드) ─────────────────── */
+[data-section='wiki'] .wiki-tabs {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  border-bottom: 1px solid var(--wiki-rule);
+  position: relative;
+}
+[data-section='wiki'] .wiki-tab {
+  position: relative;
+  padding: 8px 18px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--wiki-ink-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+[data-section='wiki'] .wiki-tab:hover {
+  color: var(--wiki-ink);
+  background: linear-gradient(180deg, transparent 60%, rgba(34, 211, 238, 0.10));
+}
+[data-section='wiki'] .wiki-tab.is-active {
+  color: var(--wiki-ink);
+  font-weight: 600;
+  border-bottom: 2px solid var(--wiki-cyan);
+  text-shadow: 0 0 14px rgba(34, 211, 238, 0.45);
+  background: linear-gradient(180deg, transparent 50%, rgba(34, 211, 238, 0.14));
+}
+[data-section='wiki'] .wiki-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 8px; right: 8px; bottom: -2px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--wiki-cyan), var(--wiki-violet));
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+}
+
+/* ── 본문 ──────────────────────────────────── */
+[data-section='wiki'] .wiki-content {
+  background: transparent;
+  color: var(--wiki-ink);
+  font-size: 0.97rem;
+  line-height: 1.75;
+}
+[data-section='wiki'] .wiki-content p { margin: 0.6em 0; color: var(--wiki-ink-soft); }
+[data-section='wiki'] .wiki-content a {
+  color: var(--wiki-link);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(34, 211, 238, 0.3);
+}
+[data-section='wiki'] .wiki-content a:hover {
+  color: var(--wiki-link-hover);
+  border-bottom-color: rgba(103, 232, 249, 0.6);
+  text-shadow: 0 0 16px rgba(103, 232, 249, 0.35);
+}
+[data-section='wiki'] .wiki-content code {
+  background: rgba(8, 13, 24, 0.7);
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85em;
+  color: #67E8F9;
+}
+
+/* ── 하트노트 ─────────────────────────────── */
+[data-section='wiki'] .wiki-hatnote {
+  font-style: italic;
+  color: var(--wiki-ink-muted);
+  font-size: 0.85rem;
+  border-left: 2px solid rgba(167, 139, 250, 0.55);
+  padding: 6px 12px;
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.06), transparent);
+  margin: 0.6rem 0 1rem;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ── 메시지 박스 ──────────────────────────── */
+[data-section='wiki'] .wiki-mbox {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.08), rgba(251, 191, 36, 0.02));
+  border-left-width: 3px;
+  border-left-color: var(--wiki-warning);
+  font-size: 0.86rem;
+  color: var(--wiki-ink-soft);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+[data-section='wiki'] .wiki-mbox--info {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.10), rgba(34, 211, 238, 0.02));
+  border-color: rgba(34, 211, 238, 0.32);
+  border-left-color: var(--wiki-cyan);
+}
+[data-section='wiki'] .wiki-mbox--danger {
+  background: linear-gradient(90deg, rgba(251, 113, 133, 0.10), rgba(251, 113, 133, 0.02));
+  border-color: rgba(251, 113, 133, 0.32);
+  border-left-color: var(--wiki-danger);
+}
+[data-section='wiki'] .wiki-mbox--success {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.10), rgba(52, 211, 153, 0.02));
+  border-color: rgba(52, 211, 153, 0.32);
+  border-left-color: var(--wiki-success);
+}
+
+/* ── NamuWikiRenderer 본문 (다크 우주 톤에 맞게) ── */
+[data-section='wiki'] .namu-wiki-content {
+  color: var(--wiki-ink) !important;
+}
+[data-section='wiki'] .namu-wiki-content .prose,
+[data-section='wiki'] .namu-wiki-content .prose-invert {
+  color: var(--wiki-ink);
+}
+[data-section='wiki'] .namu-wiki-content h1,
+[data-section='wiki'] .namu-wiki-content h2,
+[data-section='wiki'] .namu-wiki-content h3,
+[data-section='wiki'] .namu-wiki-content h4,
+[data-section='wiki'] .namu-wiki-content h5,
+[data-section='wiki'] .namu-wiki-content h6 {
+  color: var(--wiki-ink);
+  font-family: 'Space Grotesk', 'Pretendard', sans-serif;
+  font-weight: 600;
+  border: 0;
+  padding-bottom: 0.3em;
+  margin-top: 1.6em;
+  position: relative;
+}
+[data-section='wiki'] .namu-wiki-content h2 {
+  border-left: 3px solid var(--wiki-cyan);
+  padding-left: 0.7rem;
+  box-shadow: -3px 0 12px -3px rgba(34, 211, 238, 0.5);
+}
+[data-section='wiki'] .namu-wiki-content h3 {
+  border-left: 2px solid var(--wiki-violet);
+  padding-left: 0.7rem;
+}
+[data-section='wiki'] .namu-wiki-content a {
+  color: var(--wiki-link);
+}
+[data-section='wiki'] .namu-wiki-content a:hover {
+  color: var(--wiki-link-hover);
+  text-decoration: underline;
+}
+[data-section='wiki'] .namu-wiki-content blockquote {
+  border-left: 3px solid var(--wiki-violet);
+  background: rgba(167, 139, 250, 0.05);
+  color: var(--wiki-ink-soft);
+  padding: 8px 12px;
+  border-radius: 0 4px 4px 0;
+}
+[data-section='wiki'] .namu-wiki-content pre {
+  background: rgba(4, 7, 13, 0.85);
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  color: #E6F0FF;
+  border-radius: 6px;
+  padding: 14px;
+  overflow: auto;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.06);
+}
+[data-section='wiki'] .namu-wiki-content table {
+  border-collapse: collapse;
+}
+[data-section='wiki'] .namu-wiki-content table th,
+[data-section='wiki'] .namu-wiki-content table td {
+  border: 1px solid var(--wiki-rule);
+  padding: 6px 10px;
+}
+[data-section='wiki'] .namu-wiki-content table th {
+  background: rgba(34, 211, 238, 0.10);
+  color: var(--wiki-ink);
+  font-weight: 600;
+}
+
+/* ── 모션: 헤더 로고 펄스 + 그리드 드리프트 ──── */
+@keyframes wiki-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1.0; transform: scale(1.08); }
+}
+[data-section='wiki'] .wiki-pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wiki-cyan);
+  box-shadow: 0 0 12px var(--wiki-cyan), 0 0 4px rgba(34, 211, 238, 0.65);
+  animation: wiki-pulse 2.4s ease-in-out infinite;
+}
+
+/* ── 푸터 ──────────────────────────────────── */
+[data-section='wiki'] footer {
+  background: rgba(4, 7, 13, 0.65);
+  border-top: 1px solid var(--wiki-rule);
+  color: var(--wiki-ink-muted);
+}
+
+/* ── WikiEditor 톤 보정 ──
+   에디터 내부 Tailwind bg-gray-* 들은 그대로 두되, 블루 톤이 잘 어울리도록 살짝 덮음.
+   기능에는 영향 없음 — 색만 한 톤 깊게 맞춥니다.
+*/
+[data-section='wiki'] .wiki-editor-shell,
+[data-section='wiki'] textarea {
+  background-color: rgba(8, 13, 24, 0.85) !important;
+  border-color: var(--wiki-rule-strong) !important;
+  color: var(--wiki-ink);
+}
+[data-section='wiki'] textarea:focus {
+  border-color: var(--wiki-cyan) !important;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+}
+
+/* ── 스크롤바 ─────────────────────────────── */
+[data-section='wiki'] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-section='wiki'] ::-webkit-scrollbar-track { background: var(--wiki-bg-deep); }
+[data-section='wiki'] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.45), rgba(167, 139, 250, 0.45));
+  border-radius: 8px;
+}
+[data-section='wiki'] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--wiki-cyan), var(--wiki-violet));
+}
+
+/* ── 셀렉션 ───────────────────────────────── */
+[data-section='wiki'] ::selection {
+  background: rgba(34, 211, 238, 0.32);
+  color: #FFFFFF;
+}
+
+/* ── 포커스 ───────────────────────────────── */
+[data-section='wiki'] :focus-visible {
+  outline: 2px solid var(--wiki-cyan);
+  outline-offset: 2px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.18);
+}
+
+/* ── 모바일 ───────────────────────────────── */
+@media (max-width: 900px) {
+  [data-section='wiki'] .wiki-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--wiki-rule);
+  }
+  [data-section='wiki'] .wiki-sidebar::after { display: none; }
+}
+
+/* ── 빨간 링크 (존재하지 않는 문서) ─────────── */
+[data-section='wiki'] .namu-wiki-content a.wiki-redlink,
+[data-section='wiki'] a.wiki-redlink {
+  color: var(--wiki-link-redlink) !important;
+  border-bottom-color: rgba(244, 114, 182, 0.45) !important;
+  text-shadow: 0 0 14px rgba(244, 114, 182, 0.25) !important;
+}
+[data-section='wiki'] .namu-wiki-content a.wiki-redlink:hover,
+[data-section='wiki'] a.wiki-redlink:hover {
+  color: #FBCFE8 !important;
+  text-shadow: 0 0 18px rgba(244, 114, 182, 0.55) !important;
+}
+
+/* ── 섹션 [편집] 링크 ────────────────────── */
+[data-section='wiki'] .namu-wiki-content :is(h1, h2, h3, h4, h5, h6) {
+  position: relative;
+}
+[data-section='wiki'] .wiki-section-edit {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--wiki-ink-faint);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease, color .15s ease;
+  vertical-align: middle;
+}
+[data-section='wiki'] :is(h1, h2, h3, h4, h5, h6):hover .wiki-section-edit,
+[data-section='wiki'] .wiki-section-edit:focus-visible {
+  opacity: 1;
+}
+[data-section='wiki'] .wiki-section-edit:hover {
+  color: var(--wiki-cyan);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+}
+[data-section='wiki'] .wiki-section-edit::before {
+  content: '[';
+  margin-right: 1px;
+  color: rgba(125, 211, 252, 0.4);
+}
+[data-section='wiki'] .wiki-section-edit::after {
+  content: ']';
+  margin-left: 1px;
+  color: rgba(125, 211, 252, 0.4);
+}
+
+/* ── 스캔 라인 오버레이 ────────────────────── */
+@keyframes wiki-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+[data-section='wiki'] .wiki-scanlines {
+  position: relative;
+  overflow: hidden;
+}
+[data-section='wiki'] .wiki-scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(34, 211, 238, 0.04) 0 1px,
+    transparent 1px 3px
+  );
+  z-index: 1;
+}
+[data-section='wiki'] .wiki-scanlines::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 0;
+  height: 30%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.18), transparent);
+  filter: blur(6px);
+  animation: wiki-scan 4.2s linear infinite;
+  z-index: 2;
+}
+
+/* ── WikiMeter 마이크로 변형 ─────────────── */
+[data-section='wiki'] .wiki-meter { width: 100%; }
 
 
 
+/* ── 각주 점프 시 깜빡임 효과 ─────────────── */
+@keyframes footnote-flash {
+  0%   { background-color: rgba(250, 204, 21, 0.0); box-shadow: none; }
+  20%  { background-color: rgba(250, 204, 21, 0.32); box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.18); }
+  100% { background-color: rgba(250, 204, 21, 0.0); box-shadow: none; }
+}
+.footnote-flash {
+  animation: footnote-flash 1.4s ease-out;
+  border-radius: 6px;
+}
 
+/* ── 위키 인쇄 (Print) 스타일시트 ─────────────────────────
+   사용자가 wiki 문서를 인쇄하거나 PDF로 저장할 때
+   nav/sidebar/edit 버튼 등을 숨기고 본문만 보이도록 정리. */
+@media print {
+  /* 상단바 / 사이드바 / 우측 사이드바 / 모바일 메뉴 모두 숨김 */
+  [data-section='wiki'] .wiki-topbar,
+  [data-section='wiki'] .wiki-sidebar,
+  [data-section='wiki'] aside,
+  [data-section='wiki'] .wiki-mbox--info,
+  [data-section='wiki'] .wiki-section-edit,
+  [data-section='wiki'] .wiki-meter {
+    display: none !important;
+  }
 
+  /* 페이지 그리드 → 단일 컬럼 */
+  [data-section='wiki'] body,
+  [data-section='wiki'] main,
+  [data-section='wiki'] .theme-surface {
+    background: white !important;
+    color: #111 !important;
+  }
+  [data-section='wiki'] .grid {
+    display: block !important;
+  }
 
+  /* 인쇄 시 본문 폭/패딩 조정 */
+  [data-section='wiki'] .wiki-content {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    line-height: 1.55 !important;
+    color: #111 !important;
+  }
+
+  /* 본문의 모든 텍스트는 검정/회색 (인쇄 잉크 절약 + 가독성) */
+  [data-section='wiki'] .wiki-content,
+  [data-section='wiki'] .wiki-content * {
+    color: #111 !important;
+    background: transparent !important;
+    text-shadow: none !important;
+  }
+
+  /* 헤딩 — 인쇄에 적합한 serif + black underline */
+  [data-section='wiki'] .wiki-content h1,
+  [data-section='wiki'] .wiki-content h2,
+  [data-section='wiki'] .wiki-content h3 {
+    font-family: 'Gowun Batang', serif;
+    color: #000 !important;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  [data-section='wiki'] .wiki-content h1 { border-bottom: 2px solid #333 !important; padding-bottom: 4pt; }
+  [data-section='wiki'] .wiki-content h2 { border-bottom: 1px solid #666 !important; padding-bottom: 3pt; }
+
+  /* 링크 — URL을 함께 표시 (단, 위키 내부 링크 제외) */
+  [data-section='wiki'] .wiki-content a[href^="http"]:not([href*="irang.wiki"]):after {
+    content: ' (' attr(href) ')';
+    font-size: 9pt;
+    color: #555 !important;
+    word-break: break-all;
+  }
+
+  /* 표 / 인포박스 */
+  [data-section='wiki'] .wiki-content table,
+  [data-section='wiki'] .person-infobox,
+  [data-section='wiki'] .group-infobox {
+    border-color: #333 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* 콜아웃, 코드 박스는 회색 보더 + 흰 배경 */
+  [data-section='wiki'] .wiki-content [role='note'],
+  [data-section='wiki'] .wiki-content pre,
+  [data-section='wiki'] .wiki-content code {
+    border: 1px solid #999 !important;
+    background: white !important;
+  }
+
+  /* 각주 영역도 깔끔하게 */
+  [data-section='wiki'] .wiki-content section[aria-label='각주'] {
+    page-break-before: auto;
+    border-top: 2px solid #333;
+    margin-top: 24pt;
+    padding-top: 8pt;
+  }
+
+  /* 푸터 attribution 살림 (작성자/편집자 정보) */
+  [data-section='wiki'] footer {
+    border-top: 1px solid #999 !important;
+    color: #333 !important;
+    font-size: 9pt;
+  }
+
+  /* 인쇄 색상 = 자동 (Chrome — 강제 print color adjust) */
+  * {
+    -webkit-print-color-adjust: economy;
+    print-color-adjust: economy;
+  }
+}

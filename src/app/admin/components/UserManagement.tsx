@@ -45,8 +45,8 @@ const roleMap = {
   admin: { label: '관리자', color: 'from-red-500 to-red-600' },
   moderator: { label: '운영자', color: 'from-yellow-500 to-orange-500' },
   owner: { label: '소유자', color: 'from-purple-500 to-purple-600' },
-  editor: { label: '편집자', color: 'from-blue-500 to-blue-600' },
-  default: { label: '일반', color: 'from-gray-500 to-gray-600' }
+  editor: { label: '편집자', color: 'from-cyan-500 to-cyan-600' },
+  default: { label: '일반', color: 'from-slate-500 to-slate-600' }
 }
 
 const statusPill = (user: WikiUser) => {
@@ -56,7 +56,7 @@ const statusPill = (user: WikiUser) => {
   if (user.isActive) {
     return { label: '활성', color: 'from-green-500 to-green-600', text: 'text-white' }
   }
-  return { label: '비활성', color: 'from-gray-500 to-gray-600', text: 'text-white' }
+  return { label: '비활성', color: 'from-slate-500 to-slate-600', text: 'text-white' }
 }
 
 export default function UserManagement({ 
@@ -106,12 +106,12 @@ export default function UserManagement({
         className="space-y-6"
       >
         <h2 className="text-2xl font-bold text-white">{getTabTitle()}</h2>
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-slate-900 border-slate-800">
           <CardHeader>
-            <h3 className="text-xl font-bold text-gray-200">권한 체계</h3>
+            <h3 className="text-xl font-bold text-slate-200">권한 체계</h3>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-300">권한 변경 UI는 준비 중입니다. 현재는 관리자/운영자/편집자/일반으로 구분해 표시만 제공합니다.</p>
+            <p className="text-sm text-slate-300">권한 변경 UI는 준비 중입니다. 현재는 관리자/운영자/편집자/일반으로 구분해 표시만 제공합니다.</p>
           </CardContent>
         </Card>
       </motion.div>
@@ -127,19 +127,19 @@ export default function UserManagement({
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-white">{getTabTitle()}</h2>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-slate-400">
             <ShieldCheck className="h-4 w-4" />
             <span>총 {stats.total} · 활성 {stats.active} · 차단 {stats.banned} · 운영진 {stats.staff}</span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
             <Input
               placeholder="사용자명 또는 이메일 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-700 border-gray-600 text-gray-200 min-w-[260px]"
+              className="pl-10 bg-slate-800 border-slate-700 text-slate-200 min-w-[260px]"
             />
           </div>
           {[
@@ -159,7 +159,7 @@ export default function UserManagement({
               {tab.label} ({tab.count})
             </Button>
           ))}
-          <Button size="sm" variant="ghost" onClick={() => setSearchTerm('')} className="text-gray-300">
+          <Button size="sm" variant="ghost" onClick={() => setSearchTerm('')} className="text-slate-300">
             <RefreshCw className="h-4 w-4 mr-1" /> 초기화
           </Button>
         </div>
@@ -168,7 +168,7 @@ export default function UserManagement({
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: '총 사용자', value: stats.total, color: 'text-blue-300 bg-blue-500/10' },
+          { label: '총 사용자', value: stats.total, color: 'text-cyan-300 bg-cyan-500/10' },
           { label: '활성', value: stats.active, color: 'text-emerald-300 bg-emerald-500/10' },
           { label: '차단', value: stats.banned, color: 'text-rose-300 bg-rose-500/10' },
           { label: '운영진', value: stats.staff, color: 'text-amber-300 bg-amber-500/10' },
@@ -182,34 +182,34 @@ export default function UserManagement({
         ))}
       </div>
 
-      <Card className="bg-gray-850 border-gray-700">
+      <Card className="bg-slate-900 border-slate-800">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-800/70">
+              <thead className="bg-slate-800/70">
                 <tr>
                   {['사용자', '이메일', '권한', '상태', '가입일', '작업'].map(head => (
-                    <th key={head} className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th key={head} className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                       {head}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800">
+              <tbody className="divide-y divide-slate-800">
                 {filteredUsers.map((user) => {
                   const roleInfo = roleMap[user.role?.toLowerCase() as keyof typeof roleMap] || roleMap.default
                   const status = statusPill(user)
                   return (
-                    <motion.tr 
+                    <motion.tr
                       key={user._id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="hover:bg-gray-800/60 transition-colors"
+                      className="hover:bg-slate-800/60 transition-colors"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="relative w-11 h-11">
-                            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
+                            <div className="w-11 h-11 rounded-full bg-cyan-500 flex items-center justify-center text-white font-semibold">
                               {user.username.charAt(0).toUpperCase()}
                             </div>
                             {['admin','owner','moderator'].includes(user.role?.toLowerCase()) && (
@@ -220,7 +220,7 @@ export default function UserManagement({
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-50">{user.username}</span>
+                              <span className="font-semibold text-slate-50">{user.username}</span>
                               {user.username === 'gabriel0727' && (
                                 <span className="text-[11px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-bold">
                                   창작자
@@ -228,14 +228,14 @@ export default function UserManagement({
                               )}
                             </div>
                             {user.lastActive && (
-                              <p className="text-xs text-gray-500">최근: {new Date(user.lastActive).toLocaleDateString('ko-KR')}</p>
+                              <p className="text-xs text-slate-500">최근: {new Date(user.lastActive).toLocaleDateString('ko-KR')}</p>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center text-gray-200">
-                          <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                        <div className="flex items-center text-slate-200">
+                          <Mail className="w-4 h-4 mr-2 text-slate-400" />
                           <span className="truncate">{user.email}</span>
                         </div>
                       </td>
@@ -253,7 +253,7 @@ export default function UserManagement({
                           <p className="text-xs text-rose-300 mt-1 max-w-xs truncate">{user.banStatus.reason}</p>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-gray-300 text-sm">
+                      <td className="px-6 py-4 text-slate-300 text-sm">
                         {new Date(user.createdAt).toLocaleDateString('ko-KR', {
                           year: 'numeric',
                           month: '2-digit',
@@ -314,10 +314,10 @@ export default function UserManagement({
           
           {filteredUsers.length === 0 && (
             <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">해당하는 사용자가 없습니다.</p>
+              <Users className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+              <p className="text-slate-400 text-lg">해당하는 사용자가 없습니다.</p>
               {searchTerm && (
-                <p className="text-gray-500 text-sm mt-2">
+                <p className="text-slate-500 text-sm mt-2">
                   &quot;{searchTerm}&quot;에 대한 검색 결과가 없습니다.
                 </p>
               )}

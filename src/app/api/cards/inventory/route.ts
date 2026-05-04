@@ -1,104 +1,111 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { CardService } from '@/services/cardService'
-import { UserCard } from '@/models/UserCard'
-import connectDB from '@/lib/database'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { cards, userCards } from '@/db/schema/cards'
+import { ensureImage } from '@/lib/cardHelpers'
+
 export const dynamic = 'force-dynamic'
+
+// 정렬용 rarity 우선순위 (낮을수록 먼저). cards.rarity는 text라 직접 ORDER BY 시
+// 알파벳 순이 어색해서 case 식으로 매핑.
+const RARITY_ORDER_SQL = sql`CASE ${cards.rarity}
+  WHEN 'legendary' THEN 1
+  WHEN 'epic' THEN 2
+  WHEN 'rare' THEN 3
+  WHEN 'material' THEN 4
+  WHEN 'basic' THEN 5
+  ELSE 6
+END`
 
 // GET: 사용자 카드 인벤토리 조회
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
-    
+    const db = getDb()
+
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    const sortBy = searchParams.get('sortBy') || 'recent' // recent, rarity, name
+    const sortBy = searchParams.get('sortBy') || 'recent' // recent | rarity | name
     const filterType = searchParams.get('type')
     const filterRarity = searchParams.get('rarity')
     const favoritesOnly = searchParams.get('favorites') === 'true'
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: '사용자 ID가 필요합니다.' },
         { status: 400 }
       )
     }
-    
-    
-    const userObjectId = CardService.normalizeUserId(userId)
+
     const skip = (page - 1) * limit
-    
-    // 매치 조건 구성
-    const matchConditions: any = { userId: userObjectId }
-    if (favoritesOnly) {
-      matchConditions.isFavorite = true
-    }
-    
-    // 조인 후 필터 조건
-    const cardFilterConditions: any = {}
-    if (filterType) cardFilterConditions.type = filterType
-    if (filterRarity) cardFilterConditions.rarity = filterRarity
-    
-    // 정렬 조건
-    let sortConditions: any = {}
+
+    // WHERE 구성
+    const whereParts = [eq(userCards.userId, userId)]
+    if (favoritesOnly) whereParts.push(eq(userCards.isFavorite, true))
+    if (filterType) whereParts.push(eq(cards.type, filterType))
+    if (filterRarity) whereParts.push(eq(cards.rarity, filterRarity))
+    const whereClause = whereParts.length === 1 ? whereParts[0] : and(...whereParts)
+
+    // 정렬
+    let orderBy
     switch (sortBy) {
       case 'rarity':
-        sortConditions = { 'cardInfo.rarity': 1, 'cardInfo.name': 1 }
+        orderBy = [RARITY_ORDER_SQL, asc(cards.name)]
         break
       case 'name':
-        sortConditions = { 'cardInfo.name': 1 }
+        orderBy = [asc(cards.name)]
         break
       case 'recent':
       default:
-        sortConditions = { acquiredAt: -1 }
+        orderBy = [desc(userCards.acquiredAt)]
         break
     }
-    
-    // 집계 파이프라인
-    const pipeline: any[] = [
-      { $match: matchConditions },
-      {
-        $lookup: {
-          from: 'cards',
-          localField: 'cardId',
-          foreignField: 'cardId',
-          as: 'cardInfo'
-        }
-      },
-      { $unwind: '$cardInfo' }
-    ]
-    
-    // 카드 필터 추가
-    if (Object.keys(cardFilterConditions).length > 0) {
-      pipeline.push({
-        $match: Object.keys(cardFilterConditions).reduce((acc, key) => {
-          acc[`cardInfo.${key}`] = cardFilterConditions[key]
-          return acc
-        }, {} as any)
+
+    const rows = await db
+      .select({
+        _id: userCards.id,
+        userId: userCards.userId,
+        cardId: userCards.cardId,
+        quantity: userCards.quantity,
+        acquiredAt: userCards.acquiredAt,
+        acquiredBy: userCards.acquiredBy,
+        isFavorite: userCards.isFavorite,
+        isLocked: userCards.isLocked,
+        cardInfo: {
+          _id: cards.id,
+          cardId: cards.cardId,
+          name: cards.name,
+          type: cards.type,
+          rarity: cards.rarity,
+          description: cards.description,
+          imageUrl: cards.imageUrl,
+          member: cards.member,
+          year: cards.year,
+          period: cards.period,
+          isGroupCard: cards.isGroupCard,
+          dropRate: cards.dropRate,
+        },
       })
-    }
-    
-    // 정렬, 스킵, 리밋 추가
-    pipeline.push(
-      { $sort: sortConditions },
-      { $skip: skip },
-      { $limit: limit }
-    )
-    
-    // 데이터 조회
-    let inventory = await UserCard.aggregate(pipeline)
-    inventory = inventory.map((item: any) => ({
+      .from(userCards)
+      .innerJoin(cards, eq(userCards.cardId, cards.cardId))
+      .where(whereClause)
+      .orderBy(...orderBy)
+      .offset(skip)
+      .limit(limit)
+
+    const inventory = rows.map((item) => ({
       ...item,
-      cardInfo: CardService.ensureImage(item.cardInfo)
+      cardInfo: ensureImage(item.cardInfo),
     }))
-    
-    // 전체 카운트 조회
-    const countPipeline = [...pipeline.slice(0, -2)] // sort, skip, limit 제거
-    countPipeline.push({ $count: 'total' })
-    const countResult = await UserCard.aggregate(countPipeline)
-    const totalCount = countResult[0]?.total || 0
-    
+
+    // 전체 카운트
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userCards)
+      .innerJoin(cards, eq(userCards.cardId, cards.cardId))
+      .where(whereClause)
+
     return NextResponse.json({
       success: true,
       inventory,
@@ -106,10 +113,9 @@ export async function GET(request: NextRequest) {
         currentPage: page,
         totalPages: Math.ceil(totalCount / limit),
         totalCount,
-        hasMore: skip + inventory.length < totalCount
-      }
+        hasMore: skip + inventory.length < totalCount,
+      },
     })
-    
   } catch (error) {
     console.error('Inventory GET error:', error)
     return NextResponse.json(
@@ -122,22 +128,18 @@ export async function GET(request: NextRequest) {
 // PATCH: 카드 상태 업데이트 (즐겨찾기, 잠금 등)
 export async function PATCH(request: NextRequest) {
   try {
-    await connectDB()
-    
+    const db = getDb()
     const body = await request.json()
     const { userId, cardId, isFavorite, isLocked } = body
-    
+
     if (!userId || !cardId) {
       return NextResponse.json(
         { success: false, message: '사용자 ID와 카드 ID가 필요합니다.' },
         { status: 400 }
       )
     }
-    
-    const userObjectId = CardService.normalizeUserId(userId)
 
-    // 상태 업데이트 값 구성
-    const updateData: any = {}
+    const updateData: Record<string, any> = {}
     if (isFavorite !== undefined) updateData.isFavorite = isFavorite
     if (isLocked !== undefined) updateData.isLocked = isLocked
 
@@ -147,29 +149,32 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       )
     }
+    updateData.updatedAt = new Date()
 
-    const updatedCard = await UserCard.findOneAndUpdate(
-      { userId: userObjectId, cardId },
-      { $set: updateData },
-      { new: true }
-    ).lean<{ isFavorite?: boolean; isLocked?: boolean } | null>()
+    const [updated] = await db
+      .update(userCards)
+      .set(updateData)
+      .where(and(eq(userCards.userId, userId), eq(userCards.cardId, cardId)))
+      .returning({
+        isFavorite: userCards.isFavorite,
+        isLocked: userCards.isLocked,
+      })
 
-    if (!updatedCard) {
+    if (!updated) {
       return NextResponse.json(
         { success: false, message: '소장하지 않은 카드입니다.' },
         { status: 404 }
       )
     }
-    
+
     return NextResponse.json({
       success: true,
       message: '카드 상태가 업데이트되었습니다.',
       cardState: {
-        isFavorite: Boolean(updatedCard.isFavorite),
-        isLocked: Boolean(updatedCard.isLocked)
-      }
+        isFavorite: Boolean(updated.isFavorite),
+        isLocked: Boolean(updated.isLocked),
+      },
     })
-    
   } catch (error) {
     console.error('Inventory PATCH error:', error)
     return NextResponse.json(

@@ -2,165 +2,104 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { 
-  Info, 
-  FileText, 
-  Shield, 
-  Users,
-  ExternalLink
-} from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 
 const Footer: React.FC = () => {
+  // 회사 정책 페이지는 DoubleJ Account 의 공식 페이지로 직접 link (next.config redirect 도 동시에 작동).
   const companyInfo = [
-    {
-      icon: Info,
-      label: '회사소개',
-      href: '/about/company'
-    },
-    {
-      icon: FileText,
-      label: '이용약관',
-      href: '/terms'
-    },
-    {
-      icon: Shield,
-      label: '개인정보처리방침',
-      href: '/privacy'
-    }
+    { label: '회사소개', href: 'https://accounts.doublej.app/company', external: true },
+    { label: '이용약관', href: 'https://accounts.doublej.app/terms', external: true },
+    { label: '개인정보처리방침', href: 'https://accounts.doublej.app/privacy', external: true },
   ]
 
   const services = [
-    {
-      name: '랑구팸',
-      description: '친구들의 특별한 온라인 공간',
-      href: '/'
-    },
-    {
-      name: '이랑위키',
-      description: '지식과 정보의 공유 플랫폼',
-      href: '/wiki'
-    },
-    {
-      name: '랑구대학',
-      description: 'University 브랜드 랜딩 서비스',
-      href: '/university'
-    }
+    { name: '랑구팸', description: '친구 다섯의 종이 한 장', href: '/' },
+    { name: '이랑위키', description: '우리만의 기록을 모으는 위키', href: '/wiki' },
+    { name: '랑구대학', description: 'University 브랜드 랜딩', href: '/university' },
   ]
 
   return (
-    <footer className="theme-surface">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* 회사 정보 */}
+    <footer className="relative mt-12 border-t border-dashed border-ink-500/15 px-5 py-12 sm:px-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
+          {/* DoubleJ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5 }}
             viewport={{ once: true }}
-            className="col-span-1 lg:col-span-2"
+            className="lg:col-span-2"
           >
-            <div className="mb-6">
-              <h3 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-3">
-                DoubleJ
-              </h3>
-              <div className="space-y-2 text-gray-300">
-                <p>미국의 DoubleJ 회사 산하로 운영되는 사이트입니다.</p>
-                <p>랑구팸과 이랑위키를 관리합니다.</p>
-              </div>
+            <p className="caveat text-2xl text-coral-500">since 2020</p>
+            <h3 className="display-han mt-1 text-2xl text-ink-500">DoubleJ</h3>
+            <div className="mt-3 space-y-1.5 text-sm text-ink-300">
+              <p>미국의 DoubleJ 회사 산하로 운영되는 사이트입니다.</p>
+              <p>랑구팸과 이랑위키를 함께 관리합니다.</p>
             </div>
-            
-            <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 bg-gradient-to-r from-blue-900/30 to-purple-900/30">
-              <p className="text-sm font-medium text-blue-400">
-                Powered by DoubleJ
-              </p>
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink-500/15 bg-paper-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-ink-500">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-coral-500" />
+              Powered by DoubleJ
             </div>
           </motion.div>
 
-          {/* 서비스 정보 */}
+          {/* Services */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
             viewport={{ once: true }}
           >
-            <h4 className="font-semibold text-gray-200 mb-4">서비스</h4>
-            <div className="space-y-3">
-              {services.map((service, index) => (
-                <motion.a
-                  key={service.name}
-                  href={service.href}
-                  className="block group"
-                  whileHover={{ x: 4 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <div className="text-gray-300 group-hover:text-blue-400 transition-colors">
-                    <div className="font-medium">{service.name}</div>
-                    <div className="text-xs text-gray-500">{service.description}</div>
-                  </div>
-                </motion.a>
+            <p className="caveat text-lg text-coral-500">services</p>
+            <h4 className="mt-1 text-sm font-bold uppercase tracking-[0.15em] text-ink-500">우리의 서비스</h4>
+            <ul className="mt-3 space-y-3">
+              {services.map((s) => (
+                <li key={s.name}>
+                  <a href={s.href} className="group block">
+                    <p className="text-sm font-semibold text-ink-500 transition-colors group-hover:text-coral-500">
+                      {s.name}
+                    </p>
+                    <p className="text-xs text-ink-300">{s.description}</p>
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           </motion.div>
 
-          {/* 서비스 정보 링크 */}
+          {/* Info */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
             viewport={{ once: true }}
           >
-            <h4 className="font-semibold text-gray-200 mb-4">서비스 정보</h4>
-            <div className="space-y-3">
-              {companyInfo.map((item, index) => (
-                <motion.a
-                  key={item.label}
-                  href={item.href}
-                  className="flex items-center gap-2 text-gray-400 hover:text-blue-400 transition-colors group"
-                  whileHover={{ x: 4 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <item.icon className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm">{item.label}</span>
-                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </motion.a>
+            <p className="caveat text-lg text-coral-500">small print</p>
+            <h4 className="mt-1 text-sm font-bold uppercase tracking-[0.15em] text-ink-500">서비스 정보</h4>
+            <ul className="mt-3 space-y-2.5">
+              {companyInfo.map((item) => (
+                <li key={item.label}>
+                  <a
+                    href={item.href}
+                    target={item.external ? '_blank' : undefined}
+                    rel={item.external ? 'noopener noreferrer' : undefined}
+                    className="group inline-flex items-center gap-1.5 text-sm text-ink-300 transition-colors hover:text-coral-500"
+                  >
+                    {item.label}
+                    <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           </motion.div>
         </div>
 
-        {/* 구분선 */}
-        <div className="border-t border-gray-700 my-8"></div>
+        <div className="my-8 h-px bg-[repeating-linear-gradient(90deg,rgba(43,33,24,0.2)_0,rgba(43,33,24,0.2)_4px,transparent_4px,transparent_10px)]" />
 
-        {/* 저작권 정보 */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          viewport={{ once: true }}
-          className="flex flex-col md:flex-row justify-between items-center gap-4"
-        >
-          <div className="text-sm text-gray-500">
-            ©2025 DoubleJ Biz. | All rights reserved
-          </div>
-          
-          <div className="flex items-center gap-1 text-xs text-gray-400">
-            <span>Built with</span>
-            <motion.span
-              className="text-red-500"
-              animate={{ 
-                scale: [1, 1.2, 1],
-              }}
-              transition={{ 
-                duration: 1.5,
-                repeat: Infinity,
-                repeatType: "reverse"
-              }}
-            >
-              ❤️
-            </motion.span>
-            <span>for our friendship</span>
-          </div>
-        </motion.div>
+        <div className="flex flex-col items-center justify-between gap-3 text-xs text-ink-300 sm:flex-row">
+          <p>© 2020–2026 DoubleJ Biz. · Rangu.fam</p>
+          <p className="caveat text-base text-ink-300">
+            built with <span className="text-coral-500">♥</span> for our friendship
+          </p>
+        </div>
       </div>
     </footer>
   )

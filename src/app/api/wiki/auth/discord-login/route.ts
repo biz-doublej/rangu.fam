@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
 import {
   createWikiToken,
   enforceUserAccessPolicy,
   getAuthenticatedWikiUser,
   setWikiAuthCookie,
 } from '@/lib/doublejAuth'
+import { getDb } from '@/db/client'
+import { wikiUsers } from '@/db/schema/wiki'
 import { getIpAddress, formatIpForDisplay } from '@/lib/getIpAddress'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
 
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isBanned = Boolean((user as any).isBanned || (user as any)?.banStatus?.isBanned)
+    const isBanned = Boolean((user as any)?.banStatus?.isBanned)
     if (isBanned) {
       return NextResponse.json(
         { success: false, error: '차단된 계정입니다.' },
@@ -35,9 +38,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    user.lastLogin = new Date()
-    user.lastActivity = new Date()
-    await user.save()
+    const now = new Date()
+    const userId = (user as any).id
+    if (userId) {
+      try {
+        const db = getDb()
+        await db
+          .update(wikiUsers)
+          .set({ lastLogin: now, lastActivity: now })
+          .where(eq(wikiUsers.id, userId))
+      } catch (e) {
+        console.warn('lastLogin update failed:', e)
+      }
+    }
     await enforceUserAccessPolicy(user)
 
     const ipAddress = getIpAddress(request)

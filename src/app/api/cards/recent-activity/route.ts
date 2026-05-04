@@ -1,10 +1,9 @@
 import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import mongoose from 'mongoose'
-import connectDB from '@/lib/database'
-import { CardDrop } from '@/models/CardDrop'
-import { Card } from '@/models/Card'
-import { WikiUser } from '@/models/Wiki'
+import { and, desc, eq, inArray, ne, or } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { cards, cardDrops } from '@/db/schema/cards'
+import { wikiUsers } from '@/db/schema/wiki'
 import { resolveMemberIdForUser } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +15,7 @@ const MEMBER_ID_TO_NAME: Record<string, string> = {
   jaewon: '정재원',
   jinkyu: '정진규',
   seungchan: '이승찬',
-  minseok: '정민석'
+  minseok: '정민석',
 }
 
 const MEMBER_SEEDS: Record<string, string[]> = {
@@ -24,25 +23,21 @@ const MEMBER_SEEDS: Record<string, string[]> = {
   jaewon: ['jaewon', 'gabrieljung0727', 'gabriel0727', 'JAE'],
   jinkyu: ['jinkyu', 'jingyu', 'jinq09012239', 'JIN'],
   seungchan: ['seungchan', 'sd_kim.h.s', 'LEE'],
-  minseok: ['minseok', 'txxse0k', 'seoko1752', 'MIN']
+  minseok: ['minseok', 'txxse0k', 'seoko1752', 'MIN'],
 }
 
-const toObjectId = (seed: string) => {
-  if (mongoose.Types.ObjectId.isValid(seed) && seed.length === 24) {
-    return new mongoose.Types.ObjectId(seed)
-  }
+// 시드 문자열 → UUID (Mongo ObjectId 호환). 24-char hex를 32-char로 패딩 후 UUID 포맷.
+function seedToUuid(seed: string): string {
   const hex = createHash('md5').update(seed || 'guest').digest('hex').slice(0, 24)
-  return new mongoose.Types.ObjectId(hex)
+  const padded = hex.padEnd(32, '0')
+  return `${padded.slice(0, 8)}-${padded.slice(8, 12)}-${padded.slice(12, 16)}-${padded.slice(16, 20)}-${padded.slice(20, 32)}`
 }
-
-const toHex = (value: mongoose.Types.ObjectId | string) =>
-  typeof value === 'string' ? value : value.toHexString()
 
 type ActivityType = 'drop' | 'craft' | 'upgrade'
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
+    const db = getDb()
 
     const { searchParams } = new URL(request.url)
     const rawLimit = Number(searchParams.get('limit') || 40)
@@ -50,64 +45,71 @@ export async function GET(request: NextRequest) {
 
     const targetMemberByUserId = new Map<string, string>()
 
-    // 실사용 계정 기준 멤버 매핑
-    const users = await WikiUser.find({})
-      .select('_id username discordUsername discordId isActive')
-      .lean<any[]>()
+    // 실사용 계정 매핑 (wiki_users)
+    const users = await db
+      .select({
+        id: wikiUsers.id,
+        username: wikiUsers.username,
+        discordUsername: wikiUsers.discordUsername,
+        discordId: wikiUsers.discordId,
+      })
+      .from(wikiUsers)
 
     for (const user of users) {
-      const memberId = resolveMemberIdForUser(user)
+      const memberId = resolveMemberIdForUser(user as any)
       if (!memberId || !TARGET_MEMBER_IDS.has(memberId)) continue
-      targetMemberByUserId.set(toHex(String(user._id)), memberId)
+      targetMemberByUserId.set(user.id, memberId)
     }
 
-    // 과거 normalizeUserId(seed) 기반 로그도 포함
+    // 과거 시드 기반 로그도 포함
     for (const [memberId, seeds] of Object.entries(MEMBER_SEEDS)) {
       for (const seed of seeds) {
-        targetMemberByUserId.set(toObjectId(seed).toHexString(), memberId)
+        targetMemberByUserId.set(seedToUuid(seed), memberId)
       }
     }
 
-    const targetUserObjectIds = Array.from(targetMemberByUserId.keys()).map(
-      (hex) => new mongoose.Types.ObjectId(hex)
-    )
-
-    if (!targetUserObjectIds.length) {
+    const targetUserIds = Array.from(targetMemberByUserId.keys())
+    if (!targetUserIds.length) {
       return NextResponse.json({ success: true, activities: [] })
     }
 
-    const logs = await CardDrop.find({
-      userId: { $in: targetUserObjectIds },
-      $or: [
-        { dropType: 'daily' },
-        { dropType: 'craft', cardId: { $ne: 'craft_fail' } }
-      ]
-    })
-      .sort({ droppedAt: -1, createdAt: -1 })
+    // CardDrop 조회
+    const logs = await db
+      .select()
+      .from(cardDrops)
+      .where(
+        and(
+          inArray(cardDrops.userId, targetUserIds),
+          or(eq(cardDrops.dropType, 'daily'), and(eq(cardDrops.dropType, 'craft'), ne(cardDrops.cardId, 'craft_fail')))
+        )
+      )
+      .orderBy(desc(cardDrops.droppedAt), desc(cardDrops.createdAt))
       .limit(limit)
-      .lean<any[]>()
 
     if (!logs.length) {
       return NextResponse.json({ success: true, activities: [] })
     }
 
     const cardIds = Array.from(
-      new Set(
-        logs
-          .map((log) => String(log.cardId || ''))
-          .filter((cardId) => cardId && cardId !== 'craft_fail')
-      )
+      new Set(logs.map((l) => String(l.cardId || '')).filter((id) => id && id !== 'craft_fail'))
     )
 
-    const cards = await Card.find({ cardId: { $in: cardIds } })
-      .select('cardId name imageUrl rarity')
-      .lean<any[]>()
+    const cardRows = cardIds.length
+      ? await db
+          .select({
+            cardId: cards.cardId,
+            name: cards.name,
+            imageUrl: cards.imageUrl,
+            rarity: cards.rarity,
+          })
+          .from(cards)
+          .where(inArray(cards.cardId, cardIds))
+      : []
 
-    const cardById = new Map(cards.map((card) => [card.cardId, card]))
+    const cardById = new Map(cardRows.map((c) => [c.cardId, c]))
 
     const activities = logs.map((log) => {
-      const userIdHex = toHex(log.userId as mongoose.Types.ObjectId)
-      const memberId = targetMemberByUserId.get(userIdHex) || ''
+      const memberId = targetMemberByUserId.get(log.userId) || ''
       const memberName = MEMBER_ID_TO_NAME[memberId] || '랑구팸 멤버'
       const usedCardsCount = Array.isArray(log.craftingAttempt?.usedCards)
         ? log.craftingAttempt.usedCards.length
@@ -125,7 +127,7 @@ export async function GET(request: NextRequest) {
         (cardId === 'prestige_random' ? '프레스티지 카드' : cardId || '알 수 없는 카드')
 
       return {
-        id: String(log._id),
+        id: log.id,
         memberId,
         memberName,
         activityType,
@@ -135,14 +137,11 @@ export async function GET(request: NextRequest) {
         cardName,
         cardImageUrl: card?.imageUrl || FALLBACK_IMAGE,
         cardRarity: card?.rarity || null,
-        droppedAt: log.droppedAt || log.createdAt
+        droppedAt: log.droppedAt || log.createdAt,
       }
     })
 
-    return NextResponse.json({
-      success: true,
-      activities
-    })
+    return NextResponse.json({ success: true, activities })
   } catch (error) {
     console.error('Recent card activity error:', error)
     return NextResponse.json(
@@ -151,4 +150,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-
