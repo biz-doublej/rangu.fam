@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion, PanInfo } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Crown, Medal, Quote, Sparkles, Trophy } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Crown, Medal, Mic2, Quote, Sparkles, Trophy } from 'lucide-react'
 import { workshopAward2025 } from '@/data/wikiWorkshopAward'
 import { WikiShell, WikiPageHeader } from '@/components/wiki'
 
 export default function WorkshopCeremony2025Page() {
   const router = useRouter()
   const awards = workshopAward2025.awards
+  const speech = workshopAward2025.acceptanceSpeech
   const [currentIndex, setCurrentIndex] = useState(0)
   const [direction, setDirection] = useState(1)
 
@@ -136,6 +137,43 @@ export default function WorkshopCeremony2025Page() {
             “{workshopAward2025.winner.quote}”
           </p>
         </div>
+      </section>
+
+      {/* 수상 소감 */}
+      <section
+        className="relative wiki-panel overflow-hidden mb-5"
+        style={{
+          background: 'linear-gradient(135deg, rgba(34,211,238,0.06), rgba(167,139,250,0.05) 70%, transparent)',
+          borderColor: 'rgba(34,211,238,0.32)'
+        }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <h3 className="wiki-display text-sm font-semibold flex items-center gap-1.5">
+            <Mic2 className="w-4 h-4 text-[color:var(--wiki-cyan)]" />
+            수상 소감
+          </h3>
+          <span
+            className="text-[11px] text-[color:var(--wiki-ink-muted)] inline-flex items-center gap-1"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            <CalendarDays className="w-3 h-3" />
+            {speech.deliveredAtLabel}
+          </span>
+        </div>
+        <p
+          className="text-base font-semibold text-[color:var(--wiki-ink)]"
+          style={{ fontFamily: "'Space Grotesk', 'Pretendard', sans-serif" }}
+        >
+          {speech.speakerName}{' '}
+          <span className="text-xs font-normal text-[color:var(--wiki-ink-muted)]">
+            ({speech.speakerNameLatin})
+          </span>
+        </p>
+        <blockquote className="mt-3 border-l-2 border-[color:var(--wiki-cyan)]/55 pl-3 space-y-2 text-sm leading-relaxed text-[color:var(--wiki-ink-soft)]">
+          {speech.paragraphs.map((paragraph, idx) => (
+            <p key={idx}>{paragraph}</p>
+          ))}
+        </blockquote>
       </section>
 
       {/* 슬라이드 캐러셀 */}

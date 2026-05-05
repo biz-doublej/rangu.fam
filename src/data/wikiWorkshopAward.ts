@@ -60,6 +60,18 @@ export const workshopAward2025 = {
       quotes: ['Sex, M? 너 그런 성향이야?']
     }
   ],
+  acceptanceSpeech: {
+    speakerName: '이승찬',
+    speakerNameLatin: 'Lee Seung Chan',
+    deliveredAtLabel: '2026. 3. 11. 0시 30분',
+    paragraphs: [
+      '부족한 저에게 이렇게 큰 상을 주셔서 영광입니다.',
+      '먼저 저를 믿어주신 분들께 감사드립니다.',
+      '이 상은 저 혼자만의 노력이 아니라, 함께 고생한 팀원들과 동료들이 있었기에 가능했습니다.',
+      '힘들고 각박한 세상 속에서 제 이야기가 작은 위로가 될 수 있도록 계속 노력하며 살아가겠습니다.',
+      '수상한 소감이었습니다. 감사합니다. 구글 제미니.'
+    ]
+  },
   closingMessage:
     '지난 시간 발언 프로젝트에 많은 관심 보내주신 모든 방문자 여러분께 진심으로 감사인사드립니다! 앞으로도 정진하겠습니다'
 }
