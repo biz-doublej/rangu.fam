@@ -25,6 +25,12 @@ gcloud builds submit --config cloudbuild.yaml `
 
 $image = "$Region-docker.pkg.dev/$Project/$Repo/${Service}:latest"
 
+# Cloud SQL Auth Proxy socket. DATABASE_URL uses host=/cloudsql/<conn>, so the
+# service MUST mount this instance or every DB query fails and the wiki shows
+# 0 docs (the homepage still works — it is DB-less). Missing this flag is what
+# left the wiki dead after the 2026-06-05 restore.
+$cloudSqlInstance = "${Project}:${Region}:rangu-pg"
+
 $envVars = @(
   'NODE_ENV=production',
   'AUTH_MODE=sso',
@@ -63,6 +69,7 @@ gcloud run deploy $Service `
   --max-instances=4 `
   --timeout=60 `
   --quiet `
+  "--set-cloudsql-instances=$cloudSqlInstance" `
   "--set-env-vars=$envVars" `
   "--set-secrets=$secrets"
 
