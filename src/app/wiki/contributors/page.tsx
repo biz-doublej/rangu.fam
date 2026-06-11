@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Award, Crown, Medal, Trophy, Users, Calendar } from 'lucide-react'
+import { Award, Crown, Medal, Trophy, Users, Calendar, Sprout, ChevronDown } from 'lucide-react'
 import { WikiShell, WikiPageHeader } from '@/components/wiki'
+import { WikiContributionGraph } from '@/components/wiki/WikiContributionGraph'
 
 interface Contributor {
   author: string
@@ -40,6 +41,7 @@ export default function WikiContributorsPage() {
   const router = useRouter()
   const [contributors, setContributors] = useState<Contributor[]>([])
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -115,58 +117,77 @@ export default function WikiContributorsPage() {
                 const rank = i + 1
                 const roleInfo = c.role ? ROLE_LABEL[c.role] : null
                 const sz = c.totalSizeChange
+                const isOpen = expanded === c.author
                 return (
                   <li
                     key={c.author}
-                    className="px-3 py-2.5 hover:bg-[color:var(--wiki-paper-2)] transition-colors flex items-center gap-3"
+                    className="hover:bg-[color:var(--wiki-paper-2)] transition-colors"
                   >
-                    <span
-                      className={`w-7 text-center text-sm font-bold tabular-nums ${
-                        rank <= 3
-                          ? 'text-amber-400'
-                          : rank <= 10
-                            ? 'text-[color:var(--wiki-ink-soft)]'
-                            : 'text-[color:var(--wiki-ink-muted)]'
-                      }`}
-                    >
-                      {rank}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/wiki/recent?author=${encodeURIComponent(c.author)}`)}
-                      className="flex-1 min-w-0 text-left flex items-center gap-2 hover:text-[color:var(--wiki-link)]"
-                      title={`${c.author}의 변경 기록 보기`}
-                    >
-                      <span className="wiki-serif text-sm text-[color:var(--wiki-ink)] truncate">
-                        {c.displayName || c.author}
+                    <div className="px-3 py-2.5 flex items-center gap-3">
+                      <span
+                        className={`w-7 text-center text-sm font-bold tabular-nums ${
+                          rank <= 3
+                            ? 'text-amber-400'
+                            : rank <= 10
+                              ? 'text-[color:var(--wiki-ink-soft)]'
+                              : 'text-[color:var(--wiki-ink-muted)]'
+                        }`}
+                      >
+                        {rank}
                       </span>
-                      {c.author !== (c.displayName || c.author) && (
-                        <span className="text-[10px] text-[color:var(--wiki-ink-muted)]">@{c.author}</span>
-                      )}
-                      {roleInfo && (
-                        <span className={`wiki-chip text-[9px] ${roleInfo.cls}`}>{roleInfo.label}</span>
-                      )}
-                    </button>
-                    <div className="flex items-center gap-3 text-xs text-[color:var(--wiki-ink-muted)] tabular-nums">
-                      <span>
-                        편집 <strong className="text-[color:var(--wiki-ink-soft)]">{c.edits.toLocaleString()}</strong>
-                      </span>
-                      <span>
-                        페이지 <strong className="text-[color:var(--wiki-ink-soft)]">{c.pages}</strong>
-                      </span>
-                      {sz !== 0 && (
-                        <span
-                          className={`font-mono ${
-                            sz > 0 ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                          title="총 본문 크기 변화 (글자)"
-                        >
-                          {sz > 0 ? '+' : ''}
-                          {sz.toLocaleString()}
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/wiki/recent?author=${encodeURIComponent(c.author)}`)}
+                        className="flex-1 min-w-0 text-left flex items-center gap-2 hover:text-[color:var(--wiki-link)]"
+                        title={`${c.author}의 변경 기록 보기`}
+                      >
+                        <span className="wiki-serif text-sm text-[color:var(--wiki-ink)] truncate">
+                          {c.displayName || c.author}
                         </span>
-                      )}
-                      <span className="hidden sm:inline">{formatRelative(c.lastEdit)}</span>
+                        {c.author !== (c.displayName || c.author) && (
+                          <span className="text-[10px] text-[color:var(--wiki-ink-muted)]">@{c.author}</span>
+                        )}
+                        {roleInfo && (
+                          <span className={`wiki-chip text-[9px] ${roleInfo.cls}`}>{roleInfo.label}</span>
+                        )}
+                      </button>
+                      <div className="flex items-center gap-3 text-xs text-[color:var(--wiki-ink-muted)] tabular-nums">
+                        <span>
+                          편집 <strong className="text-[color:var(--wiki-ink-soft)]">{c.edits.toLocaleString()}</strong>
+                        </span>
+                        <span className="hidden sm:inline">
+                          페이지 <strong className="text-[color:var(--wiki-ink-soft)]">{c.pages}</strong>
+                        </span>
+                        {sz !== 0 && (
+                          <span
+                            className={`hidden sm:inline font-mono ${
+                              sz > 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                            title="총 본문 크기 변화 (글자)"
+                          >
+                            {sz > 0 ? '+' : ''}
+                            {sz.toLocaleString()}
+                          </span>
+                        )}
+                        <span className="hidden md:inline">{formatRelative(c.lastEdit)}</span>
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isOpen ? null : c.author)}
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-1 transition-colors hover:text-[color:var(--wiki-accent)] ${
+                            isOpen ? 'text-[color:var(--wiki-accent)]' : ''
+                          }`}
+                          title="잔디·칭호 보기"
+                        >
+                          <Sprout className="w-3.5 h-3.5" />
+                          <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
                     </div>
+                    {isOpen && (
+                      <div className="px-4 pb-4 pt-1 border-t border-[color:var(--wiki-rule)] bg-[color:var(--wiki-bg-2)]/30">
+                        <WikiContributionGraph author={c.author} />
+                      </div>
+                    )}
                   </li>
                 )
               })}

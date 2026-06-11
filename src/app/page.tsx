@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { BookmarkWidget } from '@/components/ui/BookmarkWidget'
 import { memberSiteUrl, type MemberSlug } from '@/config/memberSites'
+import { BRANDING } from '@/config/branding'
 import {
   Polaroid,
   PaperCard,
@@ -55,7 +56,7 @@ const navigationItems = [
   { label: '홈', href: '/' },
   { label: '소개', href: '/about' },
   { label: '멤버', href: '/members' },
-  { label: '이랑위키', href: '/wiki' },
+  { label: '이랑위키', href: BRANDING.wikiPublicUrl },
   { label: '카드', href: '/cards' },
 ]
 
@@ -72,7 +73,7 @@ const quickPaths = [
   {
     title: '이랑위키',
     desc: '우리만의 기록을 정리하는 곳',
-    href: '/wiki',
+    href: BRANDING.wikiPublicUrl,
     icon: BookOpen,
     accent: 'sage' as const,
     rotate: 'right' as const,
@@ -358,7 +359,12 @@ export default function HomePage() {
                 <Sparkles className="h-4 w-4" />
                 오늘의 카드 열기
               </button>
-              <button onClick={() => router.push('/wiki')} className="ghost-button">
+              <button
+                onClick={() => {
+                  window.location.href = BRANDING.wikiPublicUrl
+                }}
+                className="ghost-button"
+              >
                 이랑위키 들어가기
                 <ArrowRight className="h-4 w-4" />
               </button>
@@ -478,7 +484,10 @@ export default function HomePage() {
               return (
                 <button
                   key={q.title}
-                  onClick={() => router.push(q.href)}
+                  onClick={() => {
+                    if (q.href.startsWith('http')) window.location.href = q.href
+                    else router.push(q.href)
+                  }}
                   className="group relative w-full text-left"
                 >
                   {/* ── Mobile: 가로 카드 ── */}
@@ -633,7 +642,7 @@ export default function HomePage() {
                   { label: '소개 페이지', href: '/about' },
                   { label: '카드 컬렉션', href: '/cards' },
                   { label: '멤버 카드', href: '/members' },
-                  { label: '이랑위키', href: '/wiki' },
+                  { label: '이랑위키', href: BRANDING.wikiPublicUrl },
                   { label: '계정 설정', href: '/settings/account' },
                 ].map((l) => (
                   <li key={l.href}>

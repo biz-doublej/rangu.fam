@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Bell,
   BellOff,
+  CornerUpRight,
   Edit,
   Eye,
   FileText,
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { formatDate } from '@/lib/utils'
+import { parseRedirectTarget } from '@/lib/wiki/redirect'
 import { WikiShell, WikiPageHeader, DocumentFunctionsPanel, WikiMeter } from '@/components/wiki'
 
 type WikiTabType = 'document' | 'edit' | 'history' | 'discussion'
@@ -129,6 +131,8 @@ export default function WikiDocumentPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [pageError, setPageError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<WikiTabType>('document')
+  // 넘겨주기로 도착한 경우 출발 문서 제목 (?from= 파라미터)
+  const [redirectedFrom, setRedirectedFrom] = useState<string | null>(null)
 
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
@@ -340,6 +344,12 @@ export default function WikiDocumentPage() {
       wikiUser?.role === 'admin' ||
       wikiUser?.role === 'owner')
 
+  // 이 문서 자체가 넘겨주기 문서인지 (?noredirect=1 보기에서 안내 박스용)
+  const pageRedirectTarget = currentPage
+    ? parseRedirectTarget(currentPage.content) ||
+      (currentPage.isRedirect ? currentPage.redirectTarget : null)
+    : null
+
   /* ── Load page ──────────────────────────────────── */
   useEffect(() => {
     const load = async () => {
@@ -359,12 +369,26 @@ export default function WikiDocumentPage() {
         const r = await fetch(`/api/wiki/pages?title=${encodeURIComponent(slug)}`)
         const d = await r.json()
         if (d.success && d.page) {
-          // #REDIRECT support
-          if (typeof d.page.content === 'string') {
-            const first = d.page.content.split('\n')[0].trim()
-            const m = first.match(/^#REDIRECT\s+\[\[([^\]]+)\]\]/i)
-            if (m && m[1]) { router.push(`/wiki/${encodeURIComponent(m[1])}`); return }
+          // 넘겨주기(#redirect 대상 / #REDIRECT [[대상]] / #넘겨주기 대상) 자동 이동
+          // ?noredirect=1 이면 넘겨주기 문서 원본을 그대로 보여준다 (편집/확인용)
+          const search = new URLSearchParams(window.location.search)
+          const noRedirect = search.get('noredirect') === '1'
+          const fromParam = search.get('from')
+          const redirectTo =
+            parseRedirectTarget(d.page.content) ||
+            (d.page.isRedirect ? d.page.redirectTarget : null)
+          if (
+            redirectTo &&
+            !noRedirect &&
+            redirectTo !== (d.page.title || slug) && // 자기 자신으로 넘겨주기 방지
+            redirectTo !== fromParam // A↔B 왕복 루프 방지
+          ) {
+            router.replace(
+              `/wiki/${encodeURIComponent(redirectTo)}?from=${encodeURIComponent(d.page.title || slug)}`
+            )
+            return
           }
+          setRedirectedFrom(fromParam)
           setCurrentPage(d.page)
           setEditContent(d.page.content)
           setCurrentRevision(d.page.currentRevision)
@@ -375,6 +399,7 @@ export default function WikiDocumentPage() {
             Array.isArray(d.page.watchers) && myId ? d.page.watchers.includes(myId) : false
           )
         } else {
+          setRedirectedFrom(null)
           setCurrentPage(null)
           setActiveTab('edit')
           setEditContent('')
@@ -1124,6 +1149,40 @@ export default function WikiDocumentPage() {
       {/* ─────── 문서 탭 ─────── */}
       {activeTab === 'document' && currentPage && (
         <>
+          {/* 넘겨주기로 도착 — "○○에서 넘어옴" 안내 */}
+          {redirectedFrom && (
+            <div className="wiki-mbox mb-4 border-l-2 border-sky-500/60">
+              <CornerUpRight className="w-4 h-4 mt-0.5 text-sky-400" />
+              <p className="flex-1 text-sm">
+                <strong className="text-[color:var(--wiki-ink)]">&ldquo;{redirectedFrom}&rdquo;</strong>
+                <span className="text-[color:var(--wiki-ink-soft)]"> 문서에서 넘어왔습니다. </span>
+                <a
+                  href={`/wiki/${encodeURIComponent(redirectedFrom)}?noredirect=1`}
+                  className="text-[color:var(--wiki-link)] hover:underline"
+                >
+                  넘겨주기 원본 보기
+                </a>
+              </p>
+            </div>
+          )}
+
+          {/* 이 문서가 넘겨주기 문서 (noredirect 보기) */}
+          {pageRedirectTarget && (
+            <div className="wiki-mbox mb-4 border-l-2 border-sky-500/60">
+              <CornerUpRight className="w-4 h-4 mt-0.5 text-sky-400" />
+              <p className="flex-1 text-sm">
+                <span className="text-[color:var(--wiki-ink-soft)]">이 문서는 </span>
+                <a
+                  href={`/wiki/${encodeURIComponent(pageRedirectTarget)}`}
+                  className="font-semibold text-[color:var(--wiki-link)] hover:underline"
+                >
+                  {pageRedirectTarget}
+                </a>
+                <span className="text-[color:var(--wiki-ink-soft)]"> 문서로 넘겨주기 합니다.</span>
+              </p>
+            </div>
+          )}
+
           {protectionLevel !== 'none' && (
             <div className="wiki-mbox mb-4">
               <Shield className="w-4 h-4 mt-0.5 text-[color:var(--wiki-warning)]" />
@@ -1156,21 +1215,36 @@ export default function WikiDocumentPage() {
             </div>
           )}
 
-          {/* Orphan 표시 — incoming links 가 0이면 */}
-          {(currentPage.incomingLinks?.length || 0) === 0 && (currentPage.outgoingLinks?.length || 0) > 0 && (
-            <div className="wiki-mbox mb-4 border-l-2 border-indigo-500/60">
-              <Radar className="w-4 h-4 mt-0.5 text-indigo-400" />
-              <p className="flex-1 text-sm">
-                <strong className="text-[color:var(--wiki-ink)]">이 문서를 가리키는 다른 문서가 없습니다 (고립 문서).</strong>{' '}
-                <span className="text-[color:var(--wiki-ink-soft)]">
-                  관련 있는 다른 문서에서{' '}
-                  <code className="bg-[color:var(--wiki-bg-2)] px-1 rounded text-[11px]">
-                    [[{currentPage.title}]]
-                  </code>{' '}
-                  를 추가하면 검색과 탐색이 더 쉬워집니다.
-                </span>
-              </p>
-            </div>
+          {/* 고립 문서 표시 — 들어오는 링크가 없으면.
+              들어오는 링크도 나가는 링크도 모두 없으면 '완전 고립'으로 더 강조. */}
+          {(currentPage.incomingLinks?.length || 0) === 0 && !currentPage.isRedirect && (
+            (() => {
+              const fullyIsolated = (currentPage.outgoingLinks?.length || 0) === 0
+              return (
+                <div
+                  className={`wiki-mbox mb-4 border-l-2 ${
+                    fullyIsolated ? 'border-amber-500/60' : 'border-indigo-500/60'
+                  }`}
+                >
+                  <Radar className={`w-4 h-4 mt-0.5 ${fullyIsolated ? 'text-amber-400' : 'text-indigo-400'}`} />
+                  <p className="flex-1 text-sm">
+                    <strong className="text-[color:var(--wiki-ink)]">
+                      {fullyIsolated
+                        ? '완전 고립 문서입니다 (들어오고 나가는 링크가 모두 없음).'
+                        : '이 문서를 가리키는 다른 문서가 없습니다 (고립 문서).'}
+                    </strong>{' '}
+                    <span className="text-[color:var(--wiki-ink-soft)]">
+                      관련 있는 다른 문서에서{' '}
+                      <code className="bg-[color:var(--wiki-bg-2)] px-1 rounded text-[11px]">
+                        [[{currentPage.title}]]
+                      </code>{' '}
+                      를 추가하면 검색과 탐색이 더 쉬워집니다.
+                      {fullyIsolated && ' 본문에도 관련 문서로의 [[링크]]를 넣어보세요.'}
+                    </span>
+                  </p>
+                </div>
+              )
+            })()
           )}
 
           {currentPage.summary && (

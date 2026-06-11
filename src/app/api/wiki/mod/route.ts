@@ -6,6 +6,7 @@ import { getDb } from '@/db/client'
 import { wikiPages, wikiRevisions, wikiSubmissions, wikiUsers } from '@/db/schema/wiki'
 import { isModeratorOrAbove } from '@/app/api/wiki/_utils/policy'
 import { enforceUserAccessPolicy } from '@/lib/doublejAuth'
+import { parseRedirectTarget } from '@/lib/wiki/redirect'
 import { DiscordWebhookService } from '@/services/discordWebhookService'
 
 export const dynamic = 'force-dynamic'
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'approve') {
+    // 본문 첫 줄 `#redirect 대상` 자동 감지 (승인 경로도 직접 편집과 동일 규칙)
+    const detectedRedirect = parseRedirectTarget(sub.content)
+
     if (sub.type === 'create') {
       await db.insert(wikiPages).values({
         title: sub.targetTitle,
@@ -138,6 +142,8 @@ export async function POST(request: NextRequest) {
         lastEditDate: now,
         lastEditSummary: sub.editSummary || '문서 생성(승인)',
         currentRevision: 1,
+        isRedirect: Boolean(detectedRedirect),
+        redirectTarget: detectedRedirect,
         isStub: (sub.content || '').length < 500,
         edits: 1,
         watchers: [sub.authorId],
@@ -187,6 +193,8 @@ export async function POST(request: NextRequest) {
           currentRevision: newRev,
           edits: page.edits + 1,
           isStub: (sub.content || '').length < 500,
+          isRedirect: Boolean(detectedRedirect),
+          redirectTarget: detectedRedirect,
           updatedAt: now,
         })
         .where(eq(wikiPages.id, page.id))

@@ -29,6 +29,7 @@ import {
   DoodleArrow,
   DoodleCircle,
 } from '@/components/scrapbook'
+import { BRANDING } from '@/config/branding'
 
 interface UpcomingEvent {
   name: string
@@ -102,7 +103,7 @@ const labFeatures = [
   {
     title: '이랑위키',
     desc: '우리만의 지식과 추억을 기록하는 백과사전',
-    href: '/wiki',
+    href: BRANDING.wikiPublicUrl,
     icon: BookOpen,
     accent: 'sage' as const,
   },
@@ -567,7 +568,10 @@ export default function AboutPage() {
               return (
                 <button
                   key={f.title}
-                  onClick={() => router.push(f.href)}
+                  onClick={() => {
+                    if (f.href.startsWith('http')) window.location.href = f.href
+                    else router.push(f.href)
+                  }}
                   className="group text-left"
                 >
                   <div className="mx-auto" style={{ maxWidth: 280 }}>
@@ -692,7 +696,12 @@ export default function AboutPage() {
                   <Sparkles className="h-4 w-4" />
                   카드 열기
                 </button>
-                <button onClick={() => router.push('/wiki')} className="ghost-button">
+                <button
+                  onClick={() => {
+                    window.location.href = BRANDING.wikiPublicUrl
+                  }}
+                  className="ghost-button"
+                >
                   이랑위키
                   <ArrowRight className="h-4 w-4" />
                 </button>

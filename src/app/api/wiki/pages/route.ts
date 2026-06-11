@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'
 import { getDb } from '@/db/client'
 import { wikiPages, wikiRevisions, wikiSubmissions, wikiUsers } from '@/db/schema/wiki'
 import { extractCategoriesFromContent } from '@/lib/wikiCategories'
+import { parseRedirectTarget } from '@/lib/wiki/redirect'
 import { canEditPage, isModeratorOrAbove, isRateLimited } from '@/app/api/wiki/_utils/policy'
 import { appendAuditLog } from '@/app/api/wiki/_utils/audit'
 import { createCaptchaChallenge, hasValidCaptchaPass } from '@/app/api/wiki/_utils/captcha'
@@ -17,10 +18,11 @@ const JWT_SECRET = getRequiredEnv('JWT_SECRET')
 
 // ── 헬퍼: 슬러그 / 목차 / 링크 추출 ─────────────────────────────
 function toSlug(text: string): string {
+  // 하위문서 제목("강한울/생애")의 `/` 는 slug 에서 `-` 로 보존해 충돌을 막는다
   return text
     .toLowerCase()
-    .replace(/[^\w\s가-힣]/g, '')
-    .replace(/\s+/g, '-')
+    .replace(/[^\w\s가-힣/]/g, '')
+    .replace(/[\s/]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
 }
@@ -109,6 +111,10 @@ function toPageResponse(p: any) {
     lastEditSummary: p.lastEditSummary,
     currentRevision: p.currentRevision,
     protection: p.protection,
+    editLock: p.editLock,
+    isDeleted: p.isDeleted,
+    deletedBy: p.deletedBy,
+    deleteReason: p.deleteReason,
     isRedirect: p.isRedirect,
     redirectTarget: p.redirectTarget,
     isStub: p.isStub,
@@ -288,10 +294,23 @@ export async function GET(request: NextRequest) {
     }
 
     // 목록
+    // 관리자 도구 확장: namespace=all → 전체 이름공간, deleted=1 → 삭제된 문서만 (moderator 이상 전용)
+    const wantAllNamespaces = namespace === 'all'
+    const wantDeletedOnly = searchParams.get('deleted') === '1'
+    let listAsModerator = false
+    if (wantAllNamespaces || wantDeletedOnly) {
+      const requester = await getUserFromToken(request)
+      listAsModerator = isModeratorOrAbove(requester as any)
+    }
+
     const conditions: any[] = [
-      ne(wikiPages.isDeleted, true),
-      eq(wikiPages.namespace, namespace),
+      wantDeletedOnly && listAsModerator
+        ? eq(wikiPages.isDeleted, true)
+        : ne(wikiPages.isDeleted, true),
     ]
+    if (!(wantAllNamespaces && listAsModerator)) {
+      conditions.push(eq(wikiPages.namespace, namespace))
+    }
 
     if (search) {
       const pattern = `%${search.replace(/[%_]/g, (c) => `\\${c}`)}%`
@@ -479,6 +498,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 운영자 이상 → 즉시 생성 (페이지 + 첫 리비전 트랜잭션)
+    // 본문 첫 줄의 `#redirect 대상` 문법을 자동 감지해 넘겨주기 플래그 세팅
+    const detectedRedirect = parseRedirectTarget(content)
     const now = new Date()
     const [savedPage] = await db
       .insert(wikiPages)
@@ -497,8 +518,8 @@ export async function POST(request: NextRequest) {
         lastEditDate: now,
         lastEditSummary: editSummary || '문서 생성',
         currentRevision: 1,
-        isRedirect: Boolean(isRedirect),
-        redirectTarget: isRedirect ? redirectTarget || null : null,
+        isRedirect: Boolean(isRedirect) || Boolean(detectedRedirect),
+        redirectTarget: detectedRedirect || (isRedirect ? redirectTarget || null : null),
         isStub: content.length < 500,
         edits: 1,
         watchers: [user.id],
@@ -715,6 +736,9 @@ export async function PUT(request: NextRequest) {
       timestampAt: now,
     })
 
+    // 본문 첫 줄 `#redirect 대상` 자동 감지 — 지시문이 사라지면 플래그도 해제
+    const detectedRedirect = parseRedirectTarget(content)
+
     await db
       .update(wikiPages)
       .set({
@@ -729,6 +753,8 @@ export async function PUT(request: NextRequest) {
         outgoingLinks: extractLinks(content),
         tableOfContents,
         isStub: content.length < 500,
+        isRedirect: Boolean(detectedRedirect),
+        redirectTarget: detectedRedirect,
         updatedAt: now,
       })
       .where(eq(wikiPages.id, existingPage.id))
@@ -788,6 +814,92 @@ export async function PUT(request: NextRequest) {
     console.error('위키 문서 업데이트 오류:', error)
     return NextResponse.json(
       { success: false, error: '문서 업데이트 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
+  }
+}
+
+// ───────────────────────────────────────────────────────────────
+// DELETE — 문서 삭제(soft delete) / 복구 (moderator 이상)
+//   DELETE /api/wiki/pages?title=<제목>&reason=<사유>   → isDeleted=true
+//   DELETE /api/wiki/pages?title=<제목>&restore=1       → isDeleted=false
+// ───────────────────────────────────────────────────────────────
+export async function DELETE(request: NextRequest) {
+  try {
+    const db = getDb()
+
+    const user = await getUserFromToken(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+    if (!isModeratorOrAbove(user as any)) {
+      return NextResponse.json(
+        { success: false, error: '문서 삭제 권한이 없습니다.' },
+        { status: 403 }
+      )
+    }
+
+    const { searchParams } = new URL(request.url)
+    const title = searchParams.get('title')
+    const reason = searchParams.get('reason')?.trim() || ''
+    const restore = searchParams.get('restore') === '1'
+
+    if (!title) {
+      return NextResponse.json({ success: false, error: 'title은 필수입니다.' }, { status: 400 })
+    }
+
+    // 삭제 시에는 살아있는 문서를, 복구 시에는 삭제된 문서를 찾는다
+    const [page] = await db
+      .select()
+      .from(wikiPages)
+      .where(
+        and(
+          or(eq(wikiPages.title, title), eq(wikiPages.slug, title)),
+          eq(wikiPages.isDeleted, restore)
+        )
+      )
+      .limit(1)
+
+    if (!page) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: restore ? '복구할 삭제 문서를 찾을 수 없습니다.' : '문서를 찾을 수 없습니다.',
+        },
+        { status: 404 }
+      )
+    }
+
+    await db
+      .update(wikiPages)
+      .set(
+        restore
+          ? { isDeleted: false, deletedBy: null, deleteReason: null, updatedAt: new Date() }
+          : {
+              isDeleted: true,
+              deletedBy: user.username,
+              deleteReason: reason || null,
+              updatedAt: new Date(),
+            }
+      )
+      .where(eq(wikiPages.id, page.id))
+
+    appendAuditLog({
+      actor: user.username,
+      action: restore ? 'page.restore' : 'page.delete',
+      meta: { title: page.title, reason },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: restore
+        ? `"${page.title}" 문서를 복구했습니다.`
+        : `"${page.title}" 문서를 삭제했습니다.`,
+    })
+  } catch (error) {
+    console.error('위키 문서 삭제 오류:', error)
+    return NextResponse.json(
+      { success: false, error: '문서 삭제 처리 중 오류가 발생했습니다.' },
       { status: 500 }
     )
   }

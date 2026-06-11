@@ -384,6 +384,26 @@ export const wikiSubmissions = pgTable(
   })
 )
 
+// ── 인라인 투표 (문서 내 :::poll 위젯) ──────────────────────────
+// pollId = (질문+선택지) 해시. 표 정의는 위키 본문에 있고 여기엔 표(vote)만 저장.
+// (pollId, voterId) UNIQUE → 1인 1표(재투표 시 갱신).
+export const wikiPollVotes = pgTable(
+  'wiki_poll_votes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pollId: text('poll_id').notNull(),
+    voterId: uuid('voter_id').notNull().references(() => wikiUsers.id, { onDelete: 'cascade' }),
+    optionIndex: integer('option_index').notNull(),
+    question: text('question'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pollVoterUnique: uniqueIndex('wiki_poll_votes_poll_voter_unique').on(t.pollId, t.voterId),
+    pollIdx: index('wiki_poll_votes_poll_idx').on(t.pollId),
+  })
+)
+
 // ── WikiWorkshopStatement ──────────────────────────────────
 export const wikiWorkshopStatements = pgTable(
   'wiki_workshop_statements',

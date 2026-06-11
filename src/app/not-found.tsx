@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, BookOpen, Compass, Home, Search } from 'lucide-react'
+import { BRANDING } from '@/config/branding'
 
 export default function NotFound() {
   const router = useRouter()
@@ -72,7 +73,7 @@ export default function NotFound() {
             <div className="text-xs text-stone-500">메인 페이지로 이동</div>
           </Link>
           <Link
-            href="/wiki"
+            href={BRANDING.wikiPublicUrl}
             className="group bg-white border border-stone-300 hover:border-stone-500 rounded-md px-4 py-4 text-left transition-colors shadow-sm hover:shadow-md"
           >
             <BookOpen className="w-5 h-5 text-emerald-600 mb-2" />

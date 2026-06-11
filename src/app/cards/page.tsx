@@ -93,6 +93,18 @@ export default function CardsPage() {
       </div>
 
       <main className="mx-auto max-w-6xl px-5 sm:px-8">
+        {/* ── 신규 카드 공지 ── */}
+        <div className="mt-5 flex items-center gap-2.5 rounded-xl border border-coral-500/25 bg-coral-500/[0.07] px-4 py-2.5">
+          <Sparkles className="h-4 w-4 shrink-0 text-coral-500" />
+          <p className="text-xs leading-relaxed text-ink-300 sm:text-sm">
+            <span className="mr-1.5 rounded-full bg-coral-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+              new
+            </span>
+            <strong className="text-ink-500">2026 카드 1차 업데이트</strong> — 2026 년도카드 5종,
+            스페셜 카드 22종(NG·OL·PF 시리즈), 조커 재료카드가 추가됐어요. 오늘의 드랍에서 만나보세요!
+          </p>
+        </div>
+
         {/* ── Hero ── */}
         <section className="relative grid gap-10 py-12 lg:grid-cols-[1.1fr,1fr] lg:items-center lg:py-20">
           <div className="space-y-5">

@@ -10,17 +10,17 @@ import {
   Plus, Minus, Hash, Type, Link2, FileText, 
   User, Users, Bookmark, Layout, AlignLeft, AlignCenter, AlignRight,
   Table, TableProperties, Columns, Menu, ChevronDown, ChevronRight,
-  Superscript, Subscript, CheckCircle, X, PaintBucket, AlertCircle
+  Superscript, Subscript, CheckCircle, X, PaintBucket, AlertCircle,
+  Calendar, BarChart3
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import NamuWikiRenderer from './NamuWikiRenderer'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
-import { 
-  COLOR_PICKER_PALETTE, 
-  generateTableColorSyntax, 
-  normalizeColor, 
-  isValidHexColor 
+import {
+  COLOR_PICKER_PALETTE,
+  normalizeColor,
+  isValidHexColor
 } from '@/lib/tableColors'
 
 interface WikiEditorProps {
@@ -240,6 +240,7 @@ export default function WikiEditor({
       { icon: Code, label: '인라인 코드', action: () => insertText('`', '`') },
       { icon: Hash, label: '각주', action: () => insertText('[*', ']') },
       { icon: Palette, label: '색상 텍스트', action: () => insertText('{{{#ff0000 ', '}}}') },
+      { icon: Type, label: '폰트 지정', action: () => insertText('{{{font:"Noto Sans KR" ', '}}}') },
     ],
     [
       { icon: AlertCircle, label: '콜아웃 (정보)', action: () => insertText('\n:::info\n', '\n:::\n', false) },
@@ -261,6 +262,10 @@ export default function WikiEditor({
       { icon: Menu, label: '목차 생성', action: () => generateTableOfContents() },
       { icon: Table, label: '표 삽입', action: () => setShowTableTools(!showTableTools) },
       { icon: Columns, label: '분류 태그', action: () => insertText('\n[[분류:', ']]') },
+    ],
+    [
+      { icon: Calendar, label: '타임라인', action: () => insertText('\n:::timeline\n2024-03-20 | 사건 제목 | 설명\n', '\n:::\n', false) },
+      { icon: BarChart3, label: '투표', action: () => insertText('\n:::poll 질문을 입력하세요\n선택지1\n선택지2\n', '\n:::\n', false) },
     ],
     [
       { icon: CheckCircle, label: isSpellChecking ? '검사 중...' : '맞춤법 검사', action: () => performSpellCheck() },
@@ -479,15 +484,25 @@ export default function WikiEditor({
     borderColor?: string
   }) => {
     let tableText = '\n'
-    
-    // 색상 속성 생성
-    const colorSyntax = colors ? generateTableColorSyntax(colors) : ''
-    
-    // 헤더 행
+
+    // 행 단위 색상 캐스케이드 — 헤더 행 첫 셀에 한 번만 적으면 행 전체에 적용된다.
+    // (개별 셀은 <bgcolor:..> 로 덮어쓸 수 있음)
+    const rowDirectiveParts: string[] = []
+    if (colors?.backgroundColor) {
+      const bg = normalizeColor(colors.backgroundColor)
+      if (bg) rowDirectiveParts.push(`rowbgcolor:${bg}`)
+    }
+    if (colors?.textColor) {
+      const tc = normalizeColor(colors.textColor)
+      if (tc) rowDirectiveParts.push(`rowcolor:${tc}`)
+    }
+    const rowDirective = rowDirectiveParts.length ? `<${rowDirectiveParts.join(' ')}>` : ''
+
+    // 헤더 행 — 색상 지시자는 첫 셀에만
     tableText += '|| '
     for (let i = 0; i < cols; i++) {
-      const cellContent = colorSyntax ? `${colorSyntax}헤더${i + 1}` : `헤더${i + 1}`
-      tableText += `${cellContent} || `
+      const prefix = i === 0 ? rowDirective : ''
+      tableText += `${prefix}헤더${i + 1} || `
     }
     tableText += '\n'
     
@@ -811,6 +826,35 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
 * [외부 링크 https://example.com]
 
 [[분류:분류명]]`
+    },
+    colorTable: {
+      name: '색상 표 (행 단위)',
+      icon: Table,
+      template: `|| <rowbgcolor:#4472C4 rowcolor:#ffffff>헤더1 || 헤더2 || 헤더3 ||
+|| <rowbgcolor:#D4E6F1>데이터1-1 || 데이터1-2 || 데이터1-3 ||
+|| 데이터2-1 || <bgcolor:#F8D7DA>강조 셀 || 데이터2-3 ||
+
+표 맨앞 셀에 <rowbgcolor:..> 를 한 번만 적으면 그 행 전체에 색이 적용됩니다.
+개별 셀은 <bgcolor:..> 로 덮어쓸 수 있어요.
+표 전체 가운데 정렬은 첫 셀에 <tablealign:center>, 표 전체 색은 <tablebgcolor:..> 입니다.`
+    },
+    timeline: {
+      name: '타임라인',
+      icon: Calendar,
+      template: `:::timeline
+2024-03-20 | 랑구 그룹 결성 | 태릉고 동창들이 처음 모였다
+2024-05 | 첫 정기 모임
+2025-01-01 | 새해 다짐
+:::`
+    },
+    poll: {
+      name: '투표',
+      icon: BarChart3,
+      template: `:::poll 다음 모임 메뉴는?
+햄버거
+커피
+치킨
+:::`
     }
   }
 
@@ -1270,10 +1314,32 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                       </div>
                     </div>
                     
-                    {/* 커스텀 색상 입력 */}
+                    {/* 커스텀 색상 입력 — 실시간 미리보기 + 컬러 피커 */}
                     <div>
                       <p className="text-xs text-gray-400 mb-2">커스텀 RGB 색상 (예: #FF0000 또는 FF0000):</p>
-                      <div className="flex space-x-2">
+                      <div className="flex items-center gap-2">
+                        {/* 네이티브 컬러 피커 → 텍스트와 동기화 */}
+                        <input
+                          type="color"
+                          aria-label="색상 선택기"
+                          value={(() => {
+                            const c = normalizeColor(customColor.trim())
+                            return /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#4472C4'
+                          })()}
+                          onChange={(e) => setCustomColor(e.target.value)}
+                          className="h-9 w-10 shrink-0 cursor-pointer rounded border border-gray-600 bg-gray-700 p-0.5"
+                        />
+                        {/* 실시간 미리보기 스와치 */}
+                        <span
+                          className="h-9 w-9 shrink-0 rounded border border-gray-600"
+                          title={normalizeColor(customColor.trim()) || '유효한 색상 코드를 입력하세요'}
+                          style={{
+                            backgroundColor: normalizeColor(customColor.trim()) || 'transparent',
+                            backgroundImage: normalizeColor(customColor.trim())
+                              ? undefined
+                              : 'repeating-conic-gradient(#4b5563 0% 25%, #374151 0% 50%) 50% / 10px 10px',
+                          }}
+                        />
                         <input
                           type="text"
                           value={customColor}
@@ -1281,6 +1347,8 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                           placeholder="#FF0000"
                           className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm focus:outline-none focus:border-blue-500"
                         />
+                      </div>
+                      <div className="mt-2 flex gap-2">
                         <Button
                           size="sm"
                           onClick={() => applyCustomColor('backgroundColor')}
@@ -1297,6 +1365,13 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                         >
                           글자 적용
                         </Button>
+                        <span className="self-center text-[11px] text-gray-500">
+                          {normalizeColor(customColor.trim())
+                            ? `미리보기: ${normalizeColor(customColor.trim())}`
+                            : customColor.trim()
+                              ? '⚠ 인식할 수 없는 색상'
+                              : ''}
+                        </span>
                       </div>
                     </div>
                     
@@ -1566,7 +1641,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     <ul className="space-y-0.5 text-gray-400">
                       <li><code className="bg-gray-700 px-1 rounded">[[목차]]</code> → 목차 삽입</li>
                       <li><code className="bg-gray-700 px-1 rounded">|| 셀1 || 셀2 ||</code> → 표</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000> 셀 ||`}</code> → 색상 표 (헤더만)</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<rowbgcolor:#ff0000>첫 셀 || … ||`}</code> → 행 전체 색상</li>
                       <li><code className="bg-gray-700 px-1 rounded">{`{{{#ff0000 빨간글씨}}}`}</code> → 색상 텍스트</li>
                       <li><code className="bg-gray-700 px-1 rounded">{`{{{+1 큰글씨}}}`}</code> → 크기 조절</li>
                     </ul>
@@ -1582,12 +1657,22 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                     </ul>
                   </div>
                   <div>
-                    <p className="font-medium mb-1 text-gray-300">표 색상 문법:</p>
+                    <p className="font-medium mb-1 text-gray-300">표 색상·정렬·폰트 (행/표 단위):</p>
                     <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000> 빨간 배경 ||`}</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<color:#ffffff> 흰 글자 ||`}</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000 color:#fff> 조합 ||`}</code></li>
-                      <li><strong>색상 도구:</strong> 표 삽입 시 색상 선택기 이용</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000> 셀 한 칸 ||`}</code> → 그 셀만</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<rowbgcolor:#4472C4>첫 셀 || 나머지 || 전부 ||`}</code> → 행 전체</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`||<tablebgcolor:#222 tablealign:center>... ||`}</code> → 표 전체</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`<align:center>`}</code> / <code className="bg-gray-700 px-1 rounded">{`<rowalign:center>`}</code> → 가운데 정렬</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`<font:"Noto Sans KR">`}</code> → 폰트 지정</li>
+                      <li className="text-gray-500">우선순위: 셀 &gt; 행 &gt; 표 (개별 셀로 덮어쓰기 가능)</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1 text-emerald-300">스니펫 (2026 신규):</p>
+                    <ul className="space-y-0.5 text-gray-400">
+                      <li><code className="bg-gray-700 px-1 rounded">{`{{{font:"맑은 고딕" 글자}}}`}</code> → 본문 폰트 변경</li>
+                      <li><code className="bg-gray-700 px-1 rounded">:::timeline … :::</code> → 세로 타임라인 (각 줄 <code className="bg-gray-700 px-1 rounded">날짜 | 제목 | 설명</code>)</li>
+                      <li><code className="bg-gray-700 px-1 rounded">:::poll 질문 … :::</code> → 실시간 투표 (줄마다 선택지)</li>
                     </ul>
                   </div>
                   <div>

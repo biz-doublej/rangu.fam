@@ -10,7 +10,10 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
-import { users } from './users'
+// 카드 소유/드랍의 user_id 는 SSO 인증이 발급하는 wiki_users.id 를 가리킨다.
+// (구버전은 레거시 music-app `users` 테이블을 참조했음 — SSO 사용자가 거기 없어
+//  모든 카드 INSERT가 FK 위반으로 실패. 운영 DB는 /api/admin/maintenance/cards-fk 로 재지정.)
+import { wikiUsers } from './wiki'
 
 // ── 카드 정의 (마스터 데이터) ─────────────────────────────────
 export const cards = pgTable(
@@ -54,7 +57,7 @@ export const userCards = pgTable(
   'user_cards',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => wikiUsers.id, { onDelete: 'cascade' }),
     cardId: text('card_id').notNull(),
     quantity: integer('quantity').notNull().default(1),
     acquiredAt: timestamp('acquired_at', { withTimezone: true }).notNull().defaultNow(),
@@ -76,7 +79,7 @@ export const userCardStats = pgTable(
   'user_card_stats',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().unique().references(() => wikiUsers.id, { onDelete: 'cascade' }),
 
     // 일일 드랍
     lastDropDate: timestamp('last_drop_date', { withTimezone: true }).notNull().defaultNow(),
@@ -127,7 +130,7 @@ export const cardDrops = pgTable(
   'card_drops',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => wikiUsers.id, { onDelete: 'cascade' }),
     cardId: text('card_id').notNull(),
     dropType: text('drop_type').notNull(), // 'daily' | 'craft' | 'special'
     droppedAt: timestamp('dropped_at', { withTimezone: true }).notNull().defaultNow(),

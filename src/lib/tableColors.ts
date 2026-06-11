@@ -175,6 +175,138 @@ export function parseTableColorAttributes(cellContent: string): {
   return result
 }
 
+// ─────────────────────────────────────────────────────────────────
+// 확장 표 지시자 (2026-06) — 셀/행/표 3단계 캐스케이드
+//
+//   셀:  <bgcolor:#x> <color:#x> <border:#x> <align:center> <font:이름>
+//   행:  <rowbgcolor:#x> <rowcolor:#x> <rowalign:center> <rowfont:이름>   ← 행 첫 셀에 한 번만
+//   표:  <tablebgcolor:#x> <tablecolor:#x> <tablealign:center>
+//        <tablefont:이름> <tableborder:#x>                                ← 표 첫 셀에 한 번만
+//
+// 우선순위: 셀 > 행 > 표 > 기본값. 기존 셀 단위 문법은 그대로 동작한다.
+// ─────────────────────────────────────────────────────────────────
+
+export interface WikiCellStyle {
+  backgroundColor?: string
+  textColor?: string
+  borderColor?: string
+  textAlign?: 'left' | 'center' | 'right'
+  fontFamily?: string
+}
+
+export interface ParsedCellDirectives {
+  content: string
+  cell: WikiCellStyle
+  row: WikiCellStyle
+  table: WikiCellStyle
+}
+
+const ALIGN_VALUES = new Set(['left', 'center', 'right'])
+
+/** font-family 값 정제 — CSS 주입 위험 문자를 제거 */
+export function sanitizeFontFamily(value: string): string {
+  return value.replace(/["'<>{};\\]/g, '').trim()
+}
+
+/**
+ * 셀 본문에서 셀/행/표 지시자를 모두 추출한다.
+ * 알 수 없는 지시자는 건드리지 않으므로 기존 문서와 호환된다.
+ */
+export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
+  const result: ParsedCellDirectives = { content: cellContent, cell: {}, row: {}, table: {} }
+
+  // `<...>` 토큰을 훑되, 내부가 "지시자들로만" 빈틈없이 구성될 때만 소비한다.
+  // 그렇지 않으면(`<b>`, `<div ...>` 등 일반 텍스트) 원문 그대로 둠 → 기존 문서 비파괴.
+  // sticky(y) 정규식으로 토큰을 연속 매칭 → 백트래킹 폭주 없음 + 따옴표 폰트(공백) 지원.
+  result.content = cellContent
+    .replace(/<([^<>]+)>/g, (full, inner: string) => {
+      const pairs: Array<{ scope: string; attr: string; value: string }> = []
+      const pairRe = /\s*(table|row)?(bgcolor|color|border|align|font):("[^"]*"|[^\s>]+)\s*/y
+      let idx = 0
+      let ok = true
+      while (idx < inner.length) {
+        pairRe.lastIndex = idx
+        const m = pairRe.exec(inner)
+        if (!m || m.index !== idx) {
+          ok = false
+          break
+        }
+        let value = m[3].trim()
+        if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
+        pairs.push({ scope: (m[1] || '').toLowerCase(), attr: m[2].toLowerCase(), value })
+        idx = pairRe.lastIndex
+      }
+      if (!ok || pairs.length === 0) return full // 지시자 블록이 아님 → 보존
+
+      for (const { scope, attr, value } of pairs) {
+        const target = scope === 'table' ? result.table : scope === 'row' ? result.row : result.cell
+        switch (attr) {
+          case 'bgcolor': {
+            const c = normalizeColor(value)
+            if (c) target.backgroundColor = c
+            break
+          }
+          case 'color': {
+            const c = normalizeColor(value)
+            if (c) target.textColor = c
+            break
+          }
+          case 'border': {
+            const c = normalizeColor(value)
+            if (c) target.borderColor = c
+            break
+          }
+          case 'align': {
+            const v = value.toLowerCase()
+            if (ALIGN_VALUES.has(v)) target.textAlign = v as WikiCellStyle['textAlign']
+            break
+          }
+          case 'font': {
+            const f = sanitizeFontFamily(value)
+            if (f) target.fontFamily = f
+            break
+          }
+        }
+      }
+      return ''
+    })
+    .trim()
+
+  return result
+}
+
+/** 행/표 스타일 수집용 — 먼저 지정된 값을 우선한다 (덮어쓰지 않음) */
+export function assignStyleDefaults(target: WikiCellStyle, source: WikiCellStyle): void {
+  if (!target.backgroundColor && source.backgroundColor) target.backgroundColor = source.backgroundColor
+  if (!target.textColor && source.textColor) target.textColor = source.textColor
+  if (!target.borderColor && source.borderColor) target.borderColor = source.borderColor
+  if (!target.textAlign && source.textAlign) target.textAlign = source.textAlign
+  if (!target.fontFamily && source.fontFamily) target.fontFamily = source.fontFamily
+}
+
+/** 레이어 병합 (뒤 레이어가 우선) → React inline style */
+export function mergeCellStylesToCss(
+  ...layers: Array<WikiCellStyle | undefined>
+): React.CSSProperties {
+  const merged: WikiCellStyle = {}
+  for (const layer of layers) {
+    if (!layer) continue
+    if (layer.backgroundColor) merged.backgroundColor = layer.backgroundColor
+    if (layer.textColor) merged.textColor = layer.textColor
+    if (layer.borderColor) merged.borderColor = layer.borderColor
+    if (layer.textAlign) merged.textAlign = layer.textAlign
+    if (layer.fontFamily) merged.fontFamily = layer.fontFamily
+  }
+
+  const css: React.CSSProperties = {}
+  if (merged.backgroundColor) css.backgroundColor = merged.backgroundColor
+  if (merged.textColor) css.color = merged.textColor
+  if (merged.borderColor) css.borderColor = merged.borderColor
+  if (merged.textAlign) css.textAlign = merged.textAlign
+  if (merged.fontFamily) css.fontFamily = merged.fontFamily
+  return css
+}
+
 /**
  * Generates table color syntax for insertion
  */

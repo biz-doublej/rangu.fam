@@ -20,6 +20,7 @@ import {
   Clock,
   Layers,
   Shuffle,
+  Network,
   HelpCircle,
   FileText,
   Star,
@@ -37,6 +38,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Input } from '@/components/ui/Input'
 import { BRANDING } from '@/config/branding'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
+import { useWikiAdminNotifications } from '@/hooks/useWikiAdminNotifications'
 
 const NotificationDropdown = dynamic(
   () => import('@/components/ui/NotificationDropdown').then(m => m.NotificationDropdown),
@@ -49,6 +51,7 @@ type ActiveNav =
   | 'category'
   | 'random'
   | 'search'
+  | 'graph'
   | 'help'
   | 'mod'
   | 'workshop'
@@ -76,7 +79,8 @@ const NAV_LINKS: Array<{ key: ActiveNav; label: string; href: string; icon: Reac
   { key: 'recent', label: '최근 변경', icon: Clock, href: '/wiki/recent' },
   { key: 'category', label: '분류', icon: Layers, href: '/wiki/category' },
   { key: 'random', label: '임의 문서', icon: Shuffle, href: '/wiki/random' },
-  { key: 'search', label: '문서 검색', icon: Search, href: '/wiki/search' }
+  { key: 'search', label: '문서 검색', icon: Search, href: '/wiki/search' },
+  { key: 'graph', label: '지식 그래프', icon: Network, href: '/wiki/graph' }
 ]
 
 const HELP_LINKS = [
@@ -232,7 +236,9 @@ export function WikiShell({ children, pageHeader, rightRail, activeNav }: WikiSh
 export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { wikiUser, isLoggedIn, logout, isModerator } = useWikiAuth()
+  const { wikiUser, isLoggedIn, logout, isModerator, isAdmin } = useWikiAuth()
+  // 관리자에게 검수 대기(문서 생성/수정 요청) 알림을 Notification Center 로 푸시
+  useWikiAdminNotifications(Boolean(isLoggedIn && isAdmin))
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)

@@ -31,10 +31,11 @@ async function getUserFromToken(request: NextRequest) {
 }
 
 function toSlug(text: string): string {
+  // 하위문서 제목("강한울/생애")의 `/` 는 slug 에서 `-` 로 보존해 충돌을 막는다
   return text
     .toLowerCase()
-    .replace(/[^\w\s가-힣]/g, '')
-    .replace(/\s+/g, '-')
+    .replace(/[^\w\s가-힣/]/g, '')
+    .replace(/[\s/]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
 }

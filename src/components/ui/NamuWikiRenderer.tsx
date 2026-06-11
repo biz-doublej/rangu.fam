@@ -16,7 +16,18 @@ import 'highlight.js/styles/github-dark.css'
 import { motion } from 'framer-motion'
 import { ExternalLink, ArrowUpRight, Quote, AlertCircle, Info, CheckCircle, XCircle, Star } from 'lucide-react'
 import { WikiIcon, parseIconSyntax } from './WikiIcon'
-import { parseTableColorAttributes, getTableCellStyles, normalizeColor } from '@/lib/tableColors'
+import { WikiTimeline, parseTimeline } from '@/components/wiki/WikiTimeline'
+import { WikiPoll, parsePoll } from '@/components/wiki/WikiPoll'
+import {
+  parseTableColorAttributes,
+  getTableCellStyles,
+  normalizeColor,
+  parseCellDirectives,
+  assignStyleDefaults,
+  mergeCellStylesToCss,
+  sanitizeFontFamily,
+  type WikiCellStyle,
+} from '@/lib/tableColors'
 
 const registerHighlightLanguages = (() => {
   let registered = false
@@ -732,6 +743,20 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             )
           }
         },
+        // 14.5 폰트 텍스트 {{{font:폰트명 텍스트}}} — 공백 포함 폰트는 따옴표: {{{font:"Noto Sans KR" 텍스트}}}
+        {
+          regex: /\{\{\{font:("[^"]+"|[^\s}]+)\s+([^}]+)\}\}\}/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const [, rawFont, text] = match
+            const family = sanitizeFontFamily(rawFont)
+            if (!family) return <span key={key}>{text}</span>
+            return (
+              <span key={key} style={{ fontFamily: family }}>
+                {text}
+              </span>
+            )
+          }
+        },
         // 15. 큰 텍스트 {{{+숫자 텍스트}}}
         {
           regex: /\{\{\{\+(\d+)\s+([^}]+)\}\}\}/g,
@@ -908,10 +933,19 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             <table className="w-full text-sm">
               <tbody>
                 {orderedParams.map(([key, value], index) => {
-                  const colorAttributes = parseTableColorAttributes(value)
-                  const headerCellStyles = getTableCellStyles(colorAttributes)
+                  // parseCellDirectives = parseTableColorAttributes 상위호환 (bg/color/border + align/font)
+                  const directives = parseCellDirectives(value)
+                  const headerCellStyles = getTableCellStyles({
+                    backgroundColor: directives.cell.backgroundColor,
+                    textColor: directives.cell.textColor,
+                    borderColor: directives.cell.borderColor,
+                  })
                   const defaultHeaderStyle = { backgroundColor: '#1e40af', color: '#ffffff' }
                   const finalHeaderStyle = { ...defaultHeaderStyle, ...headerCellStyles }
+                  // 값 셀에는 폰트/정렬만 신규 적용 (기존 색상 동작은 라벨 셀 유지 → 비파괴)
+                  const valueStyle: React.CSSProperties = {}
+                  if (directives.cell.fontFamily) valueStyle.fontFamily = directives.cell.fontFamily
+                  if (directives.cell.textAlign) valueStyle.textAlign = directives.cell.textAlign
                   const zebra = index % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-900/30'
 
                   return (
@@ -925,8 +959,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                       >
                         {key}
                       </td>
-                      <td className="px-3 py-2 text-gray-100 whitespace-pre-line leading-relaxed text-[13px]">
-                        {parseInlineElements(colorAttributes.content)}
+                      <td
+                        className="px-3 py-2 text-gray-100 whitespace-pre-line leading-relaxed text-[13px]"
+                        style={valueStyle}
+                      >
+                        {parseInlineElements(directives.content)}
                       </td>
                     </tr>
                   )
@@ -1124,8 +1161,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                     return orderedParams
                       .filter(([k, v]) => !excludeFields.has(k) && v && v.trim())
                       .map(([key, value], index) => {
-                        const colorAttributes = parseTableColorAttributes(value)
-                        const cellStyles = getTableCellStyles(colorAttributes)
+                        const directives = parseCellDirectives(value)
+                        const colorAttributes = { content: directives.content, ...directives.cell, backgroundColor: directives.cell.backgroundColor, textColor: directives.cell.textColor, borderColor: directives.cell.borderColor }
+                        const cellStyles = mergeCellStylesToCss(directives.cell)
                         const zebra = index % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-900/30'
 
                         return (
@@ -1294,6 +1332,40 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       if (/^-{3,}$/.test(trimmed)) {
         elements.push(<hr key={i} className="my-6 border-0 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />)
         continue
+      }
+
+      // 타임라인 블록: :::timeline ... :::  (각 줄 `날짜 | 제목 | 설명`)
+      const timelineOpen = trimmed.match(/^:::timeline\s*$/i)
+      if (timelineOpen) {
+        const buf: string[] = []
+        let j = i + 1
+        while (j < lines.length && !/^:::\s*$/.test(lines[j].trim())) {
+          buf.push(lines[j])
+          j++
+        }
+        i = j
+        elements.push(
+          <WikiTimeline key={i} entries={parseTimeline(buf.join('\n'))} parseInline={parseInlineElements} />
+        )
+        continue
+      }
+
+      // 투표 블록: :::poll 질문 \n 선택지... \n :::
+      const pollOpen = trimmed.match(/^:::poll\s+(.+)$/i)
+      if (pollOpen) {
+        const buf: string[] = []
+        let j = i + 1
+        while (j < lines.length && !/^:::\s*$/.test(lines[j].trim())) {
+          buf.push(lines[j])
+          j++
+        }
+        i = j
+        const spec = parsePoll(pollOpen[1], buf)
+        if (spec) {
+          elements.push(<WikiPoll key={i} spec={spec} />)
+          continue
+        }
+        // 선택지 부족 등 파싱 실패 시 원문 유지
       }
 
       // 콜아웃 박스: :::info|warn|success|error|note|tip 첫 줄 + 다음 줄들 + ::: 닫는 줄
@@ -1755,39 +1827,65 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               return 'left'
             })
             const bodyRows = tableLines.slice(2).map(parseMarkdownTableRow)
+
+            // 셀/행/표 지시자 파싱 (나무위키식 표와 동일한 캐스케이드)
+            const mdTableStyle: WikiCellStyle = {}
+            const parseMdRow = (cells: string[]) => {
+              const rowStyle: WikiCellStyle = {}
+              const parsedCells = cells.map((cell) => {
+                const parsed = parseCellDirectives(cell)
+                assignStyleDefaults(rowStyle, parsed.row)
+                assignStyleDefaults(mdTableStyle, parsed.table)
+                return parsed
+              })
+              return { parsedCells, rowStyle }
+            }
+            const headerParsed = parseMdRow(headerCells)
+            const bodyParsed = bodyRows.map(parseMdRow)
+
             const tableElement = (
               <div key={i} className="my-4 overflow-x-auto flex justify-center">
                 <table className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 w-full">
                   <thead>
                     <tr>
-                      {headerCells.map((cell, idx) => (
+                      {headerParsed.parsedCells.map((parsed, idx) => (
                         <th
                           key={idx}
                           className="border border-gray-600 px-3 py-2 text-sm font-semibold bg-gray-800"
-                          style={{ textAlign: alignments[idx] || 'left' }}
+                          style={{
+                            textAlign: alignments[idx] || 'left',
+                            ...mergeCellStylesToCss(mdTableStyle, headerParsed.rowStyle, parsed.cell),
+                          }}
                         >
-                          {parseInlineElements(cell)}
+                          {parseInlineElements(parsed.content)}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {bodyRows.length === 0 && (
+                    {bodyParsed.length === 0 && (
                       <tr>
                         {headerCells.map((_, idx) => (
                           <td key={idx} className="border border-gray-600 px-3 py-2 text-sm text-gray-300" />
                         ))}
                       </tr>
                     )}
-                    {bodyRows.map((cells, rowIndex) => (
+                    {bodyParsed.map(({ parsedCells, rowStyle }, rowIndex) => (
                       <tr key={rowIndex} className="border-b border-gray-600">
                         {headerCells.map((_, cellIndex) => (
                           <td
                             key={cellIndex}
                             className="border border-gray-600 px-3 py-2 text-sm text-gray-300"
-                            style={{ textAlign: alignments[cellIndex] || 'left' }}
+                            style={{
+                              textAlign: alignments[cellIndex] || 'left',
+                              ...mergeCellStylesToCss(
+                                mdTableStyle,
+                                rowStyle,
+                                parsedCells[cellIndex]?.cell
+                              ),
+                            }}
                           >
-                            {parseInlineElements(cells[cellIndex] || '')}
+                            {parseInlineElements(parsedCells[cellIndex]?.content || '')}
                           </td>
                         ))}
                       </tr>
@@ -1807,45 +1905,55 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         // 연속된 표 행들을 수집
         const tableRows: string[] = []
         let j = i
-        
+
         while (j < lines.length && lines[j].trim().startsWith('||') && lines[j].trim().endsWith('||')) {
           tableRows.push(lines[j].trim())
           j++
         }
-        
+
         if (tableRows.length > 0) {
-          // 표 생성
+          // 1차 파싱 — 셀별 지시자 추출 + 행(<row…>)/표(<table…>) 단위 스타일 수집.
+          // 행/표 지시자는 보통 첫 셀에 한 번만 적지만, 어느 셀에 있어도 인식한다.
+          const tableStyle: WikiCellStyle = {}
+          const parsedRows = tableRows.map((row) => {
+            const rowStyle: WikiCellStyle = {}
+            const cells = row
+              .split('||')
+              .filter(cell => cell.trim() !== '')
+              .map((cell) => {
+                const parsed = parseCellDirectives(cell.trim())
+                assignStyleDefaults(rowStyle, parsed.row)
+                assignStyleDefaults(tableStyle, parsed.table)
+                return parsed
+              })
+            return { cells, rowStyle }
+          })
+
+          // 표 생성 — 우선순위: 셀 > 행 > 표 > 기본값 (기존 문서는 그대로 렌더)
           const tableElement = (
             <div key={i} className="my-4 overflow-x-auto flex justify-center">
-              <table className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto">
+              <table
+                className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto"
+                style={tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : undefined}
+              >
                 <tbody>
-                  {tableRows.map((row, rowIndex) => {
-                    // || 기준으로 셀 분리
-                    const cells = row.split('||').filter(cell => cell.trim() !== '')
+                  {parsedRows.map(({ cells, rowStyle }, rowIndex) => {
                     const isHeaderRow = rowIndex === 0
-                    
+                    const defaultStyle: WikiCellStyle = isHeaderRow
+                      ? { backgroundColor: '#374151' }
+                      : { backgroundColor: '#1f2937' }
+
                     return (
                       <tr key={rowIndex} className="border-b border-gray-600">
-                        {cells.map((cell, cellIndex) => {
-                          const cellContent = cell.trim()
+                        {cells.map((parsed, cellIndex) => {
                           const CellTag = isHeaderRow ? 'th' : 'td'
-                          
-                          // Parse color attributes from cell content
-                          const colorAttributes = parseTableColorAttributes(cellContent)
-                          
-                          // 색상은 헤더 행에만 적용, 일반 행은 기본 그레이 유지
-                          let cellStyles = {}
-                          if (isHeaderRow) {
-                            cellStyles = getTableCellStyles(colorAttributes)
-                            // 헤더에 색상이 지정되지 않은 경우 기본 헤더 색상 사용
-                            if (!colorAttributes.backgroundColor) {
-                              cellStyles = { ...cellStyles, backgroundColor: '#374151' }
-                            }
-                          } else {
-                            // 일반 행은 항상 기본 그레이 배경 유지
-                            cellStyles = { backgroundColor: '#1f2937' }
-                          }
-                          
+                          const cellStyles = mergeCellStylesToCss(
+                            defaultStyle,
+                            tableStyle,
+                            rowStyle,
+                            parsed.cell
+                          )
+
                           return (
                             <CellTag
                               key={cellIndex}
@@ -1854,7 +1962,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                               }`}
                               style={cellStyles}
                             >
-                              {parseInlineElements(colorAttributes.content)}
+                              {parseInlineElements(parsed.content)}
                             </CellTag>
                           )
                         })}
@@ -1865,7 +1973,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               </table>
             </div>
           )
-          
+
           elements.push(tableElement)
           i = j - 1 // 다음 반복에서 i++가 되므로 -1
           continue

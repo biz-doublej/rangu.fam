@@ -25,6 +25,7 @@ import {
 import DocumentManagement from './components/DocumentManagement'
 import UserManagement from './components/UserManagement'
 import PageManagement from './components/PageManagement'
+import WikiDocsManagement from './components/WikiDocsManagement'
 
 // ── 타입 ────────────────────────────────────────────────
 interface DashboardStats {
@@ -328,7 +329,7 @@ export default function AdminDashboard() {
           />
         )}
 
-        {activeTab === 'documents' && <DocumentsTab />}
+        {activeTab === 'documents' && <WikiDocsManagement />}
 
         {activeTab === 'pages' && pageData && <PageManagement pageData={pageData} />}
         {activeTab === 'pages' && !pageData && (
@@ -631,27 +632,6 @@ function toneClasses(tone: 'amber' | 'cyan' | 'rose' | 'emerald' | 'slate'): str
     case 'emerald': return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
     case 'slate': return 'border-slate-500/40 bg-slate-500/10 text-slate-300'
   }
-}
-
-// ── 문서 관리 탭 ─────────────────────────────────────────
-function DocumentsTab() {
-  return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-8 text-center">
-      <FileText className="mx-auto h-10 w-10 text-slate-600" />
-      <h3 className="mt-3 text-base font-semibold text-white">문서 관리</h3>
-      <p className="mt-2 text-sm text-slate-400">
-        문서 목록·잠금·이동·되돌리기·삭제 도구는 다음 라운드에 통합됩니다.
-        <br />
-        지금은 위키 페이지의 보호/잠금/되돌리기 API 가 백엔드에 이미 있습니다.
-      </p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-slate-500">
-        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/lock</code>
-        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/protect</code>
-        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/move</code>
-        <code className="rounded bg-slate-800 px-2 py-0.5">/api/wiki/pages/revert</code>
-      </div>
-    </div>
-  )
 }
 
 // ── 시스템 탭 ───────────────────────────────────────────
