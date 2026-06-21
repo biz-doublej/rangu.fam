@@ -25,26 +25,26 @@ message Intent {
 }
 
 message MulliganIntent {
-  repeated uint64 replace_card_instance_ids = 1;  // 교체(버리고 새로 뽑을) 카드
+  repeated string replace_card_instance_ids = 1;  // 교체(버리고 새로 뽑을) 카드
 }
 
 message PlayCardIntent {
-  uint64 card_instance_id = 1;
+  string card_instance_id = 1;
   repeated Target targets = 2;       // 타겟이 필요한 카드의 경우
 }
 
 message ChallengerPull {
-  uint64 attacker_instance_id = 1;
-  uint64 target_blocker_instance_id = 2;
+  string attacker_instance_id = 1;
+  string target_blocker_instance_id = 2;
 }
 message DeclareAttackIntent {
-  repeated uint64 attacker_instance_ids = 1;
+  repeated string attacker_instance_ids = 1;
   repeated ChallengerPull pulls = 2; // 도전(Challenger)으로 특정 방어자 끌어오기
 }
 
 message BlockAssignment {
-  uint64 blocker_instance_id = 1;
-  uint64 attacker_instance_id = 2;
+  string blocker_instance_id = 1;
+  string attacker_instance_id = 2;
 }
 message DeclareBlockIntent {
   repeated BlockAssignment blocks = 1;
