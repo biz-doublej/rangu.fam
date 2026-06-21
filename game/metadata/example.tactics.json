@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "a1b2c3d4e5f60718",
+  "generatedAt": "2026-06-21T10:30:00.000Z",
+  "cardCount": 3,
+  "keywords": ["challenger", "overwhelm", "quickAttack", "tough"],
+  "cards": [
+    {
+      "_comment": "① 명시 정의 + 키워드(태그) + 트리거 효과 + 챔피언 승격",
+      "cardId": "prestige_jaewon",
+      "name": "정재원 프레스티지",
+      "faction": "jaewon",
+      "type": "champion",
+      "rarity": "legendary",
+      "cost": 5,
+      "attack": 6,
+      "health": 5,
+      "keywords": ["overwhelm"],
+      "effects": [
+        { "trigger": "summon", "kind": "buffTeam", "amount": 1, "duration": null, "target": { "select": "allAllies" } }
+      ],
+      "champion": {
+        "levelUpCondition": "you_have_attacked_3_times",
+        "attack": 8,
+        "health": 7,
+        "addKeywords": ["quickAttack"],
+        "addEffects": [{ "trigger": "strike", "kind": "damageNexus", "amount": 2 }]
+      },
+      "imageUrl": "/images/dogam/prestige_jaewon.png",
+      "derived": false
+    },
+    {
+      "_comment": "② 주문: 효과로 키워드(도발=challenger)를 부여 + 체력 버프 — '키워드 vs 효과' 차이 예시",
+      "cardId": "SP_HAN_SHIELD",
+      "name": "강한울의 방패",
+      "faction": "hanul",
+      "type": "spell",
+      "rarity": "rare",
+      "cost": 2,
+      "attack": null,
+      "health": null,
+      "keywords": [],
+      "spellSpeed": "fast",
+      "effects": [
+        { "trigger": "cast", "kind": "grantKeyword", "keyword": "challenger", "duration": null, "target": { "select": "chooseAllyUnit", "count": 1 } },
+        { "trigger": "cast", "kind": "buffUnit", "health": 3, "duration": null, "target": { "select": "chooseAllyUnit", "count": 1 } }
+      ],
+      "champion": null,
+      "imageUrl": "/images/dogam/sp_han_shield.png",
+      "derived": false
+    },
+    {
+      "_comment": "③ 명시 정의가 아직 없어 stats.ts 로 파생된 카드 (derived: true)",
+      "cardId": "HAN_21_V1",
+      "name": "강한울 2021",
+      "faction": "hanul",
+      "type": "unit",
+      "rarity": "basic",
+      "cost": 1,
+      "attack": 1,
+      "health": 5,
+      "keywords": ["tough"],
+      "effects": [],
+      "champion": null,
+      "imageUrl": "/images/dogam/han_21_v1.png",
+      "derived": true
+    }
+  ]
+}

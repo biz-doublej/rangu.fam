@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package rangu.tactics.v1;
+
+option csharp_namespace = "Rangu.Tactics.Proto.V1";
+
+import "rangu/tactics/v1/common.proto";
+import "rangu/tactics/v1/card.proto";
+import "rangu/tactics/v1/state.proto";
+
+// ★ 서버 → 클라이언트. "사실"의 통보. 단조 증가 sequence_number 로 순서 보장.
+//   같은 논리적 이벤트라도 수신자별로 마스킹되어 직렬화될 수 있다
+//   (예: 카드 뽑기 — 소유자에겐 revealed, 상대에겐 hidden).
+message Event {
+  uint64 sequence_number = 1;        // 매치 전역 단조 증가
+  int64 server_time_unix_ms = 2;
+
+  oneof payload {
+    MatchStartedEvent match_started = 10;
+    MulliganResolvedEvent mulligan_resolved = 11;
+    CardDrawnEvent card_drawn = 12;
+    CardPlayedEvent card_played = 13;
+    StackUpdatedEvent stack_updated = 14;
+    StackResolvedEvent stack_resolved = 15;
+    UnitSummonedEvent unit_summoned = 16;
+    AttackDeclaredEvent attack_declared = 17;
+    BlockDeclaredEvent block_declared = 18;
+    DamageDealtEvent damage_dealt = 19;
+    UnitDiedEvent unit_died = 20;
+    StatChangedEvent stat_changed = 21;
+    ManaChangedEvent mana_changed = 22;
+    NexusDamagedEvent nexus_damaged = 23;
+    PhaseChangedEvent phase_changed = 24;
+    PriorityChangedEvent priority_changed = 25;
+    TurnPassedEvent turn_passed = 26;
+    RoundEndedEvent round_ended = 27;
+    TargetRequestEvent target_request = 28;
+    IntentAckEvent intent_ack = 29;
+    IntentRejectedEvent intent_rejected = 30;
+    GameOverEvent game_over = 31;
+  }
+}
+
+message MatchStartedEvent {
+  string match_id = 1;
+  repeated PlayerRef players = 2;
+  PlayerRef first_attacker = 3;
+}
+
+message MulliganResolvedEvent {
+  PlayerRef player = 1;
+  repeated CardView new_hand = 2;    // 본인에겐 revealed, 상대에겐 hidden
+}
+
+// 카드 뽑기 — 마스킹 적용 대표 사례.
+message CardDrawnEvent {
+  PlayerRef player = 1;
+  CardView card = 2;                 // 소유자=revealed, 상대=hidden
+  int32 new_hand_count = 3;
+  int32 new_deck_count = 4;
+}
+
+message CardPlayedEvent {
+  PlayerRef player = 1;
+  CardView card = 2;                 // 시전 카드(보통 공개)
+  repeated Target targets = 3;
+  string client_intent_id = 4;       // 어떤 intent의 확정 결과인지(클라 reconciliation)
+}
+
+message StackUpdatedEvent {
+  repeated StackItem stack = 1;      // 갱신된 전체 스택(상단 = 마지막)
+}
+
+// 스택 1개 해결. 해결로 파생되는 후속 효과는 별도 Event 로 이어서 전송.
+message StackResolvedEvent {
+  uint64 resolved_stack_id = 1;
+}
+
+message UnitSummonedEvent {
+  PlayerRef player = 1;
+  CardView unit = 2;
+}
+
+message AttackDeclaredEvent {
+  PlayerRef attacker = 1;
+  repeated uint64 attacker_instance_ids = 2;
+}
+
+message BlockDeclaredEvent {
+  PlayerRef blocker = 1;
+  repeated CombatPair pairs = 2;
+}
+
+// 피해량 판정.
+message DamageInstance {
+  Target target = 1;
+  uint64 source_instance_id = 2;
+  int32 amount = 3;
+  bool is_lethal = 4;
+}
+message DamageDealtEvent {
+  repeated DamageInstance instances = 1;
+}
+
+message UnitDiedEvent {
+  repeated uint64 instance_ids = 1;
+  Zone moved_to = 2;                 // 보통 GRAVEYARD
+}
+
+message StatChangedEvent {
+  uint64 instance_id = 1;
+  int32 new_power = 2;
+  int32 new_health = 3;
+  repeated Keyword keywords = 4;
+}
+
+message ManaChangedEvent {
+  PlayerRef player = 1;
+  int32 mana = 2;
+  int32 mana_max = 3;
+  int32 spell_mana = 4;
+}
+
+message NexusDamagedEvent {
+  PlayerRef player = 1;
+  int32 amount = 2;
+  int32 new_nexus_health = 3;
+}
+
+message PhaseChangedEvent {
+  GamePhase phase = 1;
+  uint32 round_number = 2;
+  PlayerRef active_player = 3;
+}
+
+message PriorityChangedEvent {
+  PlayerRef priority_player = 1;
+}
+
+message TurnPassedEvent {
+  PlayerRef now_acting = 1;
+}
+
+message RoundEndedEvent {
+  uint32 round_number = 1;
+  PlayerRef next_attacker = 2;
+}
+
+// 서버가 클라에 타겟 선택을 요청(예: "유닛 1개 지정").
+message TargetRequestEvent {
+  uint64 request_id = 1;
+  uint64 source_instance_id = 2;
+  int32 min_targets = 3;
+  int32 max_targets = 4;
+  repeated Target legal_targets = 5;  // 선택 가능한 후보
+}
+
+// intent 정상 수락 확인.
+message IntentAckEvent {
+  string client_intent_id = 1;
+}
+
+enum RejectReason {
+  REJECT_UNSPECIFIED = 0;
+  REJECT_NOT_YOUR_PRIORITY = 1;
+  REJECT_ILLEGAL_ACTION = 2;
+  REJECT_INSUFFICIENT_MANA = 3;
+  REJECT_INVALID_TARGET = 4;
+  REJECT_OUT_OF_PHASE = 5;
+  REJECT_STALE_SEQUENCE = 6;          // based_on_sequence 가 너무 오래됨
+}
+// 불법/거부된 intent 통보 — 클라는 낙관적 상태를 롤백한다.
+message IntentRejectedEvent {
+  string client_intent_id = 1;
+  RejectReason reason = 2;
+  string detail = 3;
+}
+
+message GameOverEvent {
+  enum Result {
+    RESULT_UNSPECIFIED = 0;
+    WIN = 1;
+    LOSS = 2;
+    DRAW = 3;
+  }
+  PlayerRef winner = 1;              // 무승부면 비움
+  Result viewer_result = 2;          // 수신자 관점 결과
+  string reason = 3;                 // "nexus_destroyed" / "concede" / "deckout" ...
+}

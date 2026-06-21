@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rangu.Tactics.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 게임 티켓 JWKS 검증 (최신 8.x). IMemoryCache/IHttpClientFactory 는 Web SDK 프레임워크 참조에 포함. -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.*" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package rangu.tactics.v1;
+
+option csharp_namespace = "Rangu.Tactics.Proto.V1";
+
+import "rangu/tactics/v1/common.proto";
+
+// ★ 클라이언트 → 서버. "요청"일 뿐, 결과를 단정하지 않는다(권위 서버가 판정).
+//   클라는 Intent 를 보내고, 확정 결과는 Event 로 되돌려 받는다.
+message Intent {
+  string client_intent_id = 1;       // 클라 생성 UUID. ACK/거부 매칭 + 멱등성.
+  uint64 based_on_sequence = 2;      // 작성 시점에 클라가 본 마지막 event seq(낙관적 동시성, 선택)
+
+  oneof action {
+    MulliganIntent mulligan = 10;
+    PlayCardIntent play_card = 11;
+    DeclareAttackIntent declare_attack = 12;
+    DeclareBlockIntent declare_block = 13;
+    PassIntent pass = 14;                   // 액션 패스
+    ResolveStackIntent resolve_stack = 15;  // 스택에 대응 안 함 → 해결 진행
+    SelectTargetsIntent select_targets = 16; // 서버의 타겟 요청에 대한 응답
+    ConcedeIntent concede = 17;
+  }
+}
+
+message MulliganIntent {
+  repeated uint64 replace_card_instance_ids = 1;  // 교체(버리고 새로 뽑을) 카드
+}
+
+message PlayCardIntent {
+  uint64 card_instance_id = 1;
+  repeated Target targets = 2;       // 타겟이 필요한 카드의 경우
+}
+
+message ChallengerPull {
+  uint64 attacker_instance_id = 1;
+  uint64 target_blocker_instance_id = 2;
+}
+message DeclareAttackIntent {
+  repeated uint64 attacker_instance_ids = 1;
+  repeated ChallengerPull pulls = 2; // 도전(Challenger)으로 특정 방어자 끌어오기
+}
+
+message BlockAssignment {
+  uint64 blocker_instance_id = 1;
+  uint64 attacker_instance_id = 2;
+}
+message DeclareBlockIntent {
+  repeated BlockAssignment blocks = 1;
+}
+
+message PassIntent {}
+message ResolveStackIntent {}
+
+message SelectTargetsIntent {
+  uint64 request_id = 1;             // 어느 TargetRequestEvent 에 대한 응답인지
+  repeated Target targets = 2;
+}
+
+message ConcedeIntent {}

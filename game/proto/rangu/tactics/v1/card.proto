@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package rangu.tactics.v1;
+
+option csharp_namespace = "Rangu.Tactics.Proto.V1";
+
+import "rangu/tactics/v1/common.proto";
+
+// 카드 1장의 네트워크 표현.
+// ★ 정보 마스킹의 핵심 단위: instance_id 와 zone 은 항상 노출되지만,
+//   카드의 "정체"(definition_id 등)는 visibility 가 revealed 일 때만 채워진다.
+message CardView {
+  uint64 instance_id = 1;          // 매치 내 유일 (정의가 같아도 인스턴스마다 다름)
+  Zone zone = 2;
+  PlayerRef controller = 3;
+
+  oneof visibility {
+    RevealedCard revealed = 4;     // 공개 (본인 손패, 전장 유닛, 시전된 주문 등)
+    HiddenCard hidden = 5;         // 비공개 (상대 손패/덱)
+  }
+}
+
+// 공개된 카드의 동적 상태.
+// 정적 정보(이름/일러스트/기본 효과 텍스트)는 definition_id 로
+// 클라이언트가 Data-Driven 메타데이터(JSON)에서 조회한다.
+message RevealedCard {
+  string definition_id = 1;        // 예: "rt_unit_0007" — 메타데이터 키
+  int32 base_cost = 2;
+  int32 current_cost = 3;          // 비용 변동 반영
+  int32 base_power = 4;
+  int32 base_health = 5;
+  int32 current_power = 6;         // 버프/디버프 반영
+  int32 current_health = 7;
+  int32 damage = 8;                // 누적 피해 (current_health - damage <= 0 → 사망)
+  bool is_exhausted = 9;           // 행동 완료(공격/탭) 여부
+  repeated Keyword keywords = 10;  // 현재 보유 키워드(부여 포함)
+  repeated CardModifier modifiers = 11;
+  repeated uint64 attached_instance_ids = 12;  // 부착된 카드(장비/오라 등)
+}
+
+// 비공개 카드. 존재/소유/영역만 노출되고 정체는 숨김.
+// 의도적으로 비어 있음 — 상대는 "카드가 있다"는 사실만 안다.
+// (특정 효과로 일부만 공개하고 싶다면 필드를 선택적으로 추가)
+message HiddenCard {
+}
+
+// 능력치 변경자(버프/디버프).
+message CardModifier {
+  string source_definition_id = 1;
+  int32 power_delta = 2;
+  int32 health_delta = 3;
+  uint32 duration_rounds = 4;      // 0 = 영구
+}

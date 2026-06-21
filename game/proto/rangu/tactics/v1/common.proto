@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package rangu.tactics.v1;
+
+option csharp_namespace = "Rangu.Tactics.Proto.V1";
+
+// 매치 내 플레이어 참조.
+// user_id 는 DoubleJ 계정 식별자, seat 는 매치 내 자리(0/1).
+message PlayerRef {
+  string user_id = 1;
+  uint32 seat = 2;
+}
+
+// 카드가 존재하는 영역(zone).
+enum Zone {
+  ZONE_UNSPECIFIED = 0;
+  ZONE_DECK = 1;          // 덱 (내용 비공개)
+  ZONE_HAND = 2;          // 손패 (소유자만 공개)
+  ZONE_BATTLEFIELD = 3;   // 전장 (공개)
+  ZONE_ATTACK = 4;        // 공격 선언 라인
+  ZONE_STACK = 5;         // 스택 (시전 중)
+  ZONE_GRAVEYARD = 6;     // 묘지
+  ZONE_BANISH = 7;        // 추방/소멸
+}
+
+// 효과/공격의 대상. 카드 인스턴스 또는 넥서스.
+message Target {
+  oneof target {
+    uint64 card_instance_id = 1;
+    PlayerRef nexus = 2;
+  }
+}
+
+// LoR식 핵심 키워드. 실제 효과 계산은 서버 메타데이터(Data-Driven)가 담당하며,
+// 이 enum 은 클라이언트 표시/판정 힌트 용도이다.
+enum Keyword {
+  KEYWORD_UNSPECIFIED = 0;
+  KEYWORD_QUICK_ATTACK = 1;   // 속공
+  KEYWORD_OVERWHELM = 2;      // 압도
+  KEYWORD_ELUSIVE = 3;        // 회피
+  KEYWORD_LIFESTEAL = 4;      // 흡혈
+  KEYWORD_BARRIER = 5;        // 보호막
+  KEYWORD_TOUGH = 6;          // 강인
+  KEYWORD_FEARSOME = 7;       // 위압
+  KEYWORD_CHALLENGER = 8;     // 도전
+  KEYWORD_REGENERATION = 9;   // 재생
+  KEYWORD_SPELLSHIELD = 10;   // 주문 보호막
+  KEYWORD_FLEETING = 11;      // 소멸성(턴 끝 버려짐)
+}

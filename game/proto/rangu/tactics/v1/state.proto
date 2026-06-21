@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package rangu.tactics.v1;
+
+option csharp_namespace = "Rangu.Tactics.Proto.V1";
+
+import "rangu/tactics/v1/common.proto";
+import "rangu/tactics/v1/card.proto";
+
+enum GamePhase {
+  PHASE_UNSPECIFIED = 0;
+  PHASE_MULLIGAN = 1;
+  PHASE_ROUND_START = 2;
+  PHASE_ACTION = 3;                   // 메인 액션(시전/공격 선언/패스)
+  PHASE_COMBAT_DECLARE_ATTACK = 4;
+  PHASE_COMBAT_DECLARE_BLOCK = 5;
+  PHASE_COMBAT_RESOLUTION = 6;
+  PHASE_ROUND_END = 7;
+  PHASE_GAME_OVER = 8;
+}
+
+// 한 플레이어의 공개 가능한 상태. 손패 "내용"은 여기 없음(카드 목록은 CardView 로).
+message PlayerState {
+  PlayerRef player = 1;
+  int32 nexus_health = 2;
+  int32 mana = 3;            // 현재 일반 마나
+  int32 mana_max = 4;        // 이번 라운드 일반 마나 상한
+  int32 spell_mana = 5;      // 예치된 주문 마나(최대 3)
+  int32 deck_count = 6;      // 덱 남은 장수(내용 비공개)
+  int32 hand_count = 7;      // 손패 장수
+  bool has_attack_token = 8; // 이번 라운드 공격권 보유
+  bool has_passed = 9;       // 이번 액션 패스 여부
+}
+
+// 스택에 올라간 항목(주문/유발 능력). LIFO 로 해결.
+message StackItem {
+  uint64 stack_id = 1;
+  uint64 source_instance_id = 2;
+  PlayerRef controller = 3;
+  CardView card = 4;                 // 보통 공개(시전된 주문)
+  repeated Target targets = 5;
+}
+
+// 전투 상태.
+message CombatPair {
+  uint64 attacker_instance_id = 1;
+  uint64 blocker_instance_id = 2;    // 0 = 미차단
+}
+message CombatState {
+  PlayerRef attacker = 1;
+  repeated CombatPair pairs = 2;
+}
+
+// ★ 수신자(viewer) 관점의 전체 게임 상태 스냅샷.
+//   재접속/복구의 기준점. 상대 손패/덱은 마스킹되어 담긴다.
+message GameStateSnapshot {
+  string match_id = 1;
+  uint64 sequence_number = 2;        // 이 스냅샷이 반영한 마지막 이벤트 seq
+  PlayerRef viewer = 3;              // 이 스냅샷을 받는 관점의 주인
+  GamePhase phase = 4;
+  PlayerRef priority_player = 5;     // 현재 우선권(행동 가능) 보유자
+  PlayerRef active_player = 6;       // 이번 라운드의 능동 플레이어
+  uint32 round_number = 7;
+  repeated PlayerState players = 8;  // 보통 2
+  repeated CardView cards = 9;       // 가시 영역의 모든 카드(상대 손패는 hidden)
+  repeated StackItem stack = 10;     // 현재 스택(상단 = 마지막 원소)
+  CombatState combat = 11;           // 전투 중이 아니면 비어 있음
+  int64 server_time_unix_ms = 12;
+}

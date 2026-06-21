@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package rangu.tactics.v1;
+
+option csharp_namespace = "Rangu.Tactics.Proto.V1";
+
+import "rangu/tactics/v1/common.proto";
+import "rangu/tactics/v1/state.proto";
+import "rangu/tactics/v1/intent.proto";
+import "rangu/tactics/v1/event.proto";
+
+// WSS 위로 흐르는 최상위 봉투. 모든 프레임은 ClientMessage / ServerMessage 중 하나.
+// (전송은 단일 양방향 WebSocket. gRPC bidi-stream 채택 시에도 동일 메시지 재사용 가능.)
+
+message ClientMessage {
+  oneof msg {
+    ConnectRequest connect = 1;
+    Intent intent = 2;
+    ResyncRequest resync = 3;
+    Heartbeat heartbeat = 4;
+  }
+}
+
+message ServerMessage {
+  oneof msg {
+    ConnectAccepted connect_accepted = 1;
+    ConnectRejected connect_rejected = 2;
+    Event event = 3;
+    GameStateSnapshot snapshot = 4;   // resync 응답
+    Heartbeat heartbeat = 5;
+  }
+}
+
+// 최초/재접속 연결. Q2 의 단명 game ticket(JWT, aud=rangu-tactics)을 제시.
+message ConnectRequest {
+  string game_ticket = 1;            // 서버가 DoubleJ JWKS 로 서명/aud/exp 검증
+  string match_id = 2;
+  uint64 last_known_sequence = 3;    // 0 = 신규, >0 = 재접속(이후 이벤트만 필요)
+  string client_version = 4;
+}
+
+// ★ 연결 수락 시 항상 현재 스냅샷으로 시작 → 클라는 낙관적 로컬 상태를 폐기하고 재구성.
+message ConnectAccepted {
+  PlayerRef you = 1;
+  GameStateSnapshot snapshot = 2;
+}
+
+message ConnectRejected {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    INVALID_TICKET = 1;
+    MATCH_NOT_FOUND = 2;
+    VERSION_MISMATCH = 3;
+    ALREADY_CONNECTED = 4;
+    NOT_A_PARTICIPANT = 5;
+  }
+  Reason reason = 1;
+  string detail = 2;
+}
+
+// 세션 중 누락 복구. 서버는 현재 스냅샷(또는 누락 delta)으로 응답.
+message ResyncRequest {
+  uint64 last_known_sequence = 1;
+}
+
+message Heartbeat {
+  int64 client_time_unix_ms = 1;
+}

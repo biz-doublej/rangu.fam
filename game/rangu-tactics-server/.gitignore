@@ -1,0 +1,7 @@
+# .NET build output
+bin/
+obj/
+
+# 로컬 키 (절대 커밋 금지)
+*.key
+game-ticket.key
