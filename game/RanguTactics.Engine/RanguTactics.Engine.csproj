@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    랑구 택틱스 — 순수 결정론 룰 엔진 (게임의 두뇌).
+    ★ I/O · DB · Network · proto 의존성 0 → 단위 테스트 극도로 용이.
+    src/lib/battle (TS) 를 C# 강타입으로 포팅. 같은 seed/액션 → 항상 같은 상태(리듀서).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rangu.Tactics.Engine</RootNamespace>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

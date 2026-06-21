@@ -1,0 +1,9 @@
+# .NET build output (모든 game/ 하위 프로젝트 공통)
+bin/
+obj/
+
+# Unity proto 코드젠 산출물 (gen-csharp.ps1 으로 재생성)
+gen/
+
+# 로컬 키 (절대 커밋 금지)
+*.key
