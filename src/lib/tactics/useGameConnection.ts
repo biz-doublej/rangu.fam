@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { ClientMessage } from '@rangu/proto-ts'
 import { attachMessageMapper, type SocketLike } from '@rangu/battle-core'
-import { battleStore } from './battleClient'
+import { battleStore, bindSocket } from './battleClient'
 
 export interface ConnectOptions {
   matchId: string
@@ -14,8 +14,8 @@ export interface ConnectOptions {
 }
 
 /**
- * 매치 WebSocket 연결 + MessageMapper 부착 + ConnectRequest 전송.
- * 수신 스트림은 attachMessageMapper 가 battleStore.apply 로 흘린다.
+ * 매치 WebSocket 연결 + MessageMapper 부착 + ConnectRequest 전송 + 아웃바운드 소켓 바인딩.
+ * 수신 스트림은 attachMessageMapper 가 battleStore.apply 로, 송신은 bindSocket→do* 액션으로.
  */
 export function useGameConnection({
   matchId,
@@ -33,8 +33,10 @@ export function useGameConnection({
         ClientMessage.fromPartial({ connect: { gameTicket: ticket, matchId, clientVersion: metadataVersion } }),
       ).finish()
       ws.send(frame)
+      bindSocket(ws as unknown as SocketLike)
     })
     return () => {
+      bindSocket(null)
       battleStore.getState().reset()
       ws.close()
     }

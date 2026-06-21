@@ -9,6 +9,8 @@ export interface PendingIntent {
   type: string
   status: IntentStatus
   detail?: string
+  /** playCard 등 카드 단위 intent 의 대상 — UI 가 어느 카드를 pending 표시할지 결정. */
+  cardInstanceId?: string
 }
 
 export interface BattleState {
@@ -21,7 +23,7 @@ export interface BattleState {
   /** 수신 ServerMessage 를 받아 상태 갱신(리듀서). */
   apply: (msg: ServerMessage) => void
   /** intent 전송 시 호출 — 낙관적 pending 등록. */
-  trackIntent: (intentId: string, type: string) => void
+  trackIntent: (intentId: string, type: string, cardInstanceId?: string) => void
   reset: () => void
 }
 
@@ -33,8 +35,10 @@ export function createBattleStore(): BattleStore {
     pendingIntents: {},
     connected: false,
 
-    trackIntent: (intentId, type) =>
-      set((s) => ({ pendingIntents: { ...s.pendingIntents, [intentId]: { intentId, type, status: 'pending' } } })),
+    trackIntent: (intentId, type, cardInstanceId) =>
+      set((s) => ({
+        pendingIntents: { ...s.pendingIntents, [intentId]: { intentId, type, status: 'pending', cardInstanceId } },
+      })),
 
     reset: () => set({ snapshot: undefined, pendingIntents: {}, connected: false }),
 

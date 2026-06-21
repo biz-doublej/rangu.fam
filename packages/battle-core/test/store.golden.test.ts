@@ -60,6 +60,7 @@ describe('MessageMapper: WS 바이너리 → 스토어', () => {
     const socket: SocketLike = {
       binaryType: '',
       addEventListener: (_t, cb) => { listener = cb },
+      send: () => {},
     }
     attachMessageMapper(socket, store)
     expect(socket.binaryType).toBe('arraybuffer')

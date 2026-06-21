@@ -8,6 +8,8 @@ import type { BattleStore } from './battleStore'
 export interface SocketLike {
   binaryType?: string
   addEventListener(type: 'message', listener: (ev: { data: unknown }) => void): void
+  /** 아웃바운드 intent 전송(브라우저 WebSocket.send 호환). */
+  send(data: Uint8Array): void
 }
 
 /**
