@@ -32,6 +32,12 @@ function Board() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
+      <div className="text-xs text-slate-400">상대 손패 ({vm.opponent.handCount}) — 🔒 마스킹(뒷면)</div>
+      <Row>
+        {vm.opponentHand.map((c) => <CardTile key={c.instanceId} card={c} />)}
+        {vm.opponentHand.length === 0 ? <span className="text-xs text-slate-600">— 상대 손패 없음 —</span> : null}
+      </Row>
+
       <NexusBar side={vm.opponent} label="상대" />
       <Row>
         {vm.opponent.board.map((c) => <CardSlot key={c.instanceId} card={c} />)}

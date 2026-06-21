@@ -35,6 +35,8 @@ export interface BattleVM {
   me: SideVM
   opponent: SideVM
   myHand: CardVM[]
+  /** 상대 손패 — 마스킹되어 전부 faceDown(뒷면). 장수만큼 카드백 렌더용. */
+  opponentHand: CardVM[]
   stackCount: number
 }
 
@@ -86,6 +88,9 @@ export function selectBattle(snapshot: GameStateSnapshot | undefined, mySeat: nu
     opponent: side(snapshot, oppSeat),
     myHand: snapshot.cards
       .filter((c) => c.controller?.seat === mySeat && c.zone === Zone.ZONE_HAND)
+      .map(toCardVM),
+    opponentHand: snapshot.cards
+      .filter((c) => c.controller?.seat === oppSeat && c.zone === Zone.ZONE_HAND)
       .map(toCardVM),
     stackCount: snapshot.stack.length,
   }

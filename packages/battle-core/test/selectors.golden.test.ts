@@ -26,6 +26,10 @@ describe('selectBattle: 스냅샷 → UI 뷰모델 (실제 fixture)', () => {
     expect(vm.me.board.length).toBeGreaterThan(0)
     expect(vm.me.board[0].definitionId).toBeTruthy()
     expect(vm.opponent.handCount).toBeGreaterThan(0)
+
+    // 🔒 상대 손패는 faceDown 카드백으로만 — 정의(definitionId) 누출 없음, 장수는 handCount 와 일치
+    expect(vm.opponentHand.length).toBe(vm.opponent.handCount)
+    expect(vm.opponentHand.every((c) => c.faceDown && !c.definitionId)).toBe(true)
   })
 
   it('상대(seat1) 관점에선 내 손패가 faceDown 으로만 보임(대칭 마스킹은 서버가, 셀렉터는 hidden→faceDown)', () => {
