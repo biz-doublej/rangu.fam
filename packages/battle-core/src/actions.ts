@@ -33,3 +33,31 @@ export function pass(socket: SocketLike, store: BattleStore): string {
   send(socket, id, { pass: {} })
   return id
 }
+
+/** 공격 선언 — 공격자 instanceId 배열. */
+export function declareAttack(socket: SocketLike, store: BattleStore, attackerInstanceIds: string[]): string {
+  const id = nextId('atk')
+  store.getState().trackIntent(id, 'declareAttack')
+  send(socket, id, { declareAttack: { attackerInstanceIds } })
+  return id
+}
+
+/** 블록 선언 — {공격자, 방어자} 배정 배열. */
+export function declareBlock(
+  socket: SocketLike,
+  store: BattleStore,
+  blocks: { attackerInstanceId: string; blockerInstanceId: string }[],
+): string {
+  const id = nextId('blk')
+  store.getState().trackIntent(id, 'declareBlock')
+  send(socket, id, { declareBlock: { blocks } })
+  return id
+}
+
+/** 스택 비대응 → 해결 진행. */
+export function resolveStack(socket: SocketLike, store: BattleStore): string {
+  const id = nextId('rs')
+  store.getState().trackIntent(id, 'resolveStack')
+  send(socket, id, { resolveStack: {} })
+  return id
+}

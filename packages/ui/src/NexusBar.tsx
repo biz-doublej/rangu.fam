@@ -9,11 +9,11 @@ export interface NexusBarProps {
   className?: string
 }
 
-/** 넥서스 체력 바 + 마나/공격권. */
+/** 넥서스 체력 바 + 마나/공격권. data-nexus-seat 로 넥서스 피해 수치 위치를 찾는다. */
 export function NexusBar({ side, label, className }: NexusBarProps) {
   const pct = Math.max(0, Math.min(100, (side.nexusHealth / STARTING_NEXUS) * 100))
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div data-nexus-seat={side.seat} className={cn('flex items-center gap-2', className)}>
       {label ? <span className="w-12 text-xs text-slate-400">{label}</span> : null}
       <div className="relative h-4 w-40 overflow-hidden rounded-full bg-slate-700">
         <div className="h-full bg-gradient-to-r from-rose-500 to-amber-400 transition-all duration-500" style={{ width: `${pct}%` }} />

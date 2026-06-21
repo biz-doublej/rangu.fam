@@ -6,6 +6,9 @@ import {
   playCard,
   mulligan,
   pass,
+  declareAttack,
+  declareBlock,
+  resolveStack,
   type BattleState,
   type BattleStore,
   type SocketLike,
@@ -37,4 +40,13 @@ export function doMulligan(replaceCardInstanceIds: string[] = []): void {
 }
 export function doPass(): void {
   if (socket) pass(socket, battleStore)
+}
+export function doDeclareAttack(attackerInstanceIds: string[]): void {
+  if (socket) declareAttack(socket, battleStore, attackerInstanceIds)
+}
+export function doDeclareBlock(blocks: { attackerInstanceId: string; blockerInstanceId: string }[]): void {
+  if (socket) declareBlock(socket, battleStore, blocks)
+}
+export function doResolveStack(): void {
+  if (socket) resolveStack(socket, battleStore)
 }

@@ -38,6 +38,13 @@ export interface BattleVM {
   /** 상대 손패 — 마스킹되어 전부 faceDown(뒷면). 장수만큼 카드백 렌더용. */
   opponentHand: CardVM[]
   stackCount: number
+  /** 전투 상태 — pairs 비어있으면 전투 중 아님. */
+  combat: CombatVM
+}
+
+export interface CombatVM {
+  attackerSeat?: number
+  pairs: { attackerInstanceId: string; blockerInstanceId: string }[]
 }
 
 export function toCardVM(c: CardView): CardVM {
@@ -93,5 +100,12 @@ export function selectBattle(snapshot: GameStateSnapshot | undefined, mySeat: nu
       .filter((c) => c.controller?.seat === oppSeat && c.zone === Zone.ZONE_HAND)
       .map(toCardVM),
     stackCount: snapshot.stack.length,
+    combat: {
+      attackerSeat: snapshot.combat?.attacker?.seat,
+      pairs: (snapshot.combat?.pairs ?? []).map((p) => ({
+        attackerInstanceId: p.attackerInstanceId,
+        blockerInstanceId: p.blockerInstanceId,
+      })),
+    },
   }
 }
