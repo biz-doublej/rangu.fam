@@ -1,0 +1,23 @@
+{
+  "name": "@rangu/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": { "types": "./src/index.ts", "import": "./src/index.ts", "default": "./src/index.ts" } },
+  "description": "랑구 택틱스 공유 UI — cva + tailwind-merge. 뷰모델(@rangu/battle-core) 주입.",
+  "scripts": { "build": "tsc --noEmit" },
+  "peerDependencies": { "react": ">=18" },
+  "dependencies": {
+    "@rangu/battle-core": "file:../battle-core",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18",
+    "react": "^18",
+    "typescript": "^5.7.2"
+  }
+}

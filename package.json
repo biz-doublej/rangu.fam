@@ -18,6 +18,10 @@
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
+    "@rangu/battle-core": "*",
+    "@rangu/proto-ts": "*",
+    "@rangu/ui": "*",
+    "zustand": "^5.0.2",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

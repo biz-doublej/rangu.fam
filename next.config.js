@@ -2,6 +2,8 @@
 const nextConfig = {
   // Cloud Run / 컨테이너 배포용 standalone 출력
   output: 'standalone',
+  // 워크스페이스 TS 패키지를 Next 가 트랜스파일 (랑구 택틱스 FE)
+  transpilePackages: ['@rangu/proto-ts', '@rangu/battle-core', '@rangu/ui'],
   images: {
     remotePatterns: [
       { protocol: 'http', hostname: 'localhost', pathname: '/**' },
