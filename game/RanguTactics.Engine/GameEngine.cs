@@ -153,11 +153,11 @@ public static partial class GameEngine
         string? error = action switch
         {
             MulliganAction m => DoMulligan(s, actor, m.Replace, events),
-            PlayUnitAction => "not_implemented:playUnit",   // 3단계
-            PlaySpellAction => "not_implemented:playSpell",  // 3단계
-            DeclareAttackAction => "not_implemented:declareAttack", // 4단계
-            DeclareBlockAction => "not_implemented:declareBlock",   // 4단계
-            PassAction => "not_implemented:pass",            // 4~5단계
+            PlayUnitAction a => DoPlayUnit(s, actor, a.InstanceId, events),
+            PlaySpellAction a => DoPlaySpell(s, actor, a.InstanceId, a.Targets, events),
+            DeclareAttackAction => "not_implemented:declareAttack", // 4단계(전투)
+            DeclareBlockAction => "not_implemented:declareBlock",   // 4단계(전투)
+            PassAction => DoPass(s, actor, events),
             _ => "unknown_action",
         };
 
