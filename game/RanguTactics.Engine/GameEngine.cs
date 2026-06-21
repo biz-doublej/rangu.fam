@@ -155,8 +155,8 @@ public static partial class GameEngine
             MulliganAction m => DoMulligan(s, actor, m.Replace, events),
             PlayUnitAction a => DoPlayUnit(s, actor, a.InstanceId, events),
             PlaySpellAction a => DoPlaySpell(s, actor, a.InstanceId, a.Targets, events),
-            DeclareAttackAction => "not_implemented:declareAttack", // 4단계(전투)
-            DeclareBlockAction => "not_implemented:declareBlock",   // 4단계(전투)
+            DeclareAttackAction a => DoDeclareAttack(s, actor, a.Attackers, a.Challenges, events),
+            DeclareBlockAction a => DoDeclareBlock(s, actor, a.Blocks, events),
             PassAction => DoPass(s, actor, events),
             _ => "unknown_action",
         };

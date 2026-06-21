@@ -89,7 +89,18 @@ public static partial class GameEngine
     {
         if (s.Phase != BattlePhase.Action && s.Phase != BattlePhase.DeclareBlock) return "cannot_pass_now";
         if (s.Priority != slot) return "no_priority";
-        if (s.Phase == BattlePhase.DeclareBlock) return "not_implemented:combat_pass"; // 4단계(전투)
+
+        // 블록 선언 전 수비자의 패스 = "블록 안 함"
+        if (s.Phase == BattlePhase.DeclareBlock && s.Combat is { BlocksDeclared: false })
+        {
+            if (slot != s.ActivePlayer.Other()) return "only_defender_can_block";
+            s.Combat.BlocksDeclared = true;
+            s.Combat.Blocks = new();
+            s.Priority = s.ActivePlayer; // 전투 반응 윈도우
+            s.PassStreak = 0;
+            EmitEvent(events, s, slot.ToActor(), "passBlock");
+            return null;
+        }
 
         s.PassStreak += 1;
         EmitEvent(events, s, slot.ToActor(), "pass", new() { ["streak"] = s.PassStreak });
@@ -112,8 +123,21 @@ public static partial class GameEngine
             return null;
         }
 
+        // 블록 선언 끝난 전투 → 전투 해결
+        if (s.Phase == BattlePhase.DeclareBlock && s.Combat is { BlocksDeclared: true })
+        {
+            ResolveCombat(s, events);
+            return null;
+        }
+
         // 액션 단계 + 스택 없음 → 다음 라운드
-        BeginRoundInPlace(s, s.Round + 1, events);
+        if (s.Phase == BattlePhase.Action)
+        {
+            BeginRoundInPlace(s, s.Round + 1, events);
+            return null;
+        }
+
+        s.Priority = slot.Other(); // 그 외엔 우선권만 교대
         return null;
     }
 
