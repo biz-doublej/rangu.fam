@@ -1,0 +1,22 @@
+{
+  "name": "@rangu/proto-ts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "랑구 택틱스 proto → TS 생성 (C# 서버와 단일 계약). ts-proto via buf.",
+  "scripts": {
+    "gen": "buf generate ../../game/proto",
+    "test": "vitest run",
+    "build": "npm run gen && tsc --noEmit"
+  },
+  "dependencies": {
+    "protobufjs": "^7.4.0"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.47.2",
+    "@types/node": "^22.10.0",
+    "ts-proto": "^2.6.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

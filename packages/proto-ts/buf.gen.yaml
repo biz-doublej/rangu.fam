@@ -1,0 +1,10 @@
+version: v2
+# ts-proto 로 proto → TS 생성. buf 가 node_modules/.bin 의 플러그인을 크로스플랫폼으로 호출.
+plugins:
+  - local: protoc-gen-ts_proto
+    out: src/gen
+    opt:
+      - forceLong=number        # 64bit(seq/timestamp) → number (값이 작아 안전, Long 의존 제거)
+      - esModuleInterop=true
+      - outputServices=false    # gRPC 서비스 스텁 불필요(WS 전송)
+      - useOptionals=messages   # 메시지 필드는 optional → 부분 스냅샷 매핑 편의

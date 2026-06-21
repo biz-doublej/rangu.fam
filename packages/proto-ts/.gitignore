@@ -1,0 +1,3 @@
+node_modules/
+# 생성 코드 — buf generate 로 재생성(커밋 제외)
+src/gen/
