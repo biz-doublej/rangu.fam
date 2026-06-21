@@ -151,7 +151,7 @@ public static partial class GameEngine
             ResolveSpellEffect(s, item, events);
             if (s.Phase == BattlePhase.Finished) break;
         }
-        CleanupDead(s);
+        CleanupDead(s, events);
         CheckWin(s, events);
     }
 
@@ -176,7 +176,7 @@ public static partial class GameEngine
                     AddBuff(gu, new StatBuff { KeywordsAdded = { k }, Duration = eff.Duration, Source = item.Card.CardId });
                 break;
             case SpellEffectKind.DamageUnit:
-                if (TargetUnit(s, first) is { } du) DealDamageToUnit(s, du, amount);
+                if (TargetUnit(s, first) is { } du) DealDamageToUnit(s, du, amount, events);
                 break;
             case SpellEffectKind.DamageNexus:
                 DealNexusDamage(s, src.Other(), amount, events);
@@ -192,7 +192,7 @@ public static partial class GameEngine
                 break;
         }
 
-        CleanupDead(s);
+        CleanupDead(s, events);
         CheckWin(s, events);
         EmitEvent(events, s, src.ToActor(), "spellResolved",
             new() { ["card"] = item.Card.CardId, ["kind"] = eff.Kind.ToString() });
@@ -209,7 +209,7 @@ public static partial class GameEngine
 
     // ── 데미지 / 조회 ─────────────────────────────────────────────
     /// <summary>유닛 피해. 끈질김(-1)/보호막(무효) 적용. 흡혈 source 본진 회복. 반환 = 실제 적용 피해.</summary>
-    private static int DealDamageToUnit(GameState s, BattleUnit target, int amount, BattleUnit? source = null)
+    private static int DealDamageToUnit(GameState s, BattleUnit target, int amount, List<GameEvent> events, BattleUnit? source = null)
     {
         int amt = amount;
         if (target.Keywords.Contains(Keyword.Tough)) amt = Math.Max(0, amt - 1);
@@ -218,22 +218,28 @@ public static partial class GameEngine
         target.Health -= amt;
         if (amt > 0 && source is not null && source.Keywords.Contains(Keyword.Lifesteal))
             HealNexus(s, source.Owner, Math.Min(amt, healthBefore)); // 오버킬 제외
+        if (amt > 0)
+            EmitEvent(events, s, EventActor.System, "unitDamaged",
+                new() { ["target"] = target.InstanceId, ["amount"] = amt, ["lethal"] = target.Health <= 0 });
         return amt;
     }
 
-    private static void CleanupDead(GameState s)
+    private static void CleanupDead(GameState s, List<GameEvent> events)
     {
+        var dead = new List<string>();
         foreach (var slot in new[] { PlayerSlot.P1, PlayerSlot.P2 })
         {
             var p = s.Player(slot);
             var alive = new List<BattleUnit>(p.Board.Count);
             foreach (var u in p.Board)
             {
-                if (u.Health <= 0) p.Graveyard.Add(u.CardId);
+                if (u.Health <= 0) { p.Graveyard.Add(u.CardId); dead.Add(u.InstanceId); }
                 else alive.Add(u);
             }
             p.Board = alive;
         }
+        if (dead.Count > 0)
+            EmitEvent(events, s, EventActor.System, "unitDied", new() { ["ids"] = dead });
     }
 
     private static BattleUnit? FindAnyUnit(GameState s, string instanceId)

@@ -147,9 +147,54 @@ export const cardDrops = pgTable(
   })
 )
 
+// ── 카드 교환 제안 (멤버 간 트레이딩) ─────────────────────────
+// 제안자(from)가 offer 카드를 내놓고 recipient(to)에게 request 카드를 요구.
+// 수락 시 양측 user_cards 수량을 트랜잭션으로 맞교환한다.
+export const cardTrades = pgTable(
+  'card_trades',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fromUserId: uuid('from_user_id').notNull().references(() => wikiUsers.id, { onDelete: 'cascade' }),
+    toUserId: uuid('to_user_id').notNull().references(() => wikiUsers.id, { onDelete: 'cascade' }),
+    offerCardId: text('offer_card_id').notNull(), // 제안자가 주는 카드 (cards.card_id)
+    offerQuantity: integer('offer_quantity').notNull().default(1),
+    requestCardId: text('request_card_id').notNull(), // 제안자가 받고 싶은 카드 (cards.card_id)
+    requestQuantity: integer('request_quantity').notNull().default(1),
+    status: text('status').notNull().default('pending'), // 'pending' | 'accepted' | 'rejected' | 'cancelled'
+    message: text('message'),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    toStatusIdx: index('card_trades_to_status_idx').on(t.toUserId, t.status),
+    fromStatusIdx: index('card_trades_from_status_idx').on(t.fromUserId, t.status),
+    createdIdx: index('card_trades_created_idx').on(t.createdAt),
+  })
+)
+
+// ── 사용자 혜택/선물상자 상태 (1:1) ──────────────────────────
+// 랜덤 선물상자 보상으로 쌓이는 보너스 드랍권·조합 보호권, 그리고 그날의 상자
+// 개봉 상태를 저장. 기존 테이블과 분리해 둬서(가드된 조회) 마이그레이션 전에도
+// 기존 카드 기능은 영향받지 않는다.
+export const userPerks = pgTable('user_perks', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => wikiUsers.id, { onDelete: 'cascade' }),
+  bonusDrops: integer('bonus_drops').notNull().default(0), // 추가 드랍권(뽑기권) 보유량
+  craftProtections: integer('craft_protections').notNull().default(0), // 조합 보호권 보유량
+  giftDate: text('gift_date'), // 현재 선물상자 배치의 기준일 'YYYY-MM-DD' (KST)
+  giftOpened: jsonb('gift_opened').notNull().default([]).$type<number[]>(), // 그날 개봉한 상자 index
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export type Card = typeof cards.$inferSelect
 export type NewCard = typeof cards.$inferInsert
 export type UserCard = typeof userCards.$inferSelect
 export type NewUserCard = typeof userCards.$inferInsert
 export type UserCardStats = typeof userCardStats.$inferSelect
 export type CardDrop = typeof cardDrops.$inferSelect
+export type CardTrade = typeof cardTrades.$inferSelect
+export type NewCardTrade = typeof cardTrades.$inferInsert
+export type UserPerks = typeof userPerks.$inferSelect

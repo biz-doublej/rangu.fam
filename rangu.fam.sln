@@ -1,0 +1,66 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "game", "game", "{AE49D761-A782-2099-29A5-159B937B43CB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "proto", "proto", "{1B613FEA-683C-20A5-72F3-E8768CD066FD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RanguTactics.Proto", "game\proto\RanguTactics.Proto.csproj", "{1E954C96-BEDC-D164-B825-1E406FF67992}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "rangu-tactics-server", "rangu-tactics-server", "{547D5C29-4F0C-E1A2-F285-9EDC101AADC1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RanguTactics.Server", "game\rangu-tactics-server\RanguTactics.Server.csproj", "{6FF5AF0C-6057-EC24-0C55-E7125FA74AF0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "rangu-tactics-smoke-client", "rangu-tactics-smoke-client", "{73B66F12-6FC8-4F92-5C3C-51BB2B16451C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RanguTactics.SmokeClient", "game\rangu-tactics-smoke-client\RanguTactics.SmokeClient.csproj", "{09292912-118C-BC74-CBCA-D7A0AD7E7F7E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RanguTactics.Engine", "game\RanguTactics.Engine\RanguTactics.Engine.csproj", "{8D9D7B10-6FF5-D748-1AA0-9636B0992A0B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RanguTactics.Engine.Tests", "game\RanguTactics.Engine.Tests\RanguTactics.Engine.Tests.csproj", "{1766A042-80E2-8602-B7ED-AC88F58619F2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1E954C96-BEDC-D164-B825-1E406FF67992}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E954C96-BEDC-D164-B825-1E406FF67992}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E954C96-BEDC-D164-B825-1E406FF67992}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E954C96-BEDC-D164-B825-1E406FF67992}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6FF5AF0C-6057-EC24-0C55-E7125FA74AF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6FF5AF0C-6057-EC24-0C55-E7125FA74AF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6FF5AF0C-6057-EC24-0C55-E7125FA74AF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6FF5AF0C-6057-EC24-0C55-E7125FA74AF0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09292912-118C-BC74-CBCA-D7A0AD7E7F7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09292912-118C-BC74-CBCA-D7A0AD7E7F7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09292912-118C-BC74-CBCA-D7A0AD7E7F7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09292912-118C-BC74-CBCA-D7A0AD7E7F7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D9D7B10-6FF5-D748-1AA0-9636B0992A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D9D7B10-6FF5-D748-1AA0-9636B0992A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D9D7B10-6FF5-D748-1AA0-9636B0992A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D9D7B10-6FF5-D748-1AA0-9636B0992A0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1766A042-80E2-8602-B7ED-AC88F58619F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1766A042-80E2-8602-B7ED-AC88F58619F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1766A042-80E2-8602-B7ED-AC88F58619F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1766A042-80E2-8602-B7ED-AC88F58619F2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1B613FEA-683C-20A5-72F3-E8768CD066FD} = {AE49D761-A782-2099-29A5-159B937B43CB}
+		{1E954C96-BEDC-D164-B825-1E406FF67992} = {1B613FEA-683C-20A5-72F3-E8768CD066FD}
+		{547D5C29-4F0C-E1A2-F285-9EDC101AADC1} = {AE49D761-A782-2099-29A5-159B937B43CB}
+		{6FF5AF0C-6057-EC24-0C55-E7125FA74AF0} = {547D5C29-4F0C-E1A2-F285-9EDC101AADC1}
+		{73B66F12-6FC8-4F92-5C3C-51BB2B16451C} = {AE49D761-A782-2099-29A5-159B937B43CB}
+		{09292912-118C-BC74-CBCA-D7A0AD7E7F7E} = {73B66F12-6FC8-4F92-5C3C-51BB2B16451C}
+		{8D9D7B10-6FF5-D748-1AA0-9636B0992A0B} = {AE49D761-A782-2099-29A5-159B937B43CB}
+		{1766A042-80E2-8602-B7ED-AC88F58619F2} = {AE49D761-A782-2099-29A5-159B937B43CB}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E04F833C-19B8-48F6-B09A-11E6FBEF0B9D}
+	EndGlobalSection
+EndGlobal

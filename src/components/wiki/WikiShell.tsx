@@ -65,6 +65,7 @@ interface WikiShellProps {
 
 interface WikiPageHeaderProps {
   title: string
+  titleBadge?: React.ReactNode
   subtitle?: React.ReactNode
   hatnote?: React.ReactNode
   meta?: Array<{ label: string; value: React.ReactNode; icon?: React.ElementType }>
@@ -776,6 +777,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
  */
 export function WikiPageHeader({
   title,
+  titleBadge,
   subtitle,
   hatnote,
   meta,
@@ -798,7 +800,10 @@ export function WikiPageHeader({
       </div>
 
       <div className="flex items-end gap-3 flex-wrap">
-        <h1 className="wiki-h1 grow basis-[280px]">{title}</h1>
+        <h1 className="wiki-h1 grow basis-[280px]">
+          {title}
+          {titleBadge}
+        </h1>
         {actions && <div className="ml-auto flex items-center gap-2 pb-1 flex-wrap">{actions}</div>}
       </div>
 

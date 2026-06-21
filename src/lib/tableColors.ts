@@ -199,6 +199,10 @@ export interface ParsedCellDirectives {
   cell: WikiCellStyle
   row: WikiCellStyle
   table: WikiCellStyle
+  /** 열 병합 — 나무위키식 `<-N>` */
+  colSpan?: number
+  /** 행 병합 — 나무위키식 `<|N>` (다음 행에서는 해당 칸을 생략) */
+  rowSpan?: number
 }
 
 const ALIGN_VALUES = new Set(['left', 'center', 'right'])
@@ -221,7 +225,10 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
   result.content = cellContent
     .replace(/<([^<>]+)>/g, (full, inner: string) => {
       const pairs: Array<{ scope: string; attr: string; value: string }> = []
-      const pairRe = /\s*(table|row)?(bgcolor|color|border|align|font):("[^"]*"|[^\s>]+)\s*/y
+      const spans: Array<{ kind: 'col' | 'row'; n: number }> = []
+      // key:value 지시자 또는 병합 토큰(-N = 열 병합, |N = 행 병합)
+      const pairRe =
+        /\s*(?:(table|row)?(bgcolor|color|border|align|font):("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+))\s*/y
       let idx = 0
       let ok = true
       while (idx < inner.length) {
@@ -231,12 +238,24 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
           ok = false
           break
         }
-        let value = m[3].trim()
-        if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
-        pairs.push({ scope: (m[1] || '').toLowerCase(), attr: m[2].toLowerCase(), value })
+        if (m[4]) {
+          spans.push({ kind: 'col', n: parseInt(m[4].slice(1), 10) })
+        } else if (m[5]) {
+          spans.push({ kind: 'row', n: parseInt(m[5].slice(1), 10) })
+        } else {
+          let value = m[3].trim()
+          if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
+          pairs.push({ scope: (m[1] || '').toLowerCase(), attr: m[2].toLowerCase(), value })
+        }
         idx = pairRe.lastIndex
       }
-      if (!ok || pairs.length === 0) return full // 지시자 블록이 아님 → 보존
+      if (!ok || (pairs.length === 0 && spans.length === 0)) return full // 지시자 블록이 아님 → 보존
+
+      for (const { kind, n } of spans) {
+        if (!Number.isInteger(n) || n < 2 || n > 50) continue
+        if (kind === 'col') result.colSpan = n
+        else result.rowSpan = n
+      }
 
       for (const { scope, attr, value } of pairs) {
         const target = scope === 'table' ? result.table : scope === 'row' ? result.row : result.cell

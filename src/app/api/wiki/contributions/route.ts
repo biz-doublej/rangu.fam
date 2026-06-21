@@ -133,6 +133,34 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('기여도 조회 오류:', error)
+    // [DEV-MOCK] DB 없는 로컬 개발 환경 전용 — 칭호/잔디 렌더 경로 프리뷰 검증용.
+    if (process.env.NODE_ENV !== 'production') {
+      const author = new URL(request.url).searchParams.get('author') || 'demo'
+      const mockStats = {
+        totalEdits: 540,
+        createdDocs: 32,
+        pagesTouched: 25,
+        sizeAdded: 52000,
+        maxStreak: 8,
+        activeDays: 40,
+      }
+      const daily: Record<string, number> = {}
+      const today = new Date()
+      for (let i = 0; i < 60; i++) {
+        const d = new Date(today.getTime() - i * 2 * 86400000)
+        daily[
+          `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+        ] = (i % 8) + 1
+      }
+      return NextResponse.json({
+        success: true,
+        author,
+        daily,
+        stats: mockStats,
+        badges: computeBadges(mockStats),
+        mock: true,
+      })
+    }
     return NextResponse.json(
       { success: false, error: '기여도 데이터를 불러오지 못했습니다.' },
       { status: 500 }

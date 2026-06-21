@@ -3,10 +3,14 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  ArrowLeftRight,
+  BookMarked,
   ChevronLeft,
+  Dices,
   Hammer,
   Package,
   Sparkles,
+  Swords,
   WandSparkles,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -15,6 +19,10 @@ import { CardDropWidget } from '@/components/ui/CardDropWidget'
 import { CardCollection } from '@/components/ui/CardCollection'
 import { AdvancedCardCrafting } from '@/components/ui/AdvancedCardCrafting'
 import { RecentMemberCardActivity } from '@/components/ui/RecentMemberCardActivity'
+import { TradeCenter } from '@/components/cards/TradeCenter'
+import { DogamGallery } from '@/components/cards/DogamGallery'
+import { CardHeist } from '@/components/cards/CardHeist'
+import { BattleTab } from '@/components/cards/battle/BattleTab'
 import {
   PaperCard,
   Handwritten,
@@ -37,13 +45,17 @@ const formatCountdown = (ms: number) => {
 export default function CardsPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<'inventory' | 'crafting'>('inventory')
+  const [activeTab, setActiveTab] = useState<'inventory' | 'dogam' | 'crafting' | 'trade' | 'heist' | 'battle'>('inventory')
   const [timeUntilReset, setTimeUntilReset] = useState('24:00:00')
   const [nextResetLabel, setNextResetLabel] = useState('-')
 
   const tabs = [
     { id: 'inventory' as const, label: '인벤토리', icon: Package, desc: '컬렉션과 재료를 한눈에' },
+    { id: 'dogam' as const, label: '도감', icon: BookMarked, desc: '컬렉션 완성 현황' },
     { id: 'crafting' as const, label: '제작 랩', icon: Hammer, desc: '소재를 모아 프레스티지로' },
+    { id: 'trade' as const, label: '교환소', icon: ArrowLeftRight, desc: '멤버와 카드를 맞교환' },
+    { id: 'heist' as const, label: '강탈', icon: Dices, desc: '한 판에 뺏거나 뺏기거나' },
+    { id: 'battle' as const, label: '배틀', icon: Swords, desc: 'AI와 룬테라식 한 판' },
   ]
 
   useEffect(() => {
@@ -153,7 +165,7 @@ export default function CardsPage() {
               { name: 'Special', label: '스페셜', rate: '30%', tone: '희귀', accent: '#3E5C4A' },
               { name: 'Signature', label: '시그니처', rate: '10%', tone: '희귀', accent: '#E0654E' },
               { name: 'Material', label: '재료', rate: '10%', tone: '조합용', accent: '#C28A2D' },
-              { name: 'Prestige', label: '프레스티지', rate: '0%', tone: '초희귀 · 조합 한정', accent: '#9A6C20' },
+              { name: 'Prestige', label: '프레스티지', rate: '제작', tone: '드랍 불가 · 조합/도감 한정', accent: '#9A6C20' },
             ].map((r) => (
               <PaperCard key={r.name} className="!p-4 text-center">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-ink-300">{r.name}</p>
@@ -221,7 +233,15 @@ export default function CardsPage() {
               </div>
             )}
 
+            {activeTab === 'dogam' && <DogamGallery userId={user?.id} />}
+
             {activeTab === 'crafting' && <AdvancedCardCrafting userId={user?.id} />}
+
+            {activeTab === 'trade' && <TradeCenter userId={user?.id} />}
+
+            {activeTab === 'heist' && <CardHeist userId={user?.id} />}
+
+            {activeTab === 'battle' && <BattleTab userId={user?.id} />}
           </motion.div>
         </section>
       </main>

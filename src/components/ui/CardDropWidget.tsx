@@ -30,7 +30,7 @@ const RARITY_DISPLAY = [
   { key: 'material', chance: 2 },
 ] as const
 
-const MAX_DAILY_DROPS = 5
+const MAX_DAILY_DROPS = 10
 
 export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) {
   const { user } = useAuth()
@@ -81,7 +81,7 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
       return
     }
     if (remainingDrops <= 0) {
-      setDropMessage({ text: '오늘의 드랍 5회를 모두 사용했어요.', tone: 'warn' })
+      setDropMessage({ text: `오늘의 드랍 ${MAX_DAILY_DROPS}회를 모두 사용했어요.`, tone: 'warn' })
       return
     }
 
@@ -176,7 +176,7 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
               <CaveatText className="text-base text-coral-500">daily drop</CaveatText>
               <h3 className="display-han mt-0.5 text-2xl text-ink-500">카드 드랍</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-ink-300">
-                하루 5장. 자정에 다시 채워져요.
+                하루 {MAX_DAILY_DROPS}장. 자정에 다시 채워져요.
               </p>
             </div>
 

@@ -166,7 +166,7 @@ public static partial class GameEngine
             }
 
             int bHealthBefore = b.Health;
-            int dealtToBlocker = StrikePair(s, a, b);
+            int dealtToBlocker = StrikePair(s, a, b, events);
 
             // 일격: 막은 유닛에 실제 들어간 피해 중 초과분만 본진 관통
             if (a.Keywords.Contains(Keyword.Overwhelm) && b.Health <= 0)
@@ -180,7 +180,7 @@ public static partial class GameEngine
             }
         }
 
-        CleanupDead(s);
+        CleanupDead(s, events);
         CheckWin(s, events);
         s.Combat = null;
         if (s.Phase != BattlePhase.Finished)
@@ -193,20 +193,20 @@ public static partial class GameEngine
     }
 
     /// <summary>한 쌍의 타격. 속공이면 공격자 선타(상대 죽으면 반격 없음), 아니면 동시. 반환 = 블로커에 실제 적용된 피해.</summary>
-    private static int StrikePair(GameState s, BattleUnit a, BattleUnit b)
+    private static int StrikePair(GameState s, BattleUnit a, BattleUnit b, List<GameEvent> events)
     {
         bool aFirst = a.Keywords.Contains(Keyword.QuickAttack) && !b.Keywords.Contains(Keyword.QuickAttack);
         int dealtToBlocker;
         if (aFirst)
         {
-            dealtToBlocker = DealDamageToUnit(s, b, a.Power, a);
-            if (b.Health > 0) DealDamageToUnit(s, a, b.Power, b); // 상대 생존 시에만 반격
+            dealtToBlocker = DealDamageToUnit(s, b, a.Power, events, a);
+            if (b.Health > 0) DealDamageToUnit(s, a, b.Power, events, b); // 상대 생존 시에만 반격
         }
         else
         {
             int bPow = b.Power; // 동시 타격 — b 파워 먼저 고정
-            dealtToBlocker = DealDamageToUnit(s, b, a.Power, a);
-            DealDamageToUnit(s, a, bPow, b);
+            dealtToBlocker = DealDamageToUnit(s, b, a.Power, events, a);
+            DealDamageToUnit(s, a, bPow, events, b);
         }
         return dealtToBlocker;
     }

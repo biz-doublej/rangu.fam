@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Toaster } from 'react-hot-toast'
 import { Footer } from '@/components/ui'
 import { DemoNotificationTrigger } from '@/components/DemoNotificationTrigger'
+import { GiftBoxLayer } from '@/components/GiftBoxLayer'
 
 type Section = 'rangu' | 'wiki' | 'university' | 'admin' | 'member'
 
@@ -45,6 +46,8 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     <div className="relative" data-section={section}>
       {!isUniversity && <DemoNotificationTrigger />}
       {children}
+      {/* 랜덤 선물상자 — 랑구팸 메인 페이지에서만 (위키/멤버/대학/관리자 제외) */}
+      {isRangu && <GiftBoxLayer />}
       {!isUniversity && <Footer />}
       {!isUniversity && (
         <Toaster

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
+  BarChart3,
   BookOpen,
   ChevronRight,
   Clock,
@@ -125,6 +126,8 @@ export default function WikiMainPage() {
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
   const [trending, setTrending] = useState<TrendingItem[]>([])
+  const [trendingPeriod, setTrendingPeriod] = useState<'week' | 'month'>('week')
+  const [trendingFallback, setTrendingFallback] = useState(false)
   const [recent, setRecent] = useState<RecentChange[]>([])
   const [categories, setCategories] = useState<CategoryOverview[]>([])
   const [latestEdit, setLatestEdit] = useState<{ lastEditDate: string; lastEditor: string; views: number } | null>(null)
@@ -146,11 +149,19 @@ export default function WikiMainPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/wiki/trending?limit=10')
+    let mounted = true
+    fetch(`/api/wiki/trending?period=${trendingPeriod}&limit=10`)
       .then(r => r.json())
-      .then(d => { if (d.success && d.trending) setTrending(d.trending) })
-      .catch(() => setTrending([]))
-  }, [])
+      .then(d => {
+        if (!mounted) return
+        if (d.success && d.trending) {
+          setTrending(d.trending)
+          setTrendingFallback(Boolean(d.fallback))
+        }
+      })
+      .catch(() => { if (mounted) setTrending([]) })
+    return () => { mounted = false }
+  }, [trendingPeriod])
 
   useEffect(() => {
     fetch('/api/wiki/recent?limit=8')
@@ -292,12 +303,48 @@ export default function WikiMainPage() {
             </tbody>
           </table>
 
-          {/* 실시간 검색어 */}
+          {/* 인기 문서 — 기간별 실지표 */}
           <section className="wiki-panel">
-            <h4 className="flex items-center gap-2 wiki-serif text-base font-semibold">
-              <TrendingUp className="w-4 h-4 text-[color:var(--wiki-danger)]" />
-              실시간 인기 문서
-            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="flex items-center gap-2 wiki-serif text-base font-semibold">
+                <TrendingUp className="w-4 h-4 text-[color:var(--wiki-danger)]" />
+                인기 문서
+              </h4>
+              <button
+                type="button"
+                onClick={() => router.push('/wiki/stats')}
+                className="inline-flex items-center gap-1 text-[11px] text-[color:var(--wiki-ink-muted)] hover:text-[color:var(--wiki-link)]"
+                title="이랑위키 연보 — 전체 통계"
+              >
+                <BarChart3 className="w-3 h-3" />
+                연보
+              </button>
+            </div>
+            {/* 기간 토글 */}
+            <div className="mt-2 inline-flex rounded-md border border-[color:var(--wiki-rule)] p-0.5 text-[11px]">
+              {([
+                { key: 'week', label: '이번 주' },
+                { key: 'month', label: '한 달' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setTrendingPeriod(opt.key)}
+                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                    trendingPeriod === opt.key
+                      ? 'bg-[color:var(--wiki-danger)]/15 text-[color:var(--wiki-danger)]'
+                      : 'text-[color:var(--wiki-ink-muted)] hover:text-[color:var(--wiki-ink)]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {trendingFallback && trending.length > 0 && (
+              <p className="mt-1.5 text-[10px] text-[color:var(--wiki-ink-muted)]">
+                * 기간 집계 데이터가 쌓이는 중 — 현재는 누적 조회 기준입니다.
+              </p>
+            )}
             <ol className="mt-2 space-y-1 text-sm">
               {trending.length === 0 && (
                 <li className="text-xs text-[color:var(--wiki-ink-muted)]">집계 중입니다.</li>

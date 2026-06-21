@@ -1,5 +1,6 @@
 export { WikiShell, WikiShellLayoutFrame, WikiPageHeader } from './WikiShell'
 export { WikiMeter } from './WikiMeter'
+export { WikiTableOfContents } from './WikiTableOfContents'
 export {
   DocumentFunctionsPanel,
   FUNCTION_DEFINITIONS,

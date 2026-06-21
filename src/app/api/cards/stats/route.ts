@@ -7,7 +7,7 @@ import { normalizeUserIdToUuid } from '@/lib/cardHelpers'
 export const dynamic = 'force-dynamic'
 
 const DROP_WINDOW_MS = 24 * 60 * 60 * 1000
-const MAX_DROPS_PER_WINDOW = 5
+const MAX_DROPS_PER_WINDOW = 10
 
 // GET: 사용자 카드 통계 조회
 export async function GET(request: NextRequest) {

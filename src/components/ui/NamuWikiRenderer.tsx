@@ -296,6 +296,47 @@ const RoleBanner = ({ role }: { role: string }) => {
   )
 }
 
+// ── 인용 박스 (pull-quote + 출처) ─────────────────────────────
+// {{인용| 인용문 | 출처(선택) | 링크(선택) }}
+const CitationBox = ({
+  quote,
+  source,
+  url,
+  parseInline,
+}: {
+  quote: string
+  source?: string
+  url?: string
+  parseInline: (text: string) => React.ReactNode
+}) => {
+  const attribution = source
+    ? url
+      ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-amber-200 hover:text-amber-100 underline underline-offset-2"
+        >
+          {source}
+        </a>
+      )
+      : <span>{source}</span>
+    : null
+
+  return (
+    <figure className="my-5 relative rounded-r-md border-l-4 border-amber-500/70 bg-gradient-to-r from-amber-500/10 to-transparent pl-6 pr-4 py-4">
+      <Quote className="absolute top-2 left-2 h-6 w-6 text-amber-500/25" aria-hidden="true" />
+      <blockquote className="relative z-10 text-[15px] italic leading-relaxed text-gray-100">
+        {parseInline(quote)}
+      </blockquote>
+      {attribution && (
+        <figcaption className="mt-2 text-right text-xs text-amber-200/80">— {attribution}</figcaption>
+      )}
+    </figure>
+  )
+}
+
 export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false }: NamuWikiRendererProps): JSX.Element {
   const [toc, setToc] = useState<TableOfContentsItem[]>([])
   const [footnotes, setFootnotes] = useState<{[key: string]: string}>({})
@@ -1328,6 +1369,25 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         continue
       }
 
+      // 인용 박스: {{인용| 인용문 | 출처(선택) | 링크(선택) }}
+      const citationMatch = trimmed.match(/^\{\{\s*인용\s*\|(.+)\}\}$/)
+      if (citationMatch) {
+        const segs = citationMatch[1].split('|').map((s) => s.trim())
+        const [quote, source, url] = segs
+        if (quote) {
+          elements.push(
+            <CitationBox
+              key={`cite-${i}`}
+              quote={quote}
+              source={source || undefined}
+              url={url || undefined}
+              parseInline={parseInlineElements}
+            />
+          )
+          continue
+        }
+      }
+
       // 수평선: --- (3개 이상의 dash)
       if (/^-{3,}$/.test(trimmed)) {
         elements.push(<hr key={i} className="my-6 border-0 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />)
@@ -1957,6 +2017,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                           return (
                             <CellTag
                               key={cellIndex}
+                              colSpan={parsed.colSpan}
+                              rowSpan={parsed.rowSpan}
                               className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
                                 isHeaderRow ? 'font-semibold' : ''
                               }`}

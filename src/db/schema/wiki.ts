@@ -1,9 +1,11 @@
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -197,6 +199,26 @@ export const wikiPages = pgTable(
     categoriesIdx: index('wiki_pages_categories_idx').on(t.categories),
     viewsIdx: index('wiki_pages_views_idx').on(t.views),
     lastEditIdx: index('wiki_pages_last_edit_idx').on(t.lastEditDate),
+  })
+)
+
+// ── 일별 조회수 롤업 ────────────────────────────────────────────
+// wikiPages.views 는 누적 단일 카운터라 기간별(주/월) 실지표를 낼 수 없다.
+// 문서를 열 때마다 (page_id, KST 날짜) 행을 upsert(+1)해서 시간축 있는
+// 인기도 집계를 가능하게 한다. (page_id, day) 복합 PK — 페이지·날짜당 1행으로 bounded.
+// 주간 = 최근 7일 합, 월간 = 최근 30일 합.
+export const wikiPageViewDaily = pgTable(
+  'wiki_page_view_daily',
+  {
+    pageId: uuid('page_id')
+      .notNull()
+      .references(() => wikiPages.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.pageId, t.day] }),
+    dayIdx: index('wiki_page_view_daily_day_idx').on(t.day),
   })
 )
 
@@ -420,6 +442,7 @@ export type WikiUser = typeof wikiUsers.$inferSelect
 export type NewWikiUser = typeof wikiUsers.$inferInsert
 export type WikiPage = typeof wikiPages.$inferSelect
 export type NewWikiPage = typeof wikiPages.$inferInsert
+export type WikiPageViewDaily = typeof wikiPageViewDaily.$inferSelect
 export type WikiRevision = typeof wikiRevisions.$inferSelect
 export type WikiDiscussion = typeof wikiDiscussions.$inferSelect
 export type WikiNamespace = typeof wikiNamespaces.$inferSelect

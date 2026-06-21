@@ -26,6 +26,20 @@ const ROLE_LABEL: Record<string, { label: string; cls: string }> = {
   owner: { label: 'OWNER', cls: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
 }
 
+// 편집 수 기반 최고 마일스톤 (contributions API 의 edit 배지 임계값과 동일).
+// 펼치지 않아도 각 행에서 한눈에 칭호를 보여주기 위함. chip = 그라디언트 칩 클래스(리터럴).
+function editMilestone(edits: number): { icon: string; label: string; chip: string } | null {
+  if (edits >= 500)
+    return { icon: '🏆', label: '위키 장인', chip: 'border-amber-500/40 bg-gradient-to-r from-amber-500/25 to-amber-500/5 text-amber-200' }
+  if (edits >= 200)
+    return { icon: '⚙️', label: '위키 일꾼', chip: 'border-orange-500/40 bg-gradient-to-r from-orange-500/25 to-orange-500/5 text-orange-200' }
+  if (edits >= 50)
+    return { icon: '✏️', label: '단골 편집자', chip: 'border-sky-500/40 bg-gradient-to-r from-sky-500/25 to-sky-500/5 text-sky-200' }
+  if (edits >= 1)
+    return { icon: '🌱', label: '첫 발자국', chip: 'border-emerald-500/40 bg-gradient-to-r from-emerald-500/25 to-emerald-500/5 text-emerald-200' }
+  return null
+}
+
 function formatRelative(iso: string): string {
   const t = new Date(iso).getTime()
   if (Number.isNaN(t)) return '-'
@@ -150,6 +164,18 @@ export default function WikiContributorsPage() {
                         {roleInfo && (
                           <span className={`wiki-chip text-[9px] ${roleInfo.cls}`}>{roleInfo.label}</span>
                         )}
+                        {(() => {
+                          const m = editMilestone(c.edits)
+                          return m ? (
+                            <span
+                              title={`${m.label} · 편집 ${c.edits.toLocaleString()}회`}
+                              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${m.chip}`}
+                            >
+                              <span className="leading-none">{m.icon}</span>
+                              <span className="hidden sm:inline">{m.label}</span>
+                            </span>
+                          ) : null
+                        })()}
                       </button>
                       <div className="flex items-center gap-3 text-xs text-[color:var(--wiki-ink-muted)] tabular-nums">
                         <span>
@@ -233,6 +259,17 @@ function PodiumCard({
       {roleInfo && (
         <span className={`wiki-chip text-[9px] mb-2 ${roleInfo.cls}`}>{roleInfo.label}</span>
       )}
+      {(() => {
+        const m = editMilestone(c.edits)
+        return m ? (
+          <span
+            className={`mb-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${m.chip}`}
+            title={`편집 ${c.edits.toLocaleString()}회`}
+          >
+            {m.icon} {m.label}
+          </span>
+        ) : null
+      })()}
       {/* 시상대 */}
       <div
         className={`w-full ${h} rounded-t-md bg-gradient-to-b ${accent} opacity-30 group-hover:opacity-50 transition-opacity flex flex-col items-center justify-end pb-2`}

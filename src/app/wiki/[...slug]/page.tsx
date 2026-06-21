@@ -12,6 +12,7 @@ import {
   Eye,
   FileText,
   History,
+  Lock,
   MessageSquare,
   Radar,
   Share2,
@@ -27,7 +28,7 @@ import { Input } from '@/components/ui/Input'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { formatDate } from '@/lib/utils'
 import { parseRedirectTarget } from '@/lib/wiki/redirect'
-import { WikiShell, WikiPageHeader, DocumentFunctionsPanel, WikiMeter } from '@/components/wiki'
+import { WikiShell, WikiPageHeader, DocumentFunctionsPanel, WikiMeter, WikiTableOfContents } from '@/components/wiki'
 
 type WikiTabType = 'document' | 'edit' | 'history' | 'discussion'
 
@@ -716,6 +717,25 @@ export default function WikiDocumentPage() {
 
   const titleDisplay = currentPage?.title || slug
   const protectionLevel = currentPage?.protection?.level || 'none'
+  const protectionLabel: Record<string, string> = {
+    semi: '준보호',
+    autoconfirmed: '준보호',
+    full: '완전보호',
+    sysop: '완전보호',
+    admin: '관리자 전용',
+  }
+  const protectionBadge =
+    protectionLevel !== 'none' ? (
+      <span
+        className="ml-2 inline-flex items-center gap-1 rounded-sm border border-[color:var(--wiki-danger)]/40 bg-[color:var(--wiki-danger)]/10 px-1.5 py-0.5 align-middle text-[11px] font-medium text-[color:var(--wiki-danger)]"
+        title={`${protectionLabel[protectionLevel] || '보호된 문서'}${
+          currentPage?.protection?.reason ? ' · ' + currentPage.protection.reason : ''
+        }`}
+      >
+        <Lock className="h-3 w-3" />
+        {protectionLabel[protectionLevel] || '보호'}
+      </span>
+    ) : undefined
 
   const headerMeta: Array<{ label: string; value: React.ReactNode; icon?: React.ElementType }> = []
   if (currentPage) {
@@ -814,6 +834,7 @@ export default function WikiDocumentPage() {
       pageHeader={
         <WikiPageHeader
           title={titleDisplay}
+          titleBadge={protectionBadge}
           hatnote={
             currentPage?.namespace && currentPage.namespace !== 'main' ? (
               <>이 문서는 <strong>{currentPage.namespace}</strong> 네임스페이스의 문서입니다.</>
@@ -831,6 +852,11 @@ export default function WikiDocumentPage() {
       rightRail={
         currentPage ? (
           <>
+            {/* 목차 (sticky, scroll-spy) — 문서 탭에서만 */}
+            {activeTab === 'document' && currentPage.content && (
+              <WikiTableOfContents content={currentPage.content} />
+            )}
+
             {/* 인포박스 */}
             <table className="wiki-infobox">
               <caption>{currentPage.title}</caption>
@@ -1909,37 +1935,111 @@ export default function WikiDocumentPage() {
   )
 }
 
+// LCS 기반 줄 단위 diff — 줄 삽입/삭제가 발생해도 공통 줄을 정렬해
+// 변경 줄만 빨강(삭제)/초록(추가)으로 표시한다 (인덱스 단순 비교의 오정렬 해결).
+type DiffRow = {
+  type: 'equal' | 'add' | 'del'
+  left?: { n: number; text: string }
+  right?: { n: number; text: string }
+}
+
+function computeLineDiff(oldText: string, newText: string): DiffRow[] {
+  const a = (oldText || '').split('\n')
+  const b = (newText || '').split('\n')
+  const n = a.length
+  const m = b.length
+
+  // 매우 큰 문서는 LCS 메모리 폭주 방지 — 단순 인덱스 정렬로 폴백
+  if (n * m > 4_000_000) {
+    const rows: DiffRow[] = []
+    const max = Math.max(n, m)
+    for (let i = 0; i < max; i++) {
+      const la = a[i]
+      const lb = b[i]
+      if (la === undefined) rows.push({ type: 'add', right: { n: i + 1, text: lb } })
+      else if (lb === undefined) rows.push({ type: 'del', left: { n: i + 1, text: la } })
+      else if (la === lb) rows.push({ type: 'equal', left: { n: i + 1, text: la }, right: { n: i + 1, text: lb } })
+      else {
+        rows.push({ type: 'del', left: { n: i + 1, text: la } })
+        rows.push({ type: 'add', right: { n: i + 1, text: lb } })
+      }
+    }
+    return rows
+  }
+
+  // LCS 길이 테이블 (역방향 DP)
+  const dp: Uint16Array[] = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+    }
+  }
+
+  const rows: DiffRow[] = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      rows.push({ type: 'equal', left: { n: i + 1, text: a[i] }, right: { n: j + 1, text: b[j] } })
+      i++
+      j++
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      rows.push({ type: 'del', left: { n: i + 1, text: a[i] } })
+      i++
+    } else {
+      rows.push({ type: 'add', right: { n: j + 1, text: b[j] } })
+      j++
+    }
+  }
+  while (i < n) { rows.push({ type: 'del', left: { n: i + 1, text: a[i] } }); i++ }
+  while (j < m) { rows.push({ type: 'add', right: { n: j + 1, text: b[j] } }); j++ }
+  return rows
+}
+
 function DiffViewer({ oldText, newText }: { oldText: string; newText: string }) {
-  const oldLines = (oldText || '').split('\n')
-  const newLines = (newText || '').split('\n')
-  const max = Math.max(oldLines.length, newLines.length)
+  const rows = React.useMemo(() => computeLineDiff(oldText, newText), [oldText, newText])
+  const adds = rows.filter((r) => r.type === 'add').length
+  const dels = rows.filter((r) => r.type === 'del').length
 
   return (
-    <div className="border border-[color:var(--wiki-rule)] rounded-sm overflow-hidden text-xs">
-      <div className="grid grid-cols-2 bg-[color:var(--wiki-paper-2)] text-[color:var(--wiki-ink-muted)] px-2 py-1">
-        <div>이전</div>
-        <div>현재</div>
+    <div className="text-xs">
+      <div className="mb-2 flex items-center gap-3 font-mono text-[11px]">
+        <span className="text-emerald-400">+{adds}</span>
+        <span className="text-rose-400">−{dels}</span>
+        <span className="text-[color:var(--wiki-ink-muted)]">{rows.length}행</span>
       </div>
-      <div>
-        {Array.from({ length: max }, (_, i) => {
-          const a = oldLines[i] ?? ''
-          const b = newLines[i] ?? ''
-          let bg = 'bg-[color:var(--wiki-bg-2)]'
-          if (a !== b) {
-            if (!a && b) bg = 'bg-[color:var(--wiki-success)]/10'
-            else if (a && !b) bg = 'bg-[color:var(--wiki-danger)]/10'
-            else bg = 'bg-[color:var(--wiki-warning)]/10'
-          }
-          return (
-            <div
-              key={i}
-              className={`grid grid-cols-2 gap-2 px-2 py-1 border-b border-[color:var(--wiki-rule)] last:border-b-0 ${bg}`}
-            >
-              <pre className="whitespace-pre-wrap text-[color:var(--wiki-ink-soft)]">{a}</pre>
-              <pre className="whitespace-pre-wrap text-[color:var(--wiki-ink-soft)]">{b}</pre>
-            </div>
-          )
-        })}
+      <div className="border border-[color:var(--wiki-rule)] rounded-sm overflow-hidden">
+        <div className="grid grid-cols-2 bg-[color:var(--wiki-paper-2)] text-[color:var(--wiki-ink-muted)] px-2 py-1 font-medium">
+          <div>이전</div>
+          <div>현재</div>
+        </div>
+        <div className="max-h-[28rem] overflow-y-auto font-mono">
+          {rows.map((r, idx) => {
+            const leftBg = r.type === 'del' ? 'bg-rose-500/10' : r.type === 'add' ? 'bg-[color:var(--wiki-paper-2)]/40' : ''
+            const rightBg = r.type === 'add' ? 'bg-emerald-500/10' : r.type === 'del' ? 'bg-[color:var(--wiki-paper-2)]/40' : ''
+            return (
+              <div
+                key={idx}
+                className="grid grid-cols-2 border-b border-[color:var(--wiki-rule)]/60 last:border-b-0"
+              >
+                <div className={`flex gap-1.5 px-2 py-0.5 ${leftBg}`}>
+                  <span className="w-8 flex-shrink-0 select-none text-right text-[10px] text-[color:var(--wiki-ink-muted)] tabular-nums">
+                    {r.left?.n ?? ''}
+                  </span>
+                  <span className="w-3 flex-shrink-0 select-none text-rose-400">{r.type === 'del' ? '−' : ''}</span>
+                  <pre className="whitespace-pre-wrap break-words text-[color:var(--wiki-ink-soft)] min-w-0">{r.left?.text ?? ''}</pre>
+                </div>
+                <div className={`flex gap-1.5 px-2 py-0.5 ${rightBg}`}>
+                  <span className="w-8 flex-shrink-0 select-none text-right text-[10px] text-[color:var(--wiki-ink-muted)] tabular-nums">
+                    {r.right?.n ?? ''}
+                  </span>
+                  <span className="w-3 flex-shrink-0 select-none text-emerald-400">{r.type === 'add' ? '+' : ''}</span>
+                  <pre className="whitespace-pre-wrap break-words text-[color:var(--wiki-ink-soft)] min-w-0">{r.right?.text ?? ''}</pre>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

@@ -268,6 +268,17 @@ export async function GET(request: NextRequest) {
           .where(eq(wikiPages.id, page.id))
       } catch {}
 
+      // 일별 조회수 롤업 (KST 날짜 기준). 표가 아직 없으면(마이그레이션 전)
+      // 조용히 무시 — 페이지 읽기는 영향받지 않음. /api/admin/maintenance/wiki-stats 참고.
+      try {
+        await db.execute(sql`
+          INSERT INTO "wiki_page_view_daily" ("page_id", "day", "count")
+          VALUES (${page.id}, (now() AT TIME ZONE 'Asia/Seoul')::date, 1)
+          ON CONFLICT ("page_id", "day")
+          DO UPDATE SET "count" = "wiki_page_view_daily"."count" + 1
+        `)
+      } catch {}
+
       return NextResponse.json({ success: true, page: toPageResponse(page) })
     }
 

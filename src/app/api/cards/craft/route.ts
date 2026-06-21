@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { getDb } from '@/db/client'
-import { cardDrops, cards, userCards, userCardStats } from '@/db/schema/cards'
+import { cardDrops, cards, userCards, userCardStats, userPerks } from '@/db/schema/cards'
 import { ensureImage as ensureImageBase, normalizeUserIdToUuid } from '@/lib/cardHelpers'
+import { getPerks } from '@/lib/perks'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,6 +128,36 @@ export async function POST(request: NextRequest) {
     // 70% 성공률
     const isSuccess = Math.random() < CRAFT_SUCCESS_RATE
     const now = new Date()
+
+    // 조합 보호권: 실패 굴림이라도 보호권이 있으면 1장 소모하고 재료를 보존(실패 무효).
+    if (!isSuccess) {
+      const perks = await getPerks(userId)
+      if (perks && perks.craftProtections > 0) {
+        try {
+          await db
+            .update(userPerks)
+            .set({
+              craftProtections: sql`GREATEST(${userPerks.craftProtections} - 1, 0)`,
+              updatedAt: now,
+            })
+            .where(eq(userPerks.userId, userId))
+        } catch {}
+        // 시도 횟수만 +1 (실패로는 기록하지 않음)
+        try {
+          await db
+            .update(userCardStats)
+            .set({ craftingAttempts: sql`${userCardStats.craftingAttempts} + 1`, updatedAt: now })
+            .where(eq(userCardStats.userId, userId))
+        } catch {}
+        return NextResponse.json({
+          success: false,
+          protected: true,
+          message: '🛡️ 조합 보호권 발동! 재료가 보존되었어요. 다시 시도하세요.',
+          usedCards: [],
+          usedCardDetails: [],
+        })
+      }
+    }
 
     // 조합 로그
     const [dropLog] = await db

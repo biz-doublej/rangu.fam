@@ -126,35 +126,39 @@ public static class GameConnection
             return; // 거부 = 상태 불변 → 브로드캐스트 불필요
         }
 
-        // 성공: actor 에게 IntentAck(같은 순서 스트림) → 고스트 자동진행 → 양쪽 마스킹 스냅샷 브로드캐스트
+        // 성공: IntentAck → 고스트 자동진행 → (연출 이벤트 먼저) → 양쪽 마스킹 스냅샷
         await SendToActorAsync(match, actor, hub,
             new ServerMessage { Event = new Event { IntentAck = new IntentAckEvent { ClientIntentId = intent.ClientIntentId } } }, ct);
-        await DriveGhostAsync(match, ct);
-        await BroadcastSnapshotsAsync(match, hub, ct);
+        var fxEvents = new List<Engine.GameEvent>(result.Events);
+        fxEvents.AddRange(await DriveGhostAsync(match, ct));
+        await BroadcastEventsAsync(match, hub, fxEvents, ct); // 연출(피해/사망) 먼저
+        await BroadcastSnapshotsAsync(match, hub, ct);          // 그 다음 정본 스냅샷
     }
 
-    /// <summary>PvE 패시브 고스트 자동진행: 멀리건(0장)/우선권 패스 — 인간에게 차례가 돌아오거나 종료까지.</summary>
-    private static async Task DriveGhostAsync(GameMatch match, CancellationToken ct)
+    /// <summary>PvE 패시브 고스트 자동진행: 멀리건(0장)/우선권 패스. 발생 이벤트(전투 해결 등)를 모아 반환.</summary>
+    private static async Task<List<Engine.GameEvent>> DriveGhostAsync(GameMatch match, CancellationToken ct)
     {
+        var collected = new List<Engine.GameEvent>();
         var ghost = match.SeatOf(PveGhost);
-        if (ghost is null) return; // PvP(고스트 없음) → 아무것도 안 함
+        if (ghost is null) return collected; // PvP(고스트 없음)
         for (int guard = 0; guard < 500; guard++)
         {
             var s = match.Current;
-            if (s.Phase == Engine.BattlePhase.Finished) return;
+            if (s.Phase == Engine.BattlePhase.Finished) break;
             if (s.Phase == Engine.BattlePhase.Mulligan && !s.Player(ghost.Value).MulliganDone)
             {
-                await match.ApplyAsync(ghost.Value, new Engine.MulliganAction(Array.Empty<string>()), ct);
+                collected.AddRange((await match.ApplyAsync(ghost.Value, new Engine.MulliganAction(Array.Empty<string>()), ct)).Events);
                 continue;
             }
             if ((s.Phase == Engine.BattlePhase.Action || s.Phase == Engine.BattlePhase.DeclareBlock)
                 && s.Priority == ghost.Value)
             {
-                await match.ApplyAsync(ghost.Value, new Engine.PassAction(), ct);
+                collected.AddRange((await match.ApplyAsync(ghost.Value, new Engine.PassAction(), ct)).Events);
                 continue;
             }
-            return; // 고스트가 행동할 게 없음
+            break; // 고스트가 행동할 게 없음
         }
+        return collected;
     }
 
     private static async Task BroadcastSnapshotsAsync(GameMatch match, ConnectionHub hub, CancellationToken ct)
@@ -162,6 +166,20 @@ public static class GameConnection
         long now = NowMs();
         foreach (var (seat, conn) in hub.Participants(match.MatchId))
             await ConnectionHub.SendAsync(conn, new ServerMessage { Snapshot = match.SnapshotFor(seat, now) }, ct);
+    }
+
+    /// <summary>연출 이벤트(피해/사망/넥서스/게임오버)를 수신자별 마스킹 매핑해 스냅샷 전에 전송.</summary>
+    private static async Task BroadcastEventsAsync(GameMatch match, ConnectionHub hub, List<Engine.GameEvent> events, CancellationToken ct)
+    {
+        if (events.Count == 0) return;
+        long now = NowMs();
+        foreach (var (seat, conn) in hub.Participants(match.MatchId))
+            foreach (var ev in events)
+            {
+                var proto = EventMapper.ToProto(ev, seat, match.Sequence, now);
+                if (proto is not null)
+                    await ConnectionHub.SendAsync(conn, new ServerMessage { Event = proto }, ct);
+            }
     }
 
     private static async Task SendToActorAsync(GameMatch match, Engine.PlayerSlot actor, ConnectionHub hub, ServerMessage msg, CancellationToken ct)

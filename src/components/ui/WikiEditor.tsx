@@ -1664,6 +1664,7 @@ Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
                       <li><code className="bg-gray-700 px-1 rounded">{`||<tablebgcolor:#222 tablealign:center>... ||`}</code> → 표 전체</li>
                       <li><code className="bg-gray-700 px-1 rounded">{`<align:center>`}</code> / <code className="bg-gray-700 px-1 rounded">{`<rowalign:center>`}</code> → 가운데 정렬</li>
                       <li><code className="bg-gray-700 px-1 rounded">{`<font:"Noto Sans KR">`}</code> → 폰트 지정</li>
+                      <li><code className="bg-gray-700 px-1 rounded">{`<-3>`}</code> → 열 3칸 병합 / <code className="bg-gray-700 px-1 rounded">{`<|2>`}</code> → 행 2칸 병합 (병합된 칸은 생략)</li>
                       <li className="text-gray-500">우선순위: 셀 &gt; 행 &gt; 표 (개별 셀로 덮어쓰기 가능)</li>
                     </ul>
                   </div>

@@ -16,6 +16,7 @@ import {
   Pin,
   DoodleArrow,
 } from '@/components/scrapbook'
+import { BirthdayBoard } from '@/components/members/BirthdayBoard'
 
 interface Member {
   id: string
@@ -203,6 +204,20 @@ export default function MembersPage() {
           </div>
         </section>
 
+        {/* ── Birthdays ── */}
+        <section className="border-t border-dashed border-ink-500/15 py-12">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <CaveatText className="text-lg text-coral-500">cake day</CaveatText>
+              <h2 className="scrap-h2 mt-1">다가오는 생일</h2>
+            </div>
+            <CaveatText className="hidden text-base text-ink-300 sm:block">🎂 D-day countdown</CaveatText>
+          </div>
+          <div className="max-w-lg">
+            <BirthdayBoard limit={5} showHeader={false} />
+          </div>
+        </section>
+
         {/* ── Map of cities ── */}
         <section className="border-t border-dashed border-ink-500/15 py-12">
           <div className="mb-8 flex items-end justify-between gap-4">
@@ -339,10 +354,16 @@ export default function MembersPage() {
                   업데이트가 쌓일 때마다 이 페이지도 같이 자라납니다.
                 </p>
               </div>
-              <button onClick={() => router.push('/cards')} className="ink-button">
-                카드 컬렉션 보기
-                <ArrowRight className="h-4 w-4" />
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button onClick={() => router.push('/feed')} className="ghost-button">
+                  활동 피드
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <button onClick={() => router.push('/cards')} className="ink-button">
+                  카드 컬렉션 보기
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </PaperCard>
         </section>

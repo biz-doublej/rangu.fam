@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { getDb } from '@/db/client'
-import { cardDrops, cards, userCards, userCardStats } from '@/db/schema/cards'
+import { cardDrops, cards, userCards, userCardStats, userPerks } from '@/db/schema/cards'
 import {
   buildClientUser,
   getAuthenticatedWikiUser,
   resolveMemberIdForUser,
 } from '@/lib/doublejAuth'
+import { getPerks } from '@/lib/perks'
 
 export const dynamic = 'force-dynamic'
 
 const FALLBACK_IMAGE = '/images/default-music-cover.jpg'
-const MAX_DROPS_PER_WINDOW = 5
+const MAX_DROPS_PER_WINDOW = 10
 const DROP_WINDOW_MS = 24 * 60 * 60 * 1000
 const DROP_ALLOWED_MEMBER_IDS = new Set(['hanul', 'jaewon', 'jinkyu', 'seungchan', 'minseok'])
 
@@ -140,15 +141,23 @@ export async function POST(request: NextRequest) {
       lastDropDate = now
     }
 
-    if (dailyDropsUsed >= MAX_DROPS_PER_WINDOW) {
+    // 무료(일일 5회) 외에, 선물상자로 얻은 보너스 드랍권(뽑기권)을 추가로 사용할 수 있다.
+    const freeRemaining = Math.max(0, MAX_DROPS_PER_WINDOW - dailyDropsUsed)
+    const perks = await getPerks(userId)
+    const bonusAvailable = perks?.bonusDrops ?? 0
+
+    if (freeRemaining <= 0 && bonusAvailable <= 0) {
       return NextResponse.json({
         success: false,
-        message: '24시간 동안 사용 가능한 드랍 5회를 모두 사용했습니다. 자동 초기화를 기다려주세요.',
+        message: `24시간 동안 사용 가능한 드랍 ${MAX_DROPS_PER_WINDOW}회를 모두 사용했습니다. 자동 초기화를 기다려주세요.`,
         remainingDrops: 0,
       })
     }
 
-    if (dailyDropsUsed === 0) {
+    // 무료가 남아있으면 무료 사용, 다 썼으면 보너스 드랍권 1장 소모
+    const useBonus = freeRemaining <= 0
+
+    if (!useBonus && dailyDropsUsed === 0) {
       lastDropDate = now
     }
 
@@ -194,10 +203,11 @@ export async function POST(request: NextRequest) {
       dailyDropCount: dailyDropsUsed + 1,
     })
 
+    const newDailyUsed = useBonus ? dailyDropsUsed : dailyDropsUsed + 1
     const [updatedStats] = await db
       .update(userCardStats)
       .set({
-        dailyDropsUsed: dailyDropsUsed + 1,
+        dailyDropsUsed: newDailyUsed,
         totalDropsUsed: (stats.totalDropsUsed || 0) + 1,
         totalCardsCollected: (stats.totalCardsCollected || 0) + 1,
         lastDropDate,
@@ -206,10 +216,20 @@ export async function POST(request: NextRequest) {
       .where(eq(userCardStats.userId, userId))
       .returning()
 
-    const remainingDrops = Math.max(
-      0,
-      MAX_DROPS_PER_WINDOW - (updatedStats?.dailyDropsUsed || dailyDropsUsed + 1)
-    )
+    // 보너스 드랍권을 썼으면 1장 차감
+    let bonusRemaining = bonusAvailable
+    if (useBonus) {
+      try {
+        await db
+          .update(userPerks)
+          .set({ bonusDrops: sql`GREATEST(${userPerks.bonusDrops} - 1, 0)`, updatedAt: now })
+          .where(eq(userPerks.userId, userId))
+        bonusRemaining = Math.max(0, bonusAvailable - 1)
+      } catch {}
+    }
+
+    const freeLeft = Math.max(0, MAX_DROPS_PER_WINDOW - (updatedStats?.dailyDropsUsed ?? newDailyUsed))
+    const remainingDrops = freeLeft + bonusRemaining
 
     return NextResponse.json({
       success: true,
@@ -249,13 +269,16 @@ export async function GET(request: NextRequest) {
       .where(eq(userCardStats.userId, auth.userId))
       .limit(1)
 
+    const perks = await getPerks(auth.userId)
+    const bonus = perks?.bonusDrops ?? 0
+
     if (!stats) {
-      return NextResponse.json({ success: true, remainingDrops: MAX_DROPS_PER_WINDOW })
+      return NextResponse.json({ success: true, remainingDrops: MAX_DROPS_PER_WINDOW + bonus })
     }
 
     const now = new Date()
     const used = shouldResetDropWindow(stats.lastDropDate, now) ? 0 : stats.dailyDropsUsed || 0
-    const remainingDrops = Math.max(0, MAX_DROPS_PER_WINDOW - used)
+    const remainingDrops = Math.max(0, MAX_DROPS_PER_WINDOW - used) + bonus
 
     return NextResponse.json({ success: true, remainingDrops })
   } catch (error) {

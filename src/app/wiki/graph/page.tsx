@@ -9,6 +9,7 @@ interface GraphNode {
   degree: number
   isRedirect: boolean
   views: number
+  summary?: string
 }
 interface GraphEdge {
   source: string
@@ -33,6 +34,8 @@ export default function WikiGraphPage() {
   const [error, setError] = useState<string | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  // 호버 미리보기 툴팁 (컨테이너 기준 픽셀 좌표)
+  const [tip, setTip] = useState<{ x: number; y: number; node: GraphNode; flip: boolean } | null>(null)
 
   // 시뮬레이션 상태
   const simRef = useRef<SimNode[]>([])
@@ -172,25 +175,35 @@ export default function WikiGraphPage() {
   const sim = simRef.current
 
   // pan/zoom 핸들러
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY < 0 ? 1.12 : 0.89
-    setTransform((t) => ({ ...t, k: Math.max(0.25, Math.min(3, t.k * delta)) }))
-  }
+  // 주의: setTransform 업데이터 안에서 dragRef.current 를 읽으면 안 된다 —
+  // 업데이터 실행 시점에 mouseup 으로 null 이 되어 있을 수 있음 (운영 크래시 원인이었음).
   const onMouseDown = (e: React.MouseEvent) => {
     dragRef.current = { x: e.clientX, y: e.clientY, tx: transform.x, ty: transform.y }
   }
   const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragRef.current) return
-    setTransform((t) => ({
-      ...t,
-      x: dragRef.current!.tx + (e.clientX - dragRef.current!.x),
-      y: dragRef.current!.ty + (e.clientY - dragRef.current!.y),
-    }))
+    const drag = dragRef.current
+    if (!drag) return
+    const nx = drag.tx + (e.clientX - drag.x)
+    const ny = drag.ty + (e.clientY - drag.y)
+    setTransform((t) => ({ ...t, x: nx, y: ny }))
   }
   const endDrag = () => {
     dragRef.current = null
   }
+
+  // 휠 줌 — React onWheel 은 passive 라 preventDefault 가 막히므로 네이티브로 부착
+  const svgWrapRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = svgWrapRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY < 0 ? 1.12 : 0.89
+      setTransform((t) => ({ ...t, k: Math.max(0.25, Math.min(3, t.k * delta)) }))
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [loading])
 
   const highlightSet = hover ? edgeIndex.get(hover) : null
 
@@ -252,12 +265,14 @@ export default function WikiGraphPage() {
       )}
 
       {!error && (
-        <div className="overflow-hidden rounded-xl border border-[color:var(--wiki-rule)] bg-[#0b1020]">
+        <div
+          ref={svgWrapRef}
+          className="relative overflow-hidden rounded-xl border border-[color:var(--wiki-rule)] bg-[#0b1020]"
+        >
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             className="w-full cursor-grab active:cursor-grabbing"
             style={{ height: 'min(70vh, 680px)' }}
-            onWheel={onWheel}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={endDrag}
@@ -297,8 +312,23 @@ export default function WikiGraphPage() {
                     transform={`translate(${n.x},${n.y})`}
                     style={{ cursor: 'pointer', opacity: dim ? 0.18 : 1 }}
                     onClick={() => router.push(`/wiki/${encodeURIComponent(n.id)}`)}
-                    onMouseEnter={() => setHover(n.id)}
-                    onMouseLeave={() => setHover(null)}
+                    onMouseEnter={(e) => {
+                      setHover(n.id)
+                      const rect = svgWrapRef.current?.getBoundingClientRect()
+                      if (rect) {
+                        const localX = e.clientX - rect.left
+                        setTip({
+                          x: localX,
+                          y: e.clientY - rect.top,
+                          node: n,
+                          flip: localX > rect.width * 0.6,
+                        })
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      setHover(null)
+                      setTip(null)
+                    }}
                   >
                     <circle
                       r={r}
@@ -323,6 +353,39 @@ export default function WikiGraphPage() {
               })}
             </g>
           </svg>
+
+          {/* 호버 미리보기 — 문서 제목 + 요약 + 통계 */}
+          {tip && (
+            <div
+              className="pointer-events-none absolute z-20 w-60 rounded-lg border border-[color:var(--wiki-rule)] bg-[#0b1020]/95 p-3 shadow-xl"
+              style={{
+                left: tip.x,
+                top: tip.y + 14,
+                transform: tip.flip ? 'translateX(calc(-100% - 14px))' : 'translateX(14px)',
+              }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: tip.node.degree === 0 ? '#f59e0b' : 'var(--wiki-accent)' }}
+                />
+                <span className="truncate text-sm font-semibold text-white">{tip.node.id}</span>
+                {tip.node.isRedirect && (
+                  <span className="flex-shrink-0 rounded bg-white/10 px-1 text-[10px] text-gray-300">넘겨주기</span>
+                )}
+              </div>
+              {tip.node.summary ? (
+                <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-gray-300">{tip.node.summary}</p>
+              ) : (
+                <p className="mt-1.5 text-xs italic text-gray-500">요약 없음</p>
+              )}
+              <div className="mt-2 flex items-center gap-3 text-[10px] text-gray-400">
+                <span>링크 {tip.node.degree}</span>
+                <span>조회 {tip.node.views.toLocaleString()}</span>
+                <span className="text-[color:var(--wiki-accent)]">클릭하여 이동 →</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

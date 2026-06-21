@@ -78,6 +78,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, contributors })
   } catch (error) {
     console.error('contributors 조회 오류:', error)
+    // [DEV-MOCK] DB 없는 로컬 개발 환경 전용 — 기여자 목록/시상대/칭호 렌더 검증용.
+    if (process.env.NODE_ENV !== 'production') {
+      const now = new Date().toISOString()
+      const mk = (author: string, edits: number, pages: number, role: string) => ({
+        author,
+        edits,
+        pages,
+        totalSizeChange: edits * 120,
+        lastEdit: now,
+        firstEdit: now,
+        avatar: null,
+        displayName: author,
+        role,
+        reputation: edits,
+      })
+      const contributors = [
+        mk('정재원', 540, 62, 'admin'),
+        mk('강한울', 230, 38, 'moderator'),
+        mk('정민석', 78, 21, 'editor'),
+        mk('이승찬', 33, 12, 'editor'),
+        mk('정진규', 7, 4, 'editor'),
+      ]
+      return NextResponse.json({ success: true, contributors, mock: true })
+    }
     return NextResponse.json(
       { success: false, error: '기여자 목록 조회 중 오류' },
       { status: 500 }
