@@ -35,29 +35,30 @@
    - 세션 중 누락 의심 시 `ResyncRequest` → 서버가 스냅샷으로 응답.
    - (운영) 서버가 Event 로그를 Cloud SQL 에 적재하면 인스턴스 재시작에도 복구 가능.
 
-## 코드 생성
+## 코드 생성 (구현 완료)
 
-protoc 인클루드 루트는 이 디렉터리(`game/proto`). 임포트 경로는 `rangu/tactics/v1/*.proto`.
+생성은 **공유 라이브러리 1곳** `RanguTactics.Proto.csproj` 에서만 일어난다 → DTO 드리프트/중복 코드젠 없음.
+네임스페이스 `Rangu.Tactics.Proto.V1` (`option csharp_namespace`).
 
-### .NET 8 서버 (`Grpc.Tools` 권장)
-`rangu-tactics-server.csproj` 에 `.proto` 를 `<Protobuf>` 항목으로 추가하면 빌드 시 자동 생성:
+### .NET (서버 + 스모크 클라이언트)
+`RanguTactics.Proto.csproj` 가 `Grpc.Tools` 로 빌드 시 자동 생성. 서버/클라는 ProjectReference 로 공유:
 ```xml
-<ItemGroup>
-  <Protobuf Include="..\..\game\proto\rangu\tactics\v1\*.proto"
-            ProtoRoot="..\..\game\proto" GrpcServices="None" />
-</ItemGroup>
+<ProjectReference Include="..\proto\RanguTactics.Proto.csproj" />
 ```
-
-### Unity 클라이언트 (수동 생성 후 커밋)
 ```bash
-protoc -I game/proto \
-  --csharp_out=game/rangu-tactics-client/Assets/Scripts/Generated \
-  game/proto/rangu/tactics/v1/*.proto
+dotnet build game/rangu-tactics-server/RanguTactics.Server.csproj   # proto 포함 빌드
 ```
-(Unity 는 빌드 파이프라인이 달라 생성물을 커밋하는 방식이 무난. `Google.Protobuf` 런타임 패키지 필요.)
 
-### buf 사용 시(권장 — lint/breaking 검출)
-`buf.yaml` + `buf.gen.yaml` 로 `buf generate`, `buf breaking` 으로 하위호환 깨짐 자동 검출.
+### Unity 클라이언트
+번들 protoc(Grpc.Tools)로 `.cs` emit — **별도 protoc 설치 불필요**:
+```bash
+pwsh game/proto/gen-csharp.ps1
+# → game/proto/gen/csharp/*.cs 를 Assets/Scripts/Generated/Proto 로 복사 + Google.Protobuf 런타임 추가
+```
+(직접 호출: `protoc -I game/proto --csharp_out <UnityAssets> game/proto/rangu/tactics/v1/*.proto`)
+
+### CI 권장
+`buf lint` / `buf breaking` 으로 스키마 하위호환 깨짐 자동 검출.
 
 ## 버전·호환 규칙
 - 패키지는 `rangu.tactics.v1`. **파괴적 변경은 `v2` 신설** (필드 의미 변경/삭제 금지).

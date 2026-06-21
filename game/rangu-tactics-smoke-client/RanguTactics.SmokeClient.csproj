@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rangu.Tactics.SmokeClient</RootNamespace>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 서버와 동일한 생성 메시지 클래스 공유 -->
+    <ProjectReference Include="..\proto\RanguTactics.Proto.csproj" />
+  </ItemGroup>
+
+</Project>

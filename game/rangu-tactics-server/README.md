@@ -110,16 +110,16 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out game-ticket.ke
 
 | 파일 | 역할 |
 |---|---|
-| `RanguTactics.Server.csproj` | net8.0 Web SDK + IdentityModel 8.x |
-| `Program.cs` | 부팅 시 메타데이터 로드 → WS 서버(`/ws/tactics`) + 에코 핸들러 |
+| `RanguTactics.Server.csproj` | net8.0 Web SDK + IdentityModel 8.x + proto lib 참조 |
+| `Program.cs` | 부팅 시 메타데이터 로드 → WS 서버(`/ws/tactics`) + **proto 바이너리** connect/echo |
 | `Auth/GameTicketValidator.cs` | 라이브 JWKS 티켓 검증(서명·iss·aud·exp·jti) |
 | `Game/CardMetadata.cs` | export JSON 로드/파싱/사전검증 카탈로그 |
 | `appsettings.json` | JWKS/Issuer/Audience/Metadata URL |
 | `mint-test-ticket.mjs` | (dev) 로그인 없이 단명 티켓 발급 |
-| `smoke-client.mjs` | (dev) WS connect → echo 왕복 확인 |
+| `../rangu-tactics-smoke-client/` | (dev) **proto 바이너리** WS 클라이언트 — connect→IntentAck 왕복 |
 
-> 스모크 하니스는 디버그 편의상 **JSON 프레임**을 쓴다(seam 검증이 목적). 실제 서버는
-> 이 메시지를 [proto](../proto/README.md) `ClientMessage`/`ServerMessage`(바이너리)로 교체한다.
+> 메시지 프레임 = [proto](../proto/README.md) `ClientMessage`/`ServerMessage` **바이너리**.
+> 생성 클래스는 공유 lib `RanguTactics.Proto`(서버·클라가 ProjectReference 공유)에서 온다.
 
 ## 로컬 스모크 테스트 실행 (인증 seam E2E)
 
@@ -140,10 +140,10 @@ cd game/rangu-tactics-server && dotnet run
 # 3) 테스트 티켓 발급 (60초 단명·1회용). 리포 루트에서, next dev 와 같은 env.
 node game/rangu-tactics-server/mint-test-ticket.mjs
 
-# 4) WS 클라이언트 연결 → connect_accepted + echo 왕복
-node game/rangu-tactics-server/smoke-client.mjs "<3에서 출력된 티켓>"
-#   → ✅ echo round-trip OK  (seam 통과)
+# 4) (proto 바이너리) WS 클라이언트 연결 → connect_accepted + IntentAck 왕복
+dotnet run --project game/rangu-tactics-smoke-client -- "<3에서 출력된 티켓>"
+#   → ✅ proto round-trip OK  (seam 통과)
 ```
 
-검증되는 것: **라이브 JWKS 티켓 검증 + 메타데이터 로드/파싱 + 버전 일치 + WS 핸드셰이크/에코.**
+검증되는 것: **라이브 JWKS 티켓 검증 + 메타데이터 로드/파싱 + 버전 일치 + proto WS 핸드셰이크/에코.**
 주의: 티켓은 60초 단명 + jti 1회용 → 재실행 시 3)에서 새 티켓 발급. 통과되면 룰 엔진/스택 구현으로 확장.

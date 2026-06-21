@@ -1,12 +1,12 @@
 using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
+using Google.Protobuf;
 using Microsoft.Extensions.Caching.Memory;
+using Rangu.Tactics.Proto.V1;
 using Rangu.Tactics.Server.Auth;
 using Rangu.Tactics.Server.Game;
 
-// 랑구 택틱스 — 인증 seam E2E 스모크 서버.
-// 검증 대상: ① 라이브 JWKS 티켓 검증 ② 카드 메타데이터 로드/파싱 ③ WS 핸드셰이크/에코.
+// 랑구 택틱스 — 인증 seam E2E 스모크 서버 (Protobuf 바이너리 프레이밍).
+// 검증 대상: ① 라이브 JWKS 티켓 검증 ② 카드 메타데이터 로드/파싱 ③ proto WS 핸드셰이크/에코.
 
 var builder = WebApplication.CreateBuilder(args);
 var cfg = builder.Configuration;
@@ -19,18 +19,12 @@ builder.Services.AddSingleton(new GameTicketOptions
     Issuer = cfg["GameTicket:Issuer"] ?? "https://rangu.fam",
     Audience = cfg["GameTicket:Audience"] ?? "rangu-tactics",
 });
-// HttpClient 를 직접 받는 싱글톤이라 팩토리로 명시 생성.
 builder.Services.AddSingleton(sp => new GameTicketValidator(
     sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
     sp.GetRequiredService<GameTicketOptions>(),
     sp.GetRequiredService<IMemoryCache>()));
 
 var app = builder.Build();
-var json = new JsonSerializerOptions
-{
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    PropertyNameCaseInsensitive = true,
-};
 
 // ── Boot: 카드 메타데이터 1회 로드 (실패 시 부팅 중단 = fail fast) ──
 var metadataUrl = cfg["Metadata:ExportUrl"] ?? "http://localhost:3000/api/game/metadata/export";
@@ -60,76 +54,116 @@ app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator) =>
         return;
     }
     using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-    await SmokeConnection.HandleAsync(socket, validator, catalog, json, app.Logger, ctx.RequestAborted);
+    await SmokeConnection.HandleAsync(socket, validator, catalog, app.Logger, ctx.RequestAborted);
 });
 
-app.Logger.LogInformation("[boot] rangu-tactics smoke server → ws://localhost:5080/ws/tactics");
+app.Logger.LogInformation("[boot] rangu-tactics smoke server (protobuf) → ws://localhost:5080/ws/tactics");
 app.Run("http://localhost:5080");
 
 
-// ── 스모크 연결 핸들러 ───────────────────────────────────────────────────────
-// NOTE: 디버그 편의를 위해 JSON 프레임 사용(스모크 = seam 검증이 목적).
-//       실제 서버는 이 메시지를 proto ClientMessage/ServerMessage(바이너리)로 교체한다.
+// ── proto 바이너리 연결 핸들러 ───────────────────────────────────────────────
+// 모든 프레임 = service.proto 의 ClientMessage / ServerMessage (바이너리).
 static class SmokeConnection
 {
     public static async Task HandleAsync(
         WebSocket socket, GameTicketValidator validator, CardCatalog catalog,
-        JsonSerializerOptions json, ILogger log, CancellationToken ct)
+        ILogger log, CancellationToken ct)
     {
-        var first = await ReceiveTextAsync(socket, ct);
-        if (first is null) return;
+        // 첫 프레임 = ClientMessage.connect
+        var firstBytes = await ReceiveBinaryAsync(socket, ct);
+        if (firstBytes is null) return;
 
-        SmokeConnect? conn;
-        try { conn = JsonSerializer.Deserialize<SmokeConnect>(first, json); }
-        catch { await SendAsync(socket, new { type = "connect_rejected", reason = "bad_json" }, json, ct); return; }
+        ClientMessage first;
+        try { first = ClientMessage.Parser.ParseFrom(firstBytes); }
+        catch { await RejectAsync(socket, ConnectRejected.Types.Reason.Unspecified, "bad_frame", ct); return; }
 
-        if (string.IsNullOrWhiteSpace(conn?.GameTicket))
+        if (first.MsgCase != ClientMessage.MsgOneofCase.Connect)
         {
-            await SendAsync(socket, new { type = "connect_rejected", reason = "missing_ticket" }, json, ct);
+            await RejectAsync(socket, ConnectRejected.Types.Reason.Unspecified, "expected_connect", ct);
             return;
         }
+        var connect = first.Connect;
 
         // ① 라이브 JWKS 로 티켓 검증
         GameTicketPrincipal principal;
         try
         {
-            principal = await validator.ValidateAsync(conn.GameTicket, ct);
+            principal = await validator.ValidateAsync(connect.GameTicket, ct);
         }
         catch (GameTicketValidationException ex)
         {
-            await SendAsync(socket, new { type = "connect_rejected", reason = "invalid_ticket", detail = ex.Reason }, json, ct);
+            await RejectAsync(socket, ConnectRejected.Types.Reason.InvalidTicket, ex.Reason, ct);
             return;
         }
 
-        // ② 메타데이터 버전 일치 (proto VERSION_MISMATCH 모사)
-        if (!string.IsNullOrEmpty(conn.MetadataVersion) && conn.MetadataVersion != catalog.ContentVersion)
+        // ② 메타데이터 버전 일치 (proto VERSION_MISMATCH). 스모크에선 client_version 에 contentVersion 을 실어보냄.
+        if (!string.IsNullOrEmpty(connect.ClientVersion) && connect.ClientVersion != catalog.ContentVersion)
         {
-            await SendAsync(socket, new { type = "connect_rejected", reason = "version_mismatch", current = catalog.ContentVersion }, json, ct);
+            await RejectAsync(socket, ConnectRejected.Types.Reason.VersionMismatch, catalog.ContentVersion, ct);
             return;
         }
 
-        // ③ 수락 + 더미 이벤트
+        // ③ 수락 + 최소 스냅샷 (수신자 관점)
         log.LogInformation("[ws] accepted user={User} match={Match}", principal.UserId, principal.MatchId ?? "-");
-        await SendAsync(socket, new
+        var you = new PlayerRef { UserId = principal.UserId, Seat = 0 };
+        await SendAsync(socket, new ServerMessage
         {
-            type = "connect_accepted",
-            you = new { userId = principal.UserId, username = principal.Username },
-            contentVersion = catalog.ContentVersion,
-            cardCount = catalog.Count,
-        }, json, ct);
-        await SendAsync(socket, new { type = "event", sequenceNumber = 1, payload = "match_started(dummy)" }, json, ct);
+            ConnectAccepted = new ConnectAccepted
+            {
+                You = you,
+                Snapshot = new GameStateSnapshot
+                {
+                    MatchId = string.IsNullOrEmpty(connect.MatchId) ? "smoke-1" : connect.MatchId,
+                    SequenceNumber = 0,
+                    Viewer = you,
+                    Phase = GamePhase.PhaseMulligan,
+                    RoundNumber = 0,
+                },
+            },
+        }, ct);
 
-        // ④ 에코 루프
-        ulong seq = 1;
+        // ④ 에코 루프: Intent → IntentAck Event 로 응답 (proto 왕복 증명)
+        ulong seq = 0;
         while (socket.State == WebSocketState.Open)
         {
-            var msg = await ReceiveTextAsync(socket, ct);
-            if (msg is null) break;
-            await SendAsync(socket, new { type = "echo", sequenceNumber = ++seq, received = msg }, json, ct);
+            var bytes = await ReceiveBinaryAsync(socket, ct);
+            if (bytes is null) break;
+
+            ClientMessage msg;
+            try { msg = ClientMessage.Parser.ParseFrom(bytes); }
+            catch { continue; }
+
+            switch (msg.MsgCase)
+            {
+                case ClientMessage.MsgOneofCase.Intent:
+                    await SendAsync(socket, new ServerMessage
+                    {
+                        Event = new Event
+                        {
+                            SequenceNumber = ++seq,
+                            IntentAck = new IntentAckEvent { ClientIntentId = msg.Intent.ClientIntentId },
+                        },
+                    }, ct);
+                    break;
+                case ClientMessage.MsgOneofCase.Heartbeat:
+                    await SendAsync(socket, new ServerMessage { Heartbeat = msg.Heartbeat }, ct);
+                    break;
+            }
         }
     }
 
-    static async Task<string?> ReceiveTextAsync(WebSocket socket, CancellationToken ct)
+    static Task RejectAsync(WebSocket socket, ConnectRejected.Types.Reason reason, string detail, CancellationToken ct) =>
+        SendAsync(socket, new ServerMessage
+        {
+            ConnectRejected = new ConnectRejected { Reason = reason, Detail = detail },
+        }, ct);
+
+    static async Task SendAsync(WebSocket socket, ServerMessage msg, CancellationToken ct)
+    {
+        await socket.SendAsync(msg.ToByteArray(), WebSocketMessageType.Binary, endOfMessage: true, ct);
+    }
+
+    static async Task<byte[]?> ReceiveBinaryAsync(WebSocket socket, CancellationToken ct)
     {
         var buffer = new byte[8192];
         using var ms = new MemoryStream();
@@ -144,15 +178,6 @@ static class SmokeConnection
             ms.Write(buffer, 0, result.Count);
             if (result.EndOfMessage) break;
         }
-        return Encoding.UTF8.GetString(ms.ToArray());
-    }
-
-    static async Task SendAsync(WebSocket socket, object payload, JsonSerializerOptions json, CancellationToken ct)
-    {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(payload, json);
-        await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
+        return ms.ToArray();
     }
 }
-
-// 스모크용 connect 프레임 (JSON). 실제 서버는 proto ConnectRequest 로 교체.
-record SmokeConnect(string? GameTicket, string? MatchId, string? MetadataVersion);

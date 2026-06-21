@@ -5,12 +5,19 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Rangu.Tactics.Server</RootNamespace>
+    <!-- net8.0 타깃이지만 net8 런타임 미설치 시 상위 런타임(예: net10)으로 롤포워드 → 로컬 즉시 실행 -->
+    <RollForward>LatestMajor</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- 게임 티켓 JWKS 검증 (최신 8.x). IMemoryCache/IHttpClientFactory 는 Web SDK 프레임워크 참조에 포함. -->
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 공유 Protobuf 라이브러리 (생성 메시지 클래스: Rangu.Tactics.Proto.V1) -->
+    <ProjectReference Include="..\proto\RanguTactics.Proto.csproj" />
   </ItemGroup>
 
 </Project>

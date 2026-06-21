@@ -1,0 +1,6 @@
+# .NET build output
+bin/
+obj/
+
+# Unity 코드젠 산출물 (RanguTactics.Proto.Codegen 으로 재생성)
+gen/

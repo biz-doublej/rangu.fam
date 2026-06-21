@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    공유 Protobuf 라이브러리 — game/proto 의 .proto 를 C# 클래스로 1회 컴파일.
+    서버(RanguTactics.Server) + 스모크 클라이언트가 ProjectReference 로 공유한다.
+    → 생성 코드가 한 곳뿐 = DTO 드리프트/중복 코드젠 없음.
+
+    Unity: 빌드 시 생성 .cs 가 gen/csharp/ 에도 emit 된다(OutputDir).
+           Unity 팀은 gen/csharp/*.cs 를 Assets/Scripts/Generated/Proto 로 복사하고
+           Google.Protobuf 런타임만 추가하면 됨. (별도 protoc 설치 불필요 — Grpc.Tools 번들 사용)
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Rangu.Tactics.Proto</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.*" />
+    <PackageReference Include="Grpc.Tools" Version="2.*" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- GrpcServices=None: gRPC 스텁 없이 메시지 클래스만 (전송은 WebSocket).
+         (Unity용 .cs 는 gen-csharp.ps1 로 gen/ 에 별도 emit — 빌드 산출과 분리해 깔끔하게) -->
+    <Protobuf Include="rangu/tactics/v1/*.proto" ProtoRoot="." GrpcServices="None" />
+    <!-- gen/ 은 Unity 복사용 emit 폴더. 이 lib 의 컴파일 대상에서 제외(중복 정의 방지). -->
+    <Compile Remove="gen/**/*.cs" />
+  </ItemGroup>
+
+</Project>
