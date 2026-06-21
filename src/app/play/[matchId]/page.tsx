@@ -14,6 +14,7 @@ import {
   doDeclareBlock,
 } from '@/lib/tactics/battleClient'
 import { useGameConnection } from '@/lib/tactics/useGameConnection'
+import { useAutoPilot } from '@/lib/tactics/useAutoPilot'
 import { CardMetadataProvider, useCardMeta } from '@/lib/tactics/CardMetadataProvider'
 import { FloatingNumbersLayer } from '@/lib/tactics/FloatingNumbersLayer'
 
@@ -42,8 +43,10 @@ function Board() {
   const search = useSearchParams()
   const matchId = params?.matchId ?? 'e2e-1'
   const ticket = search.get('ticket') ?? ''
+  const auto = search.get('auto') === '1' // 데모 오토파일럿(VFX 튜닝용)
 
   useGameConnection({ matchId, ticket })
+  useAutoPilot(auto)
 
   const snapshot = useBattle((s) => s.snapshot)
   const connected = useBattle((s) => s.connected)
@@ -164,6 +167,9 @@ function Board() {
           <button onClick={() => doPass()} disabled={busy} className="rounded bg-slate-700 px-3 py-1 text-xs text-slate-200 disabled:opacity-50">
             패스
           </button>
+        ) : null}
+        {auto ? (
+          <span className="animate-pulse rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white">🤖 AUTO</span>
         ) : null}
         <span className="text-xs text-slate-500">
           라운드 {vm.round} · {phaseLabel(vm.phase, isMulligan, vm.priorityIsMine)} · 스택 {vm.stackCount}

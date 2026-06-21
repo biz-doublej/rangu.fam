@@ -135,30 +135,71 @@ public static class GameConnection
         await BroadcastSnapshotsAsync(match, hub, ct);          // 그 다음 정본 스냅샷
     }
 
-    /// <summary>PvE 패시브 고스트 자동진행: 멀리건(0장)/우선권 패스. 발생 이벤트(전투 해결 등)를 모아 반환.</summary>
+    /// <summary>
+    /// PvE 스파링 고스트 자동진행 — 블로커 1기를 유지하며 인간의 공격을 막아준다(전투 연출 점화).
+    /// 정책: 멀리건(0장) → 수비 시 첫 공격자 블록 → 보드 비면 최저코스트 유닛 1기 소환 → 그 외 패스.
+    /// (V1 패시브에서 "블록·소환"만 추가한 최소 봇. 공격/주문/전략은 후속.) 발생 이벤트(전투 해결 등)를 모아 반환.
+    /// </summary>
     private static async Task<List<Engine.GameEvent>> DriveGhostAsync(GameMatch match, CancellationToken ct)
     {
         var collected = new List<Engine.GameEvent>();
         var ghost = match.SeatOf(PveGhost);
         if (ghost is null) return collected; // PvP(고스트 없음)
+        var g = ghost.Value;
+
         for (int guard = 0; guard < 500; guard++)
         {
             var s = match.Current;
             if (s.Phase == Engine.BattlePhase.Finished) break;
-            if (s.Phase == Engine.BattlePhase.Mulligan && !s.Player(ghost.Value).MulliganDone)
+
+            // 멀리건은 우선권과 무관(양쪽 독립)
+            if (s.Phase == Engine.BattlePhase.Mulligan && !s.Player(g).MulliganDone)
             {
-                collected.AddRange((await match.ApplyAsync(ghost.Value, new Engine.MulliganAction(Array.Empty<string>()), ct)).Events);
+                collected.AddRange((await match.ApplyAsync(g, new Engine.MulliganAction(Array.Empty<string>()), ct)).Events);
                 continue;
             }
-            if ((s.Phase == Engine.BattlePhase.Action || s.Phase == Engine.BattlePhase.DeclareBlock)
-                && s.Priority == ghost.Value)
+
+            if (s.Priority != g) break; // 고스트 차례가 아니면 인간에게 넘김
+
+            // 수비 차례: 첫 공격자를 살아있는 첫 유닛으로 블록(거부 시 폴백 패스 = 블록 없음)
+            var defender = s.ActivePlayer == Engine.PlayerSlot.P1 ? Engine.PlayerSlot.P2 : Engine.PlayerSlot.P1;
+            if (s.Phase == Engine.BattlePhase.DeclareBlock && g == defender
+                && s.Combat is { BlocksDeclared: false } c && c.Attackers.Count > 0)
             {
-                collected.AddRange((await match.ApplyAsync(ghost.Value, new Engine.PassAction(), ct)).Events);
+                var blocker = s.Player(g).Board.FirstOrDefault(u => !u.IsStunned);
+                if (blocker is not null && await TryApplyAsync(match, g,
+                        new Engine.DeclareBlockAction(new Dictionary<string, string> { [c.Attackers[0]] = blocker.InstanceId }),
+                        collected, ct))
+                    continue;
+                collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events); // 블록 없이 진행
                 continue;
             }
-            break; // 고스트가 행동할 게 없음
+
+            // 액션 + 보드 비었으면: 최저코스트 유닛 1기 소환(블로커 확보)
+            if (s.Phase == Engine.BattlePhase.Action && s.Player(g).Board.Count == 0)
+            {
+                var p = s.Player(g);
+                var unit = p.Hand
+                    .Where(card => card.Kind == Engine.CardKind.Unit && card.Cost <= p.Mana)
+                    .OrderBy(card => card.Cost).FirstOrDefault();
+                if (unit is not null && await TryApplyAsync(match, g, new Engine.PlayUnitAction(unit.InstanceId), collected, ct))
+                    continue;
+            }
+
+            // 그 외(반응 윈도우/소환 불가 등) → 패스로 진행
+            collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events);
         }
         return collected;
+    }
+
+    /// <summary>액션 적용 시도. 거부면 이벤트를 담지 않고 false(호출측이 패스로 폴백 → 무한루프 방지).</summary>
+    private static async Task<bool> TryApplyAsync(
+        GameMatch match, Engine.PlayerSlot actor, Engine.BattleAction action, List<Engine.GameEvent> collected, CancellationToken ct)
+    {
+        var r = await match.ApplyAsync(actor, action, ct);
+        if (r.Events.Any(e => e.Type == "rejected")) return false; // 상태 불변
+        collected.AddRange(r.Events);
+        return true;
     }
 
     private static async Task BroadcastSnapshotsAsync(GameMatch match, ConnectionHub hub, CancellationToken ct)
