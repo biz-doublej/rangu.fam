@@ -1,7 +1,8 @@
 'use client'
 
-import { Suspense, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { GamePhase } from '@rangu/proto-ts'
 import { selectBattle, type CardVM } from '@rangu/battle-core'
 import { NexusBar, CardSlot, CardTile } from '@rangu/ui'
@@ -15,14 +16,44 @@ import {
 } from '@/lib/tactics/battleClient'
 import { useGameConnection } from '@/lib/tactics/useGameConnection'
 import { useAutoPilot } from '@/lib/tactics/useAutoPilot'
+import { useCombatFx } from '@/lib/tactics/useCombatFx'
+import { CombatFxOverlay } from '@/lib/tactics/CombatFxOverlay'
 import { CardMetadataProvider, useCardMeta } from '@/lib/tactics/CardMetadataProvider'
-import { FloatingNumbersLayer } from '@/lib/tactics/FloatingNumbersLayer'
 
 function Row({ children }: { children: ReactNode }) {
   return <div className="flex min-h-[7rem] flex-wrap items-center gap-2">{children}</div>
 }
 function Center({ children }: { children: ReactNode }) {
   return <div className="flex h-screen items-center justify-center text-slate-300">{children}</div>
+}
+
+/**
+ * 보드 한 칸을 framer-motion 으로 감싸 두 가지 타격감을 부여:
+ *  - hit=true  → 히트스톱(0.1s 홀드)+쉐이크 (피격)
+ *  - exit      → 사망 시 스냅샷이 DOM 을 제거하기 전 0.3s 페이드아웃 (AnimatePresence)
+ */
+function FxSlot({
+  card,
+  hit,
+  selected,
+  attacking,
+  onClick,
+}: {
+  card: CardVM
+  hit: boolean
+  selected?: boolean
+  attacking?: boolean
+  onClick?: () => void
+}) {
+  return (
+    <motion.div
+      animate={hit ? { x: [0, 0, -6, 6, -4, 4, 0], scale: [1, 1.18, 1.18, 1.08, 1.04, 1, 1] } : { x: 0, scale: 1 }}
+      transition={hit ? { duration: 0.5, times: [0, 0.2, 0.4, 0.55, 0.7, 0.85, 1], ease: 'easeOut' } : { duration: 0.15 }}
+      exit={{ opacity: 0, scale: 0.5, filter: 'blur(2px)' }}
+    >
+      <CardSlot card={card} selected={selected} attacking={attacking} onClick={onClick} />
+    </motion.div>
+  )
 }
 
 /** 손패 카드 — 메타데이터 이름 조회 + 클릭 시 낙관적 소환. */
@@ -56,6 +87,15 @@ function Board() {
   const [attackSel, setAttackSel] = useState<Set<string>>(new Set())
   const [armed, setArmed] = useState<string | null>(null) // 블록할 공격자
   const [blocks, setBlocks] = useState<Record<string, string>>({}) // attacker → blocker
+
+  // 전투 VFX: combatFx 드레인(피해수치/스프라이트/카드히트/카메라쉐이크 신호)
+  const fx = useCombatFx()
+  const camera = useAnimation()
+  useEffect(() => {
+    if (fx.shakeNonce > 0) {
+      camera.start({ x: [0, -8, 8, -5, 5, -2, 0], transition: { duration: 0.34, ease: 'easeOut' } })
+    }
+  }, [fx.shakeNonce, camera])
 
   const mySeat = snapshot?.viewer?.seat ?? 0
   const vm = selectBattle(snapshot, mySeat)
@@ -103,44 +143,50 @@ function Board() {
   const myUnitInteractive = (c: CardVM) => (canAttack && !c.exhausted) || (isBlock && !!armed)
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
-      <FloatingNumbersLayer />
+    <>
+      <CombatFxOverlay floats={fx.floats} sprites={fx.sprites} />
+      <motion.div animate={camera} className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
+        <div className="text-xs text-slate-400">상대 손패 ({vm.opponent.handCount}) — 🔒 마스킹(뒷면)</div>
+        <Row>
+          {vm.opponentHand.map((c) => <CardSlot key={c.instanceId} card={c} />)}
+          {vm.opponentHand.length === 0 ? <span className="text-xs text-slate-600">— 상대 손패 없음 —</span> : null}
+        </Row>
 
-      <div className="text-xs text-slate-400">상대 손패 ({vm.opponent.handCount}) — 🔒 마스킹(뒷면)</div>
-      <Row>
-        {vm.opponentHand.map((c) => <CardSlot key={c.instanceId} card={c} />)}
-        {vm.opponentHand.length === 0 ? <span className="text-xs text-slate-600">— 상대 손패 없음 —</span> : null}
-      </Row>
+        <NexusBar side={vm.opponent} label="상대" />
+        <Row>
+          <AnimatePresence>
+            {vm.opponent.board.map((c) => (
+              <FxSlot
+                key={c.instanceId}
+                card={c}
+                hit={fx.hitIds.has(c.instanceId)}
+                attacking={attackerIds.has(c.instanceId)}
+                selected={armed === c.instanceId}
+                onClick={isBlock && attackerIds.has(c.instanceId) ? () => setArmed(c.instanceId) : undefined}
+              />
+            ))}
+          </AnimatePresence>
+          {vm.opponent.board.length === 0 ? <span className="text-xs text-slate-600">— 상대 보드 비어있음 —</span> : null}
+        </Row>
 
-      <NexusBar side={vm.opponent} label="상대" />
-      <Row>
-        {vm.opponent.board.map((c) => (
-          <CardSlot
-            key={c.instanceId}
-            card={c}
-            attacking={attackerIds.has(c.instanceId)}
-            selected={armed === c.instanceId}
-            onClick={isBlock && attackerIds.has(c.instanceId) ? () => setArmed(c.instanceId) : undefined}
-          />
-        ))}
-        {vm.opponent.board.length === 0 ? <span className="text-xs text-slate-600">— 상대 보드 비어있음 —</span> : null}
-      </Row>
+        <div className="h-px bg-slate-700" />
 
-      <div className="h-px bg-slate-700" />
-
-      <Row>
-        {vm.me.board.map((c) => (
-          <CardSlot
-            key={c.instanceId}
-            card={c}
-            attacking={attackerIds.has(c.instanceId)}
-            selected={attackSel.has(c.instanceId) || blockedUnitIds.has(c.instanceId)}
-            onClick={myUnitInteractive(c) ? () => onMyUnit(c) : undefined}
-          />
-        ))}
-        {vm.me.board.length === 0 ? <span className="text-xs text-slate-600">— 내 보드 비어있음 —</span> : null}
-      </Row>
-      <NexusBar side={vm.me} label="나" />
+        <Row>
+          <AnimatePresence>
+            {vm.me.board.map((c) => (
+              <FxSlot
+                key={c.instanceId}
+                card={c}
+                hit={fx.hitIds.has(c.instanceId)}
+                attacking={attackerIds.has(c.instanceId)}
+                selected={attackSel.has(c.instanceId) || blockedUnitIds.has(c.instanceId)}
+                onClick={myUnitInteractive(c) ? () => onMyUnit(c) : undefined}
+              />
+            ))}
+          </AnimatePresence>
+          {vm.me.board.length === 0 ? <span className="text-xs text-slate-600">— 내 보드 비어있음 —</span> : null}
+        </Row>
+        <NexusBar side={vm.me} label="나" />
 
       <div className="flex flex-wrap items-center gap-2">
         {isMulligan ? (
@@ -196,7 +242,8 @@ function Board() {
           />
         ))}
       </Row>
-    </div>
+      </motion.div>
+    </>
   )
 }
 

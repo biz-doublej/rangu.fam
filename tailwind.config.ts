@@ -5,6 +5,7 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './packages/*/src/**/*.{js,ts,jsx,tsx}', // @rangu/ui 등 워크스페이스 컴포넌트 클래스 스캔
   ],
   theme: {
     extend: {

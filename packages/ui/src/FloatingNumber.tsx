@@ -13,7 +13,7 @@ export interface FloatingNumberProps {
 
 /**
  * 피해 수치 — mount 시 위로 떠오르며 페이드(CSS transition, 전역 키프레임 불필요).
- * 좌표는 부모(FloatingNumbersLayer)가 instanceId 로 찾아 style 로 주입.
+ * 좌표는 부모(CombatFxOverlay)가 instanceId 로 찾아 style 로 주입.
  */
 export function FloatingNumber({ value, lethal, className, style }: FloatingNumberProps) {
   const [up, setUp] = useState(false)

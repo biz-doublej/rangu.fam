@@ -68,15 +68,22 @@ http://localhost:3000/play/vfx-demo?ticket=<붙여넣기>&auto=1
   4. 스냅샷 갱신 → 죽은 유닛 소멸 ("피격 수치 → 사망"의 자연스러운 순서)
   5. 이후 2라운드마다 전투 반복(넥서스 0 도달 시 게임 종료)
 
-## 4. VFX·타격감 hook 포인트
+## 4. VFX·타격감 (구현됨)
 
-연출은 **`combatFx` 큐**(`packages/battle-core` `battleStore`)에서 흘러나옵니다. 여기에 에셋을 얹으세요:
+연출은 **`combatFx` 큐**(`packages/battle-core` `battleStore`)에서 흘러나와 `useCombatFx`(`src/lib/tactics/`)가
+좌표를 부여하고 framer-motion 으로 렌더됩니다. 에셋은 `public/assets/fx/`.
 
-| 신호 | 위치 | 얹을 연출 |
+| 신호 | 구현 | 연출 |
 |---|---|---|
-| `kind:'damage'` (피격) | `src/lib/tactics/FloatingNumbersLayer.tsx` | 피격 수치 → **Hit-stop**(짧은 timeScale 0), 스프라이트 |
-| `kind:'death'` (사망) | 동 + `CardSlot` (`data-instance-id`) | 사망 파티클, 페이드아웃 (현재는 스냅샷이 즉시 제거 → 페이드는 폴리시) |
-| `kind:'nexus'` (넥서스 피해) | `NexusBar` (`data-nexus-seat`) | **Camera Shake**, 넥서스 균열 |
+| `kind:'damage'` (유닛 피격) | `FxSlot`(play 페이지) `animate` + `CombatFxOverlay` | **히트스톱**(0.1s scale 홀드)+쉐이크 / 슬래시 스프라이트(`fx_combat_fire_slash`) / −N 수치 |
+| `kind:'death'` (사망) | `<AnimatePresence>` `exit` + 먼지 스프라이트 | 스냅샷 제거 **전** 0.3s 페이드+blur / 먼지(`fx_combat_unit_death`) |
+| `kind:'nexus'` (넥서스 피해) | `useAnimation` `camera` 컨트롤 | **카메라 쉐이크**(±8px) / 임팩트(`fx_combat_water_strike`) / −N 수치 |
+
+> **렌더 순서**(이벤트 선행 프레임 → 스냅샷)가 death 페이드의 핵심: death 이벤트가 스냅샷보다 먼저 와
+> 유닛이 **아직 DOM 에 있을 때** 먼지 위치를 잡고, 직후 스냅샷이 유닛을 보드에서 빼면 `AnimatePresence`가
+> 0.3s 페이드아웃을 재생한 뒤 언마운트. (`packages/ui` 는 순수 유지 — 애니메이션은 전부 앱 레이어.)
+>
+> 타이밍 조절: `useCombatFx.ts` 의 `HIT_MS`/`DEATH_MS` 등 상수, `FxSlot` 의 `transition.duration`.
 
 `FloatingNumbersLayer`가 `combatFx`를 드레인하며 `data-instance-id`/`data-nexus-seat`로 DOM 좌표를 찾아 띄웁니다.
 화면 흔들림 같은 전역 연출은 이 드레인 지점에서 `kind`별로 트리거하면 됩니다.
