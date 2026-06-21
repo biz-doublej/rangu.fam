@@ -34,8 +34,8 @@ message PlayerState {
 
 // 스택에 올라간 항목(주문/유발 능력). LIFO 로 해결.
 message StackItem {
-  uint64 stack_id = 1;
-  uint64 source_instance_id = 2;
+  string stack_id = 1;
+  string source_instance_id = 2;
   PlayerRef controller = 3;
   CardView card = 4;                 // 보통 공개(시전된 주문)
   repeated Target targets = 5;
@@ -43,8 +43,8 @@ message StackItem {
 
 // 전투 상태.
 message CombatPair {
-  uint64 attacker_instance_id = 1;
-  uint64 blocker_instance_id = 2;    // 0 = 미차단
+  string attacker_instance_id = 1;
+  string blocker_instance_id = 2;    // 빈 문자열 = 미차단
 }
 message CombatState {
   PlayerRef attacker = 1;

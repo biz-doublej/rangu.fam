@@ -24,9 +24,10 @@ enum Zone {
 }
 
 // 효과/공격의 대상. 카드 인스턴스 또는 넥서스.
+// instance_id 는 엔진(정본)이 string("P1-4") 을 쓰므로 string 으로 통일.
 message Target {
   oneof target {
-    uint64 card_instance_id = 1;
+    string card_instance_id = 1;
     PlayerRef nexus = 2;
   }
 }
@@ -46,4 +47,5 @@ enum Keyword {
   KEYWORD_REGENERATION = 9;   // 재생
   KEYWORD_SPELLSHIELD = 10;   // 주문 보호막
   KEYWORD_FLEETING = 11;      // 소멸성(턴 끝 버려짐)
+  KEYWORD_TAUNT = 12;         // 도발(하스스톤식 강제 유인) — 택틱스 신규
 }

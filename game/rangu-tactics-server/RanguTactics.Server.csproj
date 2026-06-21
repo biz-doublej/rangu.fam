@@ -18,6 +18,8 @@
   <ItemGroup>
     <!-- 공유 Protobuf 라이브러리 (생성 메시지 클래스: Rangu.Tactics.Proto.V1) -->
     <ProjectReference Include="..\proto\RanguTactics.Proto.csproj" />
+    <!-- 순수 결정론 룰 엔진 (Rangu.Tactics.Engine) -->
+    <ProjectReference Include="..\RanguTactics.Engine\RanguTactics.Engine.csproj" />
   </ItemGroup>
 
 </Project>
