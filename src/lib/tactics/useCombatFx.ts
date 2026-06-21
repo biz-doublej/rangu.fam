@@ -73,7 +73,7 @@ export function useCombatFx(): CombatFxView {
     if (fresh.length === 0) return
     lastSeen.current = combatFx.reduce((m, f) => Math.max(m, f.id), lastSeen.current)
 
-    const addFloats: FxFloat[] = []
+    const addFloats: { float: FxFloat; delayMs: number }[] = []
     const addSprites: FxSprite[] = []
     const addHits: string[] = []
     let bump = false // 카메라 쉐이크 트리거
@@ -82,20 +82,21 @@ export function useCombatFx(): CombatFxView {
       if (f.kind === 'damage') {
         const pos = locate(f.targetInstanceId, f.nexusSeat)
         if (!pos) continue
-        if (f.amount) addFloats.push({ key: ++uid, value: f.amount, lethal: !!f.lethal, left: pos.left, top: pos.top })
         if (f.targetInstanceId) {
-          // 유닛 피격 → 슬래시 VFX + 카드 히트스톱/쉐이크 (치명타면 카메라도 흔듦)
+          // 유닛 피격: 슬래시 먼저 번쩍(시선 유도) → ~50ms 뒤 숫자가 위쪽(-35px)에서 팝업(가림 방지)
           addSprites.push({ key: ++uid, src: SRC.slash, left: pos.left, top: pos.top, size: f.lethal ? 128 : 92, durMs: SLASH_MS })
           addHits.push(f.targetInstanceId)
-          if (f.lethal) bump = true
+          if (f.amount) addFloats.push({ float: { key: ++uid, value: f.amount, lethal: !!f.lethal, left: pos.left, top: pos.top - 35 }, delayMs: 50 })
+          if (f.lethal) bump = true // 치명타 → 카메라도 흔듦
         } else {
+          if (f.amount) addFloats.push({ float: { key: ++uid, value: f.amount, lethal: !!f.lethal, left: pos.left, top: pos.top - 8 }, delayMs: 0 })
           bump = true // 넥서스에 직접 들어간 damage
         }
       } else if (f.kind === 'nexus') {
         const pos = locate(undefined, f.nexusSeat)
         if (pos) {
-          if (f.amount) addFloats.push({ key: ++uid, value: f.amount, lethal: false, left: pos.left, top: pos.top })
           addSprites.push({ key: ++uid, src: SRC.nexus, left: pos.left, top: pos.top, size: 104, durMs: NEXUS_MS })
+          if (f.amount) addFloats.push({ float: { key: ++uid, value: f.amount, lethal: false, left: pos.left, top: pos.top - 8 }, delayMs: 0 })
         }
         bump = true // 넥서스 피해 → 카메라 쉐이크
       } else if (f.kind === 'death') {
@@ -107,10 +108,11 @@ export function useCombatFx(): CombatFxView {
       }
     }
 
-    if (addFloats.length) {
-      setFloats((cur) => [...cur, ...addFloats])
-      const ids = new Set(addFloats.map((x) => x.key))
-      timers.current.push(setTimeout(() => setFloats((cur) => cur.filter((c) => !ids.has(c.key))), FLOAT_MS))
+    // floats: 각자 delayMs 후 추가(슬래시가 먼저 터지도록 리드), delayMs+FLOAT_MS 후 제거
+    for (const { float, delayMs } of addFloats) {
+      if (delayMs > 0) timers.current.push(setTimeout(() => setFloats((cur) => [...cur, float]), delayMs))
+      else setFloats((cur) => [...cur, float])
+      timers.current.push(setTimeout(() => setFloats((cur) => cur.filter((c) => c.key !== float.key)), delayMs + FLOAT_MS))
     }
     if (addSprites.length) {
       setSprites((cur) => [...cur, ...addSprites])
