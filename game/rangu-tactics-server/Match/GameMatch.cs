@@ -57,6 +57,10 @@ public sealed class GameMatch
     /// <summary>현재 상태의 수신자별 마스킹 스냅샷.</summary>
     public GameStateSnapshot SnapshotFor(Engine.PlayerSlot viewer, long serverTimeMs)
         => SnapshotMapper.ToSnapshot(_state, viewer, _seq, MatchId, serverTimeMs);
+
+    /// <summary>관전자용 — P1 시점 레이아웃 + 양쪽 손패 마스킹(라이브 공정성).</summary>
+    public GameStateSnapshot ObserverSnapshot(long serverTimeMs)
+        => SnapshotMapper.ToSnapshot(_state, Engine.PlayerSlot.P1, _seq, MatchId, serverTimeMs, observer: true);
 }
 
 public readonly record struct ApplyResult(

@@ -66,7 +66,13 @@ public static class GameConnection
         }
         else if (connect.Mode == ConnectMode.Observe)
         {
-            await RejectAsync(socket, ConnectRejected.Types.Reason.Unspecified, "observe_not_yet", ct); // C3 예정
+            var target = string.IsNullOrEmpty(connect.MatchId) ? null : registry.Find(connect.MatchId);
+            if (target is null)
+            {
+                await RejectAsync(socket, ConnectRejected.Types.Reason.MatchNotFound, connect.MatchId, ct);
+                return;
+            }
+            await RunObserverAsync(target, hub, socket, log, ct); // 읽기전용 관전(중립 마스킹)
             return;
         }
         else if (connect.Mode == ConnectMode.Pvp)
@@ -140,6 +146,42 @@ public static class GameConnection
         finally
         {
             hub.Remove(matchId, seat.Value);
+        }
+    }
+
+    /// <summary>관전 연결 — 읽기전용. observer 리스트 등록 → 중립 마스킹 스냅샷 수신만. Intent 는 원천 무시.</summary>
+    private static async Task RunObserverAsync(GameMatch match, ConnectionHub hub, WebSocket socket, ILogger log, CancellationToken ct)
+    {
+        var conn = hub.AddObserver(match.MatchId, socket);
+        log.LogInformation("[match {Match}] observer joined", match.MatchId);
+        try
+        {
+            await ConnectionHub.SendAsync(conn, new ServerMessage
+            {
+                ConnectAccepted = new ConnectAccepted
+                {
+                    You = SnapshotMapper.ToPlayerRef(match.Current.Player(Engine.PlayerSlot.P1)),
+                    Snapshot = match.ObserverSnapshot(NowMs()),
+                },
+            }, ct);
+
+            while (socket.State == WebSocketState.Open)
+            {
+                var bytes = await ReceiveAsync(socket, ct);
+                if (bytes is null) break;
+                ClientMessage cm;
+                try { cm = ClientMessage.Parser.ParseFrom(bytes); }
+                catch { continue; }
+                // 읽기전용 — Intent 는 무시(원천 차단). Resync/Heartbeat 만 응답.
+                if (cm.MsgCase == ClientMessage.MsgOneofCase.Resync)
+                    await ConnectionHub.SendAsync(conn, new ServerMessage { Snapshot = match.ObserverSnapshot(NowMs()) }, ct);
+                else if (cm.MsgCase == ClientMessage.MsgOneofCase.Heartbeat)
+                    await ConnectionHub.SendAsync(conn, new ServerMessage { Heartbeat = cm.Heartbeat }, ct);
+            }
+        }
+        finally
+        {
+            hub.RemoveObserver(match.MatchId, conn);
         }
     }
 
@@ -258,6 +300,13 @@ public static class GameConnection
         long now = NowMs();
         foreach (var (seat, conn) in hub.Participants(match.MatchId))
             await ConnectionHub.SendAsync(conn, new ServerMessage { Snapshot = match.SnapshotFor(seat, now) }, ct);
+        // 관전자 — 중립 마스킹(양손 숨김) 스냅샷
+        var observers = hub.Observers(match.MatchId);
+        if (observers.Count > 0)
+        {
+            var obsSnap = new ServerMessage { Snapshot = match.ObserverSnapshot(now) };
+            foreach (var o in observers) await ConnectionHub.SendAsync(o, obsSnap, ct);
+        }
     }
 
     /// <summary>연출 이벤트(피해/사망/넥서스/게임오버)를 수신자별 마스킹 매핑해 스냅샷 전에 전송.</summary>
@@ -271,6 +320,14 @@ public static class GameConnection
                 var proto = EventMapper.ToProto(ev, seat, match.Sequence, now);
                 if (proto is not null)
                     await ConnectionHub.SendAsync(conn, new ServerMessage { Event = proto }, ct);
+            }
+        // 관전자 — P1 시점으로 연출 이벤트(보드/넥서스 공개 정보라 동일)
+        foreach (var o in hub.Observers(match.MatchId))
+            foreach (var ev in events)
+            {
+                var proto = EventMapper.ToProto(ev, Engine.PlayerSlot.P1, match.Sequence, now);
+                if (proto is not null)
+                    await ConnectionHub.SendAsync(o, new ServerMessage { Event = proto }, ct);
             }
     }
 

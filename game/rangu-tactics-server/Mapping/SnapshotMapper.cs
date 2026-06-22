@@ -12,7 +12,7 @@ namespace Rangu.Tactics.Server.Mapping;
 public static class SnapshotMapper
 {
     public static GameStateSnapshot ToSnapshot(
-        Engine.GameState s, Engine.PlayerSlot viewer, ulong seq, string matchId, long serverTimeMs)
+        Engine.GameState s, Engine.PlayerSlot viewer, ulong seq, string matchId, long serverTimeMs, bool observer = false)
     {
         var snap = new GameStateSnapshot
         {
@@ -43,8 +43,8 @@ public static class SnapshotMapper
             // 보드 유닛 → 양쪽 모두 공개
             foreach (var u in p.Board) snap.Cards.Add(UnitToCardView(u));
 
-            // 손패 → viewer 본인만 공개, 상대는 HiddenCard
-            foreach (var c in p.Hand) snap.Cards.Add(HandCardToCardView(c, revealed: slot == viewer));
+            // 손패 → viewer 본인만 공개. 관전자(observer)는 양쪽 모두 숨김(라이브 공정성).
+            foreach (var c in p.Hand) snap.Cards.Add(HandCardToCardView(c, revealed: !observer && slot == viewer));
             // 덱/소각/RNG/seed 는 노출하지 않음
         }
 

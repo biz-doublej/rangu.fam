@@ -19,6 +19,8 @@ public sealed class ConnectionHub
     }
 
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<Engine.PlayerSlot, Conn>> _byMatch = new();
+    // 관전자 — 석 없는 읽기전용 연결(매치별 집합).
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Conn, byte>> _observers = new();
 
     public Conn Add(string matchId, Engine.PlayerSlot seat, WebSocket socket)
     {
@@ -26,6 +28,25 @@ public sealed class ConnectionHub
         _byMatch.GetOrAdd(matchId, _ => new()).AddOrUpdate(seat, conn, (_, _) => conn);
         return conn;
     }
+
+    public Conn AddObserver(string matchId, WebSocket socket)
+    {
+        var conn = new Conn { Socket = socket };
+        _observers.GetOrAdd(matchId, _ => new()).TryAdd(conn, 0);
+        return conn;
+    }
+
+    public void RemoveObserver(string matchId, Conn conn)
+    {
+        if (_observers.TryGetValue(matchId, out var set))
+        {
+            set.TryRemove(conn, out _);
+            if (set.IsEmpty) _observers.TryRemove(matchId, out _);
+        }
+    }
+
+    public IReadOnlyList<Conn> Observers(string matchId) =>
+        _observers.TryGetValue(matchId, out var set) ? set.Keys.ToList() : Array.Empty<Conn>();
 
     public void Remove(string matchId, Engine.PlayerSlot seat)
     {

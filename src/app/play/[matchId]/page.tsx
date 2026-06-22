@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { ConnectMode, GamePhase } from '@rangu/proto-ts'
 import { selectBattle, type CardVM, type CastTarget, type StackVM } from '@rangu/battle-core'
@@ -46,6 +46,30 @@ function SoundToggle() {
       className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-600"
     >
       {on ? '🔊' : '🔇'}
+    </button>
+  )
+}
+
+/** 관전 링크 복사 — 현재 매치의 공유 URL(?observe=1)을 클립보드로. e스포츠 시청 링크. */
+function ObserveShareButton({ matchId }: { matchId: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const url = `${window.location.origin}/play/${matchId}?observe=1`
+        navigator.clipboard
+          ?.writeText(url)
+          .then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          })
+          .catch(() => {})
+      }}
+      title="관전 링크 복사"
+      className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-600"
+    >
+      {copied ? '복사됨 ✓' : '🔗 관전 링크'}
     </button>
   )
 }
@@ -198,7 +222,8 @@ function GameOverOverlay() {
 }
 
 // 전장(Board) — 연결/로비는 PlayRoot 가 관리. 스냅샷 존재 시에만 렌더된다(snapshot 보장).
-function Board({ auto }: { auto: boolean }) {
+// readOnly=관전자: 모든 입력 차단 + 관전 배지.
+function Board({ auto, readOnly }: { auto: boolean; readOnly: boolean }) {
   useAutoPilot(auto)
 
   const snapshot = useBattle((s) => s.snapshot)
@@ -240,10 +265,11 @@ function Board({ auto }: { auto: boolean }) {
   const iAmAttacker = vm.combat.attackerSeat === mySeat
   // 게임 종료 시 모든 입력 차단(이벤트가 스냅샷보다 먼저 올 수 있어 phase + 슬라이스 둘 다 체크)
   const over = vm.phase === GamePhase.PHASE_GAME_OVER || !!gameOver
-  const isAction = !over && vm.phase === GamePhase.PHASE_ACTION && vm.priorityIsMine
+  const locked = over || readOnly // 관전자도 모든 입력 전면 차단
+  const isAction = !locked && vm.phase === GamePhase.PHASE_ACTION && vm.priorityIsMine
   const canAttack = isAction && vm.me.hasAttackToken && !busy
-  const isBlock = !over && vm.phase === GamePhase.PHASE_COMBAT_DECLARE_BLOCK && !iAmAttacker && vm.priorityIsMine && !busy
-  const isMulligan = vm.phase === GamePhase.PHASE_MULLIGAN
+  const isBlock = !locked && vm.phase === GamePhase.PHASE_COMBAT_DECLARE_BLOCK && !iAmAttacker && vm.priorityIsMine && !busy
+  const isMulligan = !locked && vm.phase === GamePhase.PHASE_MULLIGAN
   const blockedUnitIds = new Set(Object.values(blocks))
 
   // 탭(클릭) = 공격자 토글(드래그는 화살표). 블록은 드래그 전용.
@@ -365,6 +391,11 @@ function Board({ auto }: { auto: boolean }) {
         {auto ? (
           <span className="animate-pulse rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white">🤖 AUTO</span>
         ) : null}
+        {readOnly ? (
+          <span className="rounded bg-violet-600 px-2 py-1 text-xs font-bold text-white">👁 관전 중</span>
+        ) : snapshot?.matchId ? (
+          <ObserveShareButton matchId={snapshot.matchId} />
+        ) : null}
         <SoundToggle />
         <span className="text-xs text-slate-500">
           라운드 {vm.round} · {phaseLabel(vm.phase, isMulligan, vm.priorityIsMine)} · 스택 {vm.stackCount}
@@ -437,15 +468,17 @@ function MatchingView({ mode, onCancel }: { mode: ConnectMode; onCancel: () => v
     return () => clearInterval(t)
   }, [])
   const pvp = mode === ConnectMode.CONNECT_MODE_PVP
+  const observing = mode === ConnectMode.CONNECT_MODE_OBSERVE
+  const label = observing ? '관전 접속 중…' : pvp ? '상대방을 찾는 중…' : '연습 매치 준비 중…'
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-5 bg-slate-900 text-slate-200">
       <span className="h-12 w-12 animate-spin rounded-full border-4 border-rose-500/30 border-t-rose-500" />
       <div className="text-center">
-        <p className="text-lg font-bold">{pvp ? '상대방을 찾는 중…' : '연습 매치 준비 중…'}</p>
+        <p className="text-lg font-bold">{label}</p>
         {pvp ? <p className="mt-1 font-mono text-sm text-slate-400">{secs}s</p> : null}
       </div>
       <button onClick={onCancel} className="rounded-lg bg-slate-700 px-5 py-2 text-sm text-slate-200 hover:bg-slate-600">
-        취소
+        {observing ? '나가기' : '취소'}
       </button>
     </div>
   )
@@ -457,19 +490,26 @@ function MatchingView({ mode, onCancel }: { mode: ConnectMode; onCancel: () => v
  * 취소(mode→undefined)면 effect cleanup 이 소켓 종료 + store 리셋 → 로비.
  */
 function PlayRoot() {
+  const params = useParams<{ matchId: string }>()
   const search = useSearchParams()
   const ticket = search.get('ticket') ?? ''
   const auto = search.get('auto') === '1'
-  const [mode, setMode] = useState<ConnectMode | undefined>(undefined)
+  const observe = search.get('observe') === '1' // 공유 URL 다이렉트 관전
+  const urlMatchId = params?.matchId ?? ''
+  // 관전은 로비 없이 즉시 OBSERVE 모드로 진입.
+  const [mode, setMode] = useState<ConnectMode | undefined>(observe ? ConnectMode.CONNECT_MODE_OBSERVE : undefined)
 
-  // matchId 는 서버가 배정(PvP=큐, PvE=pve-{userId}) → 빈 문자열 전송.
-  useGameConnection({ matchId: '', ticket, mode })
+  // OBSERVE 는 URL matchId 로 직행, 그 외(PvP/PvE)는 서버가 배정(빈 문자열).
+  const connMatchId = mode === ConnectMode.CONNECT_MODE_OBSERVE ? urlMatchId : ''
+  useGameConnection({ matchId: connMatchId, ticket, mode })
   const snapshot = useBattle((s) => s.snapshot)
 
   if (!ticket) return <Center>티켓이 필요합니다 — <code className="ml-1">?ticket=…</code></Center>
   if (mode === undefined) return <LobbyView onSelect={setMode} />
   if (!snapshot) return <MatchingView mode={mode} onCancel={() => setMode(undefined)} />
-  return <Board auto={auto && mode === ConnectMode.CONNECT_MODE_PVE} />
+  return (
+    <Board auto={auto && mode === ConnectMode.CONNECT_MODE_PVE} readOnly={mode === ConnectMode.CONNECT_MODE_OBSERVE} />
+  )
 }
 
 // 실 카탈로그(/export, 덱 빌더의 진짜 카드) 우선 + 데모/고스트 카드(/demo) 보충 병합.

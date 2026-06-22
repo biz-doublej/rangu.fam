@@ -98,4 +98,20 @@ public class SnapshotMaskingTests
         var text = System.Text.Encoding.UTF8.GetString(bytes);
         Assert.DoesNotContain("secret-seed", text); // seed 문자열이 와이어에 없음
     }
+
+    [Fact]
+    public void Observer_MasksBothHands_BoardStillRevealed()
+    {
+        // 관전자(observer): 라이브 공정성 → 양쪽 손패 모두 숨김. 보드/넥서스는 공개.
+        var snap = SnapshotMapper.ToSnapshot(TwoHandsState(), Engine.PlayerSlot.P1, seq: 7, "m1", serverTimeMs: 0, observer: true);
+
+        foreach (var id in new[] { "p1c1", "p2c1", "p2c2" })
+            Assert.Equal(CardView.VisibilityOneofCase.Hidden, snap.Cards.Single(c => c.InstanceId == id).VisibilityCase);
+
+        // 어떤 손패도 revealed 아님(definition 미노출)
+        Assert.DoesNotContain(snap.Cards, c => c.Zone == Zone.Hand && c.VisibilityCase == CardView.VisibilityOneofCase.Revealed);
+
+        // 보드 유닛은 공개 유지
+        Assert.Equal(CardView.VisibilityOneofCase.Revealed, snap.Cards.Single(c => c.InstanceId == "p1u1").VisibilityCase);
+    }
 }
