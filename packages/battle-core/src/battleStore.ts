@@ -29,6 +29,12 @@ export interface CombatFx {
   instanceIds?: string[]
 }
 
+/** 게임 종료 — 수신자(viewer) 관점 결과. gameOver 이벤트 드레인 결과. */
+export interface GameOverState {
+  result: 'win' | 'loss' | 'draw'
+  reason?: string
+}
+
 export interface BattleState {
   /** 서버가 보낸 정본 스냅샷(수신자 마스킹 적용). UI 의 단일 진실. */
   snapshot?: GameStateSnapshot
@@ -37,6 +43,8 @@ export interface BattleState {
   /** 전투 연출 큐(append-only, capped). 애니메이션 레이어가 lastSeenId 로 드레인. 스냅샷과 분리. */
   combatFx: CombatFx[]
   connected: boolean
+  /** 게임 종료 결과(없으면 진행 중). gameOver 이벤트 수신 시 세팅. */
+  gameOver?: GameOverState
 
   /** 수신 ServerMessage 를 받아 상태 갱신(리듀서). */
   apply: (msg: ServerMessage) => void
@@ -56,13 +64,14 @@ export function createBattleStore(): BattleStore {
     pendingIntents: {},
     combatFx: [],
     connected: false,
+    gameOver: undefined,
 
     trackIntent: (intentId, type, cardInstanceId) =>
       set((s) => ({
         pendingIntents: { ...s.pendingIntents, [intentId]: { intentId, type, status: 'pending', cardInstanceId } },
       })),
 
-    reset: () => set({ snapshot: undefined, pendingIntents: {}, combatFx: [], connected: false }),
+    reset: () => set({ snapshot: undefined, pendingIntents: {}, combatFx: [], connected: false, gameOver: undefined }),
 
     apply: (msg) => {
       // 연결 수락 — 즉시 현재 스냅샷으로 복구(재접속 포함)
@@ -82,6 +91,10 @@ export function createBattleStore(): BattleStore {
           set((s) => patchPending(s, ev.intentAck!.clientIntentId, 'acked'))
         } else if (ev.intentRejected) {
           set((s) => patchPending(s, ev.intentRejected!.clientIntentId, 'rejected', ev.intentRejected!.detail))
+        } else if (ev.gameOver) {
+          // 게임 종료 — proto Result(WIN=1/LOSS=2/DRAW=3) → viewer 관점 결과 슬라이스
+          const r = ev.gameOver.viewerResult
+          set({ gameOver: { result: r === 1 ? 'win' : r === 2 ? 'loss' : 'draw', reason: ev.gameOver.reason || undefined } })
         } else {
           // 전투/연출 이벤트 → ephemeral fx 큐(스냅샷 불변). 좌표는 컴포넌트가 부여.
           const fx = toCombatFx(ev)

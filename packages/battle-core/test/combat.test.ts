@@ -84,3 +84,20 @@ describe('combatFx: 전투 이벤트 → ephemeral 연출 큐 (스냅샷 불변)
     expect(store.getState().combatFx.length).toBe(0)
   })
 })
+
+describe('gameOver: 종료 이벤트 → store 드레인(viewer 관점)', () => {
+  it('viewerResult LOSS(2) → result=loss + reason, 연출 큐로 안 샘', () => {
+    const store = createBattleStore()
+    store.getState().apply(ServerMessage.fromPartial({ event: { gameOver: { viewerResult: 2, reason: 'nexus_destroyed' } } }))
+    expect(store.getState().gameOver).toMatchObject({ result: 'loss', reason: 'nexus_destroyed' })
+    expect(store.getState().combatFx.length).toBe(0)
+  })
+
+  it('viewerResult WIN(1) → win, reset 으로 해제', () => {
+    const store = createBattleStore()
+    store.getState().apply(ServerMessage.fromPartial({ event: { gameOver: { viewerResult: 1 } } }))
+    expect(store.getState().gameOver?.result).toBe('win')
+    store.getState().reset()
+    expect(store.getState().gameOver).toBeUndefined()
+  })
+})

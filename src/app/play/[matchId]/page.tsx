@@ -139,6 +139,43 @@ function StackChain({ stack }: { stack: StackVM[] }) {
   )
 }
 
+/**
+ * 게임 종료 결과 오버레이 — gameOver 슬라이스 감지 시 암전 + 승/패 텍스트.
+ * 진입 delay(~0.45s)로 치명타 히트스톱/쉐이크/피격 수치가 먼저 재생된 뒤 떠오른다.
+ */
+function GameOverOverlay() {
+  const gameOver = useBattle((s) => s.gameOver)
+  const text = gameOver?.result === 'win' ? '승 리' : gameOver?.result === 'loss' ? '패 배' : '무승부'
+  const color =
+    gameOver?.result === 'win' ? 'text-amber-300' : gameOver?.result === 'loss' ? 'text-rose-400' : 'text-slate-300'
+  return (
+    <AnimatePresence>
+      {gameOver ? (
+        <motion.div
+          key="gameover"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4, delay: 0.45 }}
+        >
+          <motion.div
+            className="text-center"
+            initial={{ scale: 0.5, y: 28, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 16, delay: 0.6 }}
+          >
+            <div className={`text-7xl font-black tracking-widest drop-shadow-[0_2px_14px_rgba(0,0,0,0.7)] ${color}`}>{text}</div>
+            <div className="mt-3 text-xs uppercase tracking-[0.3em] text-slate-400">
+              {gameOver?.reason === 'nexus_destroyed' ? '넥서스 파괴' : (gameOver?.reason ?? '게임 종료')}
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  )
+}
+
 function Board() {
   const params = useParams<{ matchId: string }>()
   const search = useSearchParams()
@@ -152,6 +189,7 @@ function Board() {
   const snapshot = useBattle((s) => s.snapshot)
   const connected = useBattle((s) => s.connected)
   const pendingIntents = useBattle((s) => s.pendingIntents)
+  const gameOver = useBattle((s) => s.gameOver)
 
   // 전투 선택(로컬 UI 상태 — 서버 정본과 분리)
   const [attackSel, setAttackSel] = useState<Set<string>>(new Set())
@@ -183,9 +221,11 @@ function Board() {
   const attackerIds = new Set(vm.combat.pairs.map((p) => p.attackerInstanceId))
   const oppSeat = mySeat === 0 ? 1 : 0
   const iAmAttacker = vm.combat.attackerSeat === mySeat
-  const isAction = vm.phase === GamePhase.PHASE_ACTION && vm.priorityIsMine
+  // 게임 종료 시 모든 입력 차단(이벤트가 스냅샷보다 먼저 올 수 있어 phase + 슬라이스 둘 다 체크)
+  const over = vm.phase === GamePhase.PHASE_GAME_OVER || !!gameOver
+  const isAction = !over && vm.phase === GamePhase.PHASE_ACTION && vm.priorityIsMine
   const canAttack = isAction && vm.me.hasAttackToken && !busy
-  const isBlock = vm.phase === GamePhase.PHASE_COMBAT_DECLARE_BLOCK && !iAmAttacker && vm.priorityIsMine && !busy
+  const isBlock = !over && vm.phase === GamePhase.PHASE_COMBAT_DECLARE_BLOCK && !iAmAttacker && vm.priorityIsMine && !busy
   const isMulligan = vm.phase === GamePhase.PHASE_MULLIGAN
   const blockedUnitIds = new Set(Object.values(blocks))
 
@@ -237,6 +277,7 @@ function Board() {
     <>
       <CombatFxOverlay floats={fx.floats} sprites={fx.sprites} />
       <TargetingArrow arrow={targeting.arrow} variant={targeting.variant} />
+      <GameOverOverlay />
       <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
         <div className="text-xs text-slate-400">상대 손패 ({vm.opponent.handCount}) — 🔒 마스킹(뒷면)</div>
         <Row>

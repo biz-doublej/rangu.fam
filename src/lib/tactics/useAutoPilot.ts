@@ -25,6 +25,7 @@ export function useAutoPilot(enabled: boolean, stepMs = 1100): void {
 
     const tick = () => {
       const st = battleStore.getState()
+      if (st.gameOver) return // 게임 종료 → 자동 운전 정지
       const snap = st.snapshot
       if (!snap) return
       const mySeat = snap.viewer?.seat ?? 0
