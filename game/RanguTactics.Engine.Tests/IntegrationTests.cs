@@ -148,4 +148,84 @@ public class IntegrationTests
         Assert.Equal(3, s3.Player(PlayerSlot.P1).Board[0].Health);
         Assert.Contains(ev, e => e.Type == "combatResolved");
     }
+
+    [Fact]
+    public void Champion_AwakensAtRound6_StatsBoosted_KeywordGranted_EventEmitted()
+    {
+        // Round 5 Action(P1 활성). P1 보드에 미각성 챔피언(4/4). 양쪽 패스 → 라운드 6 시작 → 각성.
+        var s0 = new GameState
+        {
+            Seed = "awaken", Rng = 1, Round = 5, Phase = BattlePhase.Action,
+            ActivePlayer = PlayerSlot.P1, Priority = PlayerSlot.P1,
+            Players =
+            {
+                [PlayerSlot.P1] = new PlayerState { Slot = PlayerSlot.P1, NexusHealth = 20, MulliganDone = true, HasAttackToken = true },
+                [PlayerSlot.P2] = new PlayerState { Slot = PlayerSlot.P2, NexusHealth = 20, MulliganDone = true },
+            },
+        };
+        // R6 시작의 드로우가 피로사로 끝나지 않도록 양쪽 덱을 채움
+        for (int i = 0; i < 5; i++)
+        {
+            s0.Player(PlayerSlot.P1).Deck.Add(new BattleCard { InstanceId = $"p1d{i}", CardId = "c", Owner = PlayerSlot.P1, Name = "덱", Cost = 1, Kind = CardKind.Unit, Unit = new UnitSpec { Power = 1, Health = 1 } });
+            s0.Player(PlayerSlot.P2).Deck.Add(new BattleCard { InstanceId = $"p2d{i}", CardId = "c", Owner = PlayerSlot.P2, Name = "덱", Cost = 1, Kind = CardKind.Unit, Unit = new UnitSpec { Power = 1, Health = 1 } });
+        }
+        s0.Player(PlayerSlot.P1).Board.Add(new BattleUnit
+        {
+            InstanceId = "champ", CardId = "prestige_jaewon", Owner = PlayerSlot.P1, Name = "정재원 챔피언",
+            Power = 4, BasePower = 4, Health = 4, MaxHealth = 4, BaseMaxHealth = 4,
+            IsChampion = true, ChampionLevel = 1, SummonedRound = 1,
+        });
+
+        var (a, _) = GameEngine.Apply(s0, PlayerSlot.P1, new PassAction());
+        var (s1, ev) = GameEngine.Apply(a, PlayerSlot.P2, new PassAction()); // 양쪽 패스 → 라운드 6 시작
+
+        Assert.Equal(6, s1.Round);
+        Assert.NotEqual(BattlePhase.Finished, s1.Phase); // 피로사 아님
+        var champ = s1.Player(PlayerSlot.P1).Board.Single(u => u.InstanceId == "champ");
+        Assert.Equal(2, champ.ChampionLevel);                 // Lv.1 → 2 각성
+        Assert.Equal(7, champ.Power);                         // 4 + 3
+        Assert.Equal(7, champ.MaxHealth);                     // 4 + 3
+        Assert.Equal(7, champ.Health);                        // 풀힐
+        Assert.Contains(Keyword.Overwhelm, champ.Keywords);   // 시그니처 키워드
+        Assert.Contains(Keyword.Overwhelm, champ.BaseKeywords); // 영구(복원 기준에도)
+        Assert.Contains(ev, e => e.Type == "championAwakened");
+    }
+
+    [Fact]
+    public void Champion_AwakensOnlyOnce_NoDoubleBoost()
+    {
+        // 이미 각성(Lv.2)한 챔피언은 R7 진입에도 재각성/재부스트되지 않아야.
+        var s0 = new GameState
+        {
+            Seed = "awaken2", Rng = 1, Round = 6, Phase = BattlePhase.Action,
+            ActivePlayer = PlayerSlot.P2, Priority = PlayerSlot.P2,
+            Players =
+            {
+                [PlayerSlot.P1] = new PlayerState { Slot = PlayerSlot.P1, NexusHealth = 20, MulliganDone = true },
+                [PlayerSlot.P2] = new PlayerState { Slot = PlayerSlot.P2, NexusHealth = 20, MulliganDone = true, HasAttackToken = true },
+            },
+        };
+        for (int i = 0; i < 5; i++)
+        {
+            s0.Player(PlayerSlot.P1).Deck.Add(new BattleCard { InstanceId = $"p1e{i}", CardId = "c", Owner = PlayerSlot.P1, Name = "덱", Cost = 1, Kind = CardKind.Unit, Unit = new UnitSpec { Power = 1, Health = 1 } });
+            s0.Player(PlayerSlot.P2).Deck.Add(new BattleCard { InstanceId = $"p2e{i}", CardId = "c", Owner = PlayerSlot.P2, Name = "덱", Cost = 1, Kind = CardKind.Unit, Unit = new UnitSpec { Power = 1, Health = 1 } });
+        }
+        s0.Player(PlayerSlot.P1).Board.Add(new BattleUnit
+        {
+            InstanceId = "champ", CardId = "prestige_jaewon", Owner = PlayerSlot.P1, Name = "정재원 챔피언",
+            Power = 7, BasePower = 7, Health = 7, MaxHealth = 7, BaseMaxHealth = 7,
+            Keywords = { Keyword.Overwhelm }, BaseKeywords = { Keyword.Overwhelm },
+            IsChampion = true, ChampionLevel = 2, SummonedRound = 1, // 이미 각성
+        });
+
+        var (a, _) = GameEngine.Apply(s0, PlayerSlot.P2, new PassAction());
+        var (s1, ev) = GameEngine.Apply(a, PlayerSlot.P1, new PassAction()); // → 라운드 7
+
+        Assert.Equal(7, s1.Round);
+        var champ = s1.Player(PlayerSlot.P1).Board.Single(u => u.InstanceId == "champ");
+        Assert.Equal(7, champ.Power);   // 재부스트 없음(여전히 7, 10 아님)
+        Assert.Equal(7, champ.MaxHealth);
+        Assert.Single(champ.Keywords, k => k == Keyword.Overwhelm); // 키워드 중복 추가 없음
+        Assert.DoesNotContain(ev, e => e.Type == "championAwakened");
+    }
 }

@@ -132,8 +132,44 @@ public static partial class GameEngine
         s.Priority = s.ActivePlayer;
         s.PassStreak = 0;
         s.Combat = null;
-        // TODO(후속 단계): if (n >= 6) LevelUpRoundChampions(s, events);
         EmitEvent(events, s, EventActor.System, "roundStart", new() { ["round"] = n, ["active"] = Tag(s.ActivePlayer) });
+        if (n >= 6) LevelUpRoundChampions(s, events); // R6+ : 보드의 챔피언 각성(Lv.1→2)
+    }
+
+    /// <summary>
+    /// R6+ 라운드 시작 시 보드의 모든 미각성 챔피언을 각성(Lv.1→2). 영구·1회.
+    /// 효과: +3/+3(Base+현재) + 풀힐 + 시그니처 키워드(Overwhelm). championAwakened 이벤트 발사.
+    /// 결정론: P1→P2, 보드 순서 고정. 각성 상태의 단일 소스 = ChampionLevel(>=2).
+    /// </summary>
+    private static void LevelUpRoundChampions(GameState s, List<GameEvent> events)
+    {
+        const int awakenBonus = 3;
+        const Keyword signature = Keyword.Overwhelm;
+        foreach (var slot in new[] { PlayerSlot.P1, PlayerSlot.P2 })
+        {
+            foreach (var u in s.Player(slot).Board)
+            {
+                if (!u.IsChampion || u.ChampionLevel >= 2) continue;
+                u.ChampionLevel = 2;
+                u.BasePower += awakenBonus;
+                u.Power += awakenBonus;
+                u.BaseMaxHealth += awakenBonus;
+                u.MaxHealth += awakenBonus;
+                u.Health = u.MaxHealth;                                  // 각성 = 풀힐
+                if (!u.BaseKeywords.Contains(signature)) u.BaseKeywords.Add(signature);
+                if (!u.Keywords.Contains(signature)) u.Keywords.Add(signature);
+                EmitEvent(events, s, EventActor.System, "championAwakened", new()
+                {
+                    ["instanceId"] = u.InstanceId,
+                    ["name"] = u.Name,
+                    ["owner"] = Tag(u.Owner),
+                    ["power"] = u.Power,
+                    ["health"] = u.Health,
+                    ["level"] = u.ChampionLevel,
+                    ["keyword"] = signature.ToString(),
+                });
+            }
+        }
     }
 
     // ── 메인 리듀서 ───────────────────────────────────────────────
