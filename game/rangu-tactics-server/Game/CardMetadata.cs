@@ -96,6 +96,28 @@ public sealed class CardCatalog
 
         return new CardCatalog(doc.ContentVersion, doc.Cards.ToDictionary(c => c.CardId));
     }
+
+    /// <summary>
+    /// HTTP 메타데이터 도달 불가 시 부팅 폴백(ALLOW_DEMO_FALLBACK 일 때만 사용).
+    /// DeckPresets.Demo 의 cardId(demo_0..3 / spell_dmg / spell_heal)와 정합 — 검증/오프라인 기동용.
+    /// </summary>
+    public static CardCatalog Demo()
+    {
+        CardMeta Unit(string id, string name, string type, int atk, int hp) =>
+            new(id, name, "neutral", type, "common", 1, atk, hp, Array.Empty<string>(), null, Array.Empty<CardEffect>(), null, null, false);
+        CardMeta Spell(string id, string name, string speed) =>
+            new(id, name, "neutral", "spell", "common", 1, null, null, Array.Empty<string>(), speed, Array.Empty<CardEffect>(), null, null, false);
+        var cards = new List<CardMeta>
+        {
+            Unit("demo_0", "데모 챔피언", "champion", 3, 4),
+            Unit("demo_1", "데모1", "unit", 2, 3),
+            Unit("demo_2", "데모2", "unit", 3, 2),
+            Unit("demo_3", "데모3", "unit", 1, 4),
+            Spell("spell_dmg", "데모 화염", "fast"),
+            Spell("spell_heal", "데모 치유", "burst"),
+        };
+        return new CardCatalog("embedded-demo", cards.ToDictionary(c => c.CardId));
+    }
 }
 
 // ── 효과 resolver 매핑 패턴 (룰 엔진 구현 시) ────────────────────────────────

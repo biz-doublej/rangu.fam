@@ -45,8 +45,15 @@ try
 }
 catch (Exception ex)
 {
-    app.Logger.LogCritical(ex, "[metadata] load failed from {Url} — aborting boot.", metadataUrl);
-    return;
+    // 기본: 부팅 중단(조용한 오작동 방지). ALLOW_DEMO_FALLBACK=true 일 때만 내장 데모 카탈로그로 자립 기동(검증/오프라인용).
+    var allowDemo = (Environment.GetEnvironmentVariable("ALLOW_DEMO_FALLBACK") ?? cfg["Metadata:AllowDemoFallback"]) is "true" or "1";
+    if (!allowDemo)
+    {
+        app.Logger.LogCritical(ex, "[metadata] load failed from {Url} — aborting boot (검증/오프라인이면 ALLOW_DEMO_FALLBACK=true).", metadataUrl);
+        return;
+    }
+    catalog = CardCatalog.Demo();
+    app.Logger.LogWarning(ex, "[metadata] load failed from {Url} — ALLOW_DEMO_FALLBACK → 내장 데모 카탈로그({Count} cards, {Version}).", metadataUrl, catalog.Count, catalog.ContentVersion);
 }
 
 app.UseWebSockets();
