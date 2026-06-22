@@ -62,6 +62,20 @@ public static class EventMapper
                 }
                 return Wrap(seq, timeMs, e => e.GameOver = go);
             }
+            case "championAwakened":
+            {
+                var d = ev.Detail!;
+                return Wrap(seq, timeMs, e => e.ChampionAwakened = new ChampionAwakenedEvent
+                {
+                    InstanceId = AsString(d, "instanceId"),
+                    Name = AsString(d, "name"),
+                    Owner = SeatRef(AsString(d, "owner")),
+                    NewPower = AsInt(d, "power"),
+                    NewHealth = AsInt(d, "health"),
+                    Keyword = AsString(d, "keyword"),
+                    ChampionLevel = (uint)AsInt(d, "level"),
+                });
+            }
             default:
                 return null; // 연출 불필요(또는 마스킹 민감) 이벤트는 스킵
         }

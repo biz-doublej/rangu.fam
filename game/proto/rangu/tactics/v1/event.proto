@@ -38,6 +38,7 @@ message Event {
     IntentAckEvent intent_ack = 29;
     IntentRejectedEvent intent_rejected = 30;
     GameOverEvent game_over = 31;
+    ChampionAwakenedEvent champion_awakened = 32;
   }
 }
 
@@ -186,4 +187,16 @@ message GameOverEvent {
   PlayerRef winner = 1;              // 무승부면 비움
   Result viewer_result = 2;          // 수신자 관점 결과
   string reason = 3;                 // "nexus_destroyed" / "concede" / "deckout" ...
+}
+
+// 챔피언 각성(Lv.1→2) — R6+ 라운드 시작 시. 순간 연출(스케일 펌핑/골든 오라/쉐이크) 트리거.
+// 보드 공개 정보 → viewer 무관(마스킹 불필요). 상시 표출은 RevealedCard.champion_level 로.
+message ChampionAwakenedEvent {
+  string instance_id = 1;
+  string name = 2;
+  PlayerRef owner = 3;
+  int32 new_power = 4;
+  int32 new_health = 5;
+  string keyword = 6;                // 부여된 시그니처 키워드(예: "Overwhelm")
+  uint32 champion_level = 7;         // 보통 2
 }

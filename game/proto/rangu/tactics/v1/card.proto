@@ -36,6 +36,7 @@ message RevealedCard {
   repeated Keyword keywords = 10;  // 현재 보유 키워드(부여 포함)
   repeated CardModifier modifiers = 11;
   repeated string attached_instance_ids = 12;  // 부착된 카드(장비/오라 등)
+  uint32 champion_level = 13;      // 0=일반 유닛, 1=챔피언, >=2=각성(골든 오라/배지/금색 스탯)
 }
 
 // 비공개 카드. 존재/소유/영역만 노출되고 정체는 숨김.

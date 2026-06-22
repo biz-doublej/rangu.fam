@@ -106,6 +106,7 @@ public static class SnapshotMapper
             CurrentPower = u.Power, CurrentHealth = u.Health,
             Damage = Math.Max(0, u.MaxHealth - u.Health),
             IsExhausted = u.HasAttacked,
+            ChampionLevel = u.IsChampion ? (uint)u.ChampionLevel : 0u, // 0=일반, 1=챔피언, >=2=각성
         };
         foreach (var k in u.Keywords) rc.Keywords.Add(MapKeyword(k));
         return new CardView { InstanceId = u.InstanceId, Zone = Zone.Battlefield, Controller = SeatRef(u.Owner), Revealed = rc };
