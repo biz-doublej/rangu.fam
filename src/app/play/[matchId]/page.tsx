@@ -1,9 +1,9 @@
 'use client'
 
 import { Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
-import { GamePhase } from '@rangu/proto-ts'
+import { ConnectMode, GamePhase } from '@rangu/proto-ts'
 import { selectBattle, type CardVM, type CastTarget, type StackVM } from '@rangu/battle-core'
 import { NexusBar, CardSlot, CardTile } from '@rangu/ui'
 import {
@@ -197,18 +197,11 @@ function GameOverOverlay() {
   )
 }
 
-function Board() {
-  const params = useParams<{ matchId: string }>()
-  const search = useSearchParams()
-  const matchId = params?.matchId ?? 'e2e-1'
-  const ticket = search.get('ticket') ?? ''
-  const auto = search.get('auto') === '1' // 데모 오토파일럿(VFX 튜닝용)
-
-  useGameConnection({ matchId, ticket })
+// 전장(Board) — 연결/로비는 PlayRoot 가 관리. 스냅샷 존재 시에만 렌더된다(snapshot 보장).
+function Board({ auto }: { auto: boolean }) {
   useAutoPilot(auto)
 
   const snapshot = useBattle((s) => s.snapshot)
-  const connected = useBattle((s) => s.connected)
   const pendingIntents = useBattle((s) => s.pendingIntents)
   const gameOver = useBattle((s) => s.gameOver)
 
@@ -233,8 +226,7 @@ function Board() {
   const mySeat = snapshot?.viewer?.seat ?? 0
   const vm = selectBattle(snapshot, mySeat)
 
-  if (!ticket) return <Center>티켓이 필요합니다 — <code className="ml-1">?ticket=…</code></Center>
-  if (!vm) return <Center>{connected ? '상태 수신 대기…' : '서버 연결 중…'}</Center>
+  if (!vm) return <Center>상태 수신 대기…</Center>
 
   const pendingCardIds = new Set(
     Object.values(pendingIntents)
@@ -411,6 +403,75 @@ function phaseLabel(phase: number, isMulligan: boolean, mine: boolean): string {
   return mine ? '내 차례' : '상대 차례'
 }
 
+/** 로비 — PvP/PvE 모드 선택(진입 첫 화면). */
+function LobbyView({ onSelect }: { onSelect: (mode: ConnectMode) => void }) {
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-7 bg-slate-900 text-slate-200">
+      <div className="text-center">
+        <p className="text-xs uppercase tracking-[0.4em] text-slate-500">rangu tactics</p>
+        <h1 className="mt-1 text-4xl font-black tracking-tight">랑구 택틱스</h1>
+      </div>
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => onSelect(ConnectMode.CONNECT_MODE_PVP)}
+          className="rounded-2xl bg-rose-500 px-10 py-4 text-lg font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-rose-500/30"
+        >
+          ⚔️ PvP 매치 찾기
+        </button>
+        <button
+          onClick={() => onSelect(ConnectMode.CONNECT_MODE_PVE)}
+          className="rounded-2xl bg-slate-700 px-10 py-3 text-base font-bold text-slate-200 transition hover:bg-slate-600"
+        >
+          🤖 PvE 연습 (고스트)
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** 매칭 대기 — PvP=상대 검색(스피너+타이머), PvE=즉시 준비. 취소 시 로비 복귀(소켓 종료). */
+function MatchingView({ mode, onCancel }: { mode: ConnectMode; onCancel: () => void }) {
+  const [secs, setSecs] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setSecs((s) => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const pvp = mode === ConnectMode.CONNECT_MODE_PVP
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-5 bg-slate-900 text-slate-200">
+      <span className="h-12 w-12 animate-spin rounded-full border-4 border-rose-500/30 border-t-rose-500" />
+      <div className="text-center">
+        <p className="text-lg font-bold">{pvp ? '상대방을 찾는 중…' : '연습 매치 준비 중…'}</p>
+        {pvp ? <p className="mt-1 font-mono text-sm text-slate-400">{secs}s</p> : null}
+      </div>
+      <button onClick={onCancel} className="rounded-lg bg-slate-700 px-5 py-2 text-sm text-slate-200 hover:bg-slate-600">
+        취소
+      </button>
+    </div>
+  )
+}
+
+/**
+ * /play 루트 — 로비 ↔ 매칭 ↔ 전장 상태 머신.
+ * 연결(useGameConnection)은 모드 선택 시에만. ConnectAccepted(스냅샷) 도착 = 전장 자동 전환.
+ * 취소(mode→undefined)면 effect cleanup 이 소켓 종료 + store 리셋 → 로비.
+ */
+function PlayRoot() {
+  const search = useSearchParams()
+  const ticket = search.get('ticket') ?? ''
+  const auto = search.get('auto') === '1'
+  const [mode, setMode] = useState<ConnectMode | undefined>(undefined)
+
+  // matchId 는 서버가 배정(PvP=큐, PvE=pve-{userId}) → 빈 문자열 전송.
+  useGameConnection({ matchId: '', ticket, mode })
+  const snapshot = useBattle((s) => s.snapshot)
+
+  if (!ticket) return <Center>티켓이 필요합니다 — <code className="ml-1">?ticket=…</code></Center>
+  if (mode === undefined) return <LobbyView onSelect={setMode} />
+  if (!snapshot) return <MatchingView mode={mode} onCancel={() => setMode(undefined)} />
+  return <Board auto={auto && mode === ConnectMode.CONNECT_MODE_PVE} />
+}
+
 // 실 카탈로그(/export, 덱 빌더의 진짜 카드) 우선 + 데모/고스트 카드(/demo) 보충 병합.
 // /export 는 DB 필요(없으면 무시) → 데모 단독 모드도 깨지지 않음.
 const META_ENDPOINTS = ['/api/game/metadata/export', '/api/game/metadata/demo']
@@ -419,7 +480,7 @@ export default function PlayPage() {
   return (
     <CardMetadataProvider endpoints={META_ENDPOINTS}>
       <Suspense fallback={<Center>로딩…</Center>}>
-        <Board />
+        <PlayRoot />
       </Suspense>
     </CardMetadataProvider>
   )

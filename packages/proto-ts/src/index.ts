@@ -3,7 +3,7 @@
 // export 하므로 export * 대신 메시지 타입만 명시 re-export (충돌 회피, FE 는 flat import).
 //   import { ServerMessage, GameStateSnapshot, CardView } from '@rangu/proto-ts'
 
-export { ServerMessage, ClientMessage, ConnectRequest, ConnectAccepted, ConnectRejected, ResyncRequest, Heartbeat } from './gen/rangu/tactics/v1/service'
+export { ServerMessage, ClientMessage, ConnectRequest, ConnectMode, ConnectAccepted, ConnectRejected, ResyncRequest, Heartbeat } from './gen/rangu/tactics/v1/service'
 export { PlayerRef, Zone, Keyword, Target } from './gen/rangu/tactics/v1/common'
 export { CardView, RevealedCard, HiddenCard, CardModifier } from './gen/rangu/tactics/v1/card'
 export { GameStateSnapshot, GamePhase, PlayerState, StackItem, CombatState, CombatPair } from './gen/rangu/tactics/v1/state'
