@@ -24,6 +24,11 @@ builder.Services.AddSingleton(sp => new GameTicketValidator(
     sp.GetRequiredService<IMemoryCache>()));
 builder.Services.AddSingleton<MatchRegistry>();
 builder.Services.AddSingleton<ConnectionHub>();
+builder.Services.AddSingleton(new DeckOptions
+{
+    Url = cfg["Deck:Url"] ?? "http://localhost:3000/api/game/deck",
+    Secret = cfg["Deck:Secret"] ?? Environment.GetEnvironmentVariable("GAME_SERVER_SECRET") ?? "",
+});
 
 var app = builder.Build();
 
@@ -47,7 +52,7 @@ app.UseWebSockets();
 app.MapGet("/healthz", (MatchRegistry reg) =>
     Results.Ok(new { ok = true, contentVersion = catalog.ContentVersion, cards = catalog.Count, matches = reg.Count }));
 
-app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, MatchRegistry registry, ConnectionHub hub) =>
+app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, MatchRegistry registry, ConnectionHub hub, IHttpClientFactory httpFactory, DeckOptions deckOptions) =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest)
     {
@@ -55,7 +60,7 @@ app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, Ma
         return;
     }
     using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-    await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, app.Logger, ctx.RequestAborted);
+    await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, httpFactory, deckOptions, app.Logger, ctx.RequestAborted);
 });
 
 app.Logger.LogInformation("[boot] rangu-tactics game server → ws://localhost:5080/ws/tactics");
