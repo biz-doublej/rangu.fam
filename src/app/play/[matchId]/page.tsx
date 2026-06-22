@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { GamePhase } from '@rangu/proto-ts'
@@ -18,10 +18,12 @@ import { useGameConnection } from '@/lib/tactics/useGameConnection'
 import { useAutoPilot } from '@/lib/tactics/useAutoPilot'
 import { useCombatFx } from '@/lib/tactics/useCombatFx'
 import { CombatFxOverlay } from '@/lib/tactics/CombatFxOverlay'
+import { useDragTargeting, type DropTarget } from '@/lib/tactics/useDragTargeting'
+import { TargetingArrow } from '@/lib/tactics/TargetingArrow'
 import { CardMetadataProvider, useCardMeta } from '@/lib/tactics/CardMetadataProvider'
 
-function Row({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-[7rem] flex-wrap items-center gap-2">{children}</div>
+function Row({ children, drop }: { children: ReactNode; drop?: string }) {
+  return <div data-drop={drop} className="flex min-h-[7rem] flex-wrap items-center gap-2">{children}</div>
 }
 function Center({ children }: { children: ReactNode }) {
   return <div className="flex h-screen items-center justify-center text-slate-300">{children}</div>
@@ -38,15 +40,19 @@ function FxSlot({
   selected,
   attacking,
   onClick,
+  onPointerDown,
 }: {
   card: CardVM
   hit: boolean
   selected?: boolean
   attacking?: boolean
   onClick?: () => void
+  onPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   return (
     <motion.div
+      className="touch-none"
+      onPointerDown={onPointerDown}
       animate={hit ? { x: [0, 0, -6, 6, -4, 3, 0], scale: [1, 1.18, 1.18, 1.1, 1.04, 1, 1] } : { x: 0, scale: 1 }}
       // 히트스톱: 0~0.05s 펀치 → 0.05s 홀드(정지) → 흔들림이 스케일 복귀와 겹치며 0.35s 로 타이트하게
       transition={hit ? { duration: 0.35, times: [0, 0.14, 0.28, 0.45, 0.62, 0.82, 1], ease: 'easeOut' } : { duration: 0.15 }}
@@ -58,16 +64,34 @@ function FxSlot({
   )
 }
 
-/** 손패 카드 — 메타데이터 이름 조회 + 클릭 시 낙관적 소환. */
+/**
+ * 손패 카드 — 메타데이터 이름 조회.
+ * playable 이면 보드(data-drop=my-board)로 드래그&드롭하여 소환(framer drag, 끝나면 원위치 스냅백).
+ * 탭(드래그 아님)도 소환 폴백 — framer 가 탭/드래그를 구분해 중복 발사 없음.
+ */
 function HandCard({ card, playable, pending }: { card: CardVM; playable: boolean; pending: boolean }) {
   const meta = useCardMeta(card.definitionId)
+  const summon = () => doPlayCard(card.instanceId)
   return (
-    <CardTile
-      card={card}
-      name={meta?.name}
-      pending={pending}
-      onClick={playable ? () => doPlayCard(card.instanceId) : undefined}
-    />
+    <motion.div
+      drag={playable}
+      dragSnapToOrigin
+      whileDrag={{ scale: 1.1, zIndex: 50 }}
+      className={playable ? 'cursor-grab touch-none active:cursor-grabbing' : undefined}
+      onDragEnd={(e, info) => {
+        // 뷰포트 좌표(getBoundingClientRect 와 동일계) — info.point 는 스크롤/버전에 모호하므로 네이티브 우선
+        const p =
+          'clientX' in e
+            ? { x: e.clientX, y: e.clientY }
+            : e.changedTouches?.[0]
+              ? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+              : info.point
+        const zone = document.querySelector('[data-drop="my-board"]')?.getBoundingClientRect()
+        if (zone && p.x >= zone.left && p.x <= zone.right && p.y >= zone.top && p.y <= zone.bottom) summon()
+      }}
+    >
+      <CardTile card={card} name={meta?.name} pending={pending} onClick={playable ? summon : undefined} />
+    </motion.div>
   )
 }
 
@@ -87,8 +111,8 @@ function Board() {
 
   // 전투 선택(로컬 UI 상태 — 서버 정본과 분리)
   const [attackSel, setAttackSel] = useState<Set<string>>(new Set())
-  const [armed, setArmed] = useState<string | null>(null) // 블록할 공격자
   const [blocks, setBlocks] = useState<Record<string, string>>({}) // attacker → blocker
+  const targeting = useDragTargeting() // 내 유닛→적 드래그(화살표): 공격/블록 타겟팅
 
   // 전투 VFX: combatFx 드레인(피해수치/스프라이트/카드히트/카메라쉐이크 신호)
   const fx = useCombatFx()
@@ -113,6 +137,7 @@ function Board() {
   const busy = Object.values(pendingIntents).some((p) => p.status === 'pending')
 
   const attackerIds = new Set(vm.combat.pairs.map((p) => p.attackerInstanceId))
+  const oppSeat = mySeat === 0 ? 1 : 0
   const iAmAttacker = vm.combat.attackerSeat === mySeat
   const isAction = vm.phase === GamePhase.PHASE_ACTION && vm.priorityIsMine
   const canAttack = isAction && vm.me.hasAttackToken && !busy
@@ -120,17 +145,14 @@ function Board() {
   const isMulligan = vm.phase === GamePhase.PHASE_MULLIGAN
   const blockedUnitIds = new Set(Object.values(blocks))
 
-  const onMyUnit = (c: CardVM) => {
-    if (canAttack && !c.exhausted) {
-      setAttackSel((prev) => {
-        const n = new Set(prev)
-        n.has(c.instanceId) ? n.delete(c.instanceId) : n.add(c.instanceId)
-        return n
-      })
-    } else if (isBlock && armed) {
-      setBlocks((prev) => ({ ...prev, [armed]: c.instanceId }))
-      setArmed(null)
-    }
+  // 탭(클릭) = 공격자 토글(드래그는 화살표). 블록은 드래그 전용.
+  const toggleAttacker = (c: CardVM) => {
+    if (!(canAttack && !c.exhausted)) return
+    setAttackSel((prev) => {
+      const n = new Set(prev)
+      n.has(c.instanceId) ? n.delete(c.instanceId) : n.add(c.instanceId)
+      return n
+    })
   }
   const submitAttack = () => {
     doDeclareAttack([...attackSel])
@@ -139,14 +161,28 @@ function Board() {
   const submitBlock = () => {
     doDeclareBlock(Object.entries(blocks).map(([a, b]) => ({ attackerInstanceId: a, blockerInstanceId: b })))
     setBlocks({})
-    setArmed(null)
   }
 
-  const myUnitInteractive = (c: CardVM) => (canAttack && !c.exhausted) || (isBlock && !!armed)
+  // 내 유닛을 적에게 드래그 → 페이즈가 해소를 결정(공격: attackSel 누적 / 블록: blocks 배정)
+  const onDropTarget = (sourceId: string, t: DropTarget | null) => {
+    if (!t || t.instanceId === sourceId) return
+    if (canAttack) {
+      const enemyHit =
+        (t.kind === 'nexus' && t.seat === oppSeat) ||
+        (t.kind === 'unit' && vm.opponent.board.some((u) => u.instanceId === t.instanceId))
+      if (enemyHit) setAttackSel((prev) => new Set(prev).add(sourceId))
+    } else if (isBlock && t.kind === 'unit' && attackerIds.has(t.instanceId as string)) {
+      setBlocks((prev) => ({ ...prev, [t.instanceId as string]: sourceId }))
+    }
+  }
+  const canDragUnit = (c: CardVM) => (canAttack && !c.exhausted) || isBlock
+  const startTarget = (c: CardVM) => (e: ReactPointerEvent<HTMLDivElement>) =>
+    targeting.start(e.currentTarget, (t) => onDropTarget(c.instanceId, t))
 
   return (
     <>
       <CombatFxOverlay floats={fx.floats} sprites={fx.sprites} />
+      <TargetingArrow arrow={targeting.arrow} variant={canAttack ? 'attack' : 'block'} />
       <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
         <div className="text-xs text-slate-400">상대 손패 ({vm.opponent.handCount}) — 🔒 마스킹(뒷면)</div>
         <Row>
@@ -165,8 +201,6 @@ function Board() {
                   card={c}
                   hit={fx.hitIds.has(c.instanceId)}
                   attacking={attackerIds.has(c.instanceId)}
-                  selected={armed === c.instanceId}
-                  onClick={isBlock && attackerIds.has(c.instanceId) ? () => setArmed(c.instanceId) : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -175,7 +209,7 @@ function Board() {
 
           <div className="h-px bg-slate-700" />
 
-          <Row>
+          <Row drop="my-board">
             <AnimatePresence>
               {vm.me.board.map((c) => (
                 <FxSlot
@@ -184,7 +218,8 @@ function Board() {
                   hit={fx.hitIds.has(c.instanceId)}
                   attacking={attackerIds.has(c.instanceId)}
                   selected={attackSel.has(c.instanceId) || blockedUnitIds.has(c.instanceId)}
-                  onClick={myUnitInteractive(c) ? () => onMyUnit(c) : undefined}
+                  onClick={canAttack && !c.exhausted ? () => toggleAttacker(c) : undefined}
+                  onPointerDown={canDragUnit(c) ? startTarget(c) : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -229,13 +264,11 @@ function Board() {
       </div>
 
       {isBlock ? (
-        <div className="text-xs text-amber-300">
-          블록: 상대 공격 유닛(빨강) 클릭 → 내 유닛 클릭으로 배정. {armed ? '· 공격자 선택됨, 내 유닛을 고르세요' : ''}
-        </div>
+        <div className="text-xs text-sky-300">블록: 내 유닛을 끌어 상대 공격 유닛(빨강)에 놓아 배정하세요.</div>
       ) : null}
 
       <div className="text-xs text-slate-400">
-        내 손패 ({vm.myHand.length}){canAttack ? ' · 내 유닛 클릭=공격 선택' : isAction ? ' — 카드 클릭 = 소환' : ''}
+        내 손패 ({vm.myHand.length}){canAttack ? ' · 내 유닛을 적에게 드래그=공격(또는 탭)' : isAction ? ' — 카드를 보드로 드래그=소환' : ''}
       </div>
       <Row>
         {vm.myHand.map((c) => (
