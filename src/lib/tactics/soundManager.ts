@@ -9,6 +9,9 @@ const SFX: Record<string, string> = {
   hit: '/assets/sfx/sfx_hit.mp3', // damage
   death: '/assets/sfx/sfx_death.mp3', // unit death
   nexus: '/assets/sfx/sfx_nexus.mp3', // nexus damage
+  packOpen: '/assets/sfx/sfx_pack_open.mp3', // 가챠 팩 개봉(폭발)
+  flip: '/assets/sfx/sfx_card_flip.mp3', // 카드 플립(스위시)
+  rareAura: '/assets/sfx/sfx_rare_aura.mp3', // 레어/프레스티지 오라(공명)
 }
 const BGM_SRC = '/assets/sfx/bgm_battle.mp3'
 const SFX_VOLUME = 0.6
@@ -23,7 +26,7 @@ class SoundManager {
     return this.enabled
   }
 
-  /** 유저 제스처에서 호출 — 활성/비활성. 활성 시 프리로드 + BGM 시작. */
+  /** 유저 제스처에서 호출 — 활성/비활성. 활성 시 프리로드 + BGM 시작(전투용). */
   setEnabled(on: boolean): void {
     this.enabled = on
     if (typeof Audio === 'undefined') return
@@ -33,6 +36,12 @@ class SoundManager {
     } else {
       this.stopBgm()
     }
+  }
+
+  /** SFX만 활성(BGM 없음) — 가챠 등 비전투 화면용. 유저 제스처(개봉 클릭) 직후 호출. */
+  enableSfx(): void {
+    this.enabled = true
+    if (typeof Audio !== 'undefined') this.preload()
   }
 
   /** SFX 1회 재생(겹침 허용 — clone). 비활성/파일없음 → 무시. */

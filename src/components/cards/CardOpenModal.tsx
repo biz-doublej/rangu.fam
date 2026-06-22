@@ -1,9 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { getPreOpenImage, getRarityToken, handleCardImageError } from '@/lib/cardTheme'
+import { soundManager } from '@/lib/tactics/soundManager'
 import { RarityChip } from './RarityChip'
 
 export interface OpenCard {
@@ -156,6 +157,20 @@ export function SealedOrRevealed({
   const sealedSrc = getPreOpenImage(card)
   const tier = rarityTier(card.rarity, card.type)
   const special = tier === 'special'
+
+  // 개봉 순간(봉인→공개 전이) 1회: 플립(스위시)+팩개봉(폭발), 특수면 레어 오라(공명). 단일/멀티 공용.
+  const playedRef = useRef(false)
+  useEffect(() => {
+    if (isRevealed && !playedRef.current) {
+      playedRef.current = true
+      soundManager.enableSfx() // 개봉 클릭이 유저 제스처 → SFX 활성(BGM 없음)
+      soundManager.play('flip')
+      soundManager.play('packOpen')
+      if (special) soundManager.play('rareAura')
+    } else if (!isRevealed) {
+      playedRef.current = false
+    }
+  }, [isRevealed, special])
 
   return (
     <div style={{ width: 220 * scale, height: 308 * scale }}>
