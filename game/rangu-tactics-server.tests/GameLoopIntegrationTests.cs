@@ -121,15 +121,28 @@ public class GameLoopIntegrationTests
                 }
                 collected.AddRange((await m.ApplyAsync(g, new Engine.PassAction())).Events); continue;
             }
-            if (s.Phase == Engine.BattlePhase.Action && s.Player(g).Board.Count == 0)
+            if (s.Phase == Engine.BattlePhase.Action)
             {
                 var p = s.Player(g);
-                var unit = p.Hand.Where(card => card.Kind == Engine.CardKind.Unit && card.Cost <= p.Mana)
-                    .OrderBy(card => card.Cost).FirstOrDefault();
-                if (unit is not null)
+                if (s.ActivePlayer == g && !s.AttackDeclaredThisRound)
                 {
-                    var r = await m.ApplyAsync(g, new Engine.PlayUnitAction(unit.InstanceId));
-                    if (!r.Events.Any(e => e.Type == "rejected")) { collected.AddRange(r.Events); continue; }
+                    var attackers = p.Board.Where(u => u.SummonedRound < s.Round && !u.HasAttacked && !u.IsStunned)
+                        .Select(u => u.InstanceId).ToList();
+                    if (attackers.Count > 0)
+                    {
+                        var r = await m.ApplyAsync(g, new Engine.DeclareAttackAction(attackers, null));
+                        if (!r.Events.Any(e => e.Type == "rejected")) { collected.AddRange(r.Events); continue; }
+                    }
+                }
+                if (p.Board.Count == 0)
+                {
+                    var unit = p.Hand.Where(card => card.Kind == Engine.CardKind.Unit && card.Cost <= p.Mana)
+                        .OrderBy(card => card.Cost).FirstOrDefault();
+                    if (unit is not null)
+                    {
+                        var r = await m.ApplyAsync(g, new Engine.PlayUnitAction(unit.InstanceId));
+                        if (!r.Events.Any(e => e.Type == "rejected")) { collected.AddRange(r.Events); continue; }
+                    }
                 }
             }
             collected.AddRange((await m.ApplyAsync(g, new Engine.PassAction())).Events);
@@ -138,7 +151,7 @@ public class GameLoopIntegrationTests
     }
 
     [Fact]
-    public async Task SparringGhost_BlocksHumanAttack_EmitsDamageAndDeath()
+    public async Task SparringGhost_AttacksAndBlocks_HumanDefends_EmitsDamageDeath()
     {
         var (st, _) = Engine.GameEngine.CreateBattle("fx", new("human", GlassDeck(Engine.PlayerSlot.P1)), new(Ghost, GlassDeck(Engine.PlayerSlot.P2)));
         var m = new GameMatch("fx", st);
@@ -146,6 +159,7 @@ public class GameLoopIntegrationTests
 
         var seen = new Dictionary<string, int>();
         int lastAttack = 0;
+        bool humanDefended = false; // 고스트가 공격 → 인간이 수비자로 블록했는가
         var all = new List<Engine.GameEvent>();
 
         // 인간 오토파일럿 미러(useAutoPilot 정책) + 스파링 고스트를 핑퐁으로 구동
@@ -177,11 +191,23 @@ public class GameLoopIntegrationTests
                 { all.AddRange((await m.ApplyAsync(human, new Engine.PlayUnitAction(card.InstanceId))).Events); continue; }
                 all.AddRange((await m.ApplyAsync(human, new Engine.PassAction())).Events); continue;
             }
-            // 전투 반응 윈도우 → 패스(양측 패스 → 전투 해결)
+            // 수비자면 첫 공격자를 블록(인간 블록 경로 검증) — 그 외(반응 윈도우/이미 선언됨)는 패스 → 전투 해결
+            if (s.Phase == Engine.BattlePhase.DeclareBlock && s.ActivePlayer != human
+                && s.Combat is { BlocksDeclared: false } hc && hc.Attackers.Count > 0)
+            {
+                var hb = s.Player(human).Board.FirstOrDefault(u => !u.IsStunned);
+                if (hb is not null)
+                {
+                    var r = await m.ApplyAsync(human, new Engine.DeclareBlockAction(
+                        new Dictionary<string, string> { [hc.Attackers[0]] = hb.InstanceId }));
+                    if (!r.Events.Any(e => e.Type == "rejected")) { all.AddRange(r.Events); humanDefended = true; continue; }
+                }
+            }
             all.AddRange((await m.ApplyAsync(human, new Engine.PassAction())).Events);
         }
 
-        Assert.Contains(all, e => e.Type == "unitDamaged"); // 고스트가 블록 → 유닛 피해 발생
+        Assert.Contains(all, e => e.Type == "unitDamaged"); // 전투(공/수 양방향) → 유닛 피해
         Assert.Contains(all, e => e.Type == "unitDied");      // 상호 전사 → 사망(FloatingNumbers 점화 신호)
+        Assert.True(humanDefended, "고스트가 공격 선언해 인간이 수비자로 블록할 수 있어야 함");
     }
 }
