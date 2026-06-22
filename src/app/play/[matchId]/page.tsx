@@ -385,10 +385,13 @@ function phaseLabel(phase: number, isMulligan: boolean, mine: boolean): string {
   return mine ? '내 차례' : '상대 차례'
 }
 
+// 실 카탈로그(/export, 덱 빌더의 진짜 카드) 우선 + 데모/고스트 카드(/demo) 보충 병합.
+// /export 는 DB 필요(없으면 무시) → 데모 단독 모드도 깨지지 않음.
+const META_ENDPOINTS = ['/api/game/metadata/export', '/api/game/metadata/demo']
+
 export default function PlayPage() {
-  // 데모: DB 없는 정적 메타데이터(유닛+주문 type/effects/spellSpeed 포함). 실매치는 후속에 /export.
   return (
-    <CardMetadataProvider endpoint="/api/game/metadata/demo">
+    <CardMetadataProvider endpoints={META_ENDPOINTS}>
       <Suspense fallback={<Center>로딩…</Center>}>
         <Board />
       </Suspense>

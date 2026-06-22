@@ -50,30 +50,35 @@ const Ctx = createContext<CardMetaIndex>({})
  */
 export function CardMetadataProvider({
   children,
-  endpoint = '/api/game/metadata/export',
+  endpoints = ['/api/game/metadata/export'],
 }: {
   children: ReactNode
-  endpoint?: string
+  /** 여러 소스를 병합(앞이 우선). 예: ['/export'(실 카탈로그), '/demo'(고스트/데모 카드)]. 실패한 소스는 무시. */
+  endpoints?: string[]
 }) {
   const [index, setIndex] = useState<CardMetaIndex>({})
+  const key = endpoints.join('|') // 안정 의존성(배열 ref 변동 무시)
 
   useEffect(() => {
     let alive = true
-    fetch(endpoint)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`metadata ${r.status}`))))
-      .then((doc: { cards?: CardMeta[] }) => {
-        if (!alive) return
-        const byId: CardMetaIndex = {}
-        for (const c of doc.cards ?? []) byId[c.cardId] = c
-        setIndex(byId)
-      })
-      .catch(() => {
-        /* 메타 없으면 definitionId 폴백 */
-      })
+    const eps = key.split('|').filter(Boolean)
+    Promise.all(
+      eps.map((ep) =>
+        fetch(ep)
+          .then((r) => (r.ok ? (r.json() as Promise<{ cards?: CardMeta[] }>) : null))
+          .catch(() => null),
+      ),
+    ).then((docs) => {
+      if (!alive) return
+      const byId: CardMetaIndex = {}
+      // 앞 엔드포인트 우선(실 카탈로그가 데모보다 우선), 뒤는 빈 cardId 만 보충
+      for (const doc of docs) for (const c of doc?.cards ?? []) if (!(c.cardId in byId)) byId[c.cardId] = c
+      setIndex(byId)
+    })
     return () => {
       alive = false
     }
-  }, [endpoint])
+  }, [key])
 
   return <Ctx.Provider value={index}>{children}</Ctx.Provider>
 }
