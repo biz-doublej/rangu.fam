@@ -17,12 +17,16 @@ const SRC = {
   slash: '/assets/fx/fx_combat_fire_slash.png',
   nexus: '/assets/fx/fx_combat_water_strike.png',
   death: '/assets/fx/fx_combat_unit_death.png',
+  aura: '/assets/fx/fx_ui_rare_aura.png', // 각성 — 가챠 레어 오라 재사용
 }
 const FLOAT_MS = 950
 const HIT_MS = 500 // 카드 쉐이크 지속(framer 키프레임과 정렬)
 const SLASH_MS = 420
 const NEXUS_MS = 480
 const DEATH_MS = 320 // 사망 먼지(= 유닛 페이드아웃 0.3s 와 정렬)
+const AURA_MS = 900 // 각성 황금 오라 펄스
+const AWAKEN_MS = 900 // 카드 스케일 펌핑 지속(framer 키프레임과 정렬)
+const BURST_MS = 1100 // "각성!" 텍스트 버스트 수명
 
 export interface FxFloat {
   key: number
@@ -39,11 +43,20 @@ export interface FxSprite {
   size: number
   durMs: number
 }
+export interface FxBurst {
+  key: number
+  left: number
+  top: number
+}
 export interface CombatFxView {
   floats: FxFloat[]
   sprites: FxSprite[]
   hitIds: Set<string>
   shakeNonce: number
+  /** 각성 중인 유닛 instanceId — 카드가 스케일 펌핑 트리거. */
+  awakenIds: Set<string>
+  /** "각성!" 텍스트 버스트(좌표 부여). */
+  awakenBursts: FxBurst[]
 }
 
 let uid = 0
@@ -65,6 +78,8 @@ export function useCombatFx(): CombatFxView {
   const [sprites, setSprites] = useState<FxSprite[]>([])
   const [hitIds, setHitIds] = useState<Set<string>>(new Set())
   const [shakeNonce, setShakeNonce] = useState(0)
+  const [awakenIds, setAwakenIds] = useState<Set<string>>(new Set())
+  const [awakenBursts, setAwakenBursts] = useState<FxBurst[]>([])
   const lastSeen = useRef(0)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
 
@@ -76,6 +91,8 @@ export function useCombatFx(): CombatFxView {
     const addFloats: { float: FxFloat; delayMs: number }[] = []
     const addSprites: FxSprite[] = []
     const addHits: string[] = []
+    const addAwaken: string[] = []
+    const addAwakenBursts: FxBurst[] = []
     let bump = false // 카메라 쉐이크 트리거
 
     for (const f of fresh) {
@@ -105,6 +122,15 @@ export function useCombatFx(): CombatFxView {
           const pos = locate(id)
           if (pos) addSprites.push({ key: ++uid, src: SRC.death, left: pos.left, top: pos.top, size: 120, durMs: DEATH_MS })
         }
+      } else if (f.kind === 'awaken') {
+        // 각성: 챔피언 위에 황금 오라 펄스 + "각성!" 버스트 + 카드 펌핑(awakenIds) + 화면 쉐이크
+        const pos = locate(f.targetInstanceId)
+        if (pos) {
+          addSprites.push({ key: ++uid, src: SRC.aura, left: pos.left, top: pos.top, size: 220, durMs: AURA_MS })
+          addAwakenBursts.push({ key: ++uid, left: pos.left, top: pos.top })
+        }
+        if (f.targetInstanceId) addAwaken.push(f.targetInstanceId)
+        bump = true
       }
     }
 
@@ -136,6 +162,28 @@ export function useCombatFx(): CombatFxView {
         }, HIT_MS),
       )
     }
+    if (addAwaken.length) {
+      setAwakenIds((cur) => {
+        const n = new Set(cur)
+        addAwaken.forEach((id) => n.add(id))
+        return n
+      })
+      timers.current.push(
+        setTimeout(() => {
+          setAwakenIds((cur) => {
+            const n = new Set(cur)
+            addAwaken.forEach((id) => n.delete(id))
+            return n
+          })
+        }, AWAKEN_MS),
+      )
+    }
+    if (addAwakenBursts.length) {
+      setAwakenBursts((cur) => [...cur, ...addAwakenBursts])
+      for (const b of addAwakenBursts) {
+        timers.current.push(setTimeout(() => setAwakenBursts((cur) => cur.filter((c) => c.key !== b.key)), BURST_MS))
+      }
+    }
     if (bump) setShakeNonce((n) => n + 1)
   }, [combatFx])
 
@@ -147,5 +195,5 @@ export function useCombatFx(): CombatFxView {
     }
   }, [])
 
-  return { floats, sprites, hitIds, shakeNonce }
+  return { floats, sprites, hitIds, shakeNonce, awakenIds, awakenBursts }
 }

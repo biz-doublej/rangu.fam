@@ -21,12 +21,16 @@ export interface PendingIntent {
  */
 export interface CombatFx {
   id: number
-  kind: 'damage' | 'death' | 'nexus'
+  kind: 'damage' | 'death' | 'nexus' | 'awaken'
   targetInstanceId?: string
   nexusSeat?: number
   amount?: number
   lethal?: boolean
   instanceIds?: string[]
+  // awaken(챔피언 각성) 전용
+  power?: number
+  health?: number
+  level?: number
 }
 
 /** 게임 종료 — 수신자(viewer) 관점 결과. gameOver 이벤트 드레인 결과. */
@@ -127,6 +131,17 @@ function toCombatFx(ev: GameEvent): CombatFx[] {
   }
   if (ev.nexusDamaged) {
     out.push({ id: ++fxSeq, kind: 'nexus', nexusSeat: ev.nexusDamaged.player?.seat, amount: ev.nexusDamaged.amount })
+  }
+  if (ev.championAwakened) {
+    const a = ev.championAwakened
+    out.push({
+      id: ++fxSeq,
+      kind: 'awaken',
+      targetInstanceId: a.instanceId || undefined,
+      power: a.newPower,
+      health: a.newHealth,
+      level: a.championLevel,
+    })
   }
   return out
 }

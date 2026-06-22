@@ -82,6 +82,7 @@ function ObserveShareButton({ matchId }: { matchId: string }) {
 function FxSlot({
   card,
   hit,
+  awaken,
   selected,
   attacking,
   onClick,
@@ -89,21 +90,54 @@ function FxSlot({
 }: {
   card: CardVM
   hit: boolean
+  awaken?: boolean
   selected?: boolean
   attacking?: boolean
   onClick?: () => void
   onPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
+  const awakened = (card.championLevel ?? 0) >= 2 // 상시 각성 표식(스냅샷 기반 — 재접속/관전에도 유지)
   return (
     <motion.div
-      className="touch-none"
+      className="relative touch-none rounded-xl"
       onPointerDown={onPointerDown}
-      animate={hit ? { x: [0, 0, -6, 6, -4, 3, 0], scale: [1, 1.18, 1.18, 1.1, 1.04, 1, 1] } : { x: 0, scale: 1 }}
-      // 히트스톱: 0~0.05s 펀치 → 0.05s 홀드(정지) → 흔들림이 스케일 복귀와 겹치며 0.35s 로 타이트하게
-      transition={hit ? { duration: 0.35, times: [0, 0.14, 0.28, 0.45, 0.62, 0.82, 1], ease: 'easeOut' } : { duration: 0.15 }}
+      animate={
+        awaken
+          ? {
+              // 각성 순간: 강한 스케일 펌핑 + 황금 글로우 펄스(0.9s)
+              scale: [1, 1.35, 1.12, 1.22, 1],
+              boxShadow: [
+                '0 0 0px rgba(245,158,11,0)',
+                '0 0 30px 8px rgba(245,158,11,0.9)',
+                '0 0 18px 4px rgba(245,158,11,0.6)',
+                '0 0 24px 6px rgba(245,158,11,0.8)',
+                '0 0 0px rgba(245,158,11,0)',
+              ],
+            }
+          : hit
+            ? { x: [0, 0, -6, 6, -4, 3, 0], scale: [1, 1.18, 1.18, 1.1, 1.04, 1, 1] }
+            : { x: 0, scale: 1 }
+      }
+      transition={
+        awaken
+          ? { duration: 0.9, times: [0, 0.2, 0.5, 0.75, 1], ease: 'easeOut' }
+          : // 히트스톱: 0~0.05s 펀치 → 0.05s 홀드(정지) → 0.35s 로 타이트하게
+            hit
+            ? { duration: 0.35, times: [0, 0.14, 0.28, 0.45, 0.62, 0.82, 1], ease: 'easeOut' }
+            : { duration: 0.15 }
+      }
       // exit: 자체 transition 0.3s 고정 + scale/rotate 로 "힘없이 쓰러지는" 잔상
       exit={{ opacity: 0, scale: 0.8, rotate: 5, filter: 'blur(2px)', transition: { duration: 0.3 } }}
     >
+      {/* 상시 각성 표식 — 골든 오라 링 + 배지(championLevel>=2) */}
+      {awakened ? (
+        <>
+          <span className="pointer-events-none absolute -inset-1 z-0 rounded-xl ring-2 ring-amber-400/80 shadow-[0_0_16px_rgba(245,158,11,0.7)]" />
+          <span className="pointer-events-none absolute -top-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-slate-900 shadow">
+            ★ 각성
+          </span>
+        </>
+      ) : null}
       <CardSlot card={card} selected={selected} attacking={attacking} onClick={onClick} />
     </motion.div>
   )
@@ -318,7 +352,7 @@ function Board({ auto, readOnly }: { auto: boolean; readOnly: boolean }) {
 
   return (
     <>
-      <CombatFxOverlay floats={fx.floats} sprites={fx.sprites} />
+      <CombatFxOverlay floats={fx.floats} sprites={fx.sprites} awakenBursts={fx.awakenBursts} />
       <TargetingArrow arrow={targeting.arrow} variant={targeting.variant} />
       <GameOverOverlay />
       <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
@@ -338,6 +372,7 @@ function Board({ auto, readOnly }: { auto: boolean; readOnly: boolean }) {
                   key={c.instanceId}
                   card={c}
                   hit={fx.hitIds.has(c.instanceId)}
+                  awaken={fx.awakenIds.has(c.instanceId)}
                   attacking={attackerIds.has(c.instanceId)}
                 />
               ))}
@@ -355,6 +390,7 @@ function Board({ auto, readOnly }: { auto: boolean; readOnly: boolean }) {
                   key={c.instanceId}
                   card={c}
                   hit={fx.hitIds.has(c.instanceId)}
+                  awaken={fx.awakenIds.has(c.instanceId)}
                   attacking={attackerIds.has(c.instanceId)}
                   selected={attackSel.has(c.instanceId) || blockedUnitIds.has(c.instanceId)}
                   onClick={canAttack && !c.exhausted ? () => toggleAttacker(c) : undefined}

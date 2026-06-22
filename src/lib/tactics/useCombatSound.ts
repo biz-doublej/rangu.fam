@@ -21,5 +21,6 @@ export function useCombatSound(): void {
     if (kinds.has('damage')) soundManager.play('hit')
     if (kinds.has('death')) soundManager.play('death')
     if (kinds.has('nexus')) soundManager.play('nexus')
+    if (kinds.has('awaken')) soundManager.play('rareAura') // 각성 — 가챠 오라 사운드 재사용(웅장한 공명)
   }, [combatFx])
 }

@@ -14,6 +14,7 @@ export interface CardVM {
   damage?: number
   exhausted?: boolean
   keywords: number[] // proto Keyword enum 값
+  championLevel?: number // 0/undefined=일반, 1=챔피언, >=2=각성(골든 상시 표출)
 }
 
 export interface SideVM {
@@ -70,6 +71,7 @@ export function toCardVM(c: CardView): CardVM {
       damage: r.damage,
       exhausted: r.isExhausted,
       keywords: r.keywords ?? [],
+      championLevel: r.championLevel,
     }
   }
   return { instanceId: c.instanceId, faceDown: true, keywords: [] }
