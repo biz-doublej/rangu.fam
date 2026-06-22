@@ -18,6 +18,8 @@ import { useGameConnection } from '@/lib/tactics/useGameConnection'
 import { useAutoPilot } from '@/lib/tactics/useAutoPilot'
 import { useCombatFx } from '@/lib/tactics/useCombatFx'
 import { CombatFxOverlay } from '@/lib/tactics/CombatFxOverlay'
+import { useCombatSound } from '@/lib/tactics/useCombatSound'
+import { soundManager } from '@/lib/tactics/soundManager'
 import { useDragTargeting, type DropTarget } from '@/lib/tactics/useDragTargeting'
 import { TargetingArrow } from '@/lib/tactics/TargetingArrow'
 import { CardMetadataProvider, useCardMeta, spellNeedsTarget } from '@/lib/tactics/CardMetadataProvider'
@@ -27,6 +29,25 @@ function Row({ children, drop }: { children: ReactNode; drop?: string }) {
 }
 function Center({ children }: { children: ReactNode }) {
   return <div className="flex h-screen items-center justify-center text-slate-300">{children}</div>
+}
+
+/** 사운드 on/off 토글 — 첫 클릭이 유저 제스처가 되어 오디오/BGM 활성(자동재생 정책). */
+function SoundToggle() {
+  const [on, setOn] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const next = !on
+        soundManager.setEnabled(next)
+        setOn(next)
+      }}
+      title={on ? '사운드 끄기' : '사운드 켜기'}
+      className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-600"
+    >
+      {on ? '🔊' : '🔇'}
+    </button>
+  )
 }
 
 /**
@@ -196,6 +217,10 @@ function Board() {
   const [blocks, setBlocks] = useState<Record<string, string>>({}) // attacker → blocker
   const targeting = useDragTargeting() // 내 유닛→적 드래그(화살표): 공격/블록 타겟팅
 
+  // 전투 사운드: combatFx → SFX(damage/death/nexus). BGM 은 SoundToggle 로 활성.
+  useCombatSound()
+  useEffect(() => () => soundManager.stopBgm(), []) // 페이지 이탈 시 BGM 정지
+
   // 전투 VFX: combatFx 드레인(피해수치/스프라이트/카드히트/카메라쉐이크 신호)
   const fx = useCombatFx()
   const camera = useAnimation()
@@ -348,6 +373,7 @@ function Board() {
         {auto ? (
           <span className="animate-pulse rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white">🤖 AUTO</span>
         ) : null}
+        <SoundToggle />
         <span className="text-xs text-slate-500">
           라운드 {vm.round} · {phaseLabel(vm.phase, isMulligan, vm.priorityIsMine)} · 스택 {vm.stackCount}
           {busy ? ' · ⏳ 전송 중…' : ''}
