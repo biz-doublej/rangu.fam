@@ -103,9 +103,19 @@ public sealed class GameTicketValidator(HttpClient http, GameTicketOptions optio
             fresh = _keys.Count > 0 && DateTimeOffset.UtcNow - _keysFetchedAt < options.RefreshInterval;
             if (!force && fresh) return;
 
-            var json = await http.GetStringAsync(options.JwksUrl, ct);
-            _keys = new JsonWebKeySet(json).GetSigningKeys();
-            _keysFetchedAt = DateTimeOffset.UtcNow;
+            try
+            {
+                var json = await http.GetStringAsync(options.JwksUrl, ct);
+                _keys = new JsonWebKeySet(json).GetSigningKeys();
+                _keysFetchedAt = DateTimeOffset.UtcNow;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // JWKS 도달 불가/파싱 실패 → 검증기 계약대로 GameTicketValidationException 으로 감싼다
+                // (호출부가 graceful ConnectRejected 처리). 기존 키가 있으면 일시 장애로 보고 그대로 사용.
+                if (_keys.Count > 0) return;
+                throw new GameTicketValidationException($"jwks_unavailable:{ex.GetType().Name}");
+            }
         }
         finally
         {
