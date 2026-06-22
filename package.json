@@ -14,7 +14,10 @@
     "seed": "node scripts/seed-database.js",
     "seed-extended": "node scripts/seed-database-extended.js",
     "seed-wiki": "node scripts/seed-wiki-content.js",
-    "seed-bookmarks": "node scripts/seed-bookmarks.js"
+    "seed-bookmarks": "node scripts/seed-bookmarks.js",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
