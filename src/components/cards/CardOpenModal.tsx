@@ -126,163 +126,130 @@ export function CardOpenModal({
   )
 }
 
+const PACK_FX = '/assets/fx/fx_ui_pack_opening.png'
+const AURA_FX = '/assets/fx/fx_ui_rare_aura.png'
+
+/** 등급 → 연출 강도. legendary 또는 prestige = 특수(오라 PNG + 반짝이 + 폭발). */
+function rarityTier(rarity: string, type?: string): 'special' | 'epic' | 'rare' | 'basic' {
+  const r = (rarity || '').toLowerCase()
+  if (r === 'legendary' || type === 'prestige') return 'special'
+  if (r === 'epic') return 'epic'
+  if (r === 'rare') return 'rare'
+  return 'basic'
+}
+
+/**
+ * 봉인↔공개 — 폴라로이드 사진이 RotateY 180° 로 뒤집히며 공개된다(뒷면=봉인, 앞면=카드).
+ * 개봉 순간 fx_ui_pack_opening 이 1회 폭발하고, legendary/prestige 는 fx_ui_rare_aura 가
+ * 뒤에서 회전·펄스 + 반짝이가 흩날린다. (좌표/타이밍은 라이브 튜닝 가능.)
+ */
 function SealedOrRevealed({ card, isRevealed }: { card: OpenCard; isRevealed: boolean }) {
   const token = getRarityToken(card.rarity)
   const sealedSrc = getPreOpenImage(card)
-  const revealAnim = getRevealAnimation(card.rarity)
+  const tier = rarityTier(card.rarity, card.type)
+  const special = tier === 'special'
 
   return (
-    <div
-      className="relative bg-white p-3 pb-8 shadow-polaroid"
-      style={{ width: 220, borderRadius: 4 }}
-    >
-      <div className="relative h-[260px] w-[196px] overflow-hidden bg-paper-200">
-        {/* Aura on reveal for legendary/epic */}
-        {isRevealed && (revealAnim.aura || revealAnim.particles) && (
+    <div className="relative" style={{ width: 220 }}>
+      {/* ① 레어 오라(legendary/prestige) — 폴라로이드 뒤에서 회전·펄스 */}
+      {isRevealed && special && (
+        <motion.img
+          src={AURA_FX}
+          alt=""
+          aria-hidden
+          onError={handleCardImageError}
+          className="pointer-events-none absolute"
+          style={{ left: -70, top: -28, width: 360, height: 360 }}
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: [0, 0.95, 0.8], scale: [0.6, 1.12, 1], rotate: 360 }}
+          transition={{
+            opacity: { duration: 0.5, times: [0, 0.4, 1] },
+            scale: { duration: 0.5, ease: 'easeOut' },
+            rotate: { duration: 14, repeat: Infinity, ease: 'linear' },
+          }}
+        />
+      )}
+
+      {/* ② 폴라로이드 — 안쪽 사진이 180° 플립 */}
+      <div className="relative bg-white p-3 pb-8 shadow-polaroid" style={{ width: 220, borderRadius: 4 }}>
+        <div className="relative h-[260px] w-[196px]" style={{ perspective: 900 }}>
           <motion.div
-            className="pointer-events-none absolute -inset-10 blur-2xl"
-            style={{ background: revealAnim.aura }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.85 }}
-            transition={{ duration: 0.4 }}
-          />
-        )}
-
-        <AnimatePresence mode="wait">
-          {!isRevealed ? (
-            <motion.img
-              key="sealed"
-              src={sealedSrc}
-              alt="sealed"
-              onError={handleCardImageError}
-              className="absolute inset-0 h-full w-full object-cover"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-          ) : (
-            <motion.img
-              key="opened"
-              src={card.imageUrl || sealedSrc}
-              alt={card.name}
-              onError={handleCardImageError}
-              className="absolute inset-0 h-full w-full object-cover"
-              initial={revealAnim.initial}
-              animate={revealAnim.animate}
-              transition={revealAnim.transition}
-              style={revealAnim.style}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Sealed overlay — slight tint */}
-        {!isRevealed && (
-          <div
-            className="absolute inset-0 mix-blend-multiply"
-            style={{ background: token.wash }}
-          />
-        )}
-
-        {/* Sealed label badge */}
-        {!isRevealed && (
-          <div
-            className="absolute left-2 top-2 rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-            style={{ background: 'rgba(255, 252, 244, 0.92)', color: token.ink, border: `1px solid ${token.edge}` }}
+            className="relative h-full w-full"
+            style={{ transformStyle: 'preserve-3d' }}
+            animate={{ rotateY: isRevealed ? 180 : 0 }}
+            transition={isRevealed ? { duration: 0.6, ease: [0.2, 0.7, 0.2, 1] } : { duration: 0 }}
           >
-            sealed
-          </div>
-        )}
+            {/* 뒷면 = 봉인 */}
+            <div
+              className="absolute inset-0 overflow-hidden bg-paper-200"
+              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 2 }}
+            >
+              <img src={sealedSrc} alt="sealed" onError={handleCardImageError} className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 mix-blend-multiply" style={{ background: token.wash }} />
+              <div
+                className="absolute left-2 top-2 rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                style={{ background: 'rgba(255, 252, 244, 0.92)', color: token.ink, border: `1px solid ${token.edge}` }}
+              >
+                sealed
+              </div>
+            </div>
 
-        {/* Sparkle particles for legendary */}
-        {isRevealed && revealAnim.particles && (
-          <div className="pointer-events-none absolute inset-0">
-            {[...Array(8)].map((_, i) => (
-              <motion.span
-                key={i}
-                className="absolute h-1.5 w-1.5 rounded-full"
-                style={{
-                  left: `${10 + (i * 11) % 80}%`,
-                  top: `${15 + (i * 17) % 70}%`,
-                  background: '#FFE4A8',
-                  boxShadow: '0 0 8px #C28A2D',
-                }}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: [0, 1, 0], scale: [0, 1.4, 0] }}
-                transition={{ duration: 1.2, delay: i * 0.06, repeat: Infinity, repeatDelay: 0.4 }}
+            {/* 앞면 = 공개 (180° 뒤집힌 면) */}
+            <div
+              className="absolute inset-0 overflow-hidden bg-paper-200"
+              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)', borderRadius: 2 }}
+            >
+              <img
+                src={card.imageUrl || sealedSrc}
+                alt={card.name}
+                onError={handleCardImageError}
+                className="absolute inset-0 h-full w-full object-cover"
               />
-            ))}
-          </div>
-        )}
+              {special && (
+                <div className="pointer-events-none absolute inset-0">
+                  {[...Array(8)].map((_, i) => (
+                    <motion.span
+                      key={i}
+                      className="absolute h-1.5 w-1.5 rounded-full"
+                      style={{
+                        left: `${10 + ((i * 11) % 80)}%`,
+                        top: `${15 + ((i * 17) % 70)}%`,
+                        background: '#FFE4A8',
+                        boxShadow: '0 0 8px #C28A2D',
+                      }}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: [0, 1, 0], scale: [0, 1.4, 0] }}
+                      transition={{ duration: 1.2, delay: 0.4 + i * 0.06, repeat: Infinity, repeatDelay: 0.4 }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        <div
+          className="absolute bottom-1 left-0 right-0 text-center font-hand text-sm text-ink-soft"
+          style={{ fontFamily: 'var(--font-gaegu, var(--font-caveat, cursive))' }}
+        >
+          {isRevealed ? card.name : '— sealed —'}
+        </div>
       </div>
 
-      <div
-        className="absolute bottom-1 left-0 right-0 text-center font-hand text-sm text-ink-soft"
-        style={{ fontFamily: 'var(--font-gaegu, var(--font-caveat, cursive))' }}
-      >
-        {isRevealed ? card.name : '— sealed —'}
-      </div>
+      {/* ③ 팩 개봉 폭발 — 개봉 순간 1회(위에 덮임) */}
+      {isRevealed && (
+        <motion.img
+          src={PACK_FX}
+          alt=""
+          aria-hidden
+          onError={handleCardImageError}
+          className="pointer-events-none absolute"
+          style={{ left: -40, top: -8, width: 300, height: 300, zIndex: 5 }}
+          initial={{ opacity: 0, scale: 0.3 }}
+          animate={{ opacity: [0, 1, 0], scale: [0.3, 1.5, 1.85] }}
+          transition={{ duration: 0.55, ease: 'easeOut', times: [0, 0.35, 1] }}
+        />
+      )}
     </div>
   )
-}
-
-function getRevealAnimation(rarity: string) {
-  const r = (rarity || '').toLowerCase()
-  if (r === 'legendary') {
-    return {
-      aura: 'radial-gradient(circle, rgba(251,191,36,0.5), transparent 65%)',
-      particles: true,
-      initial: { opacity: 0, scale: 0.6, rotate: -10, filter: 'brightness(2.4) saturate(1.8)' },
-      animate: {
-        opacity: 1,
-        scale: [0.6, 1.08, 1],
-        rotate: [-10, 3, 0],
-        filter: ['brightness(2.4)', 'brightness(1.3)', 'brightness(1)'],
-      },
-      transition: { duration: 0.9, times: [0, 0.6, 1], ease: 'easeOut' },
-      style: undefined,
-    }
-  }
-  if (r === 'epic') {
-    return {
-      aura: 'radial-gradient(circle, rgba(224,101,78,0.45), transparent 65%)',
-      particles: false,
-      initial: { opacity: 0, scale: 0.72, rotate: -6, filter: 'brightness(1.8) saturate(1.4)' },
-      animate: {
-        opacity: 1,
-        scale: [0.72, 1.05, 1],
-        rotate: [-6, 2, 0],
-        filter: ['brightness(1.8)', 'brightness(1.2)', 'brightness(1)'],
-      },
-      transition: { duration: 0.7, ease: 'easeOut' },
-      style: undefined,
-    }
-  }
-  if (r === 'rare') {
-    return {
-      aura: 'radial-gradient(circle, rgba(62,92,74,0.35), transparent 65%)',
-      particles: false,
-      initial: { opacity: 0, rotateY: -90, scale: 0.88 },
-      animate: { opacity: 1, rotateY: 0, scale: 1 },
-      transition: { type: 'spring', stiffness: 190, damping: 18, mass: 0.8 },
-      style: { transformStyle: 'preserve-3d' as const },
-    }
-  }
-  if (r === 'material') {
-    return {
-      aura: '',
-      particles: false,
-      initial: { opacity: 0, y: 12, scale: 0.92 },
-      animate: { opacity: 1, y: [12, 0], scale: [0.92, 1.03, 1] },
-      transition: { duration: 0.55, ease: 'easeOut' },
-      style: undefined,
-    }
-  }
-  return {
-    aura: '',
-    particles: false,
-    initial: { opacity: 0, y: 8, scale: 0.96 },
-    animate: { opacity: 1, y: 0, scale: 1 },
-    transition: { duration: 0.4, ease: 'easeOut' },
-    style: undefined,
-  }
 }
