@@ -46,6 +46,13 @@ public static class GameConnection
             await RejectAsync(socket, ConnectRejected.Types.Reason.InvalidTicket, ex.Reason, ct);
             return;
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // 방어: 검증기에서 새는 예기치 못한 예외(malformed 토큰의 SecurityTokenMalformedException 등)도
+            // 연결 크래시(1006) 대신 graceful 거부. 연결 단위 격리라 서버 자체는 영향 없음.
+            await RejectAsync(socket, ConnectRejected.Types.Reason.InvalidTicket, $"validate_error:{ex.GetType().Name}", ct);
+            return;
+        }
 
         // 3) 메타데이터 버전 일치 (proto VERSION_MISMATCH)
         if (!string.IsNullOrEmpty(connect.ClientVersion) && connect.ClientVersion != catalog.ContentVersion)
