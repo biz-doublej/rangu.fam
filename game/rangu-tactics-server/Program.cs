@@ -65,5 +65,7 @@ app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, Ma
     await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, deckFetcher, matchmaker, app.Logger, ctx.RequestAborted);
 });
 
-app.Logger.LogInformation("[boot] rangu-tactics game server → ws://localhost:5080/ws/tactics");
-app.Run("http://localhost:5080");
+// Cloud Run 은 $PORT(기본 8080)로 0.0.0.0 바인딩을 요구. 로컬은 PORT 미설정 → 5080.
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5080";
+app.Logger.LogInformation("[boot] rangu-tactics game server → http://0.0.0.0:{Port}/ws/tactics", port);
+app.Run($"http://0.0.0.0:{port}");

@@ -24,7 +24,7 @@ export function useGameConnection({
   matchId,
   ticket,
   mode,
-  wsUrl = 'ws://localhost:5080/ws/tactics',
+  wsUrl = process.env.NEXT_PUBLIC_TACTICS_WS_URL || 'ws://localhost:5080/ws/tactics',
   metadataVersion = '',
 }: ConnectOptions): void {
   useEffect(() => {

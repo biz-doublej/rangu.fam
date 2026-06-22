@@ -23,6 +23,9 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_ACCOUNTS_BASE_URL=https://accounts.doublej.app
 ENV NEXT_PUBLIC_ACCOUNTS_BASE_URL=$NEXT_PUBLIC_ACCOUNTS_BASE_URL
+# 택틱스 게임 서버 WS 주소(미설정 시 FE 는 ws://localhost:5080 폴백). 배포 시 wss://… 주입.
+ARG NEXT_PUBLIC_TACTICS_WS_URL=
+ENV NEXT_PUBLIC_TACTICS_WS_URL=$NEXT_PUBLIC_TACTICS_WS_URL
 
 # Stub server-side env vars so Next.js page-data collection (which loads route
 # handlers and transitively their modules) doesn't crash on getRequiredEnv().
