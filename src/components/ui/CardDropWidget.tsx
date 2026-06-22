@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle, Clock, Lock, Package, Shield, Sparkles } from
 import clsx from 'clsx'
 import { useAuth } from '@/contexts/AuthContext'
 import { CardOpenModal, OpenCard, RarityChip } from '@/components/cards'
+import { MultiPullModal } from '@/components/cards/MultiPullModal'
 import { CardArtwork } from '@/components/cards/CardArtwork'
 import { CaveatText, Pin } from '@/components/scrapbook'
 import { DROP_ALLOWED_MEMBER_IDS, RARITY_TOKENS } from '@/lib/cardTheme'
@@ -45,6 +46,10 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
   const [hasPendingReveal, setHasPendingReveal] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [isRevealed, setIsRevealed] = useState(false)
+  // 멀티 풀(N연차)
+  const [isMultiPulling, setIsMultiPulling] = useState(false)
+  const [multiCards, setMultiCards] = useState<OpenCard[]>([])
+  const [multiOpen, setMultiOpen] = useState(false)
 
   const fetchRemaining = useCallback(async () => {
     if (!userId) return
@@ -118,6 +123,53 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
       setDropMessage({ text: '카드 드랍 중 오류가 발생했어요.', tone: 'warn' })
     } finally {
       setIsDropping(false)
+    }
+  }
+
+  // 멀티 풀 — 남은 만큼(최대 10) /api/cards/drop 순차 호출 후 MultiPullModal 로 한 번에 공개
+  const handleMultiPull = async () => {
+    if (!userId || isDropping || isMultiPulling || !isAuthorized) return
+    const n = Math.min(remainingDrops, 10)
+    if (n <= 0) {
+      setDropMessage({ text: `오늘의 드랍 ${MAX_DAILY_DROPS}회를 모두 사용했어요.`, tone: 'warn' })
+      return
+    }
+
+    setIsMultiPulling(true)
+    setDropMessage(null)
+    const got: OpenCard[] = []
+    let remaining = remainingDrops
+    try {
+      for (let i = 0; i < n; i++) {
+        const res = await fetch('/api/cards/drop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        })
+        const result: DropResult = await res
+          .json()
+          .catch(() => ({ success: false, message: '', remainingDrops: remaining }))
+        if (result.success && result.card) {
+          got.push(result.card)
+          remaining = result.remainingDrops ?? remaining
+        } else {
+          if (result.message) setDropMessage({ text: result.message, tone: 'warn' })
+          break // 소진/오류 → 중단
+        }
+      }
+      setRemainingDrops(remaining)
+      if (got.length > 0) {
+        setMultiCards(got)
+        setMultiOpen(true)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('card-inventory-updated'))
+        }
+      }
+    } catch (err) {
+      console.error('multi pull failed', err)
+      setDropMessage({ text: '연속 개봉 중 오류가 발생했어요.', tone: 'warn' })
+    } finally {
+      setIsMultiPulling(false)
     }
   }
 
@@ -209,10 +261,10 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
           <button
             type="button"
             onClick={handleDrop}
-            disabled={isDropping || remainingDrops <= 0}
+            disabled={isDropping || isMultiPulling || remainingDrops <= 0}
             className={clsx(
               'relative flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 font-display text-lg transition-all',
-              isDropping || remainingDrops <= 0
+              isDropping || isMultiPulling || remainingDrops <= 0
                 ? 'cursor-not-allowed bg-ink-500/15 text-ink-300'
                 : 'bg-ink-500 text-paper-50 shadow-paper hover:-translate-y-0.5 hover:shadow-polaroid'
             )}
@@ -243,6 +295,33 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
               )}
             </AnimatePresence>
           </button>
+
+          {/* Multi-pull (N연차) */}
+          {remainingDrops > 1 && (
+            <button
+              type="button"
+              onClick={handleMultiPull}
+              disabled={isDropping || isMultiPulling}
+              className={clsx(
+                'flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-5 py-2.5 font-display text-sm transition-all',
+                isDropping || isMultiPulling
+                  ? 'cursor-not-allowed border-ink-500/15 text-ink-300'
+                  : 'border-coral-500/50 text-coral-600 hover:bg-coral-500/5'
+              )}
+            >
+              {isMultiPulling ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-coral-500/30 border-t-coral-500" />
+                  연속 개봉 중…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  여러 장 열기 ({Math.min(remainingDrops, 10)}장)
+                </>
+              )}
+            </button>
+          )}
 
           {/* Notes */}
           <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-300">
@@ -393,6 +472,8 @@ export function CardDropWidget({ userId, className = '' }: CardDropWidgetProps) 
         onReveal={handleReveal}
         onClose={handleClose}
       />
+
+      <MultiPullModal open={multiOpen} cards={multiCards} onClose={() => setMultiOpen(false)} />
     </>
   )
 }

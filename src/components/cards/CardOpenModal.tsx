@@ -143,14 +143,23 @@ function rarityTier(rarity: string, type?: string): 'special' | 'epic' | 'rare' 
  * 개봉 순간 fx_ui_pack_opening 이 1회 폭발하고, legendary/prestige 는 fx_ui_rare_aura 가
  * 뒤에서 회전·펄스 + 반짝이가 흩날린다. (좌표/타이밍은 라이브 튜닝 가능.)
  */
-function SealedOrRevealed({ card, isRevealed }: { card: OpenCard; isRevealed: boolean }) {
+export function SealedOrRevealed({
+  card,
+  isRevealed,
+  scale = 1,
+}: {
+  card: OpenCard
+  isRevealed: boolean
+  scale?: number
+}) {
   const token = getRarityToken(card.rarity)
   const sealedSrc = getPreOpenImage(card)
   const tier = rarityTier(card.rarity, card.type)
   const special = tier === 'special'
 
   return (
-    <div className="relative" style={{ width: 220 }}>
+    <div style={{ width: 220 * scale, height: 308 * scale }}>
+      <div className="relative" style={{ width: 220, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
       {/* ① 레어 오라(legendary/prestige) — 폴라로이드 뒤에서 회전·펄스 */}
       {isRevealed && special && (
         <motion.img
@@ -250,6 +259,7 @@ function SealedOrRevealed({ card, isRevealed }: { card: OpenCard; isRevealed: bo
           transition={{ duration: 0.55, ease: 'easeOut', times: [0, 0.35, 1] }}
         />
       )}
+      </div>
     </div>
   )
 }
