@@ -27,12 +27,16 @@ export interface CardTileProps extends VariantProps<typeof cardTile> {
   className?: string
 }
 
+// 각성(championLevel>=2) 스탯 — 찬란한 금빛 + 글로우. exhausted→grayscale 과 동일한 데이터 주도 스타일.
+const GOLD_STAT = 'text-amber-200 [text-shadow:0_0_10px_rgba(251,191,36,0.95)]'
+
 /** 카드 한 장. faceDown(상대 손패 등)이면 뒷면, 아니면 코스트/파워/체력/이름. */
 export function CardTile({ card, name, pending, onClick, className }: CardTileProps) {
   if (card.faceDown) {
     return <div className={cn(cardTile({ faceDown: true }), className)} aria-label="hidden card" />
   }
   const interactive = !!onClick && !pending
+  const awakened = (card.championLevel ?? 0) >= 2 // 전투 보드 각성 유닛만 true (컬렉션/덱은 undefined)
   return (
     <div
       className={cn(
@@ -50,8 +54,10 @@ export function CardTile({ card, name, pending, onClick, className }: CardTilePr
       </div>
       <div className="truncate text-[10px] text-slate-300">{name ?? card.definitionId}</div>
       <div className="flex justify-between font-bold">
-        <span className="text-amber-400">{card.power ?? 0}</span>
-        <span className={cn('text-rose-400', (card.damage ?? 0) > 0 && 'text-rose-300')}>{card.health ?? 0}</span>
+        <span className={awakened ? GOLD_STAT : 'text-amber-400'}>{card.power ?? 0}</span>
+        <span className={awakened ? GOLD_STAT : cn('text-rose-400', (card.damage ?? 0) > 0 && 'text-rose-300')}>
+          {card.health ?? 0}
+        </span>
       </div>
     </div>
   )
