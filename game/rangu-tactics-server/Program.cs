@@ -29,6 +29,8 @@ builder.Services.AddSingleton(new DeckOptions
     Url = cfg["Deck:Url"] ?? "http://localhost:3000/api/game/deck",
     Secret = cfg["Deck:Secret"] ?? Environment.GetEnvironmentVariable("GAME_SERVER_SECRET") ?? "",
 });
+builder.Services.AddSingleton<DeckFetcher>();   // 서버간 덱 페치(PvE/PvP 공용)
+builder.Services.AddSingleton<Matchmaker>();    // 1:1 PvP 매치메이킹 큐
 
 var app = builder.Build();
 
@@ -52,7 +54,7 @@ app.UseWebSockets();
 app.MapGet("/healthz", (MatchRegistry reg) =>
     Results.Ok(new { ok = true, contentVersion = catalog.ContentVersion, cards = catalog.Count, matches = reg.Count }));
 
-app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, MatchRegistry registry, ConnectionHub hub, IHttpClientFactory httpFactory, DeckOptions deckOptions) =>
+app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, MatchRegistry registry, ConnectionHub hub, DeckFetcher deckFetcher, Matchmaker matchmaker) =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest)
     {
@@ -60,7 +62,7 @@ app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, Ma
         return;
     }
     using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-    await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, httpFactory, deckOptions, app.Logger, ctx.RequestAborted);
+    await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, deckFetcher, matchmaker, app.Logger, ctx.RequestAborted);
 });
 
 app.Logger.LogInformation("[boot] rangu-tactics game server → ws://localhost:5080/ws/tactics");

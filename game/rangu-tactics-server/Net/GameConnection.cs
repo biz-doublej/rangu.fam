@@ -1,6 +1,4 @@
-using System.Net.Http;
 using System.Net.WebSockets;
-using System.Text.Json;
 using Google.Protobuf;
 using Rangu.Tactics.Proto.V1;
 using Rangu.Tactics.Server.Auth;
@@ -24,7 +22,7 @@ public static class GameConnection
 
     public static async Task HandleAsync(
         WebSocket socket, GameTicketValidator validator, MatchRegistry registry,
-        ConnectionHub hub, CardCatalog catalog, IHttpClientFactory httpFactory, DeckOptions deckOptions,
+        ConnectionHub hub, CardCatalog catalog, DeckFetcher deckFetcher, Matchmaker matchmaker,
         ILogger log, CancellationToken ct)
     {
         // 1) 첫 프레임 = connect
@@ -56,11 +54,45 @@ public static class GameConnection
             return;
         }
 
-        // 4) 매치 입장 — 유저 활성 덱 페치(없거나 실패 시 null → DemoDeck 폴백), 생성 시 P1 으로 주입
-        var matchId = string.IsNullOrEmpty(connect.MatchId) ? $"pve-{principal.UserId}" : connect.MatchId;
-        var humanDeck = await FetchHumanDeckAsync(httpFactory, deckOptions, principal.UserId, log, ct);
-        var match = registry.GetOrCreate(matchId, id => CreateMatch(id, principal.UserId, humanDeck));
-        var seat = match.SeatOf(principal.UserId);
+        // 4) 연결 의도 분기: 재접속 / PvP 매칭 / PvE(기본). OBSERVE 는 C3.
+        GameMatch match;
+        Engine.PlayerSlot? seat;
+
+        var rejoin = string.IsNullOrEmpty(connect.MatchId) ? null : registry.Find(connect.MatchId);
+        if (rejoin is not null && rejoin.SeatOf(principal.UserId) is { } reseat)
+        {
+            match = rejoin; // 기존 매치 재접속 → 현재 스냅샷 재싱크
+            seat = reseat;
+        }
+        else if (connect.Mode == ConnectMode.Observe)
+        {
+            await RejectAsync(socket, ConnectRejected.Types.Reason.Unspecified, "observe_not_yet", ct); // C3 예정
+            return;
+        }
+        else if (connect.Mode == ConnectMode.Pvp)
+        {
+            Matchmaker.Assignment a;
+            try { a = await matchmaker.JoinQueueAsync(principal.UserId, ct); }
+            catch (OperationCanceledException) { return; } // 큐 대기 중 연결 종료
+            var paired = registry.Find(a.MatchId);
+            if (paired is null)
+            {
+                await RejectAsync(socket, ConnectRejected.Types.Reason.MatchNotFound, a.MatchId, ct);
+                return;
+            }
+            match = paired;
+            seat = a.Seat;
+        }
+        else
+        {
+            // PvE — 유저 활성 덱(없으면 DeckPresets.Demo), 고스트 P2
+            var pveId = string.IsNullOrEmpty(connect.MatchId) ? $"pve-{principal.UserId}" : connect.MatchId;
+            var humanDeck = await deckFetcher.FetchAsync(principal.UserId, Engine.PlayerSlot.P1, ct);
+            match = registry.GetOrCreate(pveId, id => CreatePveMatch(id, principal.UserId, humanDeck));
+            seat = match.SeatOf(principal.UserId);
+        }
+
+        var matchId = match.MatchId;
         if (seat is null)
         {
             await RejectAsync(socket, ConnectRejected.Types.Reason.NotAParticipant, principal.UserId, ct);
@@ -256,138 +288,15 @@ public static class GameConnection
         },
     };
 
-    // ── PvE 매치 — 유저 활성 덱 주입(없으면 DemoDeck 폴백). 고스트는 항상 DemoDeck ──
-    private static GameMatch CreateMatch(string matchId, string humanUserId, List<Engine.BattleCard>? humanDeck)
+    // ── PvE 매치 — 유저 활성 덱(없으면 DeckPresets.Demo). 고스트 P2 = DeckPresets.Demo ──
+    private static GameMatch CreatePveMatch(string matchId, string humanUserId, List<Engine.BattleCard>? humanDeck)
     {
-        var p1 = humanDeck is { Count: > 0 } ? humanDeck : DemoDeck(Engine.PlayerSlot.P1);
+        var p1 = humanDeck is { Count: > 0 } ? humanDeck : DeckPresets.Demo(Engine.PlayerSlot.P1);
         var (state, events) = Engine.GameEngine.CreateBattle(
-            matchId, new(humanUserId, p1), new(PveGhost, DemoDeck(Engine.PlayerSlot.P2)));
+            matchId, new(humanUserId, p1), new(PveGhost, DeckPresets.Demo(Engine.PlayerSlot.P2)));
         return new GameMatch(matchId, state, (ulong)events.Count);
     }
 
-    private static readonly JsonSerializerOptions DeckJsonOpts = new() { PropertyNameCaseInsensitive = true };
-
-    /// <summary>
-    /// Next /api/game/deck 서버간 페치 → P1 BattleCard[] (count 만큼 복제). 카드 스탯은 응답에 포함됨.
-    /// 활성 덱 없음/통신 실패/secret 미설정 → null 반환(호출측이 DemoDeck 폴백). 절대 throw 하지 않음.
-    /// </summary>
-    private static async Task<List<Engine.BattleCard>?> FetchHumanDeckAsync(
-        IHttpClientFactory factory, DeckOptions opt, string userId, ILogger log, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(opt.Url) || string.IsNullOrEmpty(opt.Secret)) return null;
-        try
-        {
-            var http = factory.CreateClient();
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"{opt.Url}?userId={Uri.EscapeDataString(userId)}");
-            req.Headers.Add("X-Game-Server-Secret", opt.Secret);
-            using var res = await http.SendAsync(req, ct);
-            if (!res.IsSuccessStatusCode) return null;
-
-            var body = await res.Content.ReadAsStringAsync(ct);
-            var parsed = JsonSerializer.Deserialize<DeckResponse>(body, DeckJsonOpts);
-            if (parsed?.Deck is not { Count: > 0 } entries) return null; // 활성 덱 없음 → 폴백
-
-            var cards = new List<Engine.BattleCard>();
-            int idx = 0;
-            foreach (var d in entries)
-            {
-                if (string.IsNullOrEmpty(d.CardId)) continue;
-                var kind = d.CardType == "spell" ? Engine.CardKind.Spell : Engine.CardKind.Unit;
-                for (int i = 0; i < Math.Max(1, d.Count); i++)
-                {
-                    cards.Add(new Engine.BattleCard
-                    {
-                        InstanceId = $"{Engine.PlayerSlot.P1}-{idx++}",
-                        CardId = d.CardId, Owner = Engine.PlayerSlot.P1, Name = d.Name ?? d.CardId, Cost = d.Cost, Kind = kind,
-                        Unit = kind == Engine.CardKind.Unit ? MapUnit(d) : null,
-                        Spell = kind == Engine.CardKind.Spell ? MapSpell(d) : null,
-                    });
-                }
-            }
-            if (cards.Count == 0) return null;
-            log.LogInformation("[deck] {User} 활성 덱 주입: {N}장", userId, cards.Count);
-            return cards;
-        }
-        catch (Exception ex)
-        {
-            log.LogWarning(ex, "[deck] {User} 페치 실패 — DemoDeck 폴백", userId);
-            return null;
-        }
-    }
-
-    private static Engine.UnitSpec MapUnit(DeckCardDto d) => new()
-    {
-        Power = d.Attack ?? 0,
-        Health = d.Health ?? 1,
-        Keywords = MapKeywords(d.Keywords),
-        IsChampion = d.CardType == "champion",
-    };
-
-    private static Engine.SpellSpec MapSpell(DeckCardDto d)
-    {
-        var eff = d.Effects?.FirstOrDefault(e => e.Trigger == "cast") ?? d.Effects?.FirstOrDefault();
-        return new Engine.SpellSpec
-        {
-            Speed = Enum.TryParse<Engine.SpellSpeed>(d.SpellSpeed, true, out var sp) ? sp : Engine.SpellSpeed.Fast,
-            NeedsTarget = eff?.Target?.Select?.StartsWith("choose") == true,
-            Effect = new Engine.SpellEffect
-            {
-                Kind = Enum.TryParse<Engine.SpellEffectKind>(eff?.Kind, true, out var k) ? k : Engine.SpellEffectKind.DamageUnit,
-                Amount = eff?.Amount,
-                Health = eff?.Health,
-                GrantedKeyword = Enum.TryParse<Engine.Keyword>(eff?.Keyword, true, out var gk) ? gk : (Engine.Keyword?)null,
-                Duration = eff?.Duration,
-            },
-        };
-    }
-
-    private static List<Engine.Keyword> MapKeywords(List<string>? kws)
-    {
-        var list = new List<Engine.Keyword>();
-        if (kws is null) return list;
-        foreach (var k in kws)
-            if (Enum.TryParse<Engine.Keyword>(k, true, out var kw)) list.Add(kw);
-        return list;
-    }
-
-    // Next /api/game/deck 응답 DTO (camelCase, 대소문자 무시 역직렬화)
-    private sealed record DeckResponse(bool Success, List<DeckCardDto>? Deck);
-    private sealed record DeckCardDto(
-        string CardId, int Count, string? Name, string? CardType, int Cost,
-        int? Attack, int? Health, List<string>? Keywords, string? SpellSpeed, List<EffectDto>? Effects);
-    private sealed record EffectDto(
-        string? Trigger, string? Kind, int? Amount, int? Health, string? Keyword, int? Duration, EffectTargetDto? Target);
-    private sealed record EffectTargetDto(string? Select);
-
-    // 데모 덱: 코스트 1 유닛 12 + 주문 4(단일타겟 화염 ×2[Fast→스택], 비타겟 치유 ×2[Burst→즉발]).
-    // 주문은 metadata/demo 의 spell_dmg/spell_heal 과 cardId 일치. (스파링 고스트 봇은 유닛만 플레이→주문 무시.)
-    private static List<Engine.BattleCard> DemoDeck(Engine.PlayerSlot owner)
-    {
-        var deck = new List<Engine.BattleCard>(16);
-        for (int i = 0; i < 16; i++)
-        {
-            var inst = $"{owner}-{i}";
-            if (i is 3 or 9) // 단일 타겟 피해 주문(Fast → 스택에 쌓여 체인 UI 노출)
-                deck.Add(new Engine.BattleCard
-                {
-                    InstanceId = inst, CardId = "spell_dmg", Owner = owner, Name = "데모 화염", Cost = 1, Kind = Engine.CardKind.Spell,
-                    Spell = new Engine.SpellSpec { Speed = Engine.SpellSpeed.Fast, NeedsTarget = true, Effect = new Engine.SpellEffect { Kind = Engine.SpellEffectKind.DamageUnit, Amount = 2 } },
-                });
-            else if (i is 6 or 13) // 비타겟 본진 회복 주문(Burst → 즉발)
-                deck.Add(new Engine.BattleCard
-                {
-                    InstanceId = inst, CardId = "spell_heal", Owner = owner, Name = "데모 치유", Cost = 1, Kind = Engine.CardKind.Spell,
-                    Spell = new Engine.SpellSpec { Speed = Engine.SpellSpeed.Burst, NeedsTarget = false, Effect = new Engine.SpellEffect { Kind = Engine.SpellEffectKind.HealNexus, Amount = 3 } },
-                });
-            else
-                deck.Add(new Engine.BattleCard
-                {
-                    InstanceId = inst, CardId = $"demo_{i % 4}", Owner = owner, Name = $"데모{i}", Cost = 1, Kind = Engine.CardKind.Unit,
-                    Unit = new Engine.UnitSpec { Power = (i % 3) + 1, Health = (i % 2) + 2 },
-                });
-        }
-        return deck;
-    }
 
     // ── 저수준 WS ─────────────────────────────────────────────────
     private static Task RejectAsync(WebSocket socket, ConnectRejected.Types.Reason reason, string detail, CancellationToken ct)
