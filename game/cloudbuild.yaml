@@ -1,0 +1,54 @@
+# 랑구 택틱스 게임 서버 → Cloud Run 배포 (Cloud Build, 턴키).
+#
+# 실행(레포 루트에서):
+#   gcloud builds submit --config game/cloudbuild.yaml game/ \
+#     --substitutions=_NEXT_BASE=https://rangu.fam,_IMAGE=asia-northeast1-docker.pkg.dev/doublej-platform/rangu/rangu-tactics-server:latest
+#   (source=game/ → /workspace=game/ → Dockerfile=rangu-tactics-server/Dockerfile, 빌드 컨텍스트=/workspace)
+#
+# ⚠️ 배포 전 반드시 확인(아래 substitutions/주석):
+#   1) _IMAGE  : Artifact Registry repo 경로(repo명 'rangu'가 실제 존재하는지)
+#   2) _NEXT_BASE : 배포된 Next 주소 + /api/game/metadata/export 가 카드 카탈로그를 반환하는지(부팅 의존)
+#   3) GAME_SERVER_SECRET : Secret Manager 에 존재해야 함(덱 브릿지 — Next 와 동일값)
+#   4) --max-instances=1 : 매치메이커/MatchRegistry 가 인메모리·단일 인스턴스 → 다중이면 PvP 깨짐(향후 Redis)
+
+substitutions:
+  _REGION: asia-northeast1
+  _SERVICE: rangu-tactics-server
+  _IMAGE: asia-northeast1-docker.pkg.dev/doublej-platform/rangu/rangu-tactics-server:latest
+  _NEXT_BASE: https://rangu.fam
+
+steps:
+  # 1) 이미지 빌드 (컨텍스트=/workspace=game/, Dockerfile=하위경로)
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_IMAGE}', '-f', 'rangu-tactics-server/Dockerfile', '.']
+
+  # 2) Artifact Registry 푸시
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGE}']
+
+  # 3) Cloud Run 배포 — WS 장기연결(timeout↑) + 단일 인스턴스(인메모리 상태)
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated          # 게임 클라이언트 공개 접속(앱 인증은 게임 티켓 JWT)
+      - --max-instances=1                # 🔴 인메모리 매치메이커 → 단일 인스턴스 필수
+      - --min-instances=1                # 콜드스타트 회피(매치 상태 유지)
+      - --timeout=3600                   # WebSocket 장기 연결
+      - --session-affinity               # 스티키(단일 인스턴스라 보조적, 향후 확장 대비)
+      - --set-env-vars=Deck__Url=${_NEXT_BASE}/api/game/deck,GameTicket__JwksUrl=${_NEXT_BASE}/api/game/jwks,Metadata__ExportUrl=${_NEXT_BASE}/api/game/metadata/export
+      - --set-secrets=GAME_SERVER_SECRET=GAME_SERVER_SECRET:latest
+
+images:
+  - ${_IMAGE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
