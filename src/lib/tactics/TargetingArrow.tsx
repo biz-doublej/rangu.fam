@@ -1,15 +1,21 @@
 'use client'
 
-import type { Arrow } from './useDragTargeting'
+import type { Arrow, ArrowVariant } from './useDragTargeting'
+
+const COLOR: Record<ArrowVariant, string> = {
+  attack: '#fb7185', // rose
+  block: '#38bdf8', // sky
+  spell: '#c084fc', // violet (마법)
+}
 
 /**
- * LoR식 타겟팅 연결선 — 기점(유닛 중심)에서 커서까지 살짝 휜 곡선 + 화살촉.
+ * LoR식 타겟팅 연결선 — 기점(유닛/카드 중심)에서 커서까지 살짝 휜 곡선 + 화살촉.
  * 화면 고정·pointer-events-none(드롭 히트테스트의 elementFromPoint 를 방해하지 않음).
  */
-export function TargetingArrow({ arrow, variant }: { arrow: Arrow | null; variant: 'attack' | 'block' }) {
+export function TargetingArrow({ arrow, variant }: { arrow: Arrow | null; variant: ArrowVariant }) {
   if (!arrow) return null
   const { x1, y1, x2, y2 } = arrow
-  const color = variant === 'attack' ? '#fb7185' : '#38bdf8' // rose / sky
+  const color = COLOR[variant]
 
   const dx = x2 - x1
   const dy = y2 - y1

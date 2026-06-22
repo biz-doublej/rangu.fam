@@ -136,9 +136,9 @@ public static class GameConnection
     }
 
     /// <summary>
-    /// PvE 스파링 고스트 자동진행 — 블로커 1기를 유지하며 인간의 공격을 막아준다(전투 연출 점화).
-    /// 정책: 멀리건(0장) → 수비 시 첫 공격자 블록 → 보드 비면 최저코스트 유닛 1기 소환 → 그 외 패스.
-    /// (V1 패시브에서 "블록·소환"만 추가한 최소 봇. 공격/주문/전략은 후속.) 발생 이벤트(전투 해결 등)를 모아 반환.
+    /// PvE 스파링 고스트 자동진행 — 블로커를 유지하고, 자기 차례엔 공격해 인간을 수비자로 만든다(블록 연출 유발).
+    /// 정책: 멀리건 → 수비 시 블록 → 내 공격턴엔 비-소환멀미 유닛 전부로 공격 → 보드 비면 최저코스트 소환 → 그 외 패스.
+    /// (V1 패시브에서 블록·소환·공격을 더한 최소 봇. 주문/전략은 후속.) 발생 이벤트(전투 해결 등)를 모아 반환.
     /// </summary>
     private static async Task<List<Engine.GameEvent>> DriveGhostAsync(GameMatch match, CancellationToken ct)
     {
@@ -175,18 +175,33 @@ public static class GameConnection
                 continue;
             }
 
-            // 액션 + 보드 비었으면: 최저코스트 유닛 1기 소환(블로커 확보)
-            if (s.Phase == Engine.BattlePhase.Action && s.Player(g).Board.Count == 0)
+            if (s.Phase == Engine.BattlePhase.Action)
             {
                 var p = s.Player(g);
-                var unit = p.Hand
-                    .Where(card => card.Kind == Engine.CardKind.Unit && card.Cost <= p.Mana)
-                    .OrderBy(card => card.Cost).FirstOrDefault();
-                if (unit is not null && await TryApplyAsync(match, g, new Engine.PlayUnitAction(unit.InstanceId), collected, ct))
-                    continue;
+
+                // 1) 내 공격턴(공격토큰 보유) + 미선언 → 비-소환멀미 유닛 전부로 공격 선언(인간을 수비자로 만들어 블록 유발)
+                if (s.ActivePlayer == g && !s.AttackDeclaredThisRound)
+                {
+                    var attackers = p.Board
+                        .Where(u => u.SummonedRound < s.Round && !u.HasAttacked && !u.IsStunned)
+                        .Select(u => u.InstanceId).ToList();
+                    if (attackers.Count > 0
+                        && await TryApplyAsync(match, g, new Engine.DeclareAttackAction(attackers, null), collected, ct))
+                        continue;
+                }
+
+                // 2) 보드 비면 최저코스트 유닛 1기 소환(블로커/미래 공격수 확보)
+                if (p.Board.Count == 0)
+                {
+                    var unit = p.Hand
+                        .Where(card => card.Kind == Engine.CardKind.Unit && card.Cost <= p.Mana)
+                        .OrderBy(card => card.Cost).FirstOrDefault();
+                    if (unit is not null && await TryApplyAsync(match, g, new Engine.PlayUnitAction(unit.InstanceId), collected, ct))
+                        continue;
+                }
             }
 
-            // 그 외(반응 윈도우/소환 불가 등) → 패스로 진행
+            // 그 외(반응 윈도우/소환·공격 불가 등) → 패스로 진행
             collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events);
         }
         return collected;
@@ -245,13 +260,35 @@ public static class GameConnection
         return new GameMatch(matchId, state, (ulong)events.Count);
     }
 
-    private static List<Engine.BattleCard> DemoDeck(Engine.PlayerSlot owner) =>
-        Enumerable.Range(0, 16).Select(i => new Engine.BattleCard
+    // 데모 덱: 코스트 1 유닛 12 + 주문 4(단일타겟 화염 ×2[Fast→스택], 비타겟 치유 ×2[Burst→즉발]).
+    // 주문은 metadata/demo 의 spell_dmg/spell_heal 과 cardId 일치. (스파링 고스트 봇은 유닛만 플레이→주문 무시.)
+    private static List<Engine.BattleCard> DemoDeck(Engine.PlayerSlot owner)
+    {
+        var deck = new List<Engine.BattleCard>(16);
+        for (int i = 0; i < 16; i++)
         {
-            InstanceId = $"{owner}-{i}", CardId = $"demo_{i % 4}", Owner = owner, Name = $"데모{i}",
-            Cost = 1, Kind = Engine.CardKind.Unit, // 코스트 1 → 1라운드 즉시 소환 가능(데모)
-            Unit = new Engine.UnitSpec { Power = (i % 3) + 1, Health = (i % 2) + 2 },
-        }).ToList();
+            var inst = $"{owner}-{i}";
+            if (i is 3 or 9) // 단일 타겟 피해 주문(Fast → 스택에 쌓여 체인 UI 노출)
+                deck.Add(new Engine.BattleCard
+                {
+                    InstanceId = inst, CardId = "spell_dmg", Owner = owner, Name = "데모 화염", Cost = 1, Kind = Engine.CardKind.Spell,
+                    Spell = new Engine.SpellSpec { Speed = Engine.SpellSpeed.Fast, NeedsTarget = true, Effect = new Engine.SpellEffect { Kind = Engine.SpellEffectKind.DamageUnit, Amount = 2 } },
+                });
+            else if (i is 6 or 13) // 비타겟 본진 회복 주문(Burst → 즉발)
+                deck.Add(new Engine.BattleCard
+                {
+                    InstanceId = inst, CardId = "spell_heal", Owner = owner, Name = "데모 치유", Cost = 1, Kind = Engine.CardKind.Spell,
+                    Spell = new Engine.SpellSpec { Speed = Engine.SpellSpeed.Burst, NeedsTarget = false, Effect = new Engine.SpellEffect { Kind = Engine.SpellEffectKind.HealNexus, Amount = 3 } },
+                });
+            else
+                deck.Add(new Engine.BattleCard
+                {
+                    InstanceId = inst, CardId = $"demo_{i % 4}", Owner = owner, Name = $"데모{i}", Cost = 1, Kind = Engine.CardKind.Unit,
+                    Unit = new Engine.UnitSpec { Power = (i % 3) + 1, Health = (i % 2) + 2 },
+                });
+        }
+        return deck;
+    }
 
     // ── 저수준 WS ─────────────────────────────────────────────────
     private static Task RejectAsync(WebSocket socket, ConnectRejected.Types.Reason reason, string detail, CancellationToken ct)

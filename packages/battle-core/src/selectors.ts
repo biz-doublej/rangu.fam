@@ -38,6 +38,8 @@ export interface BattleVM {
   /** 상대 손패 — 마스킹되어 전부 faceDown(뒷면). 장수만큼 카드백 렌더용. */
   opponentHand: CardVM[]
   stackCount: number
+  /** 스택 내용(중앙 체인 UI) — 비어있으면 시전 중 아님. */
+  stack: StackVM[]
   /** 전투 상태 — pairs 비어있으면 전투 중 아님. */
   combat: CombatVM
 }
@@ -45,6 +47,14 @@ export interface BattleVM {
 export interface CombatVM {
   attackerSeat?: number
   pairs: { attackerInstanceId: string; blockerInstanceId: string }[]
+}
+
+/** 스택(시전 중인 주문/능력) 1건 — 중앙 "주문 체인" UI 용. 상단(마지막) = 다음에 해결. */
+export interface StackVM {
+  stackId: string
+  definitionId?: string // 메타데이터 조회 키(주문 이름/이미지)
+  controllerSeat?: number
+  targetInstanceIds: string[]
 }
 
 export function toCardVM(c: CardView): CardVM {
@@ -100,6 +110,12 @@ export function selectBattle(snapshot: GameStateSnapshot | undefined, mySeat: nu
       .filter((c) => c.controller?.seat === oppSeat && c.zone === Zone.ZONE_HAND)
       .map(toCardVM),
     stackCount: snapshot.stack.length,
+    stack: snapshot.stack.map((si) => ({
+      stackId: si.stackId,
+      definitionId: si.card?.revealed?.definitionId,
+      controllerSeat: si.controller?.seat,
+      targetInstanceIds: si.targets.map((t) => t.cardInstanceId).filter((x): x is string => !!x),
+    })),
     combat: {
       attackerSeat: snapshot.combat?.attacker?.seat,
       pairs: (snapshot.combat?.pairs ?? []).map((p) => ({

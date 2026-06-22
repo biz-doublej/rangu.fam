@@ -6,5 +6,6 @@ export type { BattleState, BattleStore, PendingIntent, IntentStatus, CombatFx } 
 export { attachMessageMapper, toBytes } from './messageMapper'
 export type { SocketLike } from './messageMapper'
 export { selectBattle, toCardVM } from './selectors'
-export type { BattleVM, SideVM, CardVM, CombatVM } from './selectors'
+export type { BattleVM, SideVM, CardVM, CombatVM, StackVM } from './selectors'
 export { playCard, mulligan, pass, declareAttack, declareBlock, resolveStack } from './actions'
+export type { CastTarget } from './actions'

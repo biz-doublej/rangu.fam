@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, 
 import { useParams, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { GamePhase } from '@rangu/proto-ts'
-import { selectBattle, type CardVM } from '@rangu/battle-core'
+import { selectBattle, type CardVM, type CastTarget, type StackVM } from '@rangu/battle-core'
 import { NexusBar, CardSlot, CardTile } from '@rangu/ui'
 import {
   useBattle,
@@ -20,7 +20,7 @@ import { useCombatFx } from '@/lib/tactics/useCombatFx'
 import { CombatFxOverlay } from '@/lib/tactics/CombatFxOverlay'
 import { useDragTargeting, type DropTarget } from '@/lib/tactics/useDragTargeting'
 import { TargetingArrow } from '@/lib/tactics/TargetingArrow'
-import { CardMetadataProvider, useCardMeta } from '@/lib/tactics/CardMetadataProvider'
+import { CardMetadataProvider, useCardMeta, spellNeedsTarget } from '@/lib/tactics/CardMetadataProvider'
 
 function Row({ children, drop }: { children: ReactNode; drop?: string }) {
   return <div data-drop={drop} className="flex min-h-[7rem] flex-wrap items-center gap-2">{children}</div>
@@ -65,13 +65,34 @@ function FxSlot({
 }
 
 /**
- * 손패 카드 — 메타데이터 이름 조회.
- * playable 이면 보드(data-drop=my-board)로 드래그&드롭하여 소환(framer drag, 끝나면 원위치 스냅백).
- * 탭(드래그 아님)도 소환 폴백 — framer 가 탭/드래그를 구분해 중복 발사 없음.
+ * 손패 카드 드래그 분기 (메타로 판별):
+ *  - 단일 타겟 주문 → 포인터 타겟팅(보라 화살표) — 유닛/넥서스에 드롭 시 시전(카드 자체는 안 움직임)
+ *  - 유닛 / 비타겟(AoE·자가) 주문 → framer drag → 보드 드롭 시 소환/시전(타겟 없음). 탭 폴백.
  */
-function HandCard({ card, playable, pending }: { card: CardVM; playable: boolean; pending: boolean }) {
+function HandCard({
+  card,
+  playable,
+  pending,
+  startSpellTarget,
+}: {
+  card: CardVM
+  playable: boolean
+  pending: boolean
+  startSpellTarget: (cardInstanceId: string, originEl: HTMLElement) => void
+}) {
   const meta = useCardMeta(card.definitionId)
-  const summon = () => doPlayCard(card.instanceId)
+  const cast = (targets: CastTarget[] = []) => doPlayCard(card.instanceId, targets)
+
+  // 단일 타겟 주문 → 보라 화살표 타겟팅(드롭 = 시전)
+  if (playable && spellNeedsTarget(meta)) {
+    return (
+      <div className="cursor-crosshair touch-none" onPointerDown={(e) => startSpellTarget(card.instanceId, e.currentTarget)}>
+        <CardTile card={card} name={meta?.name} pending={pending} />
+      </div>
+    )
+  }
+
+  // 유닛 / 비타겟 주문 → framer 카드 드래그(보드 드롭 = 소환/시전)
   return (
     <motion.div
       drag={playable}
@@ -87,11 +108,34 @@ function HandCard({ card, playable, pending }: { card: CardVM; playable: boolean
               ? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
               : info.point
         const zone = document.querySelector('[data-drop="my-board"]')?.getBoundingClientRect()
-        if (zone && p.x >= zone.left && p.x <= zone.right && p.y >= zone.top && p.y <= zone.bottom) summon()
+        if (zone && p.x >= zone.left && p.x <= zone.right && p.y >= zone.top && p.y <= zone.bottom) cast()
       }}
     >
-      <CardTile card={card} name={meta?.name} pending={pending} onClick={playable ? summon : undefined} />
+      <CardTile card={card} name={meta?.name} pending={pending} onClick={playable ? () => cast() : undefined} />
     </motion.div>
+  )
+}
+
+/** 중앙 "주문 체인"(스택) — 스냅샷 구동. 상단(마지막)이 먼저 해결(LIFO). */
+function StackChip({ item }: { item: StackVM }) {
+  const meta = useCardMeta(item.definitionId)
+  return (
+    <div className="rounded bg-violet-800/60 px-2 py-1 text-[11px] text-violet-100">
+      ✨ {meta?.name ?? item.definitionId ?? '주문'}
+      {item.targetInstanceIds.length ? ` → ${item.targetInstanceIds.join(', ')}` : ''}
+    </div>
+  )
+}
+function StackChain({ stack }: { stack: StackVM[] }) {
+  return (
+    <div className="rounded-lg border border-violet-500/40 bg-violet-950/30 p-2">
+      <div className="text-[10px] font-bold uppercase tracking-wide text-violet-300">주문 체인 · 스택 LIFO ({stack.length})</div>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {stack.map((s) => (
+          <StackChip key={s.stackId} item={s} />
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -179,10 +223,20 @@ function Board() {
   const startTarget = (c: CardVM) => (e: ReactPointerEvent<HTMLDivElement>) =>
     targeting.start(e.currentTarget, (t) => onDropTarget(c.instanceId, t))
 
+  // 단일 타겟 주문: 손패 카드에서 시작 → 유닛/넥서스에 드롭 시 타겟과 함께 시전(보라 화살표)
+  const startSpellTarget = (cardInstanceId: string, originEl: HTMLElement) =>
+    targeting.start(
+      originEl,
+      (t) => {
+        if (t) doPlayCard(cardInstanceId, [t.kind === 'unit' ? { cardInstanceId: t.instanceId as string } : { nexusSeat: t.seat }])
+      },
+      'spell',
+    )
+
   return (
     <>
       <CombatFxOverlay floats={fx.floats} sprites={fx.sprites} />
-      <TargetingArrow arrow={targeting.arrow} variant={canAttack ? 'attack' : 'block'} />
+      <TargetingArrow arrow={targeting.arrow} variant={targeting.variant} />
       <div className="mx-auto flex max-w-3xl flex-col gap-4 bg-slate-900 p-6">
         <div className="text-xs text-slate-400">상대 손패 ({vm.opponent.handCount}) — 🔒 마스킹(뒷면)</div>
         <Row>
@@ -208,6 +262,7 @@ function Board() {
           </Row>
 
           <div className="h-px bg-slate-700" />
+          {vm.stack.length > 0 ? <StackChain stack={vm.stack} /> : null}
 
           <Row drop="my-board">
             <AnimatePresence>
@@ -240,18 +295,13 @@ function Board() {
           </button>
         ) : null}
         {isBlock ? (
-          <>
-            <button onClick={submitBlock} className="rounded bg-sky-500 px-3 py-1 text-xs font-bold text-white">
-              블록 선언 ({Object.keys(blocks).length})
-            </button>
-            <button onClick={() => doDeclareBlock([])} className="rounded bg-slate-700 px-3 py-1 text-xs text-slate-200">
-              블록 없이 진행
-            </button>
-          </>
+          <button onClick={submitBlock} disabled={Object.keys(blocks).length === 0} className="rounded bg-sky-500 px-3 py-1 text-xs font-bold text-white disabled:opacity-40">
+            블록 선언 ({Object.keys(blocks).length})
+          </button>
         ) : null}
-        {isAction ? (
+        {isAction || isBlock ? (
           <button onClick={() => doPass()} disabled={busy} className="rounded bg-slate-700 px-3 py-1 text-xs text-slate-200 disabled:opacity-50">
-            패스
+            패스{isBlock ? ' (블록 안 함/진행)' : ''}
           </button>
         ) : null}
         {auto ? (
@@ -268,7 +318,7 @@ function Board() {
       ) : null}
 
       <div className="text-xs text-slate-400">
-        내 손패 ({vm.myHand.length}){canAttack ? ' · 내 유닛을 적에게 드래그=공격(또는 탭)' : isAction ? ' — 카드를 보드로 드래그=소환' : ''}
+        내 손패 ({vm.myHand.length}){canAttack ? ' · 내 유닛을 적에게 드래그=공격(또는 탭)' : isAction ? ' — 유닛: 보드로 드래그 소환 · 주문: 대상(보라 화살표) 또는 보드로 드래그 시전' : ''}
       </div>
       <Row>
         {vm.myHand.map((c) => (
@@ -277,6 +327,7 @@ function Board() {
             card={c}
             playable={isAction && !busy && (c.cost ?? 0) <= vm.me.mana}
             pending={pendingCardIds.has(c.instanceId)}
+            startSpellTarget={startSpellTarget}
           />
         ))}
       </Row>
@@ -294,8 +345,9 @@ function phaseLabel(phase: number, isMulligan: boolean, mine: boolean): string {
 }
 
 export default function PlayPage() {
+  // 데모: DB 없는 정적 메타데이터(유닛+주문 type/effects/spellSpeed 포함). 실매치는 후속에 /export.
   return (
-    <CardMetadataProvider>
+    <CardMetadataProvider endpoint="/api/game/metadata/demo">
       <Suspense fallback={<Center>로딩…</Center>}>
         <Board />
       </Suspense>

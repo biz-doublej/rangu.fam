@@ -12,6 +12,7 @@ import {
   type BattleState,
   type BattleStore,
   type SocketLike,
+  type CastTarget,
 } from '@rangu/battle-core'
 
 // 한 탭 = 한 매치 세션. 모듈 싱글톤 스토어.
@@ -32,8 +33,8 @@ let socket: SocketLike | null = null
 export function bindSocket(ws: SocketLike | null): void {
   socket = ws
 }
-export function doPlayCard(cardInstanceId: string): void {
-  if (socket) playCard(socket, battleStore, cardInstanceId)
+export function doPlayCard(cardInstanceId: string, targets: CastTarget[] = []): void {
+  if (socket) playCard(socket, battleStore, cardInstanceId, targets)
 }
 export function doMulligan(replaceCardInstanceIds: string[] = []): void {
   if (socket) mulligan(socket, battleStore, replaceCardInstanceIds)

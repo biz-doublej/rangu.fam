@@ -17,6 +17,7 @@ export interface DropTarget {
   instanceId?: string
   seat?: number
 }
+export type ArrowVariant = 'attack' | 'block' | 'spell'
 export interface Arrow {
   x1: number
   y1: number
@@ -39,8 +40,14 @@ function hitTest(x: number, y: number): DropTarget | null {
 }
 
 export function useDragTargeting() {
-  const [arrow, setArrow] = useState<Arrow | null>(null)
-  const drag = useRef<{ x1: number; y1: number; armed: boolean; onDrop: (t: DropTarget | null) => void } | null>(null)
+  const [state, setState] = useState<{ arrow: Arrow; variant: ArrowVariant } | null>(null)
+  const drag = useRef<{
+    x1: number
+    y1: number
+    armed: boolean
+    variant: ArrowVariant
+    onDrop: (t: DropTarget | null) => void
+  } | null>(null)
 
   useEffect(() => {
     const move = (e: PointerEvent) => {
@@ -48,13 +55,13 @@ export function useDragTargeting() {
       if (!d) return
       if (!d.armed && Math.hypot(e.clientX - d.x1, e.clientY - d.y1) < THRESHOLD) return // 탭 임계 미만
       d.armed = true
-      setArrow({ x1: d.x1, y1: d.y1, x2: e.clientX, y2: e.clientY })
+      setState({ arrow: { x1: d.x1, y1: d.y1, x2: e.clientX, y2: e.clientY }, variant: d.variant })
     }
     const up = (e: PointerEvent) => {
       const d = drag.current
       if (!d) return
       drag.current = null
-      setArrow(null)
+      setState(null)
       if (d.armed) d.onDrop(hitTest(e.clientX, e.clientY)) // 실제 드래그였을 때만 해소(탭은 클릭에 맡김)
     }
     window.addEventListener('pointermove', move)
@@ -65,11 +72,11 @@ export function useDragTargeting() {
     }
   }, [])
 
-  /** 드래그 시작 — 원점 요소의 중심을 화살표 기점으로, onDrop 은 호출 시점 클로저를 캡처. */
-  const start = (originEl: HTMLElement, onDrop: (t: DropTarget | null) => void) => {
+  /** 드래그 시작 — 원점 요소 중심을 화살표 기점으로, onDrop·variant 는 호출 시점 클로저를 캡처. */
+  const start = (originEl: HTMLElement, onDrop: (t: DropTarget | null) => void, variant: ArrowVariant = 'attack') => {
     const r = originEl.getBoundingClientRect()
-    drag.current = { x1: r.left + r.width / 2, y1: r.top + r.height / 2, armed: false, onDrop }
+    drag.current = { x1: r.left + r.width / 2, y1: r.top + r.height / 2, armed: false, variant, onDrop }
   }
 
-  return { arrow, start }
+  return { arrow: state?.arrow ?? null, variant: state?.variant ?? 'attack', start }
 }

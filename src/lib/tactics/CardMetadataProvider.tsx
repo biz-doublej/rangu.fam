@@ -2,6 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
+/** 카드 효과 1건(메타) — 주문 타겟 필요 여부 판별에 사용. */
+export interface CardEffectMeta {
+  trigger?: string
+  kind?: string
+  amount?: number
+  target?: { select?: string } | null
+}
+
 /** export(JSON) 의 카드 1건 (CardMeta). 상점/덱빌더/배틀 공통 표시 데이터. */
 export interface CardMeta {
   cardId: string
@@ -12,8 +20,23 @@ export interface CardMeta {
   keywords?: string[]
   imageUrl?: string | null
   faction?: string
-  type?: string
+  type?: string // 'unit' | 'spell' | 'champion' | 'landmark'
   rarity?: string
+  spellSpeed?: string | null // 'burst' | 'fast' | 'slow' (주문)
+  effects?: CardEffectMeta[]
+}
+
+/** 주문인가. */
+export function isSpell(meta?: CardMeta): boolean {
+  return meta?.type === 'spell'
+}
+/** 단일 타겟 주문인가 — 효과 중 'choose…' 대상이 있으면 수동 타겟 필요(드래그 타겟팅). */
+export function spellNeedsTarget(meta?: CardMeta): boolean {
+  return isSpell(meta) && (meta?.effects ?? []).some((e) => e.target?.select?.startsWith('choose'))
+}
+/** 스택에 쌓이는가(=즉발 burst 아님) — 쌓이면 중앙 체인 UI 가 뜬다. */
+export function spellStacks(meta?: CardMeta): boolean {
+  return isSpell(meta) && !!meta?.spellSpeed && meta.spellSpeed !== 'burst'
 }
 
 type CardMetaIndex = Record<string, CardMeta>

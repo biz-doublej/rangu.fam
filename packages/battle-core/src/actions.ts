@@ -10,11 +10,28 @@ function send(socket: SocketLike, clientIntentId: string, action: Record<string,
   socket.send(ClientMessage.encode(ClientMessage.fromPartial({ intent: { clientIntentId, ...action } })).finish())
 }
 
-/** 유닛/주문 소환 요청 + 낙관적 pending(카드 상관) 등록. clientIntentId 반환. */
-export function playCard(socket: SocketLike, store: BattleStore, cardInstanceId: string): string {
+/** 시전 타겟 — 유닛(instanceId) 또는 넥서스(seat). proto Target oneof 로 인코딩. */
+export interface CastTarget {
+  cardInstanceId?: string
+  nexusSeat?: number
+}
+
+/**
+ * 유닛 소환 / 주문 시전 요청 + 낙관적 pending(카드 상관) 등록. clientIntentId 반환.
+ * 주문이면 targets 동반(단일 PlayCard intent — 유닛/주문 판별·합법성은 서버 엔진이 재검증).
+ */
+export function playCard(
+  socket: SocketLike,
+  store: BattleStore,
+  cardInstanceId: string,
+  targets: CastTarget[] = [],
+): string {
   const id = nextId('pc')
   store.getState().trackIntent(id, 'playCard', cardInstanceId)
-  send(socket, id, { playCard: { cardInstanceId } })
+  const protoTargets = targets.map((t) =>
+    t.cardInstanceId ? { cardInstanceId: t.cardInstanceId } : { nexus: { seat: t.nexusSeat ?? 0 } },
+  )
+  send(socket, id, { playCard: { cardInstanceId, targets: protoTargets } })
   return id
 }
 
