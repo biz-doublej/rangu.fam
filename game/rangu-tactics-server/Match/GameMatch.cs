@@ -29,6 +29,10 @@ public sealed class GameMatch
     public Engine.GameState Current => _state; // 불변 발행 → 원자 읽기
     public ulong Sequence => _seq;
 
+    private int _resultClaimed;
+    /// <summary>매치 종료 랭크 보고를 1회만 하도록 원자적 클레임. true = 이번 호출이 보고 담당.</summary>
+    public bool TryClaimResultReport() => System.Threading.Interlocked.Exchange(ref _resultClaimed, 1) == 0;
+
     /// <summary>userId 의 매치 내 자리. 참가자가 아니면 null.</summary>
     public Engine.PlayerSlot? SeatOf(string userId)
     {

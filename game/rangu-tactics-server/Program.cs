@@ -29,8 +29,9 @@ builder.Services.AddSingleton(new DeckOptions
     Url = cfg["Deck:Url"] ?? "http://localhost:3000/api/game/deck",
     Secret = cfg["Deck:Secret"] ?? Environment.GetEnvironmentVariable("GAME_SERVER_SECRET") ?? "",
 });
-builder.Services.AddSingleton<DeckFetcher>();   // 서버간 덱 페치(PvE/PvP 공용)
-builder.Services.AddSingleton<Matchmaker>();    // 1:1 PvP 매치메이킹 큐
+builder.Services.AddSingleton<DeckFetcher>();        // 서버간 덱 페치(PvE/PvP 공용)
+builder.Services.AddSingleton<Matchmaker>();         // 1:1 PvP 매치메이킹 큐
+builder.Services.AddSingleton<MatchResultReporter>(); // 매치 종료 → 랭크 결과 보고(서버 권위)
 
 var app = builder.Build();
 
@@ -61,7 +62,7 @@ app.UseWebSockets();
 app.MapGet("/healthz", (MatchRegistry reg) =>
     Results.Ok(new { ok = true, contentVersion = catalog.ContentVersion, cards = catalog.Count, matches = reg.Count }));
 
-app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, MatchRegistry registry, ConnectionHub hub, DeckFetcher deckFetcher, Matchmaker matchmaker) =>
+app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, MatchRegistry registry, ConnectionHub hub, DeckFetcher deckFetcher, Matchmaker matchmaker, MatchResultReporter reporter) =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest)
     {
@@ -69,7 +70,7 @@ app.Map("/ws/tactics", async (HttpContext ctx, GameTicketValidator validator, Ma
         return;
     }
     using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-    await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, deckFetcher, matchmaker, app.Logger, ctx.RequestAborted);
+    await GameConnection.HandleAsync(socket, validator, registry, hub, catalog, deckFetcher, matchmaker, reporter, app.Logger, ctx.RequestAborted);
 });
 
 // Cloud Run 은 $PORT(기본 8080)로 0.0.0.0 바인딩을 요구. 로컬은 PORT 미설정 → 5080.

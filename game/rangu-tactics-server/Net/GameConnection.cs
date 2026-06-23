@@ -23,7 +23,7 @@ public static class GameConnection
     public static async Task HandleAsync(
         WebSocket socket, GameTicketValidator validator, MatchRegistry registry,
         ConnectionHub hub, CardCatalog catalog, DeckFetcher deckFetcher, Matchmaker matchmaker,
-        ILogger log, CancellationToken ct)
+        MatchResultReporter reporter, ILogger log, CancellationToken ct)
     {
         // 1) 첫 프레임 = connect
         var firstBytes = await ReceiveAsync(socket, ct);
@@ -138,7 +138,7 @@ public static class GameConnection
                 switch (cm.MsgCase)
                 {
                     case ClientMessage.MsgOneofCase.Intent:
-                        await HandleIntentAsync(match, seat.Value, cm.Intent, hub, ct);
+                        await HandleIntentAsync(match, seat.Value, cm.Intent, hub, reporter, ct);
                         break;
                     case ClientMessage.MsgOneofCase.Resync:
                         await ConnectionHub.SendAsync(conn,
@@ -193,7 +193,7 @@ public static class GameConnection
     }
 
     private static async Task HandleIntentAsync(
-        GameMatch match, Engine.PlayerSlot actor, Intent intent, ConnectionHub hub, CancellationToken ct)
+        GameMatch match, Engine.PlayerSlot actor, Intent intent, ConnectionHub hub, MatchResultReporter reporter, CancellationToken ct)
     {
         var action = IntentMapper.ToAction(intent, match.Current, actor);
         if (action is null)
@@ -218,6 +218,23 @@ public static class GameConnection
         fxEvents.AddRange(await DriveGhostAsync(match, ct));
         await BroadcastEventsAsync(match, hub, fxEvents, ct); // 연출(피해/사망) 먼저
         await BroadcastSnapshotsAsync(match, hub, ct);          // 그 다음 정본 스냅샷
+        await TryReportMatchResultAsync(match, reporter);       // 종료 시 1회 랭크 보고(PvP만)
+    }
+
+    /// <summary>매치 종료 시 1회만, PvP(고스트 없음) + 승자 확정이면 Next 로 결과 보고(서버 권위 랭크).</summary>
+    private static async Task TryReportMatchResultAsync(GameMatch match, MatchResultReporter reporter)
+    {
+        var s = match.Current;
+        if (s.Phase != Engine.BattlePhase.Finished || s.Winner is null) return; // 진행중/무승부 제외
+        if (match.SeatOf(PveGhost) is not null) return;                          // PvE(고스트) 제외 — PvP만 집계
+        if (!match.TryClaimResultReport()) return;                               // 1회만
+        var winnerSlot = s.Winner.Value;
+        var loserSlot = winnerSlot == Engine.PlayerSlot.P1 ? Engine.PlayerSlot.P2 : Engine.PlayerSlot.P1;
+        var winner = s.Player(winnerSlot).UserId;
+        var loser = s.Player(loserSlot).UserId;
+        if (string.IsNullOrEmpty(winner) || string.IsNullOrEmpty(loser)) return;
+        // 연결 ct 와 분리(CancellationToken.None) — 종료로 소켓이 닫혀도 보고는 완료. reporter 는 never-throw.
+        await reporter.ReportAsync(match.MatchId, winner, loser, CancellationToken.None);
     }
 
     /// <summary>
