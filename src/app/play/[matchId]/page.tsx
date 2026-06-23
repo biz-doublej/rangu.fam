@@ -22,6 +22,8 @@ import { useCombatSound } from '@/lib/tactics/useCombatSound'
 import { soundManager } from '@/lib/tactics/soundManager'
 import { useDragTargeting, type DropTarget } from '@/lib/tactics/useDragTargeting'
 import { TargetingArrow } from '@/lib/tactics/TargetingArrow'
+import { useMyRank, fetchMyRank, fetchLeaderboard, getPreMatchLp, tierColor, type LeaderRow } from '@/lib/tactics/useRank'
+import { tierForLp, RANK_TIERS } from '@/lib/tactics/rankRules'
 import { CardMetadataProvider, useCardMeta, spellNeedsTarget } from '@/lib/tactics/CardMetadataProvider'
 
 function Row({ children, drop }: { children: ReactNode; drop?: string }) {
@@ -222,11 +224,43 @@ function StackChain({ stack }: { stack: StackVM[] }) {
  * 게임 종료 결과 오버레이 — gameOver 슬라이스 감지 시 암전 + 승/패 텍스트.
  * 진입 delay(~0.45s)로 치명타 히트스톱/쉐이크/피격 수치가 먼저 재생된 뒤 떠오른다.
  */
+interface RankFx {
+  delta: number
+  newLp: number
+  tierName: string
+  tierKey: string
+  promoted: boolean
+}
+
 function GameOverOverlay() {
   const gameOver = useBattle((s) => s.gameOver)
   const text = gameOver?.result === 'win' ? '승 리' : gameOver?.result === 'loss' ? '패 배' : '무승부'
   const color =
     gameOver?.result === 'win' ? 'text-amber-300' : gameOver?.result === 'loss' ? 'text-rose-400' : 'text-slate-300'
+
+  // 매치 종료 → 서버가 결과 POST→DB 갱신할 시간(1.3s) 뒤 내 랭크 재페치 → 매치 전 LP 대비 델타/승급.
+  // PvE/변화 없음이면 표시 안 함(델타 0).
+  const [rankFx, setRankFx] = useState<RankFx | null>(null)
+  useEffect(() => {
+    if (!gameOver) {
+      setRankFx(null)
+      return
+    }
+    let alive = true
+    const timer = setTimeout(async () => {
+      const preLp = getPreMatchLp()
+      const r = await fetchMyRank()
+      if (!alive || !r || preLp == null || r.lp === preLp) return
+      const beforeIdx = RANK_TIERS.findIndex((x) => x.key === tierForLp(preLp).key)
+      const afterIdx = RANK_TIERS.findIndex((x) => x.key === r.tier)
+      setRankFx({ delta: r.lp - preLp, newLp: r.lp, tierName: r.tierName, tierKey: r.tier, promoted: afterIdx > beforeIdx })
+    }, 1300)
+    return () => {
+      alive = false
+      clearTimeout(timer)
+    }
+  }, [gameOver])
+
   return (
     <AnimatePresence>
       {gameOver ? (
@@ -248,6 +282,36 @@ function GameOverOverlay() {
             <div className="mt-3 text-xs uppercase tracking-[0.3em] text-slate-400">
               {gameOver?.reason === 'nexus_destroyed' ? '넥서스 파괴' : (gameOver?.reason ?? '게임 종료')}
             </div>
+
+            {rankFx ? (
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mt-6">
+                <div className={`font-mono text-3xl font-black ${rankFx.delta >= 0 ? 'text-amber-300' : 'text-slate-400'}`}>
+                  {rankFx.delta >= 0 ? '+' : ''}
+                  {rankFx.delta} LP
+                </div>
+                <div className="mt-1 text-sm text-slate-300">
+                  {rankFx.newLp} LP · <span className={`font-bold ${tierColor(rankFx.tierKey)}`}>{rankFx.tierName}</span>
+                </div>
+                {rankFx.promoted ? (
+                  <motion.div
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: [0.4, 1.25, 1], opacity: [0, 1, 1] }}
+                    transition={{ delay: 0.45, duration: 0.7, times: [0, 0.6, 1] }}
+                    className="relative mt-5 flex items-center justify-center"
+                  >
+                    <img
+                      src="/assets/fx/fx_ui_rare_aura.png"
+                      alt=""
+                      aria-hidden
+                      className="pointer-events-none absolute h-44 w-44 opacity-80"
+                    />
+                    <div className={`relative text-3xl font-black ${tierColor(rankFx.tierKey)} drop-shadow-[0_0_14px_rgba(245,158,11,0.85)]`}>
+                      ⬆ 티어 승급! {rankFx.tierName}
+                    </div>
+                  </motion.div>
+                ) : null}
+              </motion.div>
+            ) : null}
           </motion.div>
         </motion.div>
       ) : null}
@@ -471,13 +535,53 @@ function phaseLabel(phase: number, isMulligan: boolean, mine: boolean): string {
 }
 
 /** 로비 — PvP/PvE 모드 선택(진입 첫 화면). */
+/** 로비 내 랭크 뱃지 — 티어·LP·전적(+연승). 매치 전 LP 캐시(useMyRank). */
+function RankBadge() {
+  const rank = useMyRank()
+  if (!rank) return null
+  return (
+    <div className="flex items-center gap-2.5 rounded-full bg-slate-800/80 px-4 py-2">
+      <span className={`text-sm font-black ${tierColor(rank.tier)}`}>{rank.tierName}</span>
+      <span className="font-mono text-sm text-slate-100">{rank.lp} LP</span>
+      <span className="text-xs text-slate-500">
+        {rank.wins}승 {rank.losses}패{rank.winStreak >= 2 ? ` · 🔥${rank.winStreak}` : ''}
+      </span>
+    </div>
+  )
+}
+
+/** 시즌 리더보드(상위 10) — 명예의 전당. */
+function LeaderboardPanel() {
+  const [rows, setRows] = useState<LeaderRow[] | null>(null)
+  useEffect(() => {
+    fetchLeaderboard().then(setRows)
+  }, [])
+  if (!rows || rows.length === 0) return null
+  return (
+    <div className="w-80 rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+      <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">리더보드 · 시즌 1</div>
+      <ol className="flex flex-col gap-1">
+        {rows.slice(0, 10).map((r) => (
+          <li key={r.userId} className="flex items-center gap-2 text-sm">
+            <span className="w-5 text-right font-mono text-slate-500">{r.rank}</span>
+            <span className={`font-black ${tierColor(r.tier)}`} title={r.tierName}>{r.tierName.slice(0, 1)}</span>
+            <span className="flex-1 truncate text-slate-200">{r.name}</span>
+            <span className="font-mono text-slate-400">{r.lp}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 function LobbyView({ onSelect }: { onSelect: (mode: ConnectMode) => void }) {
   return (
-    <div className="flex h-screen flex-col items-center justify-center gap-7 bg-slate-900 text-slate-200">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-900 py-10 text-slate-200">
       <div className="text-center">
         <p className="text-xs uppercase tracking-[0.4em] text-slate-500">rangu tactics</p>
         <h1 className="mt-1 text-4xl font-black tracking-tight">랑구 택틱스</h1>
       </div>
+      <RankBadge />
       <div className="flex flex-col gap-3">
         <button
           onClick={() => onSelect(ConnectMode.CONNECT_MODE_PVP)}
@@ -492,6 +596,7 @@ function LobbyView({ onSelect }: { onSelect: (mode: ConnectMode) => void }) {
           🤖 PvE 연습 (고스트)
         </button>
       </div>
+      <LeaderboardPanel />
     </div>
   )
 }
