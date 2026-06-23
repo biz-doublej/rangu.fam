@@ -54,10 +54,21 @@ export async function GET(request: NextRequest) {
     )
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "tr_season_lp_idx" ON "tactics_rankings" ("season", "lp")`)
 
+    // 멱등성 가드 + 감사 로그(match_id PK = 중복 집계 방지)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "tactics_match_results" (
+        "match_id" text PRIMARY KEY,
+        "winner_user_id" uuid NOT NULL,
+        "loser_user_id" uuid NOT NULL,
+        "season" text NOT NULL DEFAULT 's1',
+        "created_at" timestamptz NOT NULL DEFAULT now()
+      )
+    `)
+
     return NextResponse.json({
       success: true,
       applied: true,
-      message: 'tactics_rankings 표 생성 완료. 랭크 LP 집계가 가능합니다.',
+      message: 'tactics_rankings + tactics_match_results 표 생성 완료. 랭크 LP 집계가 가능합니다.',
       exists: await exists(),
       appliedBy: admin.username,
     })
