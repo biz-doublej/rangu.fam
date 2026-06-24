@@ -459,6 +459,37 @@ export function verifyDoubleJToken(token: string): DoubleJTokenPayload | null {
   }
 }
 
+// ── 데스크톱(네이티브 셸) 루프백 핸드오프 ──────────────────────────────
+// /auth/callback(데스크톱 분기)이 인증 완료 직후 발급하는 단명 1회용 코드.
+// 브라우저 → 127.0.0.1 루프백 URL 로만 전달되며, 앱이 /auth/desktop/redeem
+// 으로 즉시 교환해 정식 7일 doublej-token 을 받는다. 장수 토큰을 URL/히스토리에
+// 남기지 않기 위한 중간 코드(authorization-code 스타일).
+const DESKTOP_HANDOFF_TTL_SECONDS = 120
+
+interface DesktopHandoffPayload {
+  uid: string
+  purpose: 'desktop_handoff'
+  iat?: number
+  exp?: number
+}
+
+export function createDesktopHandoffCode(userId: string): string {
+  return jwt.sign({ uid: userId, purpose: 'desktop_handoff' }, JWT_SECRET, {
+    expiresIn: `${DESKTOP_HANDOFF_TTL_SECONDS}s`,
+  })
+}
+
+export function verifyDesktopHandoffCode(code: string): string | null {
+  try {
+    const payload = jwt.verify(code, JWT_SECRET) as DesktopHandoffPayload
+    if (payload?.purpose !== 'desktop_handoff') return null
+    const uid = typeof payload.uid === 'string' ? payload.uid.trim() : ''
+    return uid || null
+  } catch {
+    return null
+  }
+}
+
 export function createWikiToken(user: Pick<IWikiUser, '_id' | 'username' | 'role' | 'permissions'>): string {
   return jwt.sign(
     {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
+  createDesktopHandoffCode,
   createDoubleJToken,
   createWikiToken,
   findOrCreateWikiUserFromOidcProfile,
@@ -102,6 +103,21 @@ export async function GET(request: NextRequest) {
     const isBanned = Boolean((user as any).isBanned || (user as any).banStatus?.isBanned)
     if (isBanned) {
       const response = redirectWithError(request, 'account_banned')
+      clearOidcStateCookie(response)
+      return response
+    }
+
+    // 데스크톱(네이티브 셸) 분기 — 브라우저 쿠키 대신 단명 handoff code 를
+    // 앱의 루프백 서버로 돌려준다. host 는 127.0.0.1 고정(오픈 리다이렉트 불가),
+    // port 는 서명된 state 쿠키에서만 옴.
+    if (parsedState.desktop) {
+      const userId = String((user as { _id?: string; id?: string })._id || (user as { id?: string }).id)
+      const handoffCode = createDesktopHandoffCode(userId)
+      const loopbackUrl =
+        `http://127.0.0.1:${parsedState.desktop.port}/callback` +
+        `?code=${encodeURIComponent(handoffCode)}` +
+        `&state=${encodeURIComponent(parsedState.desktop.state)}`
+      const response = NextResponse.redirect(loopbackUrl)
       clearOidcStateCookie(response)
       return response
     }

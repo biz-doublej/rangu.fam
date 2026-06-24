@@ -11,10 +11,20 @@ const DEFAULT_ACCOUNTS_BASE = 'https://accounts.doublej.app'
 const DEFAULT_SCOPE = 'openid profile email offline_access'
 const STATE_TTL_SECONDS = 10 * 60
 
+/**
+ * 데스크톱(네이티브 셸) 루프백 핸드오프 타깃.
+ * 사용자 조작 불가(서명된 state 쿠키에만 보관). host 는 항상 127.0.0.1 로 고정.
+ */
+export interface OidcDesktopTarget {
+  port: number
+  state: string
+}
+
 interface OidcStatePayload {
   state: string
   codeVerifier: string
   callbackUrl: string
+  desktop?: OidcDesktopTarget
   iat?: number
   exp?: number
 }
@@ -156,12 +166,14 @@ export function createOidcStateCookieValue(payload: {
   state: string
   codeVerifier: string
   callbackUrl: string
+  desktop?: OidcDesktopTarget
 }): string {
   return jwt.sign(
     {
       state: payload.state,
       codeVerifier: payload.codeVerifier,
       callbackUrl: sanitizeCallbackPath(payload.callbackUrl, '/'),
+      ...(payload.desktop ? { desktop: payload.desktop } : {}),
     },
     JWT_SECRET,
     { expiresIn: `${STATE_TTL_SECONDS}s` }
