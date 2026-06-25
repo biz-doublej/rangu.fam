@@ -4,6 +4,7 @@ import { getDb } from '@/db/client'
 import { tacticsRankings } from '@/db/schema/tacticsRankings'
 import { tacticsMatchResults } from '@/db/schema/tacticsMatchResults'
 import { applyMatchResult, type RankState } from '@/lib/tactics/rankRules'
+import { grantMatchEconomy } from '@/lib/tactics/economyService'
 
 export const dynamic = 'force-dynamic'
 const SEASON = 's1'
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb()
+  const now = new Date()
   try {
     const result = await db.transaction(async (tx) => {
       // 멱등 선점 — 이미 처리된 matchId 면 conflict → LP 미적용
@@ -58,13 +60,27 @@ export async function POST(req: NextRequest) {
             target: [tacticsRankings.userId, tacticsRankings.season],
             set: { lp: next.lp, wins: next.wins, losses: next.losses, winStreak: next.winStreak, updatedAt: new Date() },
           })
-        return { lp: next.lp, lpDelta: next.lpDelta, tier: next.tier.key, promoted: next.promoted, demoted: next.demoted }
+        return { lp: next.lp, lpDelta: next.lpDelta, tier: next.tier.key, promoted: next.promoted, demoted: next.demoted, winStreak: next.winStreak }
       }
 
       const winner = await apply(winnerUserId, true)
       const loser = await apply(loserUserId, false)
       return { duplicate: false as const, winner, loser }
     })
+
+    // 경제 지급(서버권위) — LP 트랜잭션 커밋 후 별도 트랜잭션으로 best-effort. 절대 랭크 LP를 깨지 않음:
+    // 경제 테이블 부재(배포↔마이그레이션 공백)나 경제 버그가 나도 LP는 이미 확정. 실패는 로그만.
+    // 멱등: 위 match_id 선점에 성공한 호출(=!duplicate)만 1회 지급 → 재보고 시 중복 미지급.
+    if (!result.duplicate) {
+      try {
+        await db.transaction(async (tx) => {
+          await grantMatchEconomy(tx, winnerUserId, true, result.winner.winStreak, now)
+          await grantMatchEconomy(tx, loserUserId, false, result.loser.winStreak, now)
+        })
+      } catch (e) {
+        console.error('경제 지급 실패(랭크 LP는 정상 적용됨):', e)
+      }
+    }
 
     return NextResponse.json({ success: true, ...result })
   } catch (e) {
