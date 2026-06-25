@@ -49,7 +49,12 @@ $secrets = @(
   'DATABASE_URL=rangu-database-url:latest',
   'OIDC_CLIENT_SECRET=rangu-oidc-client-secret:latest',
   'DISCORD_CLIENT_SECRET=rangu-discord-client-secret:latest',
-  'DISCORD_WEBHOOK_URL=rangu-discord-webhook-url:latest'
+  'DISCORD_WEBHOOK_URL=rangu-discord-webhook-url:latest',
+  # 랑구 택틱스 게임 — 누락 시 /api/game/ticket 가 500(티켓 서명 실패)나고, 게임서버의
+  # match-result(LP)·deck 호출이 GAME_SERVER_SECRET 불일치로 거부된다. --set-secrets 는
+  # 전체 교체이므로 여기 빠지면 매 배포마다 서비스에서 사라진다. (2026-06-25 추가)
+  'GAME_TICKET_PRIVATE_KEY=GAME_TICKET_PRIVATE_KEY:latest',
+  'GAME_SERVER_SECRET=GAME_SERVER_SECRET:latest'
 ) -join ','
 
 Write-Host ""
