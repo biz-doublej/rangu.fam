@@ -90,6 +90,7 @@ public sealed class GameState
 {
     public int Version { get; set; } = 1;
     public string Seed { get; set; } = "";
+    public bool NoShuffle { get; set; }      // true = 결정론 셋업(셔플 스킵) — 튜토리얼 등 고정 덱/패
     public uint Rng { get; set; }            // 결정론 RNG 현재 상태
     public int Round { get; set; }
     public BattlePhase Phase { get; set; }
@@ -112,7 +113,7 @@ public sealed class GameState
         foreach (var kv in Players) players[kv.Key] = kv.Value.Clone();
         return new GameState
         {
-            Version = Version, Seed = Seed, Rng = Rng, Round = Round, Phase = Phase,
+            Version = Version, Seed = Seed, NoShuffle = NoShuffle, Rng = Rng, Round = Round, Phase = Phase,
             ActivePlayer = ActivePlayer, Priority = Priority,
             AttackDeclaredThisRound = AttackDeclaredThisRound, PassStreak = PassStreak,
             Players = players,

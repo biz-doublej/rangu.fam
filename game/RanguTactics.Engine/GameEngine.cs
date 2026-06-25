@@ -28,13 +28,14 @@ public static partial class GameEngine
     /// 매치 생성 — 플레이어별 독립 RNG 로 셔플 + 오프닝 핸드(4장) 드로우.
     /// 결과: round 0, phase Mulligan, mana 0/0, p1 공격토큰. (마나 1/1 은 멀리건 완료 후 BeginRound)
     /// </summary>
-    public static (GameState State, List<GameEvent> Events) CreateBattle(string seed, PlayerSetup p1, PlayerSetup p2)
+    public static (GameState State, List<GameEvent> Events) CreateBattle(string seed, PlayerSetup p1, PlayerSetup p2, bool shuffle = true)
     {
         var events = new List<GameEvent>();
         var state = new GameState
         {
             Version = 1,
             Seed = seed,
+            NoShuffle = !shuffle,
             Rng = DeterministicRng.SeedToInt(seed), // 공유 RNG (향후 상호작용용; 현재 미사용)
             Round = 0,
             Phase = BattlePhase.Mulligan,
@@ -49,8 +50,11 @@ public static partial class GameEngine
             },
         };
 
-        ShuffleDeck(state.Player(PlayerSlot.P1));
-        ShuffleDeck(state.Player(PlayerSlot.P2));
+        if (shuffle)
+        {
+            ShuffleDeck(state.Player(PlayerSlot.P1));
+            ShuffleDeck(state.Player(PlayerSlot.P2));
+        }
         DrawN(state, PlayerSlot.P1, OpeningHand, events);
         DrawN(state, PlayerSlot.P2, OpeningHand, events);
         EmitEvent(events, state, EventActor.System, "battleCreated", new() { ["seed"] = seed });
@@ -220,7 +224,7 @@ public static partial class GameEngine
         var toReplace = p.Hand.Where(c => replaceSet.Contains(c.InstanceId)).ToList(); // 핸드 순서 보존
         p.Hand = p.Hand.Where(c => !replaceSet.Contains(c.InstanceId)).ToList();
         p.Deck.AddRange(toReplace);              // 덱 끝에 되돌림
-        ShuffleDeck(p);                          // 플레이어 전용 RNG 셔플
+        if (!s.NoShuffle) ShuffleDeck(p);        // 플레이어 전용 RNG 셔플(결정론 셋업은 스킵)
         DrawN(s, slot, toReplace.Count, events); // 제거한 수만큼 재드로우
         p.MulliganDone = true;
         EmitEvent(events, s, slot.ToActor(), "mulligan", new() { ["replaced"] = toReplace.Count });

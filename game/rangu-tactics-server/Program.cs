@@ -27,7 +27,9 @@ builder.Services.AddSingleton<ConnectionHub>();
 builder.Services.AddSingleton(new DeckOptions
 {
     Url = cfg["Deck:Url"] ?? "http://localhost:3000/api/game/deck",
-    Secret = cfg["Deck:Secret"] ?? Environment.GetEnvironmentVariable("GAME_SERVER_SECRET") ?? "",
+    // .Trim() 필수 — 시크릿 값에 trailing 개행이 있으면 .NET 이 HTTP 헤더 설정을 거부(throw)해
+    // 덱 페치/결과 보고가 통째로 실패한다(헤더에 개행 불가). 방어적으로 항상 정리.
+    Secret = (cfg["Deck:Secret"] ?? Environment.GetEnvironmentVariable("GAME_SERVER_SECRET") ?? "").Trim(),
 });
 builder.Services.AddSingleton<DeckFetcher>();        // 서버간 덱 페치(PvE/PvP 공용)
 builder.Services.AddSingleton<Matchmaker>();         // 1:1 PvP 매치메이킹 큐

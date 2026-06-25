@@ -19,6 +19,7 @@ namespace Rangu.Tactics.Server.Net;
 public static class GameConnection
 {
     private const string PveGhost = "pve-ghost";
+    private static readonly Random _ghostRng = new(); // PvE 휴리스틱 봇의 결정 노이즈(게임 상태와 무관 — 결정론 엔진 불침범).
 
     public static async Task HandleAsync(
         WebSocket socket, GameTicketValidator validator, MatchRegistry registry,
@@ -96,6 +97,13 @@ public static class GameConnection
             match = paired;
             seat = a.Seat;
         }
+        else if (connect.MatchId == "tutorial")
+        {
+            // 튜토리얼 — sentinel matchId "tutorial" → 유저별 결정론 매치(고정 덱·셔플 X·젠틀 봇).
+            // mode 는 PvE(기본)로 오지만 matchId 로 분기 → proto 변경 불필요. 재접속도 GetOrCreate 로 흡수.
+            match = registry.GetOrCreate($"tutorial-{principal.UserId}", id => CreateTutorialMatch(id, principal.UserId));
+            seat = match.SeatOf(principal.UserId);
+        }
         else
         {
             // PvE — 유저 활성 덱(없으면 DeckPresets.Demo), 고스트 P2
@@ -138,7 +146,7 @@ public static class GameConnection
                 switch (cm.MsgCase)
                 {
                     case ClientMessage.MsgOneofCase.Intent:
-                        await HandleIntentAsync(match, seat.Value, cm.Intent, hub, reporter, ct);
+                        await HandleIntentAsync(match, seat.Value, cm.Intent, hub, reporter, log, ct);
                         break;
                     case ClientMessage.MsgOneofCase.Resync:
                         await ConnectionHub.SendAsync(conn,
@@ -193,11 +201,14 @@ public static class GameConnection
     }
 
     private static async Task HandleIntentAsync(
-        GameMatch match, Engine.PlayerSlot actor, Intent intent, ConnectionHub hub, MatchResultReporter reporter, CancellationToken ct)
+        GameMatch match, Engine.PlayerSlot actor, Intent intent, ConnectionHub hub, MatchResultReporter reporter, ILogger log, CancellationToken ct)
     {
-        var action = IntentMapper.ToAction(intent, match.Current, actor);
+        var pre = match.Current;
+        var action = IntentMapper.ToAction(intent, pre, actor);
         if (action is null)
         {
+            log.LogInformation("[intent] seat={Seat} case={Case} → UNMAPPABLE (phase={Phase} prio={Prio} round={Round})",
+                actor, intent.ActionCase, pre.Phase, pre.Priority, pre.Round);
             await SendToActorAsync(match, actor, hub, Reject(intent.ClientIntentId, "unmappable_intent"), ct);
             return;
         }
@@ -207,9 +218,13 @@ public static class GameConnection
         if (rejected)
         {
             var reason = result.Events.First(e => e.Type == "rejected").Detail?["reason"]?.ToString() ?? "rejected";
+            log.LogInformation("[intent] seat={Seat} case={Case} → REJECTED:{Reason} (phase={Phase} prio={Prio} round={Round})",
+                actor, intent.ActionCase, reason, pre.Phase, pre.Priority, pre.Round);
             await SendToActorAsync(match, actor, hub, Reject(intent.ClientIntentId, reason), ct);
             return; // 거부 = 상태 불변 → 브로드캐스트 불필요
         }
+        log.LogInformation("[intent] seat={Seat} case={Case} → OK ({Phase} prio={Prio} round={Round})",
+            actor, intent.ActionCase, match.Current.Phase, match.Current.Priority, match.Current.Round);
 
         // 성공: IntentAck → 고스트 자동진행 → (연출 이벤트 먼저) → 양쪽 마스킹 스냅샷
         await SendToActorAsync(match, actor, hub,
@@ -249,6 +264,10 @@ public static class GameConnection
         if (ghost is null) return collected; // PvP(고스트 없음)
         var g = ghost.Value;
 
+        // 튜토리얼 매치는 휴리스틱 GhostAi 대신 젠틀 스크립트 봇(예측가능·비공격)으로 운영.
+        if (match.MatchId.StartsWith("tutorial-", StringComparison.Ordinal))
+            return await DriveTutorialBotAsync(match, g, ct);
+
         for (int guard = 0; guard < 500; guard++)
         {
             var s = match.Current;
@@ -263,47 +282,50 @@ public static class GameConnection
 
             if (s.Priority != g) break; // 고스트 차례가 아니면 인간에게 넘김
 
-            // 수비 차례: 첫 공격자를 살아있는 첫 유닛으로 블록(거부 시 폴백 패스 = 블록 없음)
+            // 수비 차례: 휴리스틱 블록 배정(유리한 교환/생존 우선). 막을 게 없으면 패스(블록 없음).
             var defender = s.ActivePlayer == Engine.PlayerSlot.P1 ? Engine.PlayerSlot.P2 : Engine.PlayerSlot.P1;
             if (s.Phase == Engine.BattlePhase.DeclareBlock && g == defender
                 && s.Combat is { BlocksDeclared: false } c && c.Attackers.Count > 0)
             {
-                var blocker = s.Player(g).Board.FirstOrDefault(u => !u.IsStunned);
-                if (blocker is not null && await TryApplyAsync(match, g,
-                        new Engine.DeclareBlockAction(new Dictionary<string, string> { [c.Attackers[0]] = blocker.InstanceId }),
-                        collected, ct))
+                var blockAction = GhostAi.ChooseBlocks(s, g);
+                if (blockAction.Blocks.Count > 0 && await TryApplyAsync(match, g, blockAction, collected, ct))
                     continue;
-                collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events); // 블록 없이 진행
+                collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events); // 막을 거 없음 → 진행
                 continue;
             }
 
+            // 행동 페이즈: 휴리스틱 최적수(후보 시뮬레이션 평가). 우선권 윈도우당 1수 — 핑퐁이 멀티턴을 만든다.
             if (s.Phase == Engine.BattlePhase.Action)
             {
-                var p = s.Player(g);
-
-                // 1) 내 공격턴(공격토큰 보유) + 미선언 → 비-소환멀미 유닛 전부로 공격 선언(인간을 수비자로 만들어 블록 유발)
-                if (s.ActivePlayer == g && !s.AttackDeclaredThisRound)
-                {
-                    var attackers = p.Board
-                        .Where(u => u.SummonedRound < s.Round && !u.HasAttacked && !u.IsStunned)
-                        .Select(u => u.InstanceId).ToList();
-                    if (attackers.Count > 0
-                        && await TryApplyAsync(match, g, new Engine.DeclareAttackAction(attackers, null), collected, ct))
-                        continue;
-                }
-
-                // 2) 보드 비면 최저코스트 유닛 1기 소환(블로커/미래 공격수 확보)
-                if (p.Board.Count == 0)
-                {
-                    var unit = p.Hand
-                        .Where(card => card.Kind == Engine.CardKind.Unit && card.Cost <= p.Mana)
-                        .OrderBy(card => card.Cost).FirstOrDefault();
-                    if (unit is not null && await TryApplyAsync(match, g, new Engine.PlayUnitAction(unit.InstanceId), collected, ct))
-                        continue;
-                }
+                var action = GhostAi.ChooseAction(s, g, _ghostRng);
+                if (await TryApplyAsync(match, g, action, collected, ct)) continue;
             }
 
-            // 그 외(반응 윈도우/소환·공격 불가 등) → 패스로 진행
+            // 그 외(반응 윈도우/적용 실패) → 패스로 진행
+            collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events);
+        }
+        return collected;
+    }
+
+    /// <summary>
+    /// 튜토리얼 젠틀 봇 — 자동 멀리건(전부 킵) 후 항상 패스. 공격/블록을 하지 않아 초보가 압박 없이
+    /// 소환→공격 루프를 익히고 자연히 이긴다. RNG 없음(완전 결정론). 우선권 핑퐁은 패스로 진행시킨다.
+    /// (후속 단계: 라운드별 스크립트 액션 큐로 확장 → 블록/주문 학습.)
+    /// </summary>
+    private static async Task<List<Engine.GameEvent>> DriveTutorialBotAsync(GameMatch match, Engine.PlayerSlot g, CancellationToken ct)
+    {
+        var collected = new List<Engine.GameEvent>();
+        for (int guard = 0; guard < 500; guard++)
+        {
+            var s = match.Current;
+            if (s.Phase == Engine.BattlePhase.Finished) break;
+            if (s.Phase == Engine.BattlePhase.Mulligan && !s.Player(g).MulliganDone)
+            {
+                collected.AddRange((await match.ApplyAsync(g, new Engine.MulliganAction(Array.Empty<string>()), ct)).Events);
+                continue;
+            }
+            if (s.Priority != g) break;   // 봇 차례 아님 → 인간에게 우선권
+            // 항상 패스(소환/공격/블록 안 함). 양쪽 패스가 라운드를 진행시킨다.
             collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events);
         }
         return collected;
@@ -375,6 +397,17 @@ public static class GameConnection
         var p1 = humanDeck is { Count: > 0 } ? humanDeck : DeckPresets.Demo(Engine.PlayerSlot.P1);
         var (state, events) = Engine.GameEngine.CreateBattle(
             matchId, new(humanUserId, p1), new(PveGhost, DeckPresets.Demo(Engine.PlayerSlot.P2)));
+        return new GameMatch(matchId, state, (ulong)events.Count);
+    }
+
+    // ── 튜토리얼 매치 — 고정 덱(셔플 X) + 고스트 P2. 젠틀 봇이 운영. 고스트 좌석이라 랭크/경제 보고 제외(=PvE). ──
+    private static GameMatch CreateTutorialMatch(string matchId, string humanUserId)
+    {
+        var (state, events) = Engine.GameEngine.CreateBattle(
+            TutorialContent.Seed,
+            new(humanUserId, TutorialContent.HumanDeck(Engine.PlayerSlot.P1)),
+            new(PveGhost, TutorialContent.OpponentDeck(Engine.PlayerSlot.P2)),
+            shuffle: false);
         return new GameMatch(matchId, state, (ulong)events.Count);
     }
 
