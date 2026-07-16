@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<title>랑구야구단 기록실</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",Roboto,sans-serif;
+    font-size:14px; color:#222; background:#f5f6f8; line-height:1.5;
+  }
+  button { font-family:inherit; font-size:inherit; border:none; background:none; cursor:pointer; color:inherit; }
+  select, input { font-family:inherit; font-size:14px; }
+  #app { max-width:768px; margin:0 auto; background:#fff; min-height:100vh; position:relative; }
+
+  /* ── header ── */
+  .hd { position:sticky; top:0; z-index:50; background:#fff; border-bottom:1px solid #e5e5e5;
+        height:48px; display:flex; align-items:center; justify-content:center; }
+  .hd-title { font-size:16px; font-weight:700; }
+  .hd-back { position:absolute; left:0; top:0; width:48px; height:48px; font-size:20px; color:#222; }
+  .top-tabs { display:flex; background:#fff; border-bottom:1px solid #e5e5e5; position:sticky; top:48px; z-index:49; }
+  .top-tabs button { flex:1; height:44px; font-size:14px; color:#888; position:relative; }
+  .top-tabs button.on { color:#222; font-weight:700; }
+  .top-tabs button.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:#03c75a; }
+
+  /* ── home ── */
+  .cal-head { display:flex; align-items:center; justify-content:center; gap:2px; height:44px; background:#fff; }
+  .cal-head .arr { width:40px; height:40px; font-size:14px; color:#888; }
+  .cal-head .cur { font-size:16px; font-weight:700; min-width:84px; text-align:center; }
+  .cal-head .today-btn { font-size:11px; color:#03c75a; border:1px solid #03c75a; border-radius:10px; padding:2px 9px; margin-left:8px; background:#fff; }
+  .cal-strip { display:flex; overflow-x:auto; background:#fff; border-bottom:1px solid #e5e5e5;
+               -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:2px 4px 6px; }
+  .cal-strip::-webkit-scrollbar { display:none; }
+  .cal-cell { min-width:46px; flex:none; text-align:center; padding:4px 0 2px; cursor:pointer; }
+  .cal-dow { font-size:11px; color:#888; }
+  .cal-dow.sun { color:#e05c5c; }
+  .cal-dow.sat { color:#5b8def; }
+  .cal-num { width:30px; height:30px; line-height:30px; border-radius:50%; margin:2px auto 0; font-size:14px; color:#222; }
+  .cal-cell.on .cal-num { background:#03c75a; color:#fff; font-weight:700; }
+  .cal-dot { width:4px; height:4px; border-radius:50%; background:#03c75a; margin:3px auto 0; }
+  .cal-dot.none { background:transparent; }
+  .sect { background:#fff; margin-top:8px; padding:16px; }
+  .sect-title { font-size:15px; font-weight:700; margin-bottom:12px; }
+  .gamecard { border:1px solid #e5e5e5; border-radius:8px; padding:14px 12px; background:#fff; margin-bottom:8px; }
+  .gamecard .meta { text-align:center; font-size:12px; color:#888; margin-bottom:8px; }
+  .gc-row { display:flex; align-items:center; }
+  .gc-team { flex:1; text-align:center; font-size:14px; font-weight:700; }
+  .gc-team .sub { display:block; font-size:11px; color:#888; font-weight:400; }
+  .gc-score { width:110px; text-align:center; font-size:24px; font-weight:700; letter-spacing:2px; }
+  .gc-score.pre { font-size:15px; color:#03c75a; letter-spacing:0; }
+  .gc-status { text-align:center; margin-top:8px; }
+  .badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:10px; }
+  .badge.end { background:#f5f6f8; color:#888; }
+  .badge.pre { border:1px solid #03c75a; color:#03c75a; }
+  .win { color:#03c75a; }
+  .empty { padding:40px 16px; text-align:center; color:#999; font-size:13px; background:#f5f6f8; border-radius:8px; }
+  .glist-row { display:flex; align-items:center; padding:12px 4px; border-bottom:1px solid #f0f0f0; }
+  .glist-row:last-child { border-bottom:none; }
+  .glist-date { width:76px; font-size:12px; color:#888; }
+  .glist-body { flex:1; font-size:13px; }
+  .glist-score { font-size:13px; font-weight:700; }
+
+  /* ── game detail sticky card ── */
+  .gsticky { position:sticky; top:48px; z-index:48; background:#fff; }
+  .gcard-sticky { position:relative; background:#fff; border-bottom:1px solid #e5e5e5; padding:12px 16px 10px; }
+  .gcard-sticky .meta { text-align:center; font-size:12px; color:#888; }
+  .gcard-edit { position:absolute; right:8px; top:8px; font-size:12px; color:#888; padding:4px 8px; border:1px solid #e5e5e5; border-radius:12px; background:#fff; z-index:2; }
+  .tabs4 { display:flex; background:#fff; border-bottom:1px solid #e5e5e5; }
+  .tabs4 button { flex:1; height:42px; font-size:14px; color:#888; position:relative; }
+  .tabs4 button.on { color:#222; font-weight:700; }
+  .tabs4 button.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:#03c75a; }
+
+  /* ── preview ── */
+  .info-row { display:flex; padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:14px; }
+  .info-row:last-child { border-bottom:none; }
+  .info-row .lb { width:72px; color:#888; }
+  .dots { display:flex; gap:8px; align-items:center; }
+  .dot { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; }
+  .dot.w { background:#03c75a; color:#fff; }
+  .dot.l { border:1px solid #ccc; color:#999; background:#fff; }
+  .dot.d { background:#f5f6f8; color:#999; }
+  .rank-row { display:flex; align-items:center; padding:9px 0; border-bottom:1px solid #f0f0f0; }
+  .rank-row:last-child { border-bottom:none; }
+  .rank-no { width:24px; font-weight:700; color:#888; font-size:13px; }
+  .rank-name { flex:1; }
+  .rank-name .num { color:#999; font-size:12px; margin-left:4px; }
+  .rank-avg { font-weight:700; color:#03c75a; }
+
+  /* ── lineup ── */
+  .lu-actions { display:flex; gap:8px; margin-bottom:12px; }
+  .btn-line { flex:1; height:36px; border:1px solid #03c75a; color:#03c75a; border-radius:6px; font-size:13px; background:#fff; }
+  .btn-gray { flex:1; height:36px; border:1px solid #ddd; color:#666; border-radius:6px; font-size:13px; background:#fff; }
+  .lu-count { font-size:12px; color:#888; margin-bottom:12px; }
+  .field-wrap { background:#f5f6f8; border-radius:8px; padding:8px; margin-bottom:16px; }
+  .lu-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #f0f0f0; }
+  .lu-row:last-child { border-bottom:none; }
+  .lu-ord { width:22px; height:22px; border-radius:50%; background:#f5f6f8; color:#666; font-size:12px; font-weight:700;
+            display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .lu-row select { border:1px solid #e5e5e5; border-radius:6px; height:34px; padding:0 6px; background:#fff; color:#222; }
+  .lu-member { flex:1; min-width:0; }
+  .lu-pos { width:76px; flex-shrink:0; font-weight:700; }
+
+  /* ── relay ── */
+  .relay-form { display:flex; gap:6px; margin-bottom:14px; }
+  .relay-form select { border:1px solid #e5e5e5; border-radius:6px; height:38px; padding:0 4px; background:#fff; width:84px; flex-shrink:0; }
+  .relay-form input { flex:1; min-width:0; border:1px solid #e5e5e5; border-radius:6px; height:38px; padding:0 10px; }
+  .relay-form .add { width:56px; flex-shrink:0; background:#03c75a; color:#fff; border-radius:6px; font-weight:700; font-size:13px; }
+  .relay-item { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid #f0f0f0; align-items:flex-start; }
+  .relay-item:last-child { border-bottom:none; }
+  .relay-inn { flex-shrink:0; font-size:11px; color:#03c75a; border:1px solid #03c75a; border-radius:10px; padding:1px 8px; margin-top:1px; }
+  .relay-txt { flex:1; font-size:14px; }
+  .relay-time { font-size:11px; color:#bbb; margin-top:2px; }
+  .relay-del { color:#ccc; font-size:14px; padding:0 4px; }
+
+  /* ── record tables ── */
+  .rec-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .rec-table th { background:#f5f6f8; color:#888; font-weight:400; font-size:12px; padding:8px 2px; border-bottom:1px solid #e5e5e5; }
+  .rec-table td { text-align:center; padding:9px 2px; border-bottom:1px solid #f0f0f0; }
+  .rec-table td.nm { text-align:left; padding-left:4px; white-space:nowrap; }
+  .rec-table td.ed { color:#222; }
+  .rec-table td.ed:active { background:#f5f6f8; }
+  .rec-table .avg { font-weight:700; color:#03c75a; }
+  .rec-table input { width:40px; height:28px; text-align:center; border:1px solid #03c75a; border-radius:4px; }
+  .medal { display:inline-flex; width:16px; height:16px; border-radius:50%; background:#03c75a; color:#fff; font-size:10px;
+           align-items:center; justify-content:center; margin-right:4px; vertical-align:1px; }
+  .medal.m2 { background:#7fd9a7; }
+  .medal.m3 { background:#c2ecd4; color:#2c8c57; }
+  .hint { font-size:12px; color:#999; margin-top:8px; }
+
+  /* ── players ── */
+  .pl-row { display:flex; align-items:center; padding:12px 4px; border-bottom:1px solid #f0f0f0; }
+  .pl-row:last-child { border-bottom:none; }
+  .pl-num { width:36px; height:36px; border-radius:50%; background:#f5f6f8; display:flex; align-items:center; justify-content:center;
+            font-weight:700; color:#444; margin-right:12px; flex-shrink:0; font-size:13px; }
+  .pl-info { flex:1; }
+  .pl-name { font-weight:700; }
+  .pl-pos { font-size:12px; color:#888; }
+  .pl-avg { text-align:right; }
+  .pl-avg .v { font-weight:700; color:#03c75a; }
+  .pl-avg .lb { display:block; font-size:11px; color:#bbb; }
+  .data-btns { display:flex; gap:8px; }
+
+  /* ── FAB ── */
+  .fab { position:fixed; right:calc(50% - 384px + 16px); bottom:24px; width:52px; height:52px; border-radius:50%;
+         background:#03c75a; color:#fff; font-size:26px; line-height:1; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+  @media (max-width:768px){ .fab { right:16px; } }
+
+  /* ── modal ── */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; display:flex; align-items:flex-end; justify-content:center; }
+  .modal { background:#fff; width:100%; max-width:768px; border-radius:12px 12px 0 0; padding:20px 16px 28px; max-height:82vh; overflow-y:auto; }
+  .modal h3 { font-size:16px; margin-bottom:16px; }
+  .frm-row { margin-bottom:12px; }
+  .frm-row label { display:block; font-size:12px; color:#888; margin-bottom:4px; }
+  .frm-row input, .frm-row select { width:100%; height:40px; border:1px solid #e5e5e5; border-radius:6px; padding:0 10px; background:#fff; }
+  .frm-2col { display:flex; gap:8px; }
+  .frm-2col .frm-row { flex:1; }
+  .modal-btns { display:flex; gap:8px; margin-top:18px; }
+  .btn-pri { flex:1; height:44px; background:#03c75a; color:#fff; border-radius:6px; font-weight:700; font-size:15px; }
+  .btn-sec { flex:1; height:44px; background:#f5f6f8; color:#666; border-radius:6px; font-size:15px; }
+  .btn-danger { height:44px; padding:0 16px; background:#fff; color:#e0654e; border:1px solid #e0654e; border-radius:6px; font-size:14px; }
+  .chk-row { display:flex; align-items:center; padding:10px 4px; border-bottom:1px solid #f0f0f0; }
+  .chk-row input { width:18px; height:18px; accent-color:#03c75a; margin-right:12px; }
+  .chk-row .nm { flex:1; }
+  .chk-row .ps { font-size:12px; color:#888; }
+  .foot { padding:24px 16px 90px; text-align:center; font-size:11px; color:#bbb; background:#f5f6f8; margin-top:8px; }
+  a.home-link { color:#888; text-decoration:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="importFile" accept=".json,application/json" style="display:none">
+
+<script>
+'use strict';
+/* ═══════════════ 데이터 ═══════════════ */
+var LS_KEY = 'rangu_baseball_v1';
+var TEAM = '랑구야구단';
+var POSITIONS = ['P','C','1B','2B','3B','SS','LF','CF','RF','DH'];
+var db = null;
+
+function uid(p){ return p + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+function save(){ localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+function load(){
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (raw) { db = JSON.parse(raw); if (db && db.members && db.games) return; }
+  } catch(e){}
+  db = seedData(); save();
+}
+
+function seedData(){
+  var names = [
+    ['정재원',1,'SS'],['정민석',10,'P'],['정진규',7,'CF'],['강한울',5,'C'],
+    ['이승찬',13,'1B'],['김민준',23,'2B'],['박지호',3,'3B'],['최동혁',27,'LF'],
+    ['윤성우',9,'RF'],['한지훈',51,'P'],['오세준',44,'DH'],['임태양',2,'2B']
+  ];
+  var members = names.map(function(n,i){ return { id:'m'+(i+1), name:n[0], number:n[1], mainPosition:n[2] }; });
+  var lineup1 = [
+    {memberId:'m1',order:1,position:'SS'},{memberId:'m3',order:2,position:'CF'},
+    {memberId:'m5',order:3,position:'1B'},{memberId:'m11',order:4,position:'DH'},
+    {memberId:'m4',order:5,position:'C'},{memberId:'m6',order:6,position:'2B'},
+    {memberId:'m7',order:7,position:'3B'},{memberId:'m8',order:8,position:'LF'},
+    {memberId:'m9',order:9,position:'RF'}
+  ];
+  var games = [
+    {
+      id:'g1', date:'2026-07-05', opponent:'한강 리버스', stadium:'잠실보조야구장', time:'10:00',
+      scoreUs:7, scoreThem:4, status:'종료',
+      attendees:['m1','m2','m3','m4','m5','m6','m7','m8','m9','m11'],
+      lineup: JSON.parse(JSON.stringify(lineup1)),
+      records:[
+        {memberId:'m1',AB:4,H:2,RBI:1,R:2,BB:0},{memberId:'m3',AB:4,H:1,RBI:0,R:1,BB:1},
+        {memberId:'m5',AB:3,H:2,RBI:3,R:1,BB:1},{memberId:'m11',AB:4,H:1,RBI:2,R:0,BB:0},
+        {memberId:'m4',AB:3,H:0,RBI:0,R:0,BB:1},{memberId:'m6',AB:3,H:1,RBI:1,R:1,BB:0},
+        {memberId:'m7',AB:3,H:0,RBI:0,R:1,BB:0},{memberId:'m8',AB:3,H:1,RBI:0,R:1,BB:0},
+        {memberId:'m9',AB:3,H:1,RBI:0,R:0,BB:0}
+      ],
+      relay:[
+        {inning:'1회초', text:'재원 우전 안타로 출루', time:'10:07'},
+        {inning:'1회초', text:'승찬 좌중간 2루타, 재원 홈인', time:'10:12'},
+        {inning:'3회초', text:'세준 밀어내기 볼넷으로 1점 추가', time:'10:48'},
+        {inning:'5회말', text:'민석 삼진 2개 포함 무실점 이닝', time:'11:32'},
+        {inning:'7회초', text:'승찬 싹쓸이 2타점 적시타!', time:'12:05'}
+      ]
+    },
+    {
+      id:'g2', date:'2026-07-12', opponent:'신촌 브레이커스', stadium:'난지천야구장', time:'14:00',
+      scoreUs:3, scoreThem:5, status:'종료',
+      attendees:['m1','m2','m3','m4','m5','m6','m8','m9','m10','m12'],
+      lineup:[
+        {memberId:'m1',order:1,position:'SS'},{memberId:'m3',order:2,position:'CF'},
+        {memberId:'m5',order:3,position:'1B'},{memberId:'m4',order:4,position:'C'},
+        {memberId:'m6',order:5,position:'2B'},{memberId:'m12',order:6,position:'DH'},
+        {memberId:'m8',order:7,position:'LF'},{memberId:'m9',order:8,position:'RF'},
+        {memberId:'m10',order:9,position:'P'}
+      ],
+      records:[
+        {memberId:'m1',AB:4,H:1,RBI:0,R:1,BB:0},{memberId:'m3',AB:4,H:2,RBI:1,R:1,BB:0},
+        {memberId:'m5',AB:4,H:1,RBI:1,R:0,BB:0},{memberId:'m4',AB:3,H:1,RBI:1,R:0,BB:1},
+        {memberId:'m6',AB:3,H:0,RBI:0,R:0,BB:1},{memberId:'m12',AB:3,H:1,RBI:0,R:1,BB:0},
+        {memberId:'m8',AB:3,H:0,RBI:0,R:0,BB:0},{memberId:'m9',AB:3,H:1,RBI:0,R:0,BB:0},
+        {memberId:'m10',AB:3,H:0,RBI:0,R:0,BB:0}
+      ],
+      relay:[
+        {inning:'2회말', text:'수비 실책으로 선취점 허용', time:'14:38'},
+        {inning:'4회초', text:'진규 우중간 3루타 후 한울 희생플라이로 동점', time:'15:10'},
+        {inning:'6회말', text:'연속 안타로 3실점, 역전 허용', time:'15:52'}
+      ]
+    },
+    {
+      id:'g3', date:'2026-07-17', opponent:'도봉 이글스', stadium:'목동야구장', time:'19:00',
+      scoreUs:0, scoreThem:0, status:'예정',
+      attendees:['m1','m2','m3','m4','m5','m6','m7','m8','m9'],
+      lineup: JSON.parse(JSON.stringify(lineup1)).map(function(l){ return l.memberId==='m11' ? {memberId:'m2',order:4,position:'DH'} : l; }),
+      records:[], relay:[]
+    }
+  ];
+  return { members: members, games: games };
+}
+
+/* ═══════════════ 유틸 ═══════════════ */
+var DAYS = ['일','월','화','수','목','금','토'];
+function todayStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function fmtDateNav(ds){
+  var p = ds.split('-'); var d = new Date(+p[0], +p[1]-1, +p[2]);
+  return (+p[1]) + '.' + (+p[2]) + '(' + DAYS[d.getDay()] + ')';
+}
+function fmtDateFull(ds){
+  var p = ds.split('-'); var d = new Date(+p[0], +p[1]-1, +p[2]);
+  return p[0] + '.' + (+p[1]) + '.' + (+p[2]) + ' (' + DAYS[d.getDay()] + ')';
+}
+function shiftDate(ds, n){
+  var p = ds.split('-'); var d = new Date(+p[0], +p[1]-1, +p[2] + n);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtAvg(h, ab){
+  if (!ab) return '-';
+  var v = h / ab;
+  return v >= 1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/, '');
+}
+function member(id){ return db.members.find(function(m){ return m.id===id; }); }
+function game(id){ return db.games.find(function(g){ return g.id===id; }); }
+function memberName(id){ var m = member(id); return m ? m.name : '(삭제됨)'; }
+
+function seasonStats(mid){
+  var s = { G:0, AB:0, H:0, RBI:0, R:0, BB:0 };
+  db.games.forEach(function(g){
+    if (g.status !== '종료') return;
+    var r = (g.records||[]).find(function(x){ return x.memberId===mid; });
+    if (r && (r.AB||r.H||r.RBI||r.R||r.BB)) {
+      s.G++; s.AB+=r.AB||0; s.H+=r.H||0; s.RBI+=r.RBI||0; s.R+=r.R||0; s.BB+=r.BB||0;
+    }
+  });
+  return s;
+}
+
+/* ═══════════════ 상태 ═══════════════ */
+var view = { page:'home', date: todayStr(), gameId:null, tab:'preview' };
+var modal = null; // {type:...}
+
+function go(p){ Object.assign(view, p); render(); window.scrollTo(0,0); }
+function openModal(m){ modal = m; render(); }
+function closeModal(){ modal = null; render(); }
+
+/* ═══════════════ 렌더 ═══════════════ */
+function render(){
+  var html = '';
+  if (view.page === 'game') html = renderGamePage();
+  else html = renderMainPage();
+  if (modal) html += renderModal();
+  document.getElementById('app').innerHTML = html;
+  centerCalStrip();
+}
+
+function centerCalStrip(){
+  var strip = document.getElementById('calStrip');
+  if (!strip) return;
+  var on = strip.querySelector('.cal-cell.on');
+  if (!on) return;
+  strip.scrollLeft = (on.offsetLeft - strip.offsetLeft) - strip.clientWidth / 2 + on.offsetWidth / 2;
+}
+
+function renderMainPage(){
+  var h = '<div class="hd"><div class="hd-title">랑구야구단</div></div>';
+  h += '<div class="top-tabs">'
+     + '<button class="' + (view.page==='home'?'on':'') + '" onclick="go({page:\'home\'})">홈</button>'
+     + '<button class="' + (view.page==='players'?'on':'') + '" onclick="go({page:\'players\'})">선수단</button>'
+     + '</div>';
+  h += view.page === 'players' ? renderPlayers() : renderHome();
+  return h;
+}
+
+/* ── 홈 ── */
+function shiftMonth(ds, n){
+  var p = ds.split('-');
+  var y = +p[0], m = +p[1] - 1 + n, day = +p[2];
+  var first = new Date(y, m, 1);
+  var last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  var d = new Date(first.getFullYear(), first.getMonth(), Math.min(day, last));
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function renderHome(){
+  var p = view.date.split('-');
+  var year = +p[0], month = +p[1];
+  var lastDay = new Date(year, month, 0).getDate();
+  var gameDays = {};
+  db.games.forEach(function(g){
+    var gp = g.date.split('-');
+    if (+gp[0] === year && +gp[1] === month) gameDays[+gp[2]] = true;
+  });
+
+  var h = '<div class="cal-head">'
+    + '<button class="arr" onclick="go({date:shiftMonth(view.date,-1)})">◀</button>'
+    + '<span class="cur">' + year + '.' + month + '</span>'
+    + '<button class="arr" onclick="go({date:shiftMonth(view.date,1)})">▶</button>'
+    + (view.date !== todayStr() ? '<button class="today-btn" onclick="go({date:todayStr()})">오늘</button>' : '')
+    + '</div>';
+
+  h += '<div class="cal-strip" id="calStrip">';
+  for (var d = 1; d <= lastDay; d++){
+    var ds = year + '-' + String(month).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var dow = new Date(year, month-1, d).getDay();
+    var dowCls = dow === 0 ? ' sun' : (dow === 6 ? ' sat' : '');
+    h += '<div class="cal-cell' + (ds === view.date ? ' on' : '') + '" onclick="go({date:\'' + ds + '\'})">'
+      + '<div class="cal-dow' + dowCls + '">' + DAYS[dow] + '</div>'
+      + '<div class="cal-num">' + d + '</div>'
+      + '<div class="cal-dot' + (gameDays[d] ? '' : ' none') + '"></div>'
+      + '</div>';
+  }
+  h += '</div>';
+
+  var todays = db.games.filter(function(g){ return g.date === view.date; });
+  h += '<div class="sect"><div class="sect-title">' + fmtDateNav(view.date) + ' 경기</div>';
+  if (!todays.length) {
+    h += '<div class="empty">이 날짜에 경기가 없습니다</div>';
+  } else {
+    todays.forEach(function(g){ h += gameCardHtml(g, true); });
+  }
+  h += '</div>';
+
+  // 전체 일정
+  var all = db.games.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+  h += '<div class="sect"><div class="sect-title">전체 경기</div>';
+  if (!all.length) h += '<div class="empty">등록된 경기가 없습니다</div>';
+  all.forEach(function(g){
+    var res = '';
+    if (g.status === '종료') {
+      var w = g.scoreUs > g.scoreThem ? '승' : (g.scoreUs < g.scoreThem ? '패' : '무');
+      res = '<span class="glist-score ' + (w==='승'?'win':'') + '">' + w + ' ' + g.scoreUs + ':' + g.scoreThem + '</span>';
+    } else {
+      res = '<span class="badge pre">예정 ' + esc(g.time) + '</span>';
+    }
+    h += '<div class="glist-row" onclick="go({page:\'game\',gameId:\'' + g.id + '\',tab:\'preview\'})">'
+       + '<span class="glist-date">' + fmtDateNav(g.date) + '</span>'
+       + '<span class="glist-body">vs ' + esc(g.opponent) + ' <span style="color:#bbb;font-size:12px">· ' + esc(g.stadium) + '</span></span>'
+       + res + '</div>';
+  });
+  h += '</div>';
+  h += '<div class="foot"><a class="home-link" href="/">← 랑구팸 홈으로</a></div>';
+  h += '<button class="fab" onclick="openModal({type:\'gameForm\'})">+</button>';
+  return h;
+}
+
+function gameCardHtml(g, clickable){
+  var mid;
+  if (g.status === '종료') {
+    var usWin = g.scoreUs > g.scoreThem, themWin = g.scoreThem > g.scoreUs;
+    mid = '<div class="gc-score"><span class="' + (usWin?'win':'') + '">' + g.scoreUs + '</span> : <span class="' + (themWin?'win':'') + '">' + g.scoreThem + '</span></div>';
+  } else {
+    mid = '<div class="gc-score pre">' + esc(g.time) + '<br><span style="font-size:12px;color:#888">경기 예정</span></div>';
+  }
+  return '<div class="gamecard"' + (clickable ? ' onclick="go({page:\'game\',gameId:\'' + g.id + '\',tab:\'preview\'})"' : '') + '>'
+    + '<div class="meta">' + fmtDateFull(g.date) + ' ' + esc(g.time) + ' · ' + esc(g.stadium) + '</div>'
+    + '<div class="gc-row">'
+    + '<div class="gc-team">' + TEAM + '<span class="sub">홈</span></div>'
+    + mid
+    + '<div class="gc-team">' + esc(g.opponent) + '<span class="sub">상대</span></div>'
+    + '</div>'
+    + '<div class="gc-status"><span class="badge ' + (g.status==='종료'?'end':'pre') + '">' + g.status + '</span></div>'
+    + '</div>';
+}
+
+/* ── 선수단 ── */
+function renderPlayers(){
+  var h = '<div class="sect" style="margin-top:0"><div class="sect-title">전체 선수 <span style="color:#03c75a">' + db.members.length + '</span>명</div>';
+  var list = db.members.slice().sort(function(a,b){ return (a.number||0) - (b.number||0); });
+  if (!list.length) h += '<div class="empty">등록된 선수가 없습니다</div>';
+  list.forEach(function(m){
+    var s = seasonStats(m.id);
+    h += '<div class="pl-row" onclick="openModal({type:\'memberForm\',memberId:\'' + m.id + '\'})">'
+      + '<div class="pl-num">' + esc(m.number) + '</div>'
+      + '<div class="pl-info"><div class="pl-name">' + esc(m.name) + '</div><div class="pl-pos">' + esc(m.mainPosition) + ' · ' + s.G + '경기</div></div>'
+      + '<div class="pl-avg"><span class="v">' + fmtAvg(s.H, s.AB) + '</span><span class="lb">시즌 타율</span></div>'
+      + '</div>';
+  });
+  h += '</div>';
+  h += '<div class="sect"><div class="sect-title">데이터 관리</div>'
+    + '<div class="data-btns">'
+    + '<button class="btn-line" onclick="exportData()">데이터 내보내기</button>'
+    + '<button class="btn-gray" onclick="document.getElementById(\'importFile\').click()">데이터 가져오기</button>'
+    + '</div><div class="hint">JSON 파일로 백업하거나 다른 기기에서 불러올 수 있습니다.</div></div>';
+  h += '<div class="foot"><a class="home-link" href="/">← 랑구팸 홈으로</a></div>';
+  h += '<button class="fab" onclick="openModal({type:\'memberForm\'})">+</button>';
+  return h;
+}
+
+/* ── 경기 상세 ── */
+function renderGamePage(){
+  var g = game(view.gameId);
+  if (!g) { view.page='home'; return renderMainPage(); }
+  var h = '<div class="hd"><button class="hd-back" onclick="go({page:\'home\'})">‹</button><div class="hd-title">경기 상세</div></div>';
+  h += '<div class="gsticky">';
+  h += '<div class="gcard-sticky">'
+     + '<button class="gcard-edit" onclick="openModal({type:\'gameForm\',gameId:\'' + g.id + '\'})">✎ 편집</button>'
+     + gameCardHtml(g, false).replace('class="gamecard"','class="gamecard" style="border:none;padding:0;margin:0"')
+     + '</div>';
+  var tabs = [['preview','프리뷰'],['lineup','라인업'],['relay','중계'],['record','기록']];
+  h += '<div class="tabs4">';
+  tabs.forEach(function(t){
+    h += '<button class="' + (view.tab===t[0]?'on':'') + '" onclick="go({tab:\'' + t[0] + '\'})">' + t[1] + '</button>';
+  });
+  h += '</div></div>';
+  if (view.tab==='preview') h += renderPreview(g);
+  else if (view.tab==='lineup') h += renderLineup(g);
+  else if (view.tab==='relay') h += renderRelay(g);
+  else h += renderRecord(g);
+  h += '<div class="foot"><a class="home-link" href="/">← 랑구팸 홈으로</a></div>';
+  return h;
+}
+
+/* ── 프리뷰 탭 ── */
+function renderPreview(g){
+  var h = '<div class="sect" style="margin-top:8px"><div class="sect-title">경기 정보</div>'
+    + '<div class="info-row"><span class="lb">일시</span><span>' + fmtDateFull(g.date) + ' ' + esc(g.time) + '</span></div>'
+    + '<div class="info-row"><span class="lb">구장</span><span>' + esc(g.stadium) + '</span></div>'
+    + '<div class="info-row"><span class="lb">상대</span><span>' + esc(g.opponent) + '</span></div>'
+    + '</div>';
+
+  // 최근 5경기
+  var prev = db.games.filter(function(x){ return x.status==='종료' && x.date <= g.date && x.id !== g.id; })
+    .sort(function(a,b){ return a.date < b.date ? 1 : -1; }).slice(0,5);
+  h += '<div class="sect"><div class="sect-title">' + TEAM + ' 최근 5경기</div>';
+  if (!prev.length) h += '<div class="hint">종료된 경기가 아직 없습니다.</div>';
+  else {
+    var wins=0, losses=0, draws=0;
+    var dots = prev.map(function(x){
+      if (x.scoreUs > x.scoreThem) { wins++; return '<span class="dot w">승</span>'; }
+      if (x.scoreUs < x.scoreThem) { losses++; return '<span class="dot l">패</span>'; }
+      draws++; return '<span class="dot d">무</span>';
+    }).join('');
+    h += '<div class="dots">' + dots + '<span style="font-size:12px;color:#888;margin-left:6px">'
+       + wins + '승 ' + (draws? draws+'무 ':'') + losses + '패 (최신순)</span></div>';
+  }
+  h += '</div>';
+
+  // 참석 멤버 시즌 타율 TOP5
+  var att = (g.attendees||[]).map(function(id){
+    var m = member(id); if (!m) return null;
+    var s = seasonStats(id);
+    return { m:m, s:s, avg: s.AB ? s.H/s.AB : -1 };
+  }).filter(Boolean).sort(function(a,b){ return b.avg - a.avg; }).slice(0,5);
+  h += '<div class="sect"><div class="sect-title">참석 멤버 시즌 타율 TOP 5</div>';
+  if (!att.length) h += '<div class="hint">라인업 탭에서 참석 멤버를 먼저 선택하세요.</div>';
+  att.forEach(function(a,i){
+    h += '<div class="rank-row"><span class="rank-no">' + (i+1) + '</span>'
+      + '<span class="rank-name">' + esc(a.m.name) + '<span class="num">No.' + esc(a.m.number) + ' · ' + esc(a.m.mainPosition) + '</span></span>'
+      + '<span class="rank-avg">' + fmtAvg(a.s.H, a.s.AB) + '</span></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+/* ── 라인업 탭 ── */
+var FIELD_POS = { P:[150,168], C:[150,222], '1B':[208,158], '2B':[186,118], SS:[114,118], '3B':[92,158], LF:[68,72], CF:[150,44], RF:[232,72] };
+function renderLineup(g){
+  var attCnt = (g.attendees||[]).length;
+  var h = '<div class="sect" style="margin-top:8px">'
+    + '<div class="lu-actions">'
+    + '<button class="btn-line" onclick="openModal({type:\'attend\',gameId:\'' + g.id + '\'})">참석 멤버 선택</button>'
+    + '<button class="btn-gray" onclick="loadPrevLineup(\'' + g.id + '\')">이전 경기 라인업 불러오기</button>'
+    + '</div>'
+    + '<div class="lu-count">참석 ' + attCnt + '명' + (attCnt ? '' : ' — 참석 멤버를 선택하면 라인업을 짤 수 있습니다') + '</div>';
+
+  // SVG 다이어그램
+  h += '<div class="field-wrap"><svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">'
+    + '<path d="M150 235 L18 103 A150 150 0 0 1 282 103 Z" fill="#eef7f1" stroke="#d5e5db" stroke-width="1"/>'
+    + '<path d="M150 235 L85 170 L150 105 L215 170 Z" fill="#fdf6ec" stroke="#e5d9c5" stroke-width="1"/>'
+    + '<circle cx="150" cy="170" r="13" fill="#f5ede0" stroke="#e5d9c5" stroke-width="1"/>'
+    + '<rect x="146" y="231" width="8" height="8" fill="#fff" stroke="#ccc" stroke-width="1" transform="rotate(45 150 235)"/>';
+  POSITIONS.forEach(function(pos){
+    if (!FIELD_POS[pos]) return;
+    var entry = (g.lineup||[]).find(function(l){ return l.position===pos && l.memberId; });
+    var xy = FIELD_POS[pos];
+    var nm = entry ? memberName(entry.memberId) : '';
+    h += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="3.5" fill="' + (nm ? '#03c75a' : '#ccc') + '"/>';
+    h += '<text x="' + xy[0] + '" y="' + (xy[1]-8) + '" text-anchor="middle" font-size="10" fill="#888">' + pos + '</text>';
+    if (nm) h += '<text x="' + xy[0] + '" y="' + (xy[1]+16) + '" text-anchor="middle" font-size="11" font-weight="bold" fill="#222">' + esc(nm) + '</text>';
+  });
+  var dh = (g.lineup||[]).find(function(l){ return l.position==='DH' && l.memberId; });
+  if (dh) h += '<text x="292" y="243" text-anchor="end" font-size="11" fill="#666">DH ' + esc(memberName(dh.memberId)) + '</text>';
+  h += '</svg></div>';
+
+  // 타순 리스트
+  for (var i=1; i<=9; i++){
+    (function(order){
+      var entry = (g.lineup||[]).find(function(l){ return l.order===order; }) || {};
+      var opts = '<option value="">선수 선택</option>';
+      var pool = db.members.filter(function(m){
+        return (g.attendees||[]).indexOf(m.id) >= 0 || m.id === entry.memberId;
+      });
+      pool.forEach(function(m){
+        opts += '<option value="' + m.id + '"' + (entry.memberId===m.id?' selected':'') + '>' + esc(m.name) + ' (No.' + esc(m.number) + ')</option>';
+      });
+      var posOpts = '<option value="">-</option>';
+      POSITIONS.forEach(function(p){
+        posOpts += '<option value="' + p + '"' + (entry.position===p?' selected':'') + '>' + p + '</option>';
+      });
+      h += '<div class="lu-row"><span class="lu-ord">' + order + '</span>'
+        + '<select class="lu-member" onchange="setLineup(\'' + g.id + '\',' + order + ',\'memberId\',this.value)">' + opts + '</select>'
+        + '<select class="lu-pos" onchange="setLineup(\'' + g.id + '\',' + order + ',\'position\',this.value)">' + posOpts + '</select>'
+        + '</div>';
+    })(i);
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ── 중계 탭 ── */
+function renderRelay(g){
+  var innOpts = '';
+  for (var i=1;i<=9;i++){ innOpts += '<option>' + i + '회초</option><option>' + i + '회말</option>'; }
+  var h = '<div class="sect" style="margin-top:8px">'
+    + '<div class="relay-form">'
+    + '<select id="relayInn">' + innOpts + '</select>'
+    + '<input id="relayTxt" placeholder="예) 재원 좌중간 2루타" onkeydown="if(event.key===\'Enter\')addRelay(\'' + g.id + '\')">'
+    + '<button class="add" onclick="addRelay(\'' + g.id + '\')">등록</button>'
+    + '</div>';
+  var list = (g.relay||[]).slice().reverse();
+  if (!list.length) h += '<div class="empty">아직 중계 기록이 없습니다<br>이닝을 선택하고 한 줄씩 입력해 보세요</div>';
+  list.forEach(function(r, idx){
+    var realIdx = g.relay.length - 1 - idx;
+    h += '<div class="relay-item"><span class="relay-inn">' + esc(r.inning) + '</span>'
+      + '<div class="relay-txt">' + esc(r.text) + '<div class="relay-time">' + esc(r.time) + '</div></div>'
+      + '<button class="relay-del" onclick="delRelay(\'' + g.id + '\',' + realIdx + ')">✕</button></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+/* ── 기록 탭 ── */
+function renderRecord(g){
+  var rows = (g.lineup||[]).filter(function(l){ return l.memberId; }).sort(function(a,b){ return a.order-b.order; });
+  var ids = rows.map(function(l){ return l.memberId; });
+  (g.records||[]).forEach(function(r){ if (ids.indexOf(r.memberId) < 0 && member(r.memberId)) { rows.push({memberId:r.memberId, order:99, position:''}); ids.push(r.memberId); } });
+
+  var h = '<div class="sect" style="margin-top:8px"><div class="sect-title">이 경기 타자 기록 <span class="hint" style="display:inline">— 숫자 칸을 탭하면 수정</span></div>';
+  if (!rows.length) {
+    h += '<div class="empty">라인업 탭에서 타순을 먼저 구성하세요</div>';
+  } else {
+    h += '<table class="rec-table"><thead><tr><th style="text-align:left;padding-left:4px">이름</th><th>타수</th><th>안타</th><th>타점</th><th>득점</th><th>볼넷</th><th>타율</th></tr></thead><tbody>';
+    rows.forEach(function(l){
+      var r = (g.records||[]).find(function(x){ return x.memberId===l.memberId; }) || {AB:0,H:0,RBI:0,R:0,BB:0};
+      h += '<tr><td class="nm">' + esc(memberName(l.memberId)) + (l.order<=9 ? ' <span style="color:#bbb;font-size:11px">' + l.order + '번</span>' : '') + '</td>';
+      ['AB','H','RBI','R','BB'].forEach(function(f){
+        h += '<td class="ed" onclick="editCell(this,\'' + g.id + '\',\'' + l.memberId + '\',\'' + f + '\')">' + (r[f]||0) + '</td>';
+      });
+      h += '<td class="avg">' + fmtAvg(r.H||0, r.AB||0) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+
+  // 시즌 누적
+  var season = db.members.map(function(m){
+    var s = seasonStats(m.id);
+    return { m:m, s:s, avg: s.AB ? s.H/s.AB : -1 };
+  }).filter(function(x){ return x.s.G > 0; }).sort(function(a,b){ return b.avg - a.avg || b.s.H - a.s.H; });
+
+  h += '<div class="sect"><div class="sect-title">시즌 누적 기록</div>';
+  if (!season.length) h += '<div class="hint">종료된 경기 기록이 쌓이면 자동 집계됩니다.</div>';
+  else {
+    h += '<table class="rec-table"><thead><tr><th style="text-align:left;padding-left:4px">이름</th><th>경기</th><th>타수</th><th>안타</th><th>타점</th><th>득점</th><th>볼넷</th><th>타율</th></tr></thead><tbody>';
+    season.forEach(function(x, i){
+      var medal = i < 3 && x.avg >= 0 ? '<span class="medal' + (i===1?' m2':i===2?' m3':'') + '">' + (i+1) + '</span>' : '';
+      h += '<tr><td class="nm">' + medal + esc(x.m.name) + '</td>'
+        + '<td>' + x.s.G + '</td><td>' + x.s.AB + '</td><td>' + x.s.H + '</td><td>' + x.s.RBI + '</td><td>' + x.s.R + '</td><td>' + x.s.BB + '</td>'
+        + '<td class="avg">' + fmtAvg(x.s.H, x.s.AB) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ═══════════════ 모달 ═══════════════ */
+function renderModal(){
+  var inner = '';
+  if (modal.type === 'gameForm') inner = modalGameForm();
+  else if (modal.type === 'memberForm') inner = modalMemberForm();
+  else if (modal.type === 'attend') inner = modalAttend();
+  return '<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">' + inner + '</div></div>';
+}
+
+function modalGameForm(){
+  var g = modal.gameId ? game(modal.gameId) : null;
+  var isEdit = !!g;
+  g = g || { date: view.date, opponent:'', stadium:'', time:'10:00', scoreUs:0, scoreThem:0, status:'예정' };
+  var h = '<h3>' + (isEdit ? '경기 편집' : '경기 추가') + '</h3>'
+    + '<div class="frm-2col">'
+    + '<div class="frm-row"><label>날짜</label><input type="date" id="f_date" value="' + esc(g.date) + '"></div>'
+    + '<div class="frm-row"><label>시간</label><input type="time" id="f_time" value="' + esc(g.time) + '"></div></div>'
+    + '<div class="frm-row"><label>상대팀</label><input id="f_opp" value="' + esc(g.opponent) + '" placeholder="예) 한강 리버스"></div>'
+    + '<div class="frm-row"><label>구장</label><input id="f_std" value="' + esc(g.stadium) + '" placeholder="예) 잠실보조야구장"></div>'
+    + '<div class="frm-2col">'
+    + '<div class="frm-row"><label>상태</label><select id="f_status"><option' + (g.status==='예정'?' selected':'') + '>예정</option><option' + (g.status==='종료'?' selected':'') + '>종료</option></select></div>'
+    + '<div class="frm-row"><label>' + TEAM + ' 득점</label><input type="number" id="f_su" value="' + g.scoreUs + '" min="0"></div>'
+    + '<div class="frm-row"><label>상대 득점</label><input type="number" id="f_st" value="' + g.scoreThem + '" min="0"></div></div>'
+    + '<div class="modal-btns">'
+    + (isEdit ? '<button class="btn-danger" onclick="deleteGame(\'' + modal.gameId + '\')">삭제</button>' : '')
+    + '<button class="btn-sec" onclick="closeModal()">취소</button>'
+    + '<button class="btn-pri" onclick="saveGameForm()">저장</button></div>';
+  return h;
+}
+
+function modalMemberForm(){
+  var m = modal.memberId ? member(modal.memberId) : null;
+  var isEdit = !!m;
+  m = m || { name:'', number:'', mainPosition:'P' };
+  var posOpts = POSITIONS.map(function(p){ return '<option' + (m.mainPosition===p?' selected':'') + '>' + p + '</option>'; }).join('');
+  return '<h3>' + (isEdit ? '선수 정보 수정' : '선수 추가') + '</h3>'
+    + '<div class="frm-row"><label>이름</label><input id="f_name" value="' + esc(m.name) + '" placeholder="이름"></div>'
+    + '<div class="frm-2col">'
+    + '<div class="frm-row"><label>등번호</label><input type="number" id="f_num" value="' + esc(m.number) + '" min="0"></div>'
+    + '<div class="frm-row"><label>주 포지션</label><select id="f_pos">' + posOpts + '</select></div></div>'
+    + '<div class="modal-btns">'
+    + (isEdit ? '<button class="btn-danger" onclick="deleteMember(\'' + modal.memberId + '\')">삭제</button>' : '')
+    + '<button class="btn-sec" onclick="closeModal()">취소</button>'
+    + '<button class="btn-pri" onclick="saveMemberForm()">저장</button></div>';
+}
+
+function modalAttend(){
+  var g = game(modal.gameId);
+  var h = '<h3>참석 멤버 선택</h3>';
+  db.members.slice().sort(function(a,b){ return (a.number||0)-(b.number||0); }).forEach(function(m){
+    var on = (g.attendees||[]).indexOf(m.id) >= 0;
+    h += '<label class="chk-row"><input type="checkbox" ' + (on?'checked':'') + ' onchange="toggleAttend(\'' + g.id + '\',\'' + m.id + '\',this.checked)">'
+      + '<span class="nm">' + esc(m.name) + '</span><span class="ps">No.' + esc(m.number) + ' · ' + esc(m.mainPosition) + '</span></label>';
+  });
+  h += '<div class="modal-btns"><button class="btn-pri" onclick="closeModal()">완료</button></div>';
+  return h;
+}
+
+/* ═══════════════ 액션 ═══════════════ */
+function saveGameForm(){
+  var opp = document.getElementById('f_opp').value.trim();
+  if (!opp) { alert('상대팀 이름을 입력하세요'); return; }
+  var data = {
+    date: document.getElementById('f_date').value || todayStr(),
+    time: document.getElementById('f_time').value || '10:00',
+    opponent: opp,
+    stadium: document.getElementById('f_std').value.trim() || '미정',
+    status: document.getElementById('f_status').value,
+    scoreUs: +document.getElementById('f_su').value || 0,
+    scoreThem: +document.getElementById('f_st').value || 0
+  };
+  if (modal.gameId) {
+    Object.assign(game(modal.gameId), data);
+  } else {
+    var g = Object.assign({ id: uid('g'), attendees:[], lineup:[], records:[], relay:[] }, data);
+    db.games.push(g);
+    view.date = g.date;
+  }
+  save(); closeModal();
+}
+
+function deleteGame(id){
+  if (!confirm('이 경기를 삭제할까요? 기록도 함께 삭제됩니다.')) return;
+  db.games = db.games.filter(function(g){ return g.id !== id; });
+  save(); modal = null;
+  if (view.page==='game' && view.gameId===id) view.page='home';
+  render();
+}
+
+function saveMemberForm(){
+  var name = document.getElementById('f_name').value.trim();
+  if (!name) { alert('이름을 입력하세요'); return; }
+  var data = { name:name, number:+document.getElementById('f_num').value || 0, mainPosition: document.getElementById('f_pos').value };
+  if (modal.memberId) Object.assign(member(modal.memberId), data);
+  else db.members.push(Object.assign({ id: uid('m') }, data));
+  save(); closeModal();
+}
+
+function deleteMember(id){
+  if (!confirm('이 선수를 삭제할까요? 경기 기록에서도 제외됩니다.')) return;
+  db.members = db.members.filter(function(m){ return m.id !== id; });
+  db.games.forEach(function(g){
+    g.attendees = (g.attendees||[]).filter(function(x){ return x !== id; });
+    g.lineup = (g.lineup||[]).filter(function(l){ return l.memberId !== id; });
+    g.records = (g.records||[]).filter(function(r){ return r.memberId !== id; });
+  });
+  save(); closeModal();
+}
+
+function toggleAttend(gid, mid, on){
+  var g = game(gid);
+  g.attendees = g.attendees || [];
+  if (on) { if (g.attendees.indexOf(mid) < 0) g.attendees.push(mid); }
+  else {
+    g.attendees = g.attendees.filter(function(x){ return x !== mid; });
+    g.lineup = (g.lineup||[]).filter(function(l){ return l.memberId !== mid; });
+  }
+  save();
+}
+
+function setLineup(gid, order, field, value){
+  var g = game(gid);
+  g.lineup = g.lineup || [];
+  var entry = g.lineup.find(function(l){ return l.order === order; });
+  if (!entry) { entry = { order:order, memberId:'', position:'' }; g.lineup.push(entry); }
+  entry[field] = value;
+  if (!entry.memberId && !entry.position) g.lineup = g.lineup.filter(function(l){ return l !== entry; });
+  save(); render();
+}
+
+function loadPrevLineup(gid){
+  var g = game(gid);
+  var prev = db.games.filter(function(x){ return x.id !== gid && x.date <= g.date && (x.lineup||[]).length; })
+    .sort(function(a,b){ return a.date < b.date ? 1 : -1; })[0];
+  if (!prev) { alert('불러올 이전 경기 라인업이 없습니다'); return; }
+  g.lineup = JSON.parse(JSON.stringify(prev.lineup));
+  var att = g.attendees || [];
+  g.lineup.forEach(function(l){ if (l.memberId && att.indexOf(l.memberId) < 0) att.push(l.memberId); });
+  g.attendees = att;
+  save(); render();
+}
+
+function addRelay(gid){
+  var inn = document.getElementById('relayInn').value;
+  var txt = document.getElementById('relayTxt').value.trim();
+  if (!txt) return;
+  var g = game(gid);
+  g.relay = g.relay || [];
+  var now = new Date();
+  g.relay.push({ inning: inn, text: txt, time: String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') });
+  save(); render();
+  var el = document.getElementById('relayInn'); if (el) el.value = inn;
+}
+
+function delRelay(gid, idx){
+  var g = game(gid);
+  g.relay.splice(idx, 1);
+  save(); render();
+}
+
+function editCell(td, gid, mid, field){
+  if (td.querySelector('input')) return;
+  var cur = td.textContent.trim();
+  td.innerHTML = '<input type="number" min="0" value="' + cur + '">';
+  var input = td.querySelector('input');
+  input.focus(); input.select();
+  function commit(){
+    var v = Math.max(0, +input.value || 0);
+    var g = game(gid);
+    g.records = g.records || [];
+    var r = g.records.find(function(x){ return x.memberId === mid; });
+    if (!r) { r = { memberId:mid, AB:0, H:0, RBI:0, R:0, BB:0 }; g.records.push(r); }
+    r[field] = v;
+    save(); render();
+  }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', function(e){ if (e.key === 'Enter') input.blur(); });
+}
+
+/* ═══════════════ 내보내기/가져오기 ═══════════════ */
+function exportData(){
+  var blob = new Blob([JSON.stringify(db, null, 2)], { type:'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rangu_baseball_' + todayStr() + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+document.getElementById('importFile').addEventListener('change', function(e){
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    try {
+      var data = JSON.parse(reader.result);
+      if (!data || !Array.isArray(data.members) || !Array.isArray(data.games)) throw new Error('bad');
+      if (!confirm('현재 데이터를 가져온 파일로 교체할까요?')) return;
+      db = data; save(); render();
+      alert('가져오기 완료: 선수 ' + db.members.length + '명, 경기 ' + db.games.length + '개');
+    } catch(err) { alert('올바른 백업 파일이 아닙니다'); }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+/* ═══════════════ 시작 ═══════════════ */
+window.addEventListener('resize', centerCalStrip);
+load();
+render();
+</script>
+</body>
+</html>

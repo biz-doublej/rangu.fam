@@ -17,6 +17,7 @@ import {
   Users,
   Settings,
   Sparkles,
+  Trophy,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
@@ -58,6 +59,7 @@ const navigationItems = [
   { label: '멤버', href: '/members' },
   { label: '이랑위키', href: BRANDING.wikiPublicUrl },
   { label: '카드', href: '/cards' },
+  { label: '야구단', href: '/baseball.html' },
 ]
 
 const quickPaths = [
@@ -87,6 +89,15 @@ const quickPaths = [
     accent: 'coral' as const,
     rotate: 'left' as const,
     tape: 'top' as const,
+  },
+  {
+    title: '야구단 기록실',
+    desc: '랑구야구단 경기 기록',
+    href: '/baseball.html',
+    icon: Trophy,
+    accent: 'mustard' as const,
+    rotate: 'right' as const,
+    tape: 'top-right' as const,
   },
 ]
 
