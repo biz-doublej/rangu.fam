@@ -150,3 +150,7 @@ public/videos/*.mp4
 
 # IDE / Claude Code session artifacts (deploy logs, scheduled tasks lock 등)
 .claude/
+
+# Local implementation workspaces and agent progress ledger
+.worktrees/
+.superpowers/
