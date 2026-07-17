@@ -230,7 +230,7 @@ public static class GameConnection
         await SendToActorAsync(match, actor, hub,
             new ServerMessage { Event = new Event { IntentAck = new IntentAckEvent { ClientIntentId = intent.ClientIntentId } } }, ct);
         var fxEvents = new List<Engine.GameEvent>(result.Events);
-        fxEvents.AddRange(await DriveGhostAsync(match, ct));
+        fxEvents.AddRange(await DriveGhostAsync(match, log, ct));
         await BroadcastEventsAsync(match, hub, fxEvents, ct); // 연출(피해/사망) 먼저
         await BroadcastSnapshotsAsync(match, hub, ct);          // 그 다음 정본 스냅샷
         await TryReportMatchResultAsync(match, reporter);       // 종료 시 1회 랭크 보고(PvP만)
@@ -257,7 +257,7 @@ public static class GameConnection
     /// 정책: 멀리건 → 수비 시 블록 → 내 공격턴엔 비-소환멀미 유닛 전부로 공격 → 보드 비면 최저코스트 소환 → 그 외 패스.
     /// (V1 패시브에서 블록·소환·공격을 더한 최소 봇. 주문/전략은 후속.) 발생 이벤트(전투 해결 등)를 모아 반환.
     /// </summary>
-    private static async Task<List<Engine.GameEvent>> DriveGhostAsync(GameMatch match, CancellationToken ct)
+    private static async Task<List<Engine.GameEvent>> DriveGhostAsync(GameMatch match, ILogger log, CancellationToken ct)
     {
         var collected = new List<Engine.GameEvent>();
         var ghost = match.SeatOf(PveGhost);
@@ -287,9 +287,17 @@ public static class GameConnection
             if (s.Phase == Engine.BattlePhase.DeclareBlock && g == defender
                 && s.Combat is { BlocksDeclared: false } c && c.Attackers.Count > 0)
             {
-                var blockAction = GhostAi.ChooseBlocks(s, g);
-                if (blockAction.Blocks.Count > 0 && await TryApplyAsync(match, g, blockAction, collected, ct))
-                    continue;
+                // GhostAi 예외 = 매치 연결 끊김이므로 패스 폴백으로 격리(게임은 계속 진행).
+                try
+                {
+                    var blockAction = GhostAi.ChooseBlocks(s, g);
+                    if (blockAction.Blocks.Count > 0 && await TryApplyAsync(match, g, blockAction, collected, ct))
+                        continue;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log.LogWarning(ex, "[ghost] ChooseBlocks 예외 — 패스 폴백 (match={MatchId})", match.MatchId);
+                }
                 collected.AddRange((await match.ApplyAsync(g, new Engine.PassAction(), ct)).Events); // 막을 거 없음 → 진행
                 continue;
             }
@@ -297,8 +305,15 @@ public static class GameConnection
             // 행동 페이즈: 휴리스틱 최적수(후보 시뮬레이션 평가). 우선권 윈도우당 1수 — 핑퐁이 멀티턴을 만든다.
             if (s.Phase == Engine.BattlePhase.Action)
             {
-                var action = GhostAi.ChooseAction(s, g, _ghostRng);
-                if (await TryApplyAsync(match, g, action, collected, ct)) continue;
+                try
+                {
+                    var action = GhostAi.ChooseAction(s, g, _ghostRng);
+                    if (await TryApplyAsync(match, g, action, collected, ct)) continue;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log.LogWarning(ex, "[ghost] ChooseAction 예외 — 패스 폴백 (match={MatchId})", match.MatchId);
+                }
             }
 
             // 그 외(반응 윈도우/적용 실패) → 패스로 진행
