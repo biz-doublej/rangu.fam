@@ -8,6 +8,10 @@ type Db = any
 export type PresenceState = 'lobby' | 'in_game'
 export type PresenceStatus = PresenceState | 'offline'
 
+export function parsePresenceState(value: unknown): PresenceState | null {
+  return value === 'lobby' || value === 'in_game' ? value : null
+}
+
 export const PRESENCE_TTL_MS = 65_000
 
 export interface PresenceSnapshot {

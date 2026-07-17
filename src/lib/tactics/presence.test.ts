@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isRanguTacticsMemberId, RANGU_TACTICS_MEMBERS } from '@/lib/ranguMembers'
-import { PRESENCE_TTL_MS, projectPresenceSnapshot, recordPresence, resolvePresenceStatus } from './presence'
+import { parsePresenceState, PRESENCE_TTL_MS, projectPresenceSnapshot, recordPresence, resolvePresenceStatus } from './presence'
 
 type StoredPresence = {
   userId: string
@@ -56,6 +56,17 @@ describe('presence status', () => {
     const snapshot = projectPresenceSnapshot([], now)
     expect(snapshot.members).toHaveLength(5)
     expect(snapshot.members.every((member) => member.status === 'offline')).toBe(true)
+  })
+})
+
+describe('presence state parsing', () => {
+  it.each([
+    ['lobby', 'lobby'],
+    ['in_game', 'in_game'],
+    ['offline', null],
+    [undefined, null],
+  ])('accepts only client-writable states: %s', (input, expected) => {
+    expect(parsePresenceState(input)).toBe(expected)
   })
 })
 
