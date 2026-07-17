@@ -1,4 +1,5 @@
 import { getRequiredEnv } from '@/lib/env'
+import { isRanguTacticsMemberId } from '@/lib/ranguMembers'
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
@@ -36,15 +37,6 @@ const WIKI_ADMIN_DISCORD_BY_USERNAME: Record<string, string> = {
   kanghu05: 'k.seoljin',
   '7738bell': 'alaudabell',
 }
-
-const CORE_MEMBER_USERNAMES = new Set([
-  'jaewon',
-  'minseok',
-  'jingyu',
-  'jinkyu',
-  'hanul',
-  'seungchan',
-])
 
 /**
  * DoubleJ SSO `preferred_username` → 코어 멤버 슬러그 매핑.
@@ -117,8 +109,8 @@ export function resolveMemberIdFromUsername(username?: string | null): string | 
   if (USERNAME_ALIAS_TO_MEMBER_ID[normalized]) {
     return USERNAME_ALIAS_TO_MEMBER_ID[normalized]
   }
-  if (!CORE_MEMBER_USERNAMES.has(normalized)) return null
   if (normalized === 'jingyu') return 'jinkyu'
+  if (!isRanguTacticsMemberId(normalized)) return null
   return normalized
 }
 

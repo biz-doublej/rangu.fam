@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:tactics": "vitest run --dir src/lib/tactics",
     "import-media": "tsx scripts/import-media.ts",
     "seed": "node scripts/seed-database.js",
     "seed-extended": "node scripts/seed-database-extended.js",
@@ -63,6 +64,7 @@
     "@types/mime-types": "^3.0.1",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.20.3"
+    "tsx": "^4.20.3",
+    "vitest": "^2.1.8"
   }
 }
