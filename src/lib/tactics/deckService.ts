@@ -1,9 +1,11 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { tacticsDecks, type TacticsDeck } from '@/db/schema/tacticsDecks'
-import { userCards } from '@/db/schema/cards'
-import { cardGameDefs } from '@/db/schema/cardGameDefs'
 import { DECK_SIZE, MAX_CHAMPION_COPIES, MAX_COPIES, type DeckCard } from './deckRules'
+import { TACTICS_ROSTER } from './cardDefsSeed'
+
+/** 택틱스 정본 로스터 인덱스 — 덱 검증 기준. 택틱스는 웹 뽑기와 별개라 보유(userCards)와 무관. */
+const ROSTER = new Map(TACTICS_ROSTER.map((c) => [c.cardId, c]))
 
 export { DECK_SIZE, MAX_CHAMPION_COPIES, MAX_COPIES } from './deckRules'
 export type { DeckCard } from './deckRules'
@@ -27,12 +29,11 @@ export function isMissingTacticsDeckTable(error: unknown): boolean {
 }
 
 /**
- * 덱 검증 — 합계 16, 사본 ≤3(챔피언 ≤1), 전부 보유 + 전투 사용 가능.
+ * 덱 검증 — 합계 16, 사본 ≤3(챔피언 ≤1), 카드가 택틱스 로스터에 존재.
  * 같은 cardId 가 여러 엔트리로 쪼개져도 합산해 일관 검사. 통과 시 정규화(병합)된 cards 반환.
- * (배틀 정의 행이 없는 카드 = export 파생 폴백[유닛]으로 노출되므로 플레이 가능으로 간주.)
+ * ★ 택틱스는 웹 뽑기와 별개 시스템 — **보유(userCards) 검사 없음**. 로스터의 121종이면 누구나 편성 가능.
  */
-async function validateDeck(userId: string, cards: DeckCard[]): Promise<DeckCard[]> {
-  const db = getDb()
+function validateDeck(cards: DeckCard[]): DeckCard[] {
   if (!Array.isArray(cards) || cards.length === 0) throw new DeckError('덱이 비어 있습니다.')
 
   const merged = new Map<string, number>()
@@ -44,24 +45,10 @@ async function validateDeck(userId: string, cards: DeckCard[]): Promise<DeckCard
   const total = entries.reduce((s, e) => s + e.count, 0)
   if (total !== DECK_SIZE) throw new DeckError(`덱은 정확히 ${DECK_SIZE}장이어야 합니다. (현재 ${total}장)`)
 
-  const ids = entries.map((e) => e.cardId)
-  const owned = await db
-    .select({ cardId: userCards.cardId })
-    .from(userCards)
-    .where(and(eq(userCards.userId, userId), inArray(userCards.cardId, ids)))
-  const ownedSet = new Set(owned.map((o) => o.cardId))
-
-  const defs = await db
-    .select({ cardId: cardGameDefs.cardId, cardType: cardGameDefs.cardType, isPlayable: cardGameDefs.isPlayable })
-    .from(cardGameDefs)
-    .where(inArray(cardGameDefs.cardId, ids))
-  const defMap = new Map(defs.map((d) => [d.cardId, d]))
-
   for (const e of entries) {
-    if (!ownedSet.has(e.cardId)) throw new DeckError(`보유하지 않은 카드입니다: ${e.cardId}`)
-    const def = defMap.get(e.cardId)
-    if (def && !def.isPlayable) throw new DeckError(`전투에 사용할 수 없는 카드입니다: ${e.cardId}`)
-    const isChampion = def?.cardType === 'champion'
+    const card = ROSTER.get(e.cardId)
+    if (!card) throw new DeckError(`택틱스 카드가 아닙니다: ${e.cardId}`)
+    const isChampion = card.cardType === 'champion'
     const cap = isChampion ? MAX_CHAMPION_COPIES : MAX_COPIES
     if (e.count > cap) {
       throw new DeckError(`${isChampion ? '챔피언' : '같은 카드'}은(는) 최대 ${cap}장입니다: ${e.cardId}`)
@@ -92,7 +79,7 @@ export async function saveTacticsDeck(
   input: { id?: string; name: string; cards: DeckCard[]; setActive?: boolean },
 ): Promise<string> {
   const db = getDb()
-  const cards = await validateDeck(userId, input.cards) // 검증 + 정규화
+  const cards = validateDeck(input.cards) // 검증 + 정규화 (로스터 기준, 보유 무관)
   const now = new Date()
   const fields = { name: input.name?.trim() || '내 덱', cards, isActive: input.setActive ?? false, updatedAt: now }
 

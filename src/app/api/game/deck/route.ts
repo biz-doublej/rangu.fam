@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
  * 인증: X-Game-Server-Secret == env GAME_SERVER_SECRET (유저 세션 아님 — 게임서버가 호출).
  * 응답: { success, deck: null | [{ cardId, count, name, cardType, cost, attack, health, keywords, spellSpeed, effects }] }
  *   - deck=null → 활성 덱 없음 → 게임서버가 DemoDeck 폴백.
- *   - 카드 스탯은 buildTacticsMetadata(cardGameDefs + 파생 폴백)에서 — C# 이 BattleCard 를 자족적으로 빌드.
+ *   - 카드 스탯은 buildTacticsMetadata(택틱스 로스터 시드 = cardDefsSeed)에서 — C# 이 BattleCard 를 자족적으로 빌드.
  */
 export async function GET(request: NextRequest) {
   const secret = process.env.GAME_SERVER_SECRET

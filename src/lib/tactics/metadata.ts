@@ -1,8 +1,5 @@
 import crypto from 'crypto'
-import { getDb } from '@/db/client'
-import { cards as cardsTable } from '@/db/schema/cards'
-import { cardGameDefs, type CardGameDef } from '@/db/schema/cardGameDefs'
-import { deriveBattleUnit } from '@/lib/battle/stats'
+import { TACTICS_ROSTER } from './cardDefsSeed'
 import type { Keyword, TacticsCardMeta, TacticsMetadataDocument } from './types'
 
 const SCHEMA_VERSION = 1
@@ -17,74 +14,32 @@ function keywordsReferenced(c: TacticsCardMeta): Keyword[] {
 }
 
 /**
- * cards + card_game_defs 를 합쳐 버전드 메타데이터 문서를 생성한다.
+ * 택틱스 카드 메타데이터 문서를 생성한다.
  *
- * - 명시 정의(card_game_defs)가 있으면 그대로 사용.
- * - 없으면 기존 stats.ts(deriveBattleUnit) 파생으로 폴백 → 점진 마이그레이션.
- * - 카드 배열을 결정론 정렬 후 sha256 → contentVersion (동일 내용 → 동일 버전).
+ * ★ 택틱스는 웹 카드 뽑기와 **별개 시스템**이다 — 카드 로스터의 단일 출처는 `TACTICS_ROSTER`
+ *   (엑셀 「카드 일람 [완성]」, 121종). 뽑기 `cards` 테이블·DB 에 의존하지 않고(이미지 파일만 공유),
+ *   보유 여부와 무관하게 이 코드 로스터로 자족한다. → DB 마이그레이션/시드 실행 불필요, 배포만으로 반영.
+ * - 밸런스 변경 = 시드(cardDefsSeed.ts) 수정 후 재배포. (런타임 DB 오버레이가 필요해지면 그때 도입.)
+ * - 결정론 정렬 후 sha256 → contentVersion (동일 내용 → 동일 버전, ETag/핀).
  */
 export async function buildTacticsMetadata(): Promise<TacticsMetadataDocument> {
-  const db = getDb()
-  const allCards = await db.select().from(cardsTable)
+  const out: TacticsCardMeta[] = TACTICS_ROSTER.map((c) => ({
+    cardId: c.cardId,
+    name: c.name,
+    faction: c.faction,
+    type: c.cardType,
+    rarity: c.rarity,
+    cost: c.cost,
+    attack: c.attack ?? null,
+    health: c.health ?? null,
+    keywords: c.keywords,
+    spellSpeed: c.spellSpeed || undefined,
+    effects: c.effects,
+    champion: c.champion ?? null,
+    imageUrl: c.imageUrl ?? undefined,
+    derived: false,
+  }))
 
-  // card_game_defs 가 아직 없으면(마이그레이션 전) 전부 파생 폴백 — 기존 기능 무영향.
-  let defs: CardGameDef[] = []
-  try {
-    defs = await db.select().from(cardGameDefs)
-  } catch {
-    defs = []
-  }
-  const defByCardId = new Map(defs.map((d) => [d.cardId, d]))
-
-  const out: TacticsCardMeta[] = []
-  for (const c of allCards) {
-    const def = defByCardId.get(c.cardId)
-    if (def) {
-      if (!def.isPlayable) continue
-      out.push({
-        cardId: c.cardId,
-        name: c.name,
-        faction: def.faction,
-        type: def.cardType,
-        rarity: c.rarity,
-        cost: def.cost,
-        attack: def.attack ?? null,
-        health: def.health ?? null,
-        keywords: def.keywords,
-        spellSpeed: def.spellSpeed ?? undefined,
-        effects: def.effects,
-        champion: def.champion ?? null,
-        imageUrl: c.imageUrl,
-        derived: false,
-      })
-    } else {
-      // 폴백: 명시 정의가 없는 카드는 기존 파생 로직으로 유닛 스탯 산출.
-      const u = deriveBattleUnit({
-        cardId: c.cardId,
-        name: c.name,
-        member: c.member,
-        type: c.type,
-        rarity: c.rarity,
-      })
-      out.push({
-        cardId: c.cardId,
-        name: c.name,
-        faction: c.member ?? 'neutral',
-        type: u.isChampion ? 'champion' : 'unit',
-        rarity: c.rarity,
-        cost: u.cost,
-        attack: u.power,
-        health: u.health,
-        keywords: u.keywords,
-        effects: [],
-        champion: null,
-        imageUrl: c.imageUrl,
-        derived: true,
-      })
-    }
-  }
-
-  // 결정론 정렬 → 안정적 해시(버전). 같은 데이터면 배포해도 contentVersion 불변.
   out.sort((a, b) => a.cardId.localeCompare(b.cardId))
   const usedKeywords = [...new Set(out.flatMap(keywordsReferenced))].sort() as Keyword[]
 
