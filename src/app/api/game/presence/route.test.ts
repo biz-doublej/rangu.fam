@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { RANGU_TACTICS_MEMBERS } from '@/lib/ranguMembers'
 
 const mocks = vi.hoisted(() => ({
   getAuthenticatedWikiUser: vi.fn(),
@@ -25,7 +26,13 @@ vi.mock('@/lib/tactics/presence', async (importOriginal) => ({
 import { GET, POST } from './route'
 
 const db = { connection: 'presence-test' }
-const snapshot = { members: [] }
+const snapshot = {
+  members: RANGU_TACTICS_MEMBERS.map((member) => ({
+    ...member,
+    status: 'offline' as const,
+    lastHeartbeatAt: null,
+  })),
+}
 
 function request(method: 'GET' | 'POST', body?: string) {
   return new NextRequest('http://localhost/api/game/presence', { method, body })
@@ -50,6 +57,14 @@ describe('game presence route', () => {
     expect(mocks.getDb).not.toHaveBeenCalled()
   })
 
+  it('returns the canonical presence snapshot for an authenticated GET', async () => {
+    const response = await GET(request('GET'))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true, ...snapshot })
+    expect(mocks.getPresenceSnapshot).toHaveBeenCalledWith(db)
+  })
+
   it('returns 503 instead of a partial roster when the GET snapshot fails', async () => {
     const failure = new Error('database unavailable')
     mocks.getPresenceSnapshot.mockRejectedValue(failure)
@@ -69,6 +84,25 @@ describe('game presence route', () => {
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({ success: false, error: 'invalid_presence_state' })
     expect(mocks.getDb).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed POST JSON without recording a heartbeat', async () => {
+    const response = await POST(request('POST', '{"state":'))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ success: false, error: 'invalid_presence_state' })
+    expect(mocks.recordPresence).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 for an unauthenticated POST before parsing or persisting it', async () => {
+    mocks.getAuthenticatedWikiUser.mockResolvedValue(null)
+
+    const response = await POST(request('POST', '{"state":'))
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ success: false, error: 'not_authenticated' })
+    expect(mocks.getDb).not.toHaveBeenCalled()
+    expect(mocks.recordPresence).not.toHaveBeenCalled()
   })
 
   it('returns 503 when recording a valid POST fails', async () => {
