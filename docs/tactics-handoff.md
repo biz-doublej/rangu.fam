@@ -34,6 +34,10 @@
 5. **battle-core `logs` 슬라이스 ✅** (커밋 03df3ed) — 구조화 BattleLogEntry(play/summon/attack/block/death/nexus/round/awaken). **액션 로그 UI 를 목업→실데이터로 교체**(카드명은 메타데이터 렌더, 미확인 배지 포함).
 6. **플레이 화면 덱 선택 실연동 ✅** — mock 4덱 제거 → 서버 저장 덱(fetchMyDecks) + 데모 덱 폴백. **덱 카드 선택 = 서버 활성 덱 전환**(낙관적, 실패 롤백). 진영 칩=실제 멤버 진영(빈도순), 대표 아트=최고 코스트 챔피언 썸네일, 아키타입=마나 커브 파생(속공/밸런스/후반 운영형), "새 덱 만들기" CTA. 데모 덱 선택 시 활성 해제 → 서버 DemoDeck 폴백.
 
+**이번 세션 구현 3차 — 런처 리뉴얼(라이엇 클라이언트화)** (같은 날 후속):
+7. **패치노트 시스템 ✅** — 정본 = `gs://rangu-tactics-dist/patchnotes.json`(버킷에 GET/HEAD CORS 허용됨). **노트 갱신 = JSON 재업로드만**(런처 재배포 불필요). 런처 `patch-notes.tsx`: 버전 레일(v0.3.0 최신 뱃지)+태그+하이라이트 불릿, 최신만 기본 펼침·클릭 토글. 요청 헤더에 Cache-Control 넣지 말 것(preflight 유발) — 객체 메타데이터가 no-cache.
+8. **업데이트 UI ✅** — Rust `check_game_update`(HEAD generation 비교 → installed/update_available/offline) + `update_game`(실행 없이 설치). 히어로 상태칩: "최신 버전 ✓ / 새 버전 — 지금 업데이트(버튼) / 다운로드 필요 / 오프라인". 플레이 버튼 라벨도 상태 연동("업데이트 후 플레이" 등). 버전 표기 = 패치노트 최신 버전.
+
 **여전히 남은 것**: PvP 1판으로 경제 적립 실검증(30일 로그에 match-result 0건), 스펠 10종(`SP_*`) 카드 아트, UNIV 마스코트 7종 스탯 확정(엑셀 "추후"), exe 코드서명, 튜토리얼 4단계 키워드 퍼즐 캠페인.
 
 ---
