@@ -2,7 +2,8 @@ CREATE TABLE "tactics_presence" (
 	"user_id" uuid PRIMARY KEY NOT NULL,
 	"state" text DEFAULT 'lobby' NOT NULL,
 	"last_heartbeat_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "tactics_presence_state_check" CHECK ("state" IN ('lobby', 'in_game'))
 );
 --> statement-breakpoint
 ALTER TABLE "tactics_presence" ADD CONSTRAINT "tactics_presence_user_id_wiki_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."wiki_users"("id") ON DELETE cascade ON UPDATE no action;

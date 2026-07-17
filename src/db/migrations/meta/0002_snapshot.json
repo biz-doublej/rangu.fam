@@ -4770,7 +4770,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "tactics_presence_state_check": {
+          "name": "tactics_presence_state_check",
+          "value": "\"state\" in ('lobby', 'in_game')"
+        }
+      },
       "isRLSEnabled": false
     }
   },
