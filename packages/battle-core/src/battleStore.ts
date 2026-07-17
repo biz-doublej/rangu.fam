@@ -39,6 +39,22 @@ export interface GameOverState {
   reason?: string
 }
 
+/**
+ * 전투 로그 1줄 — 텍스트가 아니라 구조화 데이터(카드명 렌더는 클라 메타데이터 몫).
+ * append-only, capped. 액션 로그 UI 가 그대로 그린다.
+ */
+export interface BattleLogEntry {
+  id: number
+  kind: 'play' | 'summon' | 'attack' | 'block' | 'death' | 'nexus' | 'round' | 'awaken'
+  /** 행위 주체 좌석(없으면 중립 이벤트) */
+  seat?: number
+  /** 카드 정의 id — 클라가 메타데이터에서 이름 조회 */
+  definitionId?: string
+  amount?: number
+  count?: number
+  round?: number
+}
+
 export interface BattleState {
   /** 서버가 보낸 정본 스냅샷(수신자 마스킹 적용). UI 의 단일 진실. */
   snapshot?: GameStateSnapshot
@@ -46,6 +62,8 @@ export interface BattleState {
   pendingIntents: Record<string, PendingIntent>
   /** 전투 연출 큐(append-only, capped). 애니메이션 레이어가 lastSeenId 로 드레인. 스냅샷과 분리. */
   combatFx: CombatFx[]
+  /** 전투 로그(append-only, capped) — 액션 로그 UI 용 구조화 이벤트 기록. */
+  logs: BattleLogEntry[]
   connected: boolean
   /** 게임 종료 결과(없으면 진행 중). gameOver 이벤트 수신 시 세팅. */
   gameOver?: GameOverState
@@ -60,13 +78,16 @@ export interface BattleState {
 export type BattleStore = StoreApi<BattleState>
 
 const FX_CAP = 60
+const LOG_CAP = 80
 let fxSeq = 0
+let logSeq = 0
 
 export function createBattleStore(): BattleStore {
   return createStore<BattleState>((set) => ({
     snapshot: undefined,
     pendingIntents: {},
     combatFx: [],
+    logs: [],
     connected: false,
     gameOver: undefined,
 
@@ -75,7 +96,8 @@ export function createBattleStore(): BattleStore {
         pendingIntents: { ...s.pendingIntents, [intentId]: { intentId, type, status: 'pending', cardInstanceId } },
       })),
 
-    reset: () => set({ snapshot: undefined, pendingIntents: {}, combatFx: [], connected: false, gameOver: undefined }),
+    reset: () =>
+      set({ snapshot: undefined, pendingIntents: {}, combatFx: [], logs: [], connected: false, gameOver: undefined }),
 
     apply: (msg) => {
       // 연결 수락 — 즉시 현재 스냅샷으로 복구(재접속 포함)
@@ -102,7 +124,12 @@ export function createBattleStore(): BattleStore {
         } else {
           // 전투/연출 이벤트 → ephemeral fx 큐(스냅샷 불변). 좌표는 컴포넌트가 부여.
           const fx = toCombatFx(ev)
-          if (fx.length) set((s) => ({ combatFx: [...s.combatFx, ...fx].slice(-FX_CAP) }))
+          const log = toLogEntries(ev)
+          if (fx.length || log.length)
+            set((s) => ({
+              combatFx: fx.length ? [...s.combatFx, ...fx].slice(-FX_CAP) : s.combatFx,
+              logs: log.length ? [...s.logs, ...log].slice(-LOG_CAP) : s.logs,
+            }))
         }
         return
       }
@@ -142,6 +169,51 @@ function toCombatFx(ev: GameEvent): CombatFx[] {
       health: a.newHealth,
       level: a.championLevel,
     })
+  }
+  return out
+}
+
+/** 전투 이벤트 → 로그 엔트리(구조화). 카드명 등 표시 문자열은 클라가 메타데이터로 렌더. */
+function toLogEntries(ev: GameEvent): BattleLogEntry[] {
+  const out: BattleLogEntry[] = []
+  if (ev.cardPlayed) {
+    out.push({
+      id: ++logSeq,
+      kind: 'play',
+      seat: ev.cardPlayed.player?.seat,
+      definitionId: ev.cardPlayed.card?.revealed?.definitionId || undefined,
+    })
+  }
+  if (ev.unitSummoned) {
+    out.push({
+      id: ++logSeq,
+      kind: 'summon',
+      seat: ev.unitSummoned.player?.seat,
+      definitionId: ev.unitSummoned.unit?.revealed?.definitionId || undefined,
+    })
+  }
+  if (ev.attackDeclared) {
+    out.push({
+      id: ++logSeq,
+      kind: 'attack',
+      seat: ev.attackDeclared.attacker?.seat,
+      count: ev.attackDeclared.attackerInstanceIds.length,
+    })
+  }
+  if (ev.blockDeclared) {
+    out.push({ id: ++logSeq, kind: 'block', seat: ev.blockDeclared.blocker?.seat, count: ev.blockDeclared.pairs.length })
+  }
+  if (ev.unitDied) {
+    out.push({ id: ++logSeq, kind: 'death', count: ev.unitDied.instanceIds.length })
+  }
+  if (ev.nexusDamaged) {
+    out.push({ id: ++logSeq, kind: 'nexus', seat: ev.nexusDamaged.player?.seat, amount: ev.nexusDamaged.amount })
+  }
+  if (ev.roundEnded) {
+    out.push({ id: ++logSeq, kind: 'round', round: ev.roundEnded.roundNumber })
+  }
+  if (ev.championAwakened) {
+    out.push({ id: ++logSeq, kind: 'awaken', amount: ev.championAwakened.championLevel })
   }
   return out
 }
