@@ -15,6 +15,13 @@
       "when": 1777725625918,
       "tag": "0001_wiki",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784283489094,
+      "tag": "0002_tactics_presence",
+      "breakpoints": true
     }
   ]
 }
