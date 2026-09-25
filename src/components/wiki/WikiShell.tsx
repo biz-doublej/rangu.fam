@@ -406,7 +406,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
       <div className="theme-surface min-h-screen" suppressHydrationWarning>
         {/* ── Top Bar (HUD) ─────────────────────────────────────── */}
         <header className="wiki-topbar">
-          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-2.5 flex items-center gap-3 relative z-10">
+          <div className="px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-3 relative z-10">
             <button
               type="button"
               className="md:hidden p-2 rounded hover:bg-white/5 text-[color:var(--wiki-ink-soft)]"
@@ -564,7 +564,14 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
         </header>
 
         {/* ── Sidebar + main + right rail ──────────────────────── */}
-        <div className="mx-auto max-w-[1280px] grid grid-cols-1 md:grid-cols-[200px_1fr] xl:grid-cols-[200px_minmax(0,1fr)_280px]">
+        <div
+          className={`grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] ${
+            // 오른쪽 레일(목차·정보상자)이 있을 때만 세 번째 열을 만든다
+            active.rightRail
+              ? 'xl:grid-cols-[200px_minmax(0,1fr)_280px] 2xl:grid-cols-[240px_minmax(0,1fr)_320px]'
+              : '2xl:grid-cols-[240px_minmax(0,1fr)]'
+          }`}
+        >
           {/* 모바일 백드롭 (사이드바 열림 시) */}
           {mobileNavOpen && (
             <button
@@ -653,7 +660,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
           </aside>
 
           {/* ── Main column with fade-swap ───────────────────── */}
-          <main className="min-w-0 px-4 sm:px-6 py-6 relative">
+          <main className="min-w-0 px-4 sm:px-6 lg:px-8 py-6 relative">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={pathname || 'wiki-root'}
@@ -870,7 +877,7 @@ function SiteSelectMenu({
 
   return (
     <nav className="wiki-sitemenu" aria-label="이랑위키 사이트 내비게이션">
-      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 flex items-center gap-0.5 sm:gap-1 overflow-x-auto whitespace-nowrap">
+      <div className="px-4 sm:px-6 lg:px-8 flex items-center gap-0.5 sm:gap-1 overflow-x-auto whitespace-nowrap">
         {SITE_MENU_ITEMS.map(item => {
           const isCurrent = item.key === activeKey
           const Icon = item.icon
