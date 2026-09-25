@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
@@ -102,26 +101,9 @@ interface RecentChange {
   revision: { author?: string; timestamp?: number; editType?: string }
 }
 
-const departureHideKey = 'rangu_departure_hide_until_v2'
-
 export default function WikiMainPage() {
   const router = useRouter()
   const { isLoggedIn, isModerator } = useWikiAuth()
-
-  const [showDepartureModal, setShowDepartureModal] = useState(true)
-  const [isClient, setIsClient] = useState(false)
-  useEffect(() => { setIsClient(true) }, [])
-  useEffect(() => {
-    if (!isClient) return
-    const raw = localStorage.getItem(departureHideKey)
-    if (!raw) return
-    const until = Number(raw)
-    if (Number.isNaN(until)) {
-      localStorage.removeItem(departureHideKey)
-      return
-    }
-    if (until > Date.now()) setShowDepartureModal(false)
-  }, [isClient])
 
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
@@ -649,48 +631,6 @@ export default function WikiMainPage() {
         </p>
       </section>
 
-      {/* ── 민석 이별 모달 ─────────────────────────────────── */}
-      {showDepartureModal && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-          onClick={() => setShowDepartureModal(false)}
-        >
-          <div
-            className="relative w-full max-w-3xl overflow-hidden rounded-md border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] p-6 text-[color:var(--wiki-ink)] shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="overflow-hidden rounded-sm border border-[color:var(--wiki-rule)]">
-              <Image
-                src="/images/minseok-farewell.jpg"
-                alt="민석 이별 이미지"
-                width={1280}
-                height={720}
-                priority
-                className="h-auto w-full object-cover"
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              <button
-                type="button"
-                className="rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-paper-2)] px-3 py-1.5 text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]"
-                onClick={() => {
-                  localStorage.setItem(departureHideKey, String(Date.now() + 24 * 60 * 60 * 1000))
-                  setShowDepartureModal(false)
-                }}
-              >
-                하루 안 보기
-              </button>
-              <button
-                type="button"
-                className="rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] px-3 py-1.5 text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]"
-                onClick={() => setShowDepartureModal(false)}
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </WikiShell>
   )
 }
