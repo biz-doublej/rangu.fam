@@ -38,6 +38,6 @@ export const ARCHIVE_MEMBERS = [
   { name: '정재원', role: '에스넷시스템 삼성SDS AI연구원' },
   { name: '정민석', role: '예지솔루션 취업' },
   { name: '정진규', role: '복무 중' },
-  { name: '강한울', role: '철도차량시스템' },
-  { name: '이승찬', role: '마술사' },
+  { name: '강한울', role: '우송대학교 철도차량시스템학과 재학 중' },
+  { name: '이승찬', role: '수시 원서 결과 대기 중' },
 ] as const

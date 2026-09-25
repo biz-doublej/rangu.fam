@@ -117,7 +117,7 @@ export class MemberService {
       {
         id: 'hanul',
         name: '강한울',
-        role: '무직(편돌이)',
+        role: '우송대학교 철도차량시스템학과 재학 중',
         description: '자유로운 영혼으로 다양한 취미와 관심사를 탐구합니다.',
         avatar: '/images/hanul.jpg',
         email: 'hanul@rangu.fam',
@@ -129,7 +129,7 @@ export class MemberService {
       {
         id: 'seungchan',
         name: '이승찬',
-        role: '마술사 & 호그와트 재학생',
+        role: '수시 원서 결과 대기 중',
         description: '마술과 마법을 통해 사람들에게 즐거움을 선사하는 마술사입니다.',
         avatar: '/images/seungchan.jpg',
         email: 'seungchan@rangu.fam',
