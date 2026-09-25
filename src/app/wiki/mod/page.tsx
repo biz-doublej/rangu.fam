@@ -289,7 +289,7 @@ function SubmissionsTab() {
               onClick={() => setStatus(s.key)}
               className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition ${
                 active
-                  ? 'bg-[color:var(--wiki-accent)] text-white'
+                  ? 'bg-[color:var(--wiki-accent)] text-[#fff]'
                   : 'text-[color:var(--wiki-ink-soft)] hover:bg-[color:var(--wiki-bg-2)]'
               }`}
             >
@@ -539,7 +539,7 @@ function UsersTab() {
           </select>
           <button
             type="submit"
-            className="rounded bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            className="rounded bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90"
           >
             검색
           </button>
@@ -756,7 +756,7 @@ function ReportsTab() {
                 onClick={() => setFilter(k)}
                 className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                   filter === k
-                    ? 'bg-[color:var(--wiki-accent)] text-white'
+                    ? 'bg-[color:var(--wiki-accent)] text-[#fff]'
                     : 'text-[color:var(--wiki-ink-soft)] hover:bg-[color:var(--wiki-bg-2)]'
                 }`}
               >

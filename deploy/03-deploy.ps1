@@ -34,11 +34,6 @@ $cloudSqlInstance = "${Project}:${Region}:rangu-pg"
 $envVars = @(
   'NODE_ENV=production',
   'AUTH_MODE=sso',
-  'OIDC_ISSUER=https://auth.doublej.app',
-  'OIDC_CLIENT_ID=rangu-fam-web',
-  'OIDC_SCOPE=openid profile email offline_access',
-  'ACCOUNTS_BASE_URL=https://accounts.doublej.app',
-  'NEXT_PUBLIC_ACCOUNTS_BASE_URL=https://accounts.doublej.app',
   'DISCORD_REDIRECT_BASE_URL=https://rangu-fam.com'
 ) -join ','
 
@@ -47,7 +42,8 @@ $secrets = @(
   'NEXTAUTH_SECRET=rangu-nextauth-secret:latest',
   # Code reads DATABASE_URL (src/db/client.ts). POSTGRES_BRIDGE_URI is FerretDB-era leftover.
   'DATABASE_URL=rangu-database-url:latest',
-  'OIDC_CLIENT_SECRET=rangu-oidc-client-secret:latest',
+  'GOOGLE_CLIENT_ID=rangu-google-client-id:latest',
+  'GOOGLE_CLIENT_SECRET=rangu-google-client-secret:latest',
   'DISCORD_CLIENT_SECRET=rangu-discord-client-secret:latest',
   'DISCORD_WEBHOOK_URL=rangu-discord-webhook-url:latest'
 ) -join ','

@@ -3,13 +3,26 @@ import jwt from 'jsonwebtoken'
 import { getOptionalEnv, getRequiredEnv } from '@/lib/env'
 import { sanitizeCallbackPath } from '@/lib/doublejAuth'
 
+/**
+ * 구글 로그인 (OpenID Connect, Authorization Code + PKCE).
+ *
+ * 2026-09 DoubleJ SSO(auth.doublej.app) 를 완전히 대체. 회원 식별은 구글이 검증한 이메일
+ * (`email_verified`) 로 기존 wiki_users.email 과 매칭한다 — doublejAuth.findOrCreateWikiUserFromOidcProfile.
+ */
+
 export const OIDC_STATE_COOKIE = 'oidc-service-state'
 
 const JWT_SECRET = getRequiredEnv('JWT_SECRET')
-const DEFAULT_ISSUER = 'https://auth.doublej.app'
-const DEFAULT_ACCOUNTS_BASE = 'https://accounts.doublej.app'
-const DEFAULT_SCOPE = 'openid profile email offline_access'
+const GOOGLE_AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
+const GOOGLE_ISSUERS = new Set(['https://accounts.google.com', 'accounts.google.com'])
+const GOOGLE_SCOPE = 'openid email profile'
 const STATE_TTL_SECONDS = 10 * 60
+/** 구글 서버와 우리 서버의 시계 오차 허용 */
+const CLOCK_SKEW_SECONDS = 60
+
+/** ssoSubject 컬럼에 저장되는 구글 subject 접두어 (과거 DoubleJ subject 와 네임스페이스 분리) */
+export const GOOGLE_SUBJECT_PREFIX = 'google:'
 
 /**
  * 데스크톱(네이티브 셸) 루프백 핸드오프 타깃.
@@ -29,14 +42,8 @@ interface OidcStatePayload {
   exp?: number
 }
 
-interface OpenIdConfiguration {
-  token_endpoint?: string
-  userinfo_endpoint?: string
-}
-
 export interface OidcTokenResponse {
   access_token: string
-  refresh_token?: string
   id_token?: string
   token_type?: string
   expires_in?: number
@@ -47,6 +54,8 @@ export interface OidcIdentity {
   subject: string
   username: string
   email?: string
+  /** 구글이 소유를 검증한 이메일인지 — false 면 이메일로 기존 계정과 매칭하지 않는다 */
+  emailVerified: boolean
   displayName?: string
   avatar?: string
 }
@@ -90,48 +99,21 @@ function buildUsernameFallback(source: string): string {
   return `${cleaned}x`.slice(0, 20)
 }
 
-function resolveOpenIdConfigurationUrl(issuer: string): string {
-  const normalizedIssuer = issuer.replace(/\/+$/, '')
-  return `${normalizedIssuer}/.well-known/openid-configuration`
-}
-
-function resolveTokenEndpoint(issuer: string, config: OpenIdConfiguration | null): string {
-  if (config?.token_endpoint) return config.token_endpoint
-  return `${issuer.replace(/\/+$/, '')}/oauth2/token`
-}
-
-function resolveUserInfoEndpoint(issuer: string, config: OpenIdConfiguration | null): string {
-  if (config?.userinfo_endpoint) return config.userinfo_endpoint
-  return `${issuer.replace(/\/+$/, '')}/oauth2/userinfo`
-}
-
-export function getOidcIssuer(): string {
-  return getOptionalEnv('OIDC_ISSUER') || DEFAULT_ISSUER
-}
-
-export function getAccountsBaseUrl(): string {
-  return getOptionalEnv('ACCOUNTS_BASE_URL') || DEFAULT_ACCOUNTS_BASE
-}
-
 export function getOidcClientId(): string {
-  return getRequiredEnv('OIDC_CLIENT_ID')
+  return getRequiredEnv('GOOGLE_CLIENT_ID')
 }
 
 export function getOidcClientSecret(): string {
-  return getRequiredEnv('OIDC_CLIENT_SECRET')
+  return getRequiredEnv('GOOGLE_CLIENT_SECRET')
 }
 
 export function getMissingOidcEnvKeys(): string[] {
-  const requiredKeys = ['OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET']
+  const requiredKeys = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']
   return requiredKeys.filter((key) => !getOptionalEnv(key))
 }
 
-export function getOidcScope(): string {
-  return getOptionalEnv('OIDC_SCOPE') || DEFAULT_SCOPE
-}
-
 export function resolveOidcRedirectUri(origin: string): string {
-  return getOptionalEnv('OIDC_REDIRECT_URI') || `${origin}/auth/callback`
+  return getOptionalEnv('GOOGLE_REDIRECT_URI') || `${origin}/auth/callback`
 }
 
 /**
@@ -198,18 +180,16 @@ export function buildAuthorizeUrl(params: {
   state: string
   codeChallenge: string
 }): string {
-  const issuer = getOidcIssuer()
-  const clientId = getOidcClientId()
-  const redirectUri = resolveOidcRedirectUri(params.origin)
-  const authorizeUrl = new URL(`${issuer.replace(/\/+$/, '')}/oauth2/authorize`)
+  const authorizeUrl = new URL(GOOGLE_AUTHORIZE_ENDPOINT)
   authorizeUrl.searchParams.set('response_type', 'code')
-  authorizeUrl.searchParams.set('client_id', clientId)
-  authorizeUrl.searchParams.set('redirect_uri', redirectUri)
-  authorizeUrl.searchParams.set('scope', getOidcScope())
+  authorizeUrl.searchParams.set('client_id', getOidcClientId())
+  authorizeUrl.searchParams.set('redirect_uri', resolveOidcRedirectUri(params.origin))
+  authorizeUrl.searchParams.set('scope', GOOGLE_SCOPE)
   authorizeUrl.searchParams.set('state', params.state)
   authorizeUrl.searchParams.set('code_challenge', params.codeChallenge)
   authorizeUrl.searchParams.set('code_challenge_method', 'S256')
-  authorizeUrl.searchParams.set('consent_action', 'approve')
+  // 여러 구글 계정을 쓰는 사람이 매번 계정을 고를 수 있게
+  authorizeUrl.searchParams.set('prompt', 'select_account')
   return authorizeUrl.toString()
 }
 
@@ -223,40 +203,21 @@ export function getOidcStateCookieOptions() {
   }
 }
 
-export async function fetchOpenIdConfiguration(issuer: string): Promise<OpenIdConfiguration | null> {
-  try {
-    const response = await fetch(resolveOpenIdConfigurationUrl(issuer), {
-      cache: 'no-store',
-    })
-    if (!response.ok) return null
-    return (await response.json()) as OpenIdConfiguration
-  } catch {
-    return null
-  }
-}
-
 export async function exchangeAuthorizationCode(params: {
   origin: string
   code: string
   codeVerifier: string
 }): Promise<OidcTokenResponse> {
-  const issuer = getOidcIssuer()
-  const clientId = getOidcClientId()
-  const clientSecret = getOidcClientSecret()
-  const openIdConfig = await fetchOpenIdConfiguration(issuer)
-  const tokenEndpoint = resolveTokenEndpoint(issuer, openIdConfig)
-  const redirectUri = resolveOidcRedirectUri(params.origin)
-
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code: params.code,
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: redirectUri,
+    client_id: getOidcClientId(),
+    client_secret: getOidcClientSecret(),
+    redirect_uri: resolveOidcRedirectUri(params.origin),
     code_verifier: params.codeVerifier,
   })
 
-  const response = await fetch(tokenEndpoint, {
+  const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -264,7 +225,7 @@ export async function exchangeAuthorizationCode(params: {
   })
 
   const payload = await response.json().catch(() => null)
-  if (!response.ok || !payload?.access_token) {
+  if (!response.ok || !payload?.id_token) {
     throw new Error(
       `oidc_token_exchange_failed: ${response.status}${
         payload?.error ? `:${String(payload.error)}` : ''
@@ -275,60 +236,47 @@ export async function exchangeAuthorizationCode(params: {
   return payload as OidcTokenResponse
 }
 
-export async function fetchOidcUserInfo(accessToken: string): Promise<Record<string, unknown> | null> {
-  const issuer = getOidcIssuer()
-  const openIdConfig = await fetchOpenIdConfiguration(issuer)
-  const userInfoEndpoint = resolveUserInfoEndpoint(issuer, openIdConfig)
-
-  try {
-    const response = await fetch(userInfoEndpoint, {
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-      },
-      cache: 'no-store',
-    })
-
-    if (!response.ok) return null
-    return (await response.json()) as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
+/**
+ * 토큰 엔드포인트 응답의 id_token 에서 신원을 꺼낸다.
+ *
+ * id_token 은 클라이언트 시크릿으로 인증한 TLS 요청의 응답으로 구글에서 직접 받았으므로
+ * 서명 검증 대신 발급자/대상/만료 클레임만 확인한다 (OpenID Connect Core 3.1.3.7 항목 6).
+ * 다른 경로(브라우저, 제3자)로 받은 토큰에는 절대 이 함수를 쓰지 말 것.
+ */
 export function extractIdentity(
   tokenResponse: OidcTokenResponse,
-  userInfo: Record<string, unknown> | null
+  now: number = Date.now()
 ): OidcIdentity | null {
-  const idTokenClaims = tokenResponse.id_token ? decodeJwtPayload(tokenResponse.id_token) : null
-  const claims = {
-    ...(idTokenClaims || {}),
-    ...(userInfo || {}),
-  }
+  const claims = tokenResponse.id_token ? decodeJwtPayload(tokenResponse.id_token) : null
+  if (!claims) return null
 
-  const subject = normalizeClaimString(claims.sub)
-  if (!subject) return null
+  const issuer = normalizeClaimString(claims.iss)
+  if (!issuer || !GOOGLE_ISSUERS.has(issuer)) return null
 
-  const email = normalizeClaimString(claims.email)
-  const preferredUsername =
-    normalizeClaimString(claims.preferred_username) ||
-    normalizeClaimString(claims.username) ||
-    normalizeClaimString(claims.nickname)
-  const displayName =
-    normalizeClaimString(claims.name) ||
-    normalizeClaimString(claims.display_name) ||
-    preferredUsername
-  const avatar =
-    normalizeClaimString(claims.picture) ||
-    normalizeClaimString(claims.avatar_url) ||
-    normalizeClaimString(claims.avatar)
+  const audience = claims.aud
+  const clientId = getOidcClientId()
+  const audienceOk = Array.isArray(audience) ? audience.includes(clientId) : audience === clientId
+  if (!audienceOk) return null
+
+  const nowSeconds = Math.floor(now / 1000)
+  if (typeof claims.exp !== 'number' || claims.exp + CLOCK_SKEW_SECONDS < nowSeconds) return null
+
+  const googleSubject = normalizeClaimString(claims.sub)
+  if (!googleSubject) return null
+
+  const email = normalizeClaimString(claims.email)?.toLowerCase()
+  const emailVerified = claims.email_verified === true || claims.email_verified === 'true'
+  const displayName = normalizeClaimString(claims.name) || normalizeClaimString(claims.given_name)
+  const avatar = normalizeClaimString(claims.picture)
 
   const emailLocal = email ? email.split('@')[0] : undefined
-  const usernameSeed = preferredUsername || emailLocal || `user-${subject.slice(0, 8)}`
+  const usernameSeed = emailLocal || `user-${googleSubject.slice(0, 8)}`
 
   return {
-    subject,
+    subject: `${GOOGLE_SUBJECT_PREFIX}${googleSubject}`,
     username: buildUsernameFallback(usernameSeed),
     email,
+    emailVerified,
     displayName,
     avatar,
   }

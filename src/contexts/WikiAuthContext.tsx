@@ -146,7 +146,7 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
     mainUserId?: string
   }): Promise<boolean> => {
     void userData
-    window.location.href = '/auth/start?screen=signup&callbackUrl=%2Fwiki'
+    window.location.href = '/auth/start?callbackUrl=%2Fwiki'
     return false
   }
 

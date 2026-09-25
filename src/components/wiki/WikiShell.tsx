@@ -170,11 +170,10 @@ const SITE_MENU_LOGIN: SiteMenuItem = {
 
 const SITE_MENU_TERMS: SiteMenuItem = {
   key: 'terms',
-  label: '약관',
-  subtitle: 'DoubleJ 통합 계정 약관',
-  href: 'https://accounts.doublej.app/terms',
-  icon: FileText,
-  external: true
+  label: '규정',
+  subtitle: '이랑위키 규정',
+  href: '/wiki/이랑위키:규정',
+  icon: FileText
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -962,28 +961,15 @@ function SiteSelectMenu({
               <span>{SITE_MENU_LOGIN.label}</span>
               <span className="wiki-sitemenu__sub">{SITE_MENU_LOGIN.subtitle}</span>
             </button>
-            <a
-              href="https://accounts.doublej.app/signup"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="wiki-sitemenu__item wiki-sitemenu__item--accent"
-              title="DoubleJ 통합 회원가입"
-            >
-              <span>회원가입</span>
-              <ExternalLink className="w-3 h-3 opacity-70" />
-            </a>
           </>
         )}
         <a
           href={SITE_MENU_TERMS.href}
-          target="_blank"
-          rel="noopener noreferrer"
           className="wiki-sitemenu__item wiki-sitemenu__item--muted"
           title={SITE_MENU_TERMS.subtitle}
         >
           <SITE_MENU_TERMS.icon className="w-3.5 h-3.5" />
           <span>{SITE_MENU_TERMS.label}</span>
-          <ExternalLink className="w-3 h-3 opacity-50" />
         </a>
       </div>
     </nav>

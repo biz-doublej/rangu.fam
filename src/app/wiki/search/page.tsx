@@ -116,7 +116,7 @@ function WikiSearchPageContent() {
           <button
             type="button"
             onClick={() => doSearch(q)}
-            className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-[#fff] hover:opacity-90"
           >
             검색
           </button>
@@ -131,7 +131,7 @@ function WikiSearchPageContent() {
             <button
               type="button"
               onClick={() => router.push(`/wiki/${encodeURIComponent(q)}`)}
-              className="rounded-sm bg-[color:var(--wiki-accent)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+              className="rounded-sm bg-[color:var(--wiki-accent)] px-2.5 py-1 text-xs font-medium text-[#fff] hover:opacity-90"
             >
               {`"${q}" 새 문서 만들기`}
             </button>

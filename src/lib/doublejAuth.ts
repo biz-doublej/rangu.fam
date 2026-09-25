@@ -317,8 +317,24 @@ export interface OidcUserProfile {
   subject: string
   username: string
   email?: string
+  /** IdP(구글)가 소유를 검증한 이메일인지. 검증 안 된 이메일로는 로그인시키지 않는다. */
+  emailVerified: boolean
   displayName?: string
   avatar?: string
+}
+
+/**
+ * 관리자/멤버 권한이 username 으로도 부여되므로(isWhitelistedWikiAdmin, resolveMemberIdForUser)
+ * 신규 가입자가 그런 이름을 이메일 앞부분으로 우연히/의도적으로 가져가지 못하게 막는다.
+ */
+function isReservedUsername(username: string): boolean {
+  const key = username.toLowerCase().trim()
+  return (
+    WIKI_ADMIN_USERNAMES.has(key) ||
+    Boolean(WIKI_ADMIN_DISCORD_BY_USERNAME[key]) ||
+    Boolean(resolveMemberIdFromUsername(key)) ||
+    ['admin', 'administrator', 'root', 'system', 'moderator'].includes(key)
+  )
 }
 
 export async function findOrCreateWikiUserFromOidcProfile(
@@ -331,17 +347,20 @@ export async function findOrCreateWikiUserFromOidcProfile(
 
   const normalizedUsername = normalizeUsernameForStorage(profile.username)
   const normalizedEmail = profile.email?.trim().toLowerCase()
+  // 이메일이 곧 계정 식별자(기존 계정 매칭·관리자 화이트리스트)이므로 검증된 이메일만 받는다
+  if (!normalizedEmail || !profile.emailVerified) return null
   const displayName = profile.displayName?.trim()
   const avatar = profile.avatar?.trim()
 
-  // ssoSubject → email → username 순으로 매칭
+  // ssoSubject → (검증된) email 순으로 매칭.
+  // username 매칭은 하지 않는다 — 이메일 앞부분이 우연히 같은 다른 사람이 기존 계정을 가져갈 수 있음.
   let [user] = await db
     .select()
     .from(wikiUsers)
     .where(eq(wikiUsers.ssoSubject, subject))
     .limit(1)
 
-  if (!user && normalizedEmail) {
+  if (!user) {
     const [byEmail] = await db
       .select()
       .from(wikiUsers)
@@ -350,20 +369,14 @@ export async function findOrCreateWikiUserFromOidcProfile(
     user = byEmail
   }
 
-  if (!user) {
-    const [byUsername] = await db
-      .select()
-      .from(wikiUsers)
-      .where(eq(wikiUsers.username, normalizedUsername))
-      .limit(1)
-    user = byUsername
-  }
-
   const now = new Date()
 
   if (!user) {
-    const username = await resolveUniqueUsername(normalizedUsername)
-    const email = await resolveUniqueEmail(normalizedEmail || `${username}@doublej.local`)
+    const usernameBase = isReservedUsername(normalizedUsername)
+      ? `${normalizedUsername.slice(0, 15)}-user`
+      : normalizedUsername
+    const username = await resolveUniqueUsername(usernameBase)
+    const email = await resolveUniqueEmail(normalizedEmail)
     // 로컬 password auth는 제거됐지만 wiki_users.password 컬럼이 NOT NULL이라 placeholder 필요.
     // SSO-only 사용자는 이 값으로 절대 로그인 불가 (bcrypt가 아닌 임의 base64 문자열).
     const placeholderPassword = `__oidc__${crypto.randomBytes(48).toString('base64')}`
@@ -409,7 +422,7 @@ export async function findOrCreateWikiUserFromOidcProfile(
       updates.ssoSubject = subject
     }
 
-    if (normalizedEmail && user.email !== normalizedEmail) {
+    if (user.email !== normalizedEmail) {
       // 이메일 충돌 체크 (자기 자신 제외)
       const [conflict] = await db
         .select({ id: wikiUsers.id })

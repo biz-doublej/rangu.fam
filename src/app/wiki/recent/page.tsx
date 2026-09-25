@@ -137,7 +137,7 @@ function WikiRecentChangesPageContent() {
                 onClick={() => load(1, true)}
                 className={`inline-flex items-center gap-1 rounded-sm border px-2.5 py-1 text-xs ${
                   showAllChanges
-                    ? 'bg-[color:var(--wiki-accent)] text-white border-[color:var(--wiki-accent)]'
+                    ? 'bg-[color:var(--wiki-accent)] text-[#fff] border-[color:var(--wiki-accent)]'
                     : 'bg-[color:var(--wiki-bg-2)] border-[color:var(--wiki-rule-strong)] text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]'
                 }`}
               >
@@ -148,7 +148,7 @@ function WikiRecentChangesPageContent() {
                 onClick={() => load(1, false)}
                 className={`inline-flex items-center gap-1 rounded-sm border px-2.5 py-1 text-xs ${
                   !showAllChanges
-                    ? 'bg-[color:var(--wiki-accent)] text-white border-[color:var(--wiki-accent)]'
+                    ? 'bg-[color:var(--wiki-accent)] text-[#fff] border-[color:var(--wiki-accent)]'
                     : 'bg-[color:var(--wiki-bg-2)] border-[color:var(--wiki-rule-strong)] text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]'
                 }`}
               >
@@ -209,7 +209,7 @@ function WikiRecentChangesPageContent() {
             type="button"
             onClick={() => { setCurrentPage(1); load(1, showAllChanges) }}
             disabled={isLoading}
-            className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90 disabled:opacity-50"
           >
             적용
           </button>

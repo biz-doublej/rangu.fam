@@ -33,7 +33,8 @@ $secrets = @{
   'rangu-jwt-secret'           = 'JWT_SECRET'
   'rangu-nextauth-secret'      = 'NEXTAUTH_SECRET'
   'rangu-postgres-bridge-uri'  = 'POSTGRES_BRIDGE_URI'
-  'rangu-oidc-client-secret'   = 'OIDC_CLIENT_SECRET'
+  'rangu-google-client-id'     = 'GOOGLE_CLIENT_ID'
+  'rangu-google-client-secret' = 'GOOGLE_CLIENT_SECRET'
   'rangu-discord-client-secret'= 'DISCORD_CLIENT_SECRET'
   'rangu-discord-webhook-url'  = 'DISCORD_WEBHOOK_URL'
 }

@@ -336,7 +336,7 @@ export function DocumentFunctionsPanel({
           />
           <button
             type="submit"
-            className="self-start rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            className="self-start rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90"
           >
             함수 실행
           </button>

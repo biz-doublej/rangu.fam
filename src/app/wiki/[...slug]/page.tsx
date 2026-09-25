@@ -1072,7 +1072,7 @@ export default function WikiDocumentPage() {
                     type="button"
                     onClick={handleProtect}
                     disabled={isProtecting}
-                    className="w-full rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                    className="w-full rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90 disabled:opacity-50"
                   >
                     {isProtecting ? '적용 중…' : '보호 설정 적용'}
                   </button>
@@ -1396,7 +1396,7 @@ export default function WikiDocumentPage() {
                       alert('CAPTCHA 처리 중 오류')
                     }
                   }}
-                  className="rounded-sm bg-[color:var(--wiki-accent)] px-2 py-1 text-xs text-white"
+                  className="rounded-sm bg-[color:var(--wiki-accent)] px-2 py-1 text-xs text-[#fff]"
                 >
                   제출
                 </button>
@@ -1450,7 +1450,7 @@ export default function WikiDocumentPage() {
                 type="button"
                 onClick={() => loadTemplateByType(templateType)}
                 disabled={!templateType}
-                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90 disabled:opacity-50"
               >
                 선택한 템플릿 적용
               </button>
@@ -1488,7 +1488,7 @@ export default function WikiDocumentPage() {
               <button
                 type="button"
                 onClick={handleSave}
-                className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-[#fff] hover:opacity-90"
               >
                 {currentPage ? '변경 사항 저장' : '새 문서 생성'}
               </button>
@@ -1688,7 +1688,7 @@ export default function WikiDocumentPage() {
               <button
                 type="button"
                 onClick={handleAddDiscussion}
-                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90"
               >
                 토론 작성
               </button>
@@ -1830,7 +1830,7 @@ export default function WikiDocumentPage() {
                                     setReplyInputs((s) => ({ ...s, [dId]: '' }))
                                   }}
                                   disabled={!isLoggedIn || !(replyInputs[dId] || '').trim()}
-                                  className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40"
+                                  className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1 text-xs font-medium text-[#fff] hover:opacity-90 disabled:opacity-40"
                                 >
                                   답글
                                 </button>

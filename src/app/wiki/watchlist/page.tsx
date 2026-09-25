@@ -91,7 +91,7 @@ export default function WatchlistPage() {
           <button
             type="button"
             onClick={() => router.push('/wiki/login')}
-            className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-[#fff] hover:opacity-90"
           >
             로그인
           </button>

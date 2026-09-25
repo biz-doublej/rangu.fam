@@ -51,7 +51,7 @@ export default function WikiRandomPage() {
               <button
                 type="button"
                 onClick={() => setAttempt(a => a + 1)}
-                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
+                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1 text-xs font-medium text-[#fff] hover:opacity-90"
               >
                 다시 시도
               </button>

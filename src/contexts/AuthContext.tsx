@@ -56,9 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [member, setMember] = useState<Member | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [linkedWikiUsername, setLinkedWikiUsername] = useState<string | null>(null)
-  const accountsBaseUrl = (process.env.NEXT_PUBLIC_ACCOUNTS_BASE_URL || 'https://accounts.doublej.app')
-    .trim()
-    .replace(/\/+$/, '')
 
   useEffect(() => {
     loadMembers()
@@ -74,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser({
       id: data.id,
-      username: data.username || 'DoubleJ 사용자',
+      username: data.username || '사용자',
       email: data.email || '',
       role: data.role || 'guest',
       memberId: data.memberId || undefined,
@@ -114,22 +111,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchAccountSession()
   }, [fetchAccountSession])
 
-  const buildAuthStartUrl = useCallback((screen: 'signin' | 'signup', callbackUrl: string = '/') => {
-    return `/auth/start?screen=${screen}&callbackUrl=${encodeURIComponent(callbackUrl)}`
+  // 구글 로그인은 첫 로그인이 곧 가입이라 로그인/가입 진입점이 같다
+  const startSignIn = useCallback((callbackUrl: string = '/') => {
+    window.location.href = `/auth/start?callbackUrl=${encodeURIComponent(callbackUrl)}`
   }, [])
 
-  const startSignIn = useCallback((callbackUrl: string = '/') => {
-    window.location.href = buildAuthStartUrl('signin', callbackUrl)
-  }, [buildAuthStartUrl])
+  const startSignUp = startSignIn
 
-  const startSignUp = useCallback((callbackUrl: string = '/') => {
-    window.location.href = buildAuthStartUrl('signup', callbackUrl)
-  }, [buildAuthStartUrl])
-
-  const openAccountCenter = useCallback((path: string = '/account') => {
-    const normalizedPath = path.startsWith('/') ? path : '/account'
-    window.location.href = `${accountsBaseUrl}${normalizedPath}`
-  }, [accountsBaseUrl])
+  // 계정(이메일·비밀번호·프로필 사진)은 구글이 관리한다 — path 는 myaccount.google.com 하위 경로
+  const openAccountCenter = useCallback((path: string = '/') => {
+    const normalizedPath = /^\/[a-z-]*$/.test(path) ? path : '/'
+    window.open(`https://myaccount.google.com${normalizedPath}`, '_blank', 'noopener,noreferrer')
+  }, [])
 
   const logout = async (): Promise<void> => {
     setIsLoading(true)

@@ -18,7 +18,7 @@ export function buildLocalAuthDisabledResponse(action: 'login' | 'register') {
   return NextResponse.json(
     {
       success: false,
-      error: `로컬 ${action === 'login' ? '로그인' : '회원가입'}은 비활성화되었습니다. DoubleJ SSO 연동 후 다시 활성화하세요.`,
+      error: `로컬 ${action === 'login' ? '로그인' : '회원가입'}은 비활성화되었습니다. Google 계정으로 로그인해주세요.`,
       authMode: getAuthMode(),
     },
     { status: 501 }

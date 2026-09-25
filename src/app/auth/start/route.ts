@@ -14,24 +14,23 @@ import {
 export const dynamic = 'force-dynamic'
 
 /**
- * OIDC sign-in entry point. Standard OAuth 2.0 Authorization Code + PKCE.
- *
- * We redirect the browser straight to `/oauth2/authorize` on the identity
- * server. The identity server is responsible for bouncing unauthenticated
- * users through the accounts sign-in UI and then back to the redirect_uri.
- * (Implemented by the platform's `parkAuthorizeForLogin` flow.)
+ * 구글 로그인 진입점. OAuth 2.0 Authorization Code + PKCE 로 구글 동의 화면에 보낸다.
  */
+function loginPathFor(callbackUrl: string): string {
+  return callbackUrl.startsWith('/wiki') ? '/wiki/login' : '/login'
+}
+
 export async function GET(request: NextRequest) {
+  const requestUrl = new URL(request.url)
+  const callbackUrl = sanitizeCallbackPath(requestUrl.searchParams.get('callbackUrl'), '/')
   try {
-    const requestUrl = new URL(request.url)
     const origin = resolvePublicOrigin(request)
     const missingEnvKeys = getMissingOidcEnvKeys()
     if (missingEnvKeys.length > 0) {
-      console.error(`OIDC 설정 누락: ${missingEnvKeys.join(', ')}`)
-      return NextResponse.redirect(new URL('/login?error=oidc_not_configured', origin))
+      console.error(`구글 로그인 설정 누락: ${missingEnvKeys.join(', ')}`)
+      return NextResponse.redirect(new URL(`${loginPathFor(callbackUrl)}?error=oidc_not_configured`, origin))
     }
 
-    const callbackUrl = sanitizeCallbackPath(requestUrl.searchParams.get('callbackUrl'), '/')
     const state = createAuthState()
     const { codeVerifier, codeChallenge } = createPkcePair()
     const authorizeUrl = buildAuthorizeUrl({
@@ -55,6 +54,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('OIDC 시작 처리 오류:', error)
     const origin = resolvePublicOrigin(request)
-    return NextResponse.redirect(new URL('/login?error=oidc_start_failed', origin))
+    return NextResponse.redirect(new URL(`${loginPathFor(callbackUrl)}?error=oidc_start_failed`, origin))
   }
 }

@@ -12,7 +12,6 @@ import {
   OIDC_STATE_COOKIE,
   exchangeAuthorizationCode,
   extractIdentity,
-  fetchOidcUserInfo,
   getMissingOidcEnvKeys,
   getOidcStateCookieOptions,
   parseOidcStateCookieValue,
@@ -28,8 +27,13 @@ function clearOidcStateCookie(response: NextResponse) {
   })
 }
 
+const WIKI_HOSTS = new Set(['irang.wiki', 'www.irang.wiki'])
+
 function redirectWithError(request: NextRequest, code: string) {
-  const url = new URL('/login', resolvePublicOrigin(request))
+  const origin = resolvePublicOrigin(request)
+  // 이랑위키 도메인에서 시작한 로그인은 위키 로그인 화면으로 돌려보낸다
+  const loginPath = WIKI_HOSTS.has(new URL(origin).hostname) ? '/wiki/login' : '/login'
+  const url = new URL(loginPath, origin)
   url.searchParams.set('error', code)
   return NextResponse.redirect(url)
 }
@@ -79,10 +83,15 @@ export async function GET(request: NextRequest) {
       codeVerifier: parsedState.codeVerifier,
     })
 
-    const userInfo = await fetchOidcUserInfo(tokenResponse.access_token)
-    const identity = extractIdentity(tokenResponse, userInfo)
+    const identity = extractIdentity(tokenResponse)
     if (!identity) {
       const response = redirectWithError(request, 'identity_not_found')
+      clearOidcStateCookie(response)
+      return response
+    }
+
+    if (!identity.email || !identity.emailVerified) {
+      const response = redirectWithError(request, 'email_not_verified')
       clearOidcStateCookie(response)
       return response
     }

@@ -6,18 +6,16 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
   ChevronLeft,
-  CreditCard,
   ExternalLink,
   Home,
   KeyRound,
   Link2,
   Lock,
-  LogIn,
   ShieldCheck,
   User,
-  UserPlus,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import {
   CaveatText,
   Handwritten,
@@ -36,11 +34,10 @@ const ACCOUNT_LINKS: Array<{
   icon: React.ComponentType<{ className?: string }>
   accent: LinkAccent
 }> = [
-  { label: '계정 홈', caption: '한눈에 보는 통합 계정', path: '/account', icon: Home, accent: 'coral' },
-  { label: '개인정보', caption: '이름·이메일·아바타', path: '/account/personal-info', icon: User, accent: 'sage' },
-  { label: '보안', caption: '비밀번호·2단계 인증', path: '/account/security', icon: Lock, accent: 'mustard' },
-  { label: '연결 관리', caption: '서드파티 앱·서비스', path: '/account/connections', icon: Link2, accent: 'coral' },
-  { label: '결제', caption: '구독·결제수단', path: '/account/billing', icon: CreditCard, accent: 'sage' },
+  { label: '계정 홈', caption: 'Google 계정 관리', path: '/', icon: Home, accent: 'coral' },
+  { label: '개인정보', caption: '이름·이메일·프로필 사진', path: '/personal-info', icon: User, accent: 'sage' },
+  { label: '보안', caption: '비밀번호·2단계 인증', path: '/security', icon: Lock, accent: 'mustard' },
+  { label: '연결 관리', caption: '이 사이트 연결 해제 등', path: '/connections', icon: Link2, accent: 'coral' },
 ]
 
 const accentToTextClass: Record<LinkAccent, string> = {
@@ -57,7 +54,7 @@ const accentToBgClass: Record<LinkAccent, string> = {
 
 export default function AccountSettingsPage() {
   const router = useRouter()
-  const { isLoggedIn, user, isLoading, startSignIn, startSignUp, openAccountCenter } = useAuth()
+  const { isLoggedIn, user, openAccountCenter } = useAuth()
 
   return (
     <div className="min-h-screen px-4 py-12 sm:py-16">
@@ -85,14 +82,13 @@ export default function AccountSettingsPage() {
           <PaperCard className="relative !p-0 overflow-visible">
             <TapeStrip className="tape--top" color="coral" />
             <div className="px-7 pb-7 pt-9 sm:px-9 sm:pb-9">
-              <CaveatText className="text-lg text-coral-500">DoubleJ Account Center</CaveatText>
+              <CaveatText className="text-lg text-coral-500">Google Account</CaveatText>
               <h1 className="display-han mt-1 text-3xl text-ink-500 sm:text-4xl">
-                <InkUnderline variant="coral">통합</InkUnderline> 계정 설정.
+                <InkUnderline variant="coral">내</InkUnderline> 계정 설정.
               </h1>
               <p className="mt-3 text-sm leading-relaxed text-ink-300">
-                로그인·회원가입·계정설정은 모두{' '}
-                <strong className="font-bold text-ink-500">accounts.doublej.app</strong>에서 통합 관리됩니다.
-                이 페이지는 계정센터 이동 링크만 제공해요.
+                로그인은 Google 계정으로 합니다. 이메일·비밀번호·프로필 사진은{' '}
+                <strong className="font-bold text-ink-500">myaccount.google.com</strong>에서 관리돼요.
               </p>
             </div>
           </PaperCard>
@@ -119,29 +115,11 @@ export default function AccountSettingsPage() {
                   <Pin color="sage" />
                 </div>
                 <p className="mt-4 text-sm leading-relaxed text-ink-300">
-                  서비스 로그인은 <Handwritten className="text-coral-500">/auth/start</Handwritten> 를 통해
-                  OIDC(PKCE) 흐름으로 시작됩니다.
+                  Google 계정으로 로그인하면 이 페이지에서 연결된 계정 정보를 볼 수 있어요.
                 </p>
 
-                <div className="mt-6 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className="ink-button justify-center"
-                    onClick={() => startSignIn('/settings/account')}
-                    disabled={isLoading}
-                  >
-                    <LogIn className="h-4 w-4" />
-                    로그인
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-button justify-center"
-                    onClick={() => startSignUp('/settings/account')}
-                    disabled={isLoading}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    회원가입
-                  </button>
+                <div className="mt-6">
+                  <GoogleSignInButton callbackUrl="/settings/account" />
                 </div>
               </div>
             </PaperCard>
@@ -189,7 +167,7 @@ export default function AccountSettingsPage() {
                   <button
                     type="button"
                     className="ink-button w-full justify-center"
-                    onClick={() => openAccountCenter('/account')}
+                    onClick={() => openAccountCenter('/')}
                   >
                     <ArrowRight className="h-4 w-4" />
                     계정센터 열기
@@ -225,22 +203,20 @@ export default function AccountSettingsPage() {
                 <div className="flex flex-wrap gap-x-2">
                   <dt className="font-semibold text-ink-500">인증 UI</dt>
                   <dd className="break-all">
-                    <Handwritten className="text-sage-500">accounts.doublej.app/signin</Handwritten>
-                    <span className="mx-1 text-ink-300">·</span>
-                    <Handwritten className="text-sage-500">/signup</Handwritten>
+                    <Handwritten className="text-sage-500">accounts.google.com</Handwritten>
                   </dd>
                 </div>
                 <div className="flex flex-wrap gap-x-2">
                   <dt className="font-semibold text-ink-500">계정 설정</dt>
                   <dd className="break-all">
-                    <Handwritten className="text-mustard-500">accounts.doublej.app/account/*</Handwritten>
+                    <Handwritten className="text-mustard-500">myaccount.google.com</Handwritten>
                   </dd>
                 </div>
               </dl>
 
               <p className="mt-4 text-xs leading-relaxed text-ink-300">
                 <KeyRound className="mr-1 inline h-3 w-3 align-[-2px] text-ink-300" />
-                랑구팸과 이랑위키는 자체 세션만 유지하고, 인증 소스는 DoubleJ 플랫폼을 사용합니다.
+                랑구팸과 이랑위키는 자체 세션만 유지하고, 인증은 Google 로그인(OpenID Connect)을 사용합니다. 기존 계정은 같은 이메일로 이어집니다.
               </p>
             </div>
           </PaperCard>
