@@ -10,7 +10,6 @@ import {
   Hammer,
   Package,
   Sparkles,
-  Swords,
   WandSparkles,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -22,7 +21,6 @@ import { RecentMemberCardActivity } from '@/components/ui/RecentMemberCardActivi
 import { TradeCenter } from '@/components/cards/TradeCenter'
 import { DogamGallery } from '@/components/cards/DogamGallery'
 import { CardHeist } from '@/components/cards/CardHeist'
-import { BattleTab } from '@/components/cards/battle/BattleTab'
 import {
   PaperCard,
   Handwritten,
@@ -45,7 +43,7 @@ const formatCountdown = (ms: number) => {
 export default function CardsPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<'inventory' | 'dogam' | 'crafting' | 'trade' | 'heist' | 'battle'>('inventory')
+  const [activeTab, setActiveTab] = useState<'inventory' | 'dogam' | 'crafting' | 'trade' | 'heist'>('inventory')
   const [timeUntilReset, setTimeUntilReset] = useState('24:00:00')
   const [nextResetLabel, setNextResetLabel] = useState('-')
 
@@ -55,7 +53,6 @@ export default function CardsPage() {
     { id: 'crafting' as const, label: '제작 랩', icon: Hammer, desc: '소재를 모아 프레스티지로' },
     { id: 'trade' as const, label: '교환소', icon: ArrowLeftRight, desc: '멤버와 카드를 맞교환' },
     { id: 'heist' as const, label: '강탈', icon: Dices, desc: '한 판에 뺏거나 뺏기거나' },
-    { id: 'battle' as const, label: '배틀', icon: Swords, desc: 'AI와 룬테라식 한 판' },
   ]
 
   useEffect(() => {
@@ -240,8 +237,6 @@ export default function CardsPage() {
             {activeTab === 'trade' && <TradeCenter userId={user?.id} />}
 
             {activeTab === 'heist' && <CardHeist userId={user?.id} />}
-
-            {activeTab === 'battle' && <BattleTab userId={user?.id} />}
           </motion.div>
         </section>
       </main>

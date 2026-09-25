@@ -1,47 +1,34 @@
 /**
- * 택틱스 사운드 매니저(싱글톤) — combatFx → SFX + 배경음악.
+ * 카드 개봉 연출 사운드 매니저(싱글톤) — SFX + 배경음악.
  *
  * - 브라우저 자동재생 정책: 유저 제스처(사운드 토글 클릭)로 setEnabled(true) 후에만 재생.
  * - 파일이 없거나(404) 정책에 막히면 play() 가 reject → 조용히 무시(무해). 에셋은 아래 경로에 드롭.
  * - SSR 안전: typeof Audio 가드(모듈 import 시 Audio 미접근).
  */
 const SFX: Record<string, string> = {
-  hit: '/assets/sfx/sfx_hit.mp3', // damage
-  death: '/assets/sfx/sfx_death.mp3', // unit death
-  nexus: '/assets/sfx/sfx_nexus.mp3', // nexus damage
   packOpen: '/assets/sfx/sfx_pack_open.mp3', // 가챠 팩 개봉(폭발)
   flip: '/assets/sfx/sfx_card_flip.mp3', // 카드 플립(스위시)
   rareAura: '/assets/sfx/sfx_rare_aura.mp3', // 레어/프레스티지 오라(공명)
 }
-const BGM_SRC = '/assets/sfx/bgm_battle.mp3'
 const SFX_VOLUME = 0.6
-const BGM_VOLUME = 0.32
 
 class SoundManager {
   private enabled = false
-  private bgm?: HTMLAudioElement
   private buffers: Record<string, HTMLAudioElement> = {} // 프리로드 템플릿(재생 시 clone)
 
   get isEnabled(): boolean {
     return this.enabled
   }
 
-  /** 유저 제스처에서 호출 — 활성/비활성. 활성 시 프리로드 + BGM 시작(전투용). */
-  setEnabled(on: boolean): void {
-    this.enabled = on
-    if (typeof Audio === 'undefined') return
-    if (on) {
-      this.preload()
-      this.startBgm()
-    } else {
-      this.stopBgm()
-    }
-  }
-
-  /** SFX만 활성(BGM 없음) — 가챠 등 비전투 화면용. 유저 제스처(개봉 클릭) 직후 호출. */
+  /** SFX만 활성 — 가챠 등 비전투 화면용. 유저 제스처(개봉 클릭) 직후 호출. */
   enableSfx(): void {
     this.enabled = true
     if (typeof Audio !== 'undefined') this.preload()
+  }
+
+  setEnabled(on: boolean): void {
+    this.enabled = on
+    if (on && typeof Audio !== 'undefined') this.preload()
   }
 
   /** SFX 1회 재생(겹침 허용 — clone). 비활성/파일없음 → 무시. */
@@ -57,20 +44,6 @@ class SoundManager {
     } catch {
       /* no-op */
     }
-  }
-
-  stopBgm(): void {
-    this.bgm?.pause()
-  }
-
-  private startBgm(): void {
-    if (typeof Audio === 'undefined' || !this.enabled) return
-    if (!this.bgm) {
-      this.bgm = new Audio(BGM_SRC)
-      this.bgm.loop = true
-      this.bgm.volume = BGM_VOLUME
-    }
-    void this.bgm.play().catch(() => {})
   }
 
   private preload(): void {

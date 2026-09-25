@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { getPreOpenImage, getRarityToken, handleCardImageError } from '@/lib/cardTheme'
-import { soundManager } from '@/lib/tactics/soundManager'
+import { soundManager } from '@/lib/soundManager'
 import { RarityChip } from './RarityChip'
 
 export interface OpenCard {
