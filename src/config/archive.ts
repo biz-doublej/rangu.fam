@@ -27,16 +27,16 @@ export type ArchiveAnniversary = {
 }
 
 /**
- * 메인에 표시할 기념일 기준일. 경과 N주년·N일째와 다음 기념일(N주년 / 100일 단위)까지의 D-day 를 보여준다.
- * 첫 항목이 크게, 나머지는 보조로 표시된다.
+ * 메인에 표시할 기념일. 몇 주년인지와 다음 주년까지의 D-day 를 보여준다.
+ * 결성일은 /api/site-history 의 "Rangu.fam 결성" 기록(2023-06-06)과 같다.
  */
 export const ARCHIVE_ANNIVERSARIES: ArchiveAnniversary[] = [
-  { label: 'Rangu.fam 사이트 오픈', date: '2025-07-27' },
+  { label: '랑구팸 결성', date: '2023-06-06' },
 ]
 
 export const ARCHIVE_MEMBERS = [
-  { name: '정재원', role: '개발 · 패션' },
-  { name: '정민석', role: '루체른 IMI' },
+  { name: '정재원', role: '에스넷시스템 삼성SDS AI연구원' },
+  { name: '정민석', role: '예지솔루션 취업' },
   { name: '정진규', role: '복무 중' },
   { name: '강한울', role: '철도차량시스템' },
   { name: '이승찬', role: '마술사' },

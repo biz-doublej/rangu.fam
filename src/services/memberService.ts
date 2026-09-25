@@ -81,7 +81,7 @@ export class MemberService {
       {
         id: 'jaewon',
         name: '정재원',
-        role: '소프트웨어 엔지니어, DoubleJ CEO',
+        role: '에스넷시스템 삼성SDS AI연구원',
         description: '코딩과 패션을 사랑하는 다재다능한 개발자입니다.',
         avatar: '/images/jaewon.jpg',
         email: 'jaewon@rangu.fam',
@@ -93,7 +93,7 @@ export class MemberService {
       {
         id: 'minseok',
         name: '정민석',
-        role: 'IMI 재학생',
+        role: '예지솔루션 취업',
         description: '스위스에서 새로운 꿈을 키워가고 있습니다.',
         avatar: '/images/minseok.jpg',
         email: 'minseok@rangu.fam',

@@ -27,43 +27,21 @@ function formatDate(ts: number): string {
   return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
-type Milestone = { label: string; at: number }
-
-/**
- * 한국식 기념일 계산 — 시작일이 1일째, 100일 = 시작일 + 99일, N주년 = N년 뒤 같은 날짜.
- * 100일 단위는 1000일까지, 이후엔 1000일 단위.
- */
+/** 몇 주년인지, 오늘이 주년 당일인지, 다음 주년까지 며칠인지 (KST 기준) */
 export function computeAnniversary(date: string, now: Date) {
   const start = parseYmd(date)
-  const startTs = utcDay(start)
   const today = kstToday(now)
-  const dayCount = Math.round((today - startTs) / DAY_MS) + 1 // 오늘이 몇 일째인지
 
   let years = 0
   while (today >= utcDay({ ...start, y: start.y + years + 1 })) years += 1
 
-  const upcoming: Milestone[] = []
-  const nextYear = years + 1
-  upcoming.push({ label: `${nextYear}주년`, at: utcDay({ ...start, y: start.y + nextYear }) })
-  const nextDayMilestone =
-    dayCount < 1000 ? Math.floor(dayCount / 100) * 100 + 100 : Math.floor(dayCount / 1000) * 1000 + 1000
-  upcoming.push({ label: `${nextDayMilestone.toLocaleString('ko-KR')}일`, at: startTs + (nextDayMilestone - 1) * DAY_MS })
-  upcoming.sort((a, b) => a.at - b.at)
-
-  const isToday = (ts: number) => ts === today
-  const todayMilestone =
-    years > 0 && isToday(utcDay({ ...start, y: start.y + years }))
-      ? `${years}주년`
-      : (dayCount % 100 === 0 && dayCount <= 1000) || dayCount % 1000 === 0
-        ? `${dayCount.toLocaleString('ko-KR')}일`
-        : null
+  const isAnniversaryToday = years > 0 && today === utcDay({ ...start, y: start.y + years })
+  const nextAt = utcDay({ ...start, y: start.y + years + 1 })
 
   return {
-    started: today >= startTs,
-    dayCount,
     years,
-    todayMilestone,
-    upcoming: upcoming.map((m) => ({ ...m, daysLeft: Math.round((m.at - today) / DAY_MS), date: formatDate(m.at) })),
+    isAnniversaryToday,
+    next: { years: years + 1, date: formatDate(nextAt), daysLeft: Math.round((nextAt - today) / DAY_MS) },
   }
 }
 
@@ -81,30 +59,20 @@ export function AnniversaryCounter({ anniversaries }: { anniversaries: ArchiveAn
     <div className="archive-dday">
       {anniversaries.map((a, index) => {
         const info = now ? computeAnniversary(a.date, now) : null
-        const headline = !info
-          ? ' '
-          : info.todayMilestone
-            ? `오늘 ${info.todayMilestone}`
-            : info.years > 0
-              ? `${info.years}주년`
-              : `${info.dayCount.toLocaleString('ko-KR')}일째`
         return (
           <section key={a.label} className={index > 0 ? 'archive-dday__item archive-dday__item--sub' : 'archive-dday__item'}>
             <p className="archive-dday__label">{a.label}</p>
-            <p className="archive-dday__value" aria-live="polite">{headline}</p>
-            <p className="archive-dday__date">
-              {a.date.replace(/-/g, '.')}
-              {info && info.years > 0 && ` · ${info.dayCount.toLocaleString('ko-KR')}일째`}
+            <p className="archive-dday__value" aria-live="polite">
+              {!info ? ' ' : info.isAnniversaryToday ? `오늘 ${info.years}주년` : info.years > 0 ? `${info.years}주년` : '곧 1주년'}
             </p>
-            {info && (
+            <p className="archive-dday__date">{a.date.replace(/-/g, '.')}</p>
+            {info && !info.isAnniversaryToday && (
               <ul className="archive-dday__rest">
-                {info.upcoming.map((m) => (
-                  <li key={m.label}>
-                    <span>{m.label}</span>
-                    <span className="archive-dday__rest-value">D-{m.daysLeft.toLocaleString('ko-KR')}</span>
-                    <span>{m.date}</span>
-                  </li>
-                ))}
+                <li>
+                  <span>{info.next.years}주년까지</span>
+                  <span className="archive-dday__rest-value">D-{info.next.daysLeft.toLocaleString('ko-KR')}</span>
+                  <span>{info.next.date}</span>
+                </li>
               </ul>
             )}
           </section>
