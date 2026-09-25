@@ -25,7 +25,6 @@ const Footer: React.FC = () => {
   const services = [
     { name: '랑구팸', description: '친구 다섯의 종이 한 장', href: '/' },
     { name: '이랑위키', description: '우리만의 기록을 모으는 위키', href: BRANDING.wikiPublicUrl },
-    { name: '랑구대학', description: 'University 브랜드 랜딩', href: '/university' },
   ]
 
   return (

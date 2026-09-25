@@ -23,10 +23,8 @@ import {
   Network,
   HelpCircle,
   FileText,
-  Star,
   Bell,
   Edit,
-  Folder,
   Trophy,
   Info,
   Users,
@@ -54,7 +52,6 @@ type ActiveNav =
   | 'graph'
   | 'help'
   | 'mod'
-  | 'workshop'
 
 interface WikiShellProps {
   children: React.ReactNode
@@ -92,8 +89,6 @@ const HELP_LINKS = [
 ]
 
 const TOOL_LINKS = [
-  { label: '작업공작소', href: '/wiki/workshop', icon: FileText },
-  { label: '50호 시상식', href: '/wiki/workshop/awards-2025', icon: Star },
   { label: '내 감시 목록', href: '/wiki/watchlist', icon: Bell },
   { label: '기여자', href: '/wiki/contributors', icon: Trophy }
 ]
@@ -654,14 +649,6 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
               >
                 <Home className="w-4 h-4 opacity-70" />
                 <span>{BRANDING.brandSite}</span>
-              </a>
-              <a
-                href="https://rangu-fam.com/university"
-                rel="noopener"
-                className="cursor-pointer"
-              >
-                <Folder className="w-4 h-4 opacity-70" />
-                <span>랑구대학</span>
               </a>
             </nav>
           </aside>

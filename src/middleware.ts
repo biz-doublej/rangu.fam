@@ -6,7 +6,6 @@ import {
   matchesPrefix,
 } from '@/config/archive'
 
-const UNIVERSITY_HOSTS = new Set(['university.rangu.com', 'www.university.rangu.com'])
 const WIKI_HOSTS = new Set(['irang.wiki', 'www.irang.wiki'])
 
 /**
@@ -50,7 +49,7 @@ function isPublicAssetPath(pathname: string): boolean {
  * 메인 도메인(rangu-fam.com)에 정의된 페이지 라우트.
  * 위키/대학교/멤버 호스트로 잘못 들어왔을 때 메인 도메인으로 redirect 시키기 위함.
  *
- * (`/wiki`, `/m/`, `/university` 는 각 호스트가 자체 처리하므로 제외.)
+ * (`/wiki`, `/m/` 는 각 호스트가 자체 처리하므로 제외.)
  */
 const MAIN_DOMAIN_PREFIXES = [
   '/settings',
@@ -61,7 +60,6 @@ const MAIN_DOMAIN_PREFIXES = [
   '/admin',
   '/privacy',
   '/terms',
-  '/university',
 ]
 
 function isMainDomainPath(pathname: string): boolean {
@@ -88,17 +86,6 @@ export function middleware(request: NextRequest) {
       homeUrl.search = ''
       return NextResponse.redirect(homeUrl, 307)
     }
-  }
-
-  // university.rangu.com → /university (기존)
-  if (UNIVERSITY_HOSTS.has(host)) {
-    if (pathname.startsWith('/university') || isPublicAssetPath(pathname)) {
-      return NextResponse.next()
-    }
-    const rewriteUrl = request.nextUrl.clone()
-    rewriteUrl.pathname = '/university'
-    rewriteUrl.search = search
-    return NextResponse.rewrite(rewriteUrl)
   }
 
   // irang.wiki → /wiki/* (host 라우팅)

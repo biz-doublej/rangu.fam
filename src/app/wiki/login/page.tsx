@@ -21,7 +21,7 @@ export default function WikiLoginPage() {
           hatnote={
             <>
               아직 계정이 없다면 <strong>통합 회원가입</strong>으로 무료 계정을 만들 수 있습니다.
-              계정은 랑구팸 / 랑구대학과 공유됩니다.
+              계정은 랑구팸과 공유됩니다.
             </>
           }
         />

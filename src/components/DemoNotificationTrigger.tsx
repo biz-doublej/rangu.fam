@@ -9,8 +9,6 @@ export const DemoNotificationTrigger = () => {
   const pathname = usePathname()
 
   useEffect(() => {
-    if (pathname?.startsWith('/university')) return
-
     // 환영 알림이 이미 표시되었는지 체크
     const hasShownWelcome = localStorage.getItem('welcome-notification-shown')
     

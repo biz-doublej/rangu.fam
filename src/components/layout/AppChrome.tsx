@@ -8,11 +8,10 @@ import { DemoNotificationTrigger } from '@/components/DemoNotificationTrigger'
 import { GiftBoxLayer } from '@/components/GiftBoxLayer'
 import { RANGU_ARCHIVE_MODE } from '@/config/archive'
 
-type Section = 'rangu' | 'archive' | 'wiki' | 'university' | 'admin' | 'member'
+type Section = 'rangu' | 'archive' | 'wiki' | 'admin' | 'member'
 
 function detectSection(pathname: string | null): Section {
   if (!pathname) return 'rangu'
-  if (pathname.startsWith('/university')) return 'university'
   if (pathname.startsWith('/wiki')) return 'wiki'
   if (pathname.startsWith('/admin')) return 'admin'
   if (pathname.startsWith('/m/')) return 'member'
@@ -24,7 +23,6 @@ function detectSection(pathname: string | null): Section {
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const section = detectSection(pathname)
-  const isUniversity = section === 'university'
   const isMember = section === 'member'
   const isRangu = section === 'rangu'
   const isArchive = section === 'archive'
@@ -48,12 +46,12 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative" data-section={section}>
-      {!isUniversity && !RANGU_ARCHIVE_MODE && <DemoNotificationTrigger />}
+      {!RANGU_ARCHIVE_MODE && <DemoNotificationTrigger />}
       {children}
       {/* 랜덤 선물상자 — 랑구팸 메인 페이지에서만 (위키/멤버/대학/관리자 제외) */}
       {isRangu && !RANGU_ARCHIVE_MODE && <GiftBoxLayer />}
-      {!isUniversity && <Footer />}
-      {!isUniversity && (
+      <Footer />
+      {(
         <Toaster
           position="top-center"
           toastOptions={{

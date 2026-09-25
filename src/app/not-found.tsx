@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Compass, Home, Search } from 'lucide-react'
+import { ArrowLeft, BookOpen, Home, Search } from 'lucide-react'
 import { BRANDING } from '@/config/branding'
 
 export default function NotFound() {
@@ -97,19 +97,6 @@ export default function NotFound() {
 
         {/* 추가 링크 */}
         <div className="text-sm text-stone-500 flex flex-wrap items-center justify-center gap-4">
-          <Link href="/about" className="hover:text-stone-800 hover:underline inline-flex items-center gap-1">
-            <Compass className="w-3.5 h-3.5" />
-            소개
-          </Link>
-          <Link href="/members" className="hover:text-stone-800 hover:underline">
-            멤버
-          </Link>
-          <Link href="/cards" className="hover:text-stone-800 hover:underline">
-            카드
-          </Link>
-          <Link href="/university" className="hover:text-stone-800 hover:underline">
-            랑구대학교
-          </Link>
           <Link
             href="/wiki/search"
             className="hover:text-stone-800 hover:underline inline-flex items-center gap-1"

@@ -67,7 +67,6 @@ const CATALOG: Group[] = [
       { method: 'GET·POST', path: '/api/wiki/discussions', desc: '토론' },
       { method: 'GET·POST', path: '/api/wiki/watchlist', desc: '워치리스트' },
       { method: 'POST', path: '/api/wiki/spell-check', desc: '맞춤법 검사' },
-      { method: 'GET', path: '/api/wiki/workshop', desc: '워크샵' },
       { method: 'POST', path: '/api/wiki/files/upload', desc: '위키 파일 업로드' },
       { method: 'GET', path: '/api/wiki/users', desc: '위키 사용자' },
     ],

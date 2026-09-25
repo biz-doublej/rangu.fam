@@ -72,7 +72,6 @@ interface WikiPageData {
 }
 
 const TEMPLATE_CATEGORIES = ['인물', '학교', '게임', '음악', '연구', '케미', '개발', '내각', '스포츠', '기업']
-const LEGACY_CEREMONY_SLUG = '50호 기념 2025 시상식'
 
 // 위키 페이지 별칭 — DB에 문서가 없어도 적절한 곳으로 안내
 const PAGE_ALIASES: Record<string, string> = {
@@ -122,11 +121,6 @@ export default function WikiDocumentPage() {
 
   const rawSlug = Array.isArray(params.slug) ? params.slug.join('/') : params.slug || ''
   const slug = decodeURIComponent(rawSlug)
-
-  // Legacy redirect: 50호 시상식
-  useEffect(() => {
-    if (slug === LEGACY_CEREMONY_SLUG) router.replace('/wiki/workshop/awards-2025')
-  }, [slug, router])
 
   const [currentPage, setCurrentPage] = useState<WikiPageData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -263,7 +257,7 @@ export default function WikiDocumentPage() {
       // Skip section links / anchors / category-prefix that never resolve as a doc.
       if (!href.startsWith('/wiki/')) return false
       if (href.includes('#')) return false
-      if (/^\/wiki\/(category|search|recent|workshop|random|main|mod|login|register)(\b|\/)/i.test(href)) return false
+      if (/^\/wiki\/(category|search|recent|random|main|mod|login|register)(\b|\/)/i.test(href)) return false
       return true
     })
 
@@ -355,7 +349,6 @@ export default function WikiDocumentPage() {
   useEffect(() => {
     const load = async () => {
       if (!slug) { setIsLoading(false); return }
-      if (slug === LEGACY_CEREMONY_SLUG) { setIsLoading(false); return }
 
       // 별칭 처리 — DB lookup 전에 즉시 리디렉트
       const aliasTarget = PAGE_ALIASES[slug]

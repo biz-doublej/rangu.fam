@@ -16,7 +16,6 @@ const STATIC_RANGU_PAGES: Array<{ path: string; priority: number; changeFrequenc
   { path: '/about', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/members', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/cards', priority: 0.7, changeFrequency: 'daily' },
-  { path: '/university', priority: 0.7, changeFrequency: 'monthly' },
   { path: '/login', priority: 0.3, changeFrequency: 'yearly' },
   { path: '/privacy', priority: 0.3, changeFrequency: 'yearly' },
   { path: '/terms', priority: 0.3, changeFrequency: 'yearly' },
