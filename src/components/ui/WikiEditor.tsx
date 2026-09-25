@@ -11,7 +11,7 @@ import {
 import NamuWikiRenderer from './NamuWikiRenderer'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { COLOR_PICKER_PALETTE, normalizeColor, isValidHexColor } from '@/lib/tableColors'
-import { EDITOR_TEMPLATES } from '@/components/wiki/editor/templates'
+import { BLANK_PATTERN, EDITOR_TEMPLATE_GROUPS, type EditorTemplate } from '@/components/wiki/editor/templates'
 import { SyntaxHelp } from '@/components/wiki/editor/SyntaxHelp'
 
 type EditorMode = 'write' | 'split' | 'preview'
@@ -33,7 +33,7 @@ interface WikiEditorProps {
   onMinorEditChange?: (isMinor: boolean) => void
   saveLabel?: string
   /** 템플릿: 네임스페이스에 저장된 분야별 템플릿 (예: 인물, 학교) */
-  templateCategories?: string[]
+  templateCategoryGroups?: Array<{ label: string; categories: string[] }>
   onLoadTemplateCategory?: (category: string) => void
   onOpenFullHelp?: () => void
   showPreview?: boolean
@@ -84,7 +84,15 @@ type MenuItem =
   | { kind: 'heading'; label: string }
   | { kind: 'divider' }
 
-function ToolMenu({ icon: Icon, label, items }: { icon: React.ElementType; label: string; items: MenuItem[] }) {
+function ToolMenu({
+  icon: Icon, label, items = [], panel,
+}: {
+  icon: React.ElementType
+  label: string
+  items?: MenuItem[]
+  /** 목록 대신 자유 배치 패널을 그린다 — close() 로 닫기 */
+  panel?: (close: () => void) => React.ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -117,7 +125,12 @@ function ToolMenu({ icon: Icon, label, items }: { icon: React.ElementType; label
         <span>{label}</span>
         <ChevronDown className="h-3 w-3 opacity-60" aria-hidden="true" />
       </button>
-      {open && (
+      {open && panel && (
+        <div role="dialog" aria-label={label} className="wiki-editor__menu wiki-editor__menu--panel">
+          {panel(() => setOpen(false))}
+        </div>
+      )}
+      {open && !panel && (
         <div role="menu" className="wiki-editor__menu">
           {items.map((item, i) => {
             if (item.kind === 'divider') return <div key={i} className="wiki-editor__menu-divider" />
@@ -166,7 +179,7 @@ export default function WikiEditor({
   isMinorEdit = false,
   onMinorEditChange,
   saveLabel,
-  templateCategories = [],
+  templateCategoryGroups = [],
   onLoadTemplateCategory,
   onOpenFullHelp,
   showPreview = false,
@@ -191,6 +204,7 @@ export default function WikiEditor({
   const [draft, setDraft] = useState<{ content: string; savedAt: number } | null>(null)
 
   const lineCount = useMemo(() => content.split('\n').length, [content])
+  const blankCount = useMemo(() => content.match(BLANK_PATTERN)?.length ?? 0, [content])
   const draftKey = `${DRAFT_PREFIX}${documentTitle || title}`
   const lockedByOther = Boolean(lockedBy && lockedBy !== wikiUser?.username)
 
@@ -318,14 +332,29 @@ export default function WikiEditor({
 
   /* ── 템플릿 ── */
 
-  const insertTemplate = (key: string) => {
-    const template = EDITOR_TEMPLATES[key]
-    if (!template) return
+  /** 커서 뒤(끝이면 처음부터)의 다음 `{…채워주세요}` 빈칸을 선택한다. 찾으면 true */
+  const selectNextBlank = (text: string = content, from?: number): boolean => {
+    const textarea = textareaRef.current
+    if (!textarea) return false
+    const start = from ?? textarea.selectionEnd
+    const matches = Array.from(text.matchAll(BLANK_PATTERN))
+    const next = matches.find((m) => (m.index ?? 0) >= start) ?? matches[0]
+    if (!next || next.index === undefined) return false
+    const lineHeight = 24 // .wiki-editor__textarea line-height 1.5rem
+    const line = text.substring(0, next.index).split('\n').length - 1
+    restoreCaret(next.index, next.index + next[0].length, Math.max(0, line * lineHeight - textarea.clientHeight / 3))
+    return true
+  }
+
+  const insertTemplate = (template: EditorTemplate) => {
     const textarea = textareaRef.current
     const start = textarea?.selectionStart ?? content.length
     const end = textarea?.selectionEnd ?? content.length
-    onChange(content.substring(0, start) + template.template + content.substring(end))
-    restoreCaret(start, start + template.template.length)
+    const prefix = start > 0 && content[start - 1] !== '\n' ? '\n' : ''
+    const next = content.substring(0, start) + prefix + template.template + content.substring(end)
+    onChange(next)
+    // 넣자마자 첫 빈칸을 선택해 바로 입력할 수 있게
+    if (!selectNextBlank(next, start)) restoreCaret(start + prefix.length + template.template.length)
   }
 
   /* ── 맞춤법 ── */
@@ -371,8 +400,9 @@ export default function WikiEditor({
       alert(`${lockedBy}님이 편집 중인 문서라 지금은 저장할 수 없습니다.`)
       return
     }
+    if (blankCount > 0 && !confirm(`아직 채우지 않은 빈칸이 ${blankCount}개 있습니다. 그대로 저장할까요?`)) return
     onSave()
-  }, [onSave, lockedByOther, lockedBy])
+  }, [onSave, lockedByOther, lockedBy, blankCount])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey || e.metaKey) {
@@ -386,7 +416,8 @@ export default function WikiEditor({
     }
     if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault()
-      insertText('  ', '', false)
+      // 템플릿 빈칸이 남아 있으면 Tab 은 다음 빈칸으로 이동, 없으면 들여쓰기
+      if (blankCount === 0 || !selectNextBlank()) insertText('  ', '', false)
     }
     if (e.key === 'Escape' && isFocusMode) setIsFocusMode(false)
   }
@@ -508,21 +539,63 @@ export default function WikiEditor({
     { kind: 'item', label: '글꼴 지정', icon: Type, onSelect: () => insertText('{{{font:"Noto Sans KR" ', '}}}') },
   ]
 
-  const templateMenu: MenuItem[] = [
-    { kind: 'heading', label: '기본 틀 (커서 위치에 삽입)' },
-    ...Object.entries(EDITOR_TEMPLATES).map(([key, t]) => ({
-      kind: 'item' as const, label: t.name, icon: t.icon, onSelect: () => insertTemplate(key),
-    })),
-    ...(templateCategories.length && onLoadTemplateCategory
-      ? [
-          { kind: 'divider' as const },
-          { kind: 'heading' as const, label: '분야별 템플릿 (본문 전체 교체)' },
-          ...templateCategories.map((category) => ({
-            kind: 'item' as const, label: category, icon: FileText, onSelect: () => onLoadTemplateCategory(category),
-          })),
-        ]
-      : []),
-  ]
+  const templatePanel = (close: () => void) => (
+    <div className="wiki-editor__templates">
+      {EDITOR_TEMPLATE_GROUPS.map((group) => (
+        <section key={group.label}>
+          <p className="wiki-editor__menu-heading">{group.label} · 커서 위치에 넣기</p>
+          <div className="grid gap-0.5">
+            {group.items.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  close()
+                  insertTemplate(t)
+                }}
+                className="wiki-editor__template"
+              >
+                <t.icon className="h-4 w-4 shrink-0 text-[color:var(--wiki-accent)]" aria-hidden="true" />
+                <span className="min-w-0 text-left">
+                  <span className="block text-sm font-medium text-[color:var(--wiki-ink)]">{t.name}</span>
+                  <span className="block truncate text-xs text-[color:var(--wiki-ink-muted)]">{t.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+      {templateCategoryGroups.length > 0 && onLoadTemplateCategory && (
+        <section>
+          <div className="wiki-editor__menu-divider" />
+          <p className="wiki-editor__menu-heading">분야별 템플릿 · 본문 전체를 바꿉니다</p>
+          <div className="space-y-2 px-2.5 pb-2 pt-1">
+            {templateCategoryGroups.map((group) => (
+              <div key={group.label} className="flex items-start gap-2">
+                <span className="w-16 shrink-0 pt-0.5 text-xs text-[color:var(--wiki-ink-faint)]">{group.label}</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.categories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => {
+                        close()
+                        onLoadTemplateCategory(category)
+                      }}
+                      className="wiki-chip hover:border-[color:var(--wiki-accent-line)] hover:text-[color:var(--wiki-accent)]"
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
 
   /* ── 렌더 ── */
 
@@ -631,7 +704,7 @@ export default function WikiEditor({
           <ToolDivider />
           <ToolMenu icon={Table} label="표" items={tableMenu} />
           <ToolMenu icon={Blocks} label="블록" items={blockMenu} />
-          <ToolMenu icon={FileText} label="템플릿" items={templateMenu} />
+          <ToolMenu icon={FileText} label="템플릿" panel={templatePanel} />
           <span className="ml-auto flex items-center gap-0.5">
             <ToolButton
               icon={SpellCheck}
@@ -662,6 +735,18 @@ export default function WikiEditor({
           <span>
             <strong>{lockedBy}</strong>님이 이 문서를 편집 중입니다. 편집이 끝날 때까지(최대 10분) 저장할 수 없어요.
           </span>
+        </div>
+      )}
+      {blankCount > 0 && mode !== 'preview' && (
+        <div className="wiki-mbox wiki-mbox--info wiki-editor__notice">
+          <PenLine className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--wiki-accent)]" aria-hidden="true" />
+          <span className="flex-1">
+            채워야 할 빈칸이 <strong>{blankCount}개</strong> 남았어요.{' '}
+            <code className="wiki-editor__code">{'{○○을 채워주세요}'}</code> 부분을 알맞은 내용으로 바꿔주세요.
+          </span>
+          <button type="button" className="wiki-editor__btn shrink-0" onClick={() => selectNextBlank()}>
+            다음 빈칸 <kbd className="text-xs text-[color:var(--wiki-ink-faint)]">Tab</kbd>
+          </button>
         </div>
       )}
       {draft && (

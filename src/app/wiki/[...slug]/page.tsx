@@ -71,7 +71,12 @@ interface WikiPageData {
   updatedAt?: string
 }
 
-const TEMPLATE_CATEGORIES = ['인물', '학교', '게임', '음악', '연구', '케미', '개발', '내각', '스포츠', '기업']
+// 네임스페이스 "템플릿:<분야>" 문서들 — 편집기 템플릿 메뉴에 묶어서 보여준다
+const TEMPLATE_CATEGORY_GROUPS = [
+  { label: '사람·관계', categories: ['인물', '케미', '내각'] },
+  { label: '단체', categories: ['학교', '기업'] },
+  { label: '활동', categories: ['게임', '음악', '스포츠', '연구', '개발'] },
+]
 
 // 위키 페이지 별칭 — DB에 문서가 없어도 적절한 곳으로 안내
 const PAGE_ALIASES: Record<string, string> = {
@@ -1410,7 +1415,7 @@ export default function WikiDocumentPage() {
           isMinorEdit={isMinorEdit}
           onMinorEditChange={currentPage ? setIsMinorEdit : undefined}
           saveLabel={currentPage ? '변경 사항 저장' : '새 문서 만들기'}
-          templateCategories={TEMPLATE_CATEGORIES}
+          templateCategoryGroups={TEMPLATE_CATEGORY_GROUPS}
           onLoadTemplateCategory={loadTemplateByType}
           onOpenFullHelp={() => router.push('/wiki/이랑위키:도움말_2026')}
         />
