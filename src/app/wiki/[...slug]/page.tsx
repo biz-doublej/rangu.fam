@@ -131,6 +131,7 @@ export default function WikiDocumentPage() {
 
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
+  const [isMinorEdit, setIsMinorEdit] = useState(false)
   const [currentRevision, setCurrentRevision] = useState<number | null>(null)
 
   const [revisions, setRevisions] = useState<any[]>([])
@@ -197,8 +198,6 @@ export default function WikiDocumentPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [lightbox])
 
-  const [templateType, setTemplateType] = useState('')
-  const [templateCommand, setTemplateCommand] = useState('')
 
   const [showFunctionsModal, setShowFunctionsModal] = useState(false)
   const [scanlinesOn, setScanlinesOn] = useState(false)
@@ -465,6 +464,7 @@ export default function WikiDocumentPage() {
         content: editContent,
         summary: editSummary || '문서 편집',
         editSummary: editSummary || '문서 편집',
+        isMinorEdit: currentPage ? isMinorEdit : false,
         namespace: currentPage?.namespace || 'main',
         expectedRevision: currentPage ? currentRevision : undefined,
         categories: categories.length > 0 ? categories : undefined
@@ -570,14 +570,6 @@ export default function WikiDocumentPage() {
     } catch {
       alert('템플릿 불러오기 중 오류가 발생했습니다.')
     }
-  }
-
-  const handleTemplateCommand = async () => {
-    const cmd = templateCommand.trim()
-    if (!cmd) return
-    const m = cmd.match(/^\/(템플릿|template)\s+(.+)$/i)
-    if (m) await loadTemplateByType(m[2].trim())
-    else alert('명령어 형식: /템플릿 인물')
   }
 
   const handleAddDiscussion = async () => {
@@ -1090,13 +1082,10 @@ export default function WikiDocumentPage() {
           />
           <div className="flex-1">
             <p
-              className="text-[10px] mb-1"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                color: currentPage ? 'var(--wiki-danger)' : 'var(--wiki-cyan)'
-              }}
+              className="mb-1 text-xs font-semibold"
+              style={{ color: currentPage ? 'var(--wiki-danger)' : 'var(--wiki-accent)' }}
             >
-              {currentPage ? '// ERROR' : '// NEW · DOC NOT FOUND'}
+              {currentPage ? '오류' : '아직 없는 문서'}
             </p>
             <p className="leading-relaxed">
               {currentPage
@@ -1408,100 +1397,23 @@ export default function WikiDocumentPage() {
 
       {/* ─────── 편집 탭 ─────── */}
       {activeTab === 'edit' && (
-        <div className="space-y-4">
-          {/* 템플릿 헬퍼 */}
-          <section className="wiki-panel">
-            <h3 className="wiki-serif text-base font-semibold mb-2">템플릿 불러오기</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-              <div>
-                <label className="block text-xs text-[color:var(--wiki-ink-muted)] mb-1">분야</label>
-                <select
-                  value={templateType}
-                  onChange={(e) => setTemplateType(e.target.value)}
-                  className="w-full bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule-strong)] rounded-sm px-2 py-1.5 text-sm text-[color:var(--wiki-ink)]"
-                >
-                  <option value="">선택하세요</option>
-                  {TEMPLATE_CATEGORIES.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs text-[color:var(--wiki-ink-muted)] mb-1">명령어 (예: /템플릿 인물)</label>
-                <div className="flex gap-2">
-                  <input
-                    value={templateCommand}
-                    onChange={(e) => setTemplateCommand(e.target.value)}
-                    placeholder="/템플릿 인물"
-                    className="flex-1 bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule-strong)] rounded-sm px-2 py-1.5 text-sm text-[color:var(--wiki-ink)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTemplateCommand}
-                    className="rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] px-3 py-1.5 text-xs font-medium text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]"
-                  >
-                    불러오기
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="mt-2">
-              <button
-                type="button"
-                onClick={() => loadTemplateByType(templateType)}
-                disabled={!templateType}
-                className="rounded-sm bg-[color:var(--wiki-accent)] px-3 py-1.5 text-xs font-medium text-[#fff] hover:opacity-90 disabled:opacity-50"
-              >
-                선택한 템플릿 적용
-              </button>
-            </div>
-            <p className="mt-2 text-[11px] text-[color:var(--wiki-ink-muted)]">
-              자세한 사용법은{' '}
-              <button
-                type="button"
-                onClick={() => router.push('/wiki/이랑위키:도움말_2026')}
-                className="text-[color:var(--wiki-link)] hover:underline"
-              >
-                편집 도움말 (2026)
-              </button>
-              에서 확인할 수 있습니다.
-            </p>
-          </section>
-
-          <WikiEditor
-            content={editContent}
-            onChange={setEditContent}
-            onSave={handleSave}
-            title={currentPage ? `${currentPage.title} 편집` : `${slug} 생성`}
-            showPreview={false}
-          />
-
-          <section className="wiki-panel">
-            <label className="block text-xs text-[color:var(--wiki-ink-muted)] mb-1">편집 요약</label>
-            <Input
-              value={editSummary}
-              onChange={(e) => setEditSummary(e.target.value)}
-              placeholder="변경 내용을 간단히 설명해 주세요."
-              className="bg-[color:var(--wiki-bg-2)] border-[color:var(--wiki-rule-strong)] text-[color:var(--wiki-ink)]"
-            />
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="rounded-sm bg-[color:var(--wiki-accent)] px-4 py-1.5 text-sm font-medium text-[#fff] hover:opacity-90"
-              >
-                {currentPage ? '변경 사항 저장' : '새 문서 생성'}
-              </button>
-              <button
-                type="button"
-                onClick={() => currentPage ? setActiveTab('document') : router.push('/wiki')}
-                className="rounded-sm border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] px-4 py-1.5 text-sm text-[color:var(--wiki-ink-soft)] hover:border-[color:var(--wiki-accent)]"
-              >
-                취소
-              </button>
-            </div>
-          </section>
-        </div>
+        <WikiEditor
+          content={editContent}
+          onChange={setEditContent}
+          onSave={handleSave}
+          onCancel={() => (currentPage ? setActiveTab('document') : router.push('/wiki'))}
+          title={currentPage ? `${currentPage.title} 편집` : `${slug} 만들기`}
+          documentTitle={currentPage?.title}
+          isNewDocument={!currentPage}
+          summary={editSummary}
+          onSummaryChange={setEditSummary}
+          isMinorEdit={isMinorEdit}
+          onMinorEditChange={currentPage ? setIsMinorEdit : undefined}
+          saveLabel={currentPage ? '변경 사항 저장' : '새 문서 만들기'}
+          templateCategories={TEMPLATE_CATEGORIES}
+          onLoadTemplateCategory={loadTemplateByType}
+          onOpenFullHelp={() => router.push('/wiki/이랑위키:도움말_2026')}
+        />
       )}
 
       {/* ─────── 역사 탭 ─────── */}

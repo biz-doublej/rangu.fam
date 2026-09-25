@@ -1,634 +1,350 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { motion } from 'framer-motion'
-import { 
-  Bold, Italic, Underline, Strikethrough, Link, 
-  Image as ImageIcon, Code, Quote, List, ListOrdered, 
-  Heading1, Heading2, Heading3, Eye, EyeOff,
-  Save, Undo, Redo, HelpCircle, Palette,
-  Plus, Minus, Hash, Type, Link2, FileText, 
-  User, Users, Bookmark, Layout, AlignLeft, AlignCenter, AlignRight,
-  Table, TableProperties, Columns, Menu, ChevronDown, ChevronRight,
-  Superscript, Subscript, CheckCircle, X, PaintBucket, AlertCircle,
-  Calendar, BarChart3
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  AlertCircle, AlignCenter, AlignLeft, AlignRight, BarChart3, Blocks, Bold, Calendar, CheckCircle,
+  ChevronDown, ChevronRight, Code, FileText, Hash, Heading1, Heading2, Heading3, HelpCircle,
+  Image as ImageIcon, Info, Italic, Link, Link2, List, ListOrdered, ListTree, Maximize2, Minimize2,
+  Minus, Palette, PaintBucket, PenLine, Quote, Save, SpellCheck, Strikethrough, Subscript, Superscript,
+  Table, Tag, Type, Underline, X
 } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import NamuWikiRenderer from './NamuWikiRenderer'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
-import {
-  COLOR_PICKER_PALETTE,
-  normalizeColor,
-  isValidHexColor
-} from '@/lib/tableColors'
+import { COLOR_PICKER_PALETTE, normalizeColor, isValidHexColor } from '@/lib/tableColors'
+import { EDITOR_TEMPLATES } from '@/components/wiki/editor/templates'
+import { SyntaxHelp } from '@/components/wiki/editor/SyntaxHelp'
+
+type EditorMode = 'write' | 'split' | 'preview'
 
 interface WikiEditorProps {
   content: string
   onChange: (content: string) => void
   onSave?: () => void
+  onCancel?: () => void
+  /** 편집기 머리에 보이는 제목 */
   title?: string
+  /** 실제 문서 제목 — 편집 잠금·임시 저장 키. 새 문서면 생략 */
+  documentTitle?: string
+  isNewDocument?: boolean
+  /** 편집 요약 — 넘기면 하단 저장 영역에 요약 입력이 나온다 */
+  summary?: string
+  onSummaryChange?: (summary: string) => void
+  isMinorEdit?: boolean
+  onMinorEditChange?: (isMinor: boolean) => void
+  saveLabel?: string
+  /** 템플릿: 네임스페이스에 저장된 분야별 템플릿 (예: 인물, 학교) */
+  templateCategories?: string[]
+  onLoadTemplateCategory?: (category: string) => void
+  onOpenFullHelp?: () => void
   showPreview?: boolean
   className?: string
 }
 
-interface ToolbarButton {
+type SpellResult = { word: string; suggestions: string[]; position: number }
+
+const EDITOR_PLACEHOLDER = `여기에 문서 내용을 작성하세요.
+
+== 개요 ==
+'''굵게''', ''기울임'', [[다른 문서]] 링크, [*] 각주를 쓸 수 있습니다.
+툴바의 ? 버튼에서 문법 요약을 볼 수 있어요.`
+
+const DRAFT_PREFIX = 'wiki-editor-draft:'
+
+/* ── 툴바 부품 ───────────────────────────────────────── */
+
+function ToolButton({
+  icon: Icon, label, shortcut, onClick, active = false, disabled = false,
+}: {
   icon: React.ElementType
   label: string
-  action: () => void
   shortcut?: string
+  onClick: () => void
+  active?: boolean
+  disabled?: boolean
+}) {
+  const tip = shortcut ? `${label} (${shortcut})` : label
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()} // 텍스트 선택 유지
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={tip}
+      aria-pressed={active || undefined}
+      title={tip}
+      className={`wiki-editor__tool ${active ? 'is-active' : ''}`}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </button>
+  )
 }
 
-const WIKI_EDITOR_PLACEHOLDER = `문서 내용을 작성하세요...
+type MenuItem =
+  | { kind: 'item'; label: string; hint?: string; icon?: React.ElementType; onSelect: () => void }
+  | { kind: 'heading'; label: string }
+  | { kind: 'divider' }
 
-나무위키 문법을 사용할 수 있습니다:
-- **굵게** 또는 '''굵게'''
-- *기울임* 또는 ''기울임''
-- ~~취소선~~ __밑줄__
-- ^^상첨자^^ ,,하첨자,,
-- [[내부 링크]] [링크텍스트](URL)
-- [*1] 각주 (자동 번호: [*])
-- {{{#ff0000 빨간 글씨}}} {{{+1 큰 글씨}}}
-- !icon:{home} [!icon:{insta}](URL)
-- ||<bgcolor:#ff0000> 색상 표 ||
+function ToolMenu({ icon: Icon, label, items }: { icon: React.ElementType; label: string; items: MenuItem[] }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
 
-단축키:
-- Ctrl+B: 굵게, Ctrl+I: 기울임  
-- Ctrl+S: 저장, Ctrl+Enter: 미리보기 토글"
-`
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
 
-export default function WikiEditor({ 
-  content, 
-  onChange, 
-  onSave, 
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={label}
+        className={`wiki-editor__tool wiki-editor__tool--labeled ${open ? 'is-active' : ''}`}
+      >
+        <Icon className="h-4 w-4" aria-hidden="true" />
+        <span>{label}</span>
+        <ChevronDown className="h-3 w-3 opacity-60" aria-hidden="true" />
+      </button>
+      {open && (
+        <div role="menu" className="wiki-editor__menu">
+          {items.map((item, i) => {
+            if (item.kind === 'divider') return <div key={i} className="wiki-editor__menu-divider" />
+            if (item.kind === 'heading') {
+              return <p key={i} className="wiki-editor__menu-heading">{item.label}</p>
+            }
+            const ItemIcon = item.icon
+            return (
+              <button
+                key={i}
+                type="button"
+                role="menuitem"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setOpen(false)
+                  item.onSelect()
+                }}
+                className="wiki-editor__menu-item"
+              >
+                {ItemIcon && <ItemIcon className="h-4 w-4 shrink-0 text-[color:var(--wiki-ink-muted)]" aria-hidden="true" />}
+                <span className="flex-1 text-left">{item.label}</span>
+                {item.hint && <span className="text-xs text-[color:var(--wiki-ink-faint)]">{item.hint}</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const ToolDivider = () => <span className="wiki-editor__divider" aria-hidden="true" />
+
+/* ── 편집기 ─────────────────────────────────────────── */
+
+export default function WikiEditor({
+  content,
+  onChange,
+  onSave,
+  onCancel,
   title = '문서 편집',
-  showPreview: initialShowPreview = false,
-  className = ''
+  documentTitle,
+  isNewDocument = false,
+  summary,
+  onSummaryChange,
+  isMinorEdit = false,
+  onMinorEditChange,
+  saveLabel,
+  templateCategories = [],
+  onLoadTemplateCategory,
+  onOpenFullHelp,
+  showPreview = false,
+  className = '',
 }: WikiEditorProps) {
   const { wikiUser } = useWikiAuth()
-  const [showPreview, setShowPreview] = useState(initialShowPreview)
-  const [selectedText, setSelectedText] = useState('')
-  const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 })
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [isMinorEdit, setIsMinorEdit] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [tableOfContents, setTableOfContents] = useState<Array<{level: number, title: string, anchor: string}>>([])
-  const [showTableTools, setShowTableTools] = useState(false)
-  const [spellCheckResults, setSpellCheckResults] = useState<Array<{word: string, suggestions: string[], position: number}>>([])
-  const [isSpellChecking, setIsSpellChecking] = useState(false)
-  const [showSpellCheckResults, setShowSpellCheckResults] = useState(false)
-  const lineNumbersRef = useRef<HTMLDivElement>(null)
-  const [showTableColorPicker, setShowTableColorPicker] = useState(false)
-  const [selectedTableColors, setSelectedTableColors] = useState<{
-    backgroundColor?: string
-    textColor?: string
-    borderColor?: string
-  }>({})
-  const [customColor, setCustomColor] = useState('')
-  const [highlightColor, setHighlightColor] = useState('#ffeb3b')
-  const [formattingMessage, setFormattingMessage] = useState<string | null>(null)
-  const highlightPresets = ['#ffeb3b', '#ffe082', '#ff8a80', '#80deea', '#b388ff', '#1de9b6']
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [showTableOfContents, setShowTableOfContents] = useState(false)
+  const [mode, setMode] = useState<EditorMode>(showPreview ? 'split' : 'write')
+  const [isFocusMode, setIsFocusMode] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const [editorHeight, setEditorHeight] = useState<'normal' | 'tall' | 'full'>('tall')
+  const [showTablePanel, setShowTablePanel] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Document lock tracking
-  const [isLocked, setIsLocked] = useState(false)
+  const [tableColors, setTableColors] = useState<{ backgroundColor?: string; textColor?: string }>({})
+  const [customColor, setCustomColor] = useState('')
+  const [spellResults, setSpellResults] = useState<SpellResult[] | null>(null)
+  const [isSpellChecking, setIsSpellChecking] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
   const [lockedBy, setLockedBy] = useState<string | null>(null)
-  const [lockCheckInterval, setLockCheckInterval] = useState<NodeJS.Timeout | null>(null)
+  const [draft, setDraft] = useState<{ content: string; savedAt: number } | null>(null)
 
-  const handleTextSelection = () => {
-    if (textareaRef.current) {
-      const textarea = textareaRef.current
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      const selected = content.substring(start, end)
-      
-      setSelectedText(selected)
-      setCursorPosition({ start, end })
-    }
-  }
+  const lineCount = useMemo(() => content.split('\n').length, [content])
+  const draftKey = `${DRAFT_PREFIX}${documentTitle || title}`
+  const lockedByOther = Boolean(lockedBy && lockedBy !== wikiUser?.username)
 
-  const insertText = (before: string, after: string = '', replaceSelected: boolean = true) => {
-    if (!textareaRef.current) return
-    
-    const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = content.substring(start, end)
-    const scrollTop = textarea.scrollTop  // 현재 스크롤 위치 저장
-    
-    let newText: string
-    let newCursorPos: number
-    
-    if (replaceSelected && selectedText) {
-      newText = content.substring(0, start) + before + selectedText + after + content.substring(end)
-      newCursorPos = start + before.length + selectedText.length + after.length
-    } else {
-      newText = content.substring(0, start) + before + after + content.substring(end)
-      newCursorPos = start + before.length
-    }
-    
-    onChange(newText)
-    
-    // 렌더링 후 커서 위치와 스크롤 위치 복원
+  /* ── 텍스트 조작 ── */
+
+  const restoreCaret = (from: number, to: number = from, scrollTop?: number) => {
     setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus()
-        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
-        textareaRef.current.scrollTop = scrollTop  // 스크롤 위치 복원
-      }
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      textarea.setSelectionRange(from, to)
+      if (scrollTop !== undefined) textarea.scrollTop = scrollTop
     }, 0)
   }
 
-  // Enhanced image insertion logic: Allow images anywhere with smart positioning
-  const canInsertImageHere = (): boolean => {
-    // Allow image insertion anywhere - no restrictions
-    return true
-  }
-
-  // Enhanced cursor-based image insertion
-  const getImageInsertionInfo = (): { canInsert: boolean; insertionType: 'table' | 'template' | 'inline' | 'block'; position: number } => {
-    const start = textareaRef.current?.selectionStart ?? 0
-    const textUpToCursor = content.substring(0, start)
-    const textFromCursor = content.substring(start)
-    const currentLine = textUpToCursor.split('\n').pop() || ''
-    
-    // Check if cursor is in a table row
-    if (currentLine.trim().startsWith('||') && currentLine.includes('||')) {
-      return { canInsert: true, insertionType: 'table', position: start }
+  const insertText = (before: string, after: string = '', wrapSelection: boolean = true) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const { selectionStart: start, selectionEnd: end, scrollTop } = textarea
+    const selected = content.substring(start, end)
+    if (wrapSelection && selected) {
+      onChange(content.substring(0, start) + before + selected + after + content.substring(end))
+      restoreCaret(start + before.length, start + before.length + selected.length, scrollTop)
+    } else {
+      onChange(content.substring(0, start) + before + after + content.substring(end))
+      restoreCaret(start + before.length, start + before.length, scrollTop)
     }
-    
-    // Check if cursor is in a template (infobox, personinfobox, groupinfobox)
-    const inInfobox = textUpToCursor.lastIndexOf('[[인포박스:') > textUpToCursor.lastIndexOf(']]')
-    const inPersonInfobox = Math.max(
-      textUpToCursor.lastIndexOf('{{인물정보상자'),
-      textUpToCursor.lastIndexOf('{{그룹정보상자')
-    ) > textUpToCursor.lastIndexOf('}}')
-    
-    if (inInfobox || inPersonInfobox) {
-      return { canInsert: true, insertionType: 'template', position: start }
-    }
-    
-    // Check if at start of line (good for block image)
-    if (currentLine.trim() === '' || start === 0 || textUpToCursor.endsWith('\n')) {
-      return { canInsert: true, insertionType: 'block', position: start }
-    }
-    
-    // Default to inline insertion
-    return { canInsert: true, insertionType: 'inline', position: start }
   }
 
   const insertAtLineStart = (prefix: string) => {
-    if (!textareaRef.current) return
-    
     const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const scrollTop = textarea.scrollTop  // 현재 스크롤 위치 저장
-    const lines = content.split('\n')
-    const currentLineIndex = content.substring(0, start).split('\n').length - 1
-    
-    lines[currentLineIndex] = prefix + lines[currentLineIndex]
-    const newContent = lines.join('\n')
-    
-    onChange(newContent)
-    
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus()
-        textareaRef.current.setSelectionRange(start + prefix.length, start + prefix.length)
-        textareaRef.current.scrollTop = scrollTop  // 스크롤 위치 복원
-      }
-    }, 0)
+    if (!textarea) return
+    const { selectionStart: start, scrollTop } = textarea
+    const lineStart = content.lastIndexOf('\n', start - 1) + 1
+    onChange(content.substring(0, lineStart) + prefix + content.substring(lineStart))
+    restoreCaret(start + prefix.length, start + prefix.length, scrollTop)
   }
 
-  const toolbarButtons: ToolbarButton[][] = [
-    [
-      { icon: Bold, label: '굵게', action: () => insertText("'''", "'''"), shortcut: 'Ctrl+B' },
-      { icon: Italic, label: '기울임', action: () => insertText("''", "''"), shortcut: 'Ctrl+I' },
-      { icon: Underline, label: '밑줄', action: () => insertText('__', '__') },
-      { icon: Strikethrough, label: '취소선', action: () => insertText('~~', '~~') },
-    ],
-    [
-      { icon: Heading1, label: '제목 1', action: () => insertAtLineStart('= ') },
-      { icon: Heading2, label: '제목 2', action: () => insertAtLineStart('== ') },
-      { icon: Heading3, label: '제목 3', action: () => insertAtLineStart('=== ') },
-    ],
-    [
-      { icon: Link2, label: '내부 링크', action: () => insertText('[[', ']]') },
-      { icon: Link, label: '외부 링크', action: () => insertText('[', '](https://)') },
-      { icon: ImageIcon, label: '이미지', action: () => {
-        const info = getImageInsertionInfo()
-        if (info.insertionType === 'table') {
-          insertText('[이미지:', ']')
-        } else if (info.insertionType === 'template') {
-          insertText('[이미지:', ']')
-        } else if (info.insertionType === 'block') {
-          insertText('[이미지:', ']\n', false)
-        } else {
-          insertText('[이미지:', ']')
-        }
-      } },
-    ],
-    [
-      { icon: List, label: '불릿 목록', action: () => insertAtLineStart('* ') },
-      { icon: ListOrdered, label: '번호 목록', action: () => insertAtLineStart('1. ') },
-      { icon: Quote, label: '인용구', action: () => insertAtLineStart('> ') },
-    ],
-    [
-      { icon: Code, label: '인라인 코드', action: () => insertText('`', '`') },
-      { icon: Hash, label: '각주', action: () => insertText('[*', ']') },
-      { icon: Palette, label: '색상 텍스트', action: () => insertText('{{{#ff0000 ', '}}}') },
-      { icon: Type, label: '폰트 지정', action: () => insertText('{{{font:"Noto Sans KR" ', '}}}') },
-    ],
-    [
-      { icon: AlertCircle, label: '콜아웃 (정보)', action: () => insertText('\n:::info\n', '\n:::\n', false) },
-      { icon: AlertCircle, label: '콜아웃 (경고)', action: () => insertText('\n:::warn\n', '\n:::\n', false) },
-      { icon: CheckCircle, label: '콜아웃 (성공)', action: () => insertText('\n:::success\n', '\n:::\n', false) },
-      { icon: ChevronRight, label: '접기 블록', action: () => insertText('\n>>> 자세히 보기\n', '\n<<<\n', false) },
-      { icon: Minus, label: '수평선', action: () => insertText('\n---\n', '', false) },
-    ],
-    [
-      { icon: Superscript, label: '상첨자', action: () => insertSuperscript() },
-      { icon: Subscript, label: '하첨자', action: () => insertSubscript() },
-    ],
-    [
-      { icon: AlignLeft, label: '왼쪽 정렬', action: () => insertTableAlignment('left') },
-      { icon: AlignCenter, label: '가운데 정렬', action: () => insertTableAlignment('center') },
-      { icon: AlignRight, label: '오른쪽 정렬', action: () => insertTableAlignment('right') },
-    ],
-    [
-      { icon: Menu, label: '목차 생성', action: () => generateTableOfContents() },
-      { icon: Table, label: '표 삽입', action: () => setShowTableTools(!showTableTools) },
-      { icon: Columns, label: '분류 태그', action: () => insertText('\n[[분류:', ']]') },
-    ],
-    [
-      { icon: Calendar, label: '타임라인', action: () => insertText('\n:::timeline\n2024-03-20 | 사건 제목 | 설명\n', '\n:::\n', false) },
-      { icon: BarChart3, label: '투표', action: () => insertText('\n:::poll 질문을 입력하세요\n선택지1\n선택지2\n', '\n:::\n', false) },
-    ],
-    [
-      { icon: CheckCircle, label: isSpellChecking ? '검사 중...' : '맞춤법 검사', action: () => performSpellCheck() },
-    ]
-  ]
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      switch (e.key) {
-        case 'b':
-          e.preventDefault()
-          insertText("'''", "'''")
-          break
-        case 'i':
-          e.preventDefault()
-          insertText("''", "''")
-          break
-        case 's':
-          e.preventDefault()
-          onSave?.()
-          break
-        case 'Enter':
-          e.preventDefault()
-          setShowPreview(!showPreview)
-          break
-      }
-    }
-
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      insertText('  ', '', false)
-    }
-  }
-
-  // Enhanced upload and insert with smart positioning
-  const uploadImageAndInsert = async (file: File) => {
-    try {
-      const maxSizeBytes = 1 * 1024 * 1024
-      if (file.size > maxSizeBytes) {
-        alert('이미지 크기는 최대 1MB까지 업로드할 수 있습니다.')
-        return
-      }
-
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/wiki/files/upload', {
-        method: 'POST',
-        body: form,
-        credentials: 'include'
-      })
-      const data = await res.json()
-      if (!data.success || !data.url) {
-        alert(data.error || '이미지 업로드 실패')
-        return
-      }
-      const url = data.url as string
-      insertImageAtCursorPosition(url)
-    } catch (e) {
-      alert('이미지 업로드 중 오류')
-    }
-  }
-
-  // Smart image insertion based on cursor position
-  const insertImageAtCursorPosition = (url: string) => {
-    const info = getImageInsertionInfo()
-    const start = info.position
-    
-    if (info.insertionType === 'table') {
-      // Insert image directly in table cell
-      insertText(`[이미지:${url}]`, '', false)
-    } else if (info.insertionType === 'template') {
-      // Check if we're in a specific field that supports images
-      const { type, blockStart, blockEnd } = getCurrentBlockInfo()
-      if (type && blockStart >= 0 && blockEnd > blockStart) {
-        insertImageUrlIntoContext(url)
-      } else {
-        // Fallback to direct insertion
-        insertText(`[이미지:${url}]`, '', false)
-      }
-    } else if (info.insertionType === 'block') {
-      // Insert as block-level image
-      insertText(`[이미지:${url}]\n`, '', false)
-    } else {
-      // 일반 본문 inline: 본문 렌더러(NamuWikiRenderer)는 [이미지:URL]을 line 단독일 때만
-      // 매칭하므로, 항상 단독 라인이 되도록 앞뒤 줄바꿈 보장.
-      insertText(`\n[이미지:${url}]\n`, '', false)
-    }
-  }
-
-  const getCurrentBlockInfo = (): { type: 'infobox' | 'cardgrid' | 'personinfobox' | null; blockStart: number; blockEnd: number } => {
-    const start = textareaRef.current?.selectionStart ?? 0
-    const lastInfobox = content.lastIndexOf('[[인포박스:', start)
-    const lastCard = content.lastIndexOf('[[카드그리드:', start)
-    const lastPersonInfobox = Math.max(
-      content.lastIndexOf('{{인물정보상자', start),
-      content.lastIndexOf('{{그룹정보상자', start)
-    )
-    
-    const blockStart = Math.max(lastInfobox, lastCard, lastPersonInfobox)
-    if (blockStart < 0) return { type: null, blockStart: -1, blockEnd: -1 }
-    
-    let blockEnd: number
-    let type: 'infobox' | 'cardgrid' | 'personinfobox'
-    
-    if (lastPersonInfobox === blockStart) {
-      blockEnd = content.indexOf('}}', blockStart)
-      type = 'personinfobox'
-      return { type, blockStart, blockEnd: blockEnd < 0 ? content.length : blockEnd + 2 }
-    } else {
-      blockEnd = content.indexOf(']]', blockStart)
-      type = lastInfobox > lastCard ? 'infobox' : 'cardgrid'
-      return { type, blockStart, blockEnd: blockEnd < 0 ? content.length : blockEnd + 2 }
-    }
-  }
-
-  const insertImageUrlIntoContext = (url: string) => {
-    const { type, blockStart, blockEnd } = getCurrentBlockInfo()
-    if (!type || blockStart < 0 || blockEnd <= blockStart) {
-      // If not in a recognized block, just insert at cursor position
-      insertText(`[이미지:${url}]`, '', false)
-      return
-    }
-    const block = content.substring(blockStart, blockEnd)
-    let updatedBlock = block
-    if (type === 'infobox') {
-      const hasImage = /\|\s*이미지\s*=/.test(block)
-      if (hasImage) {
-        updatedBlock = block.replace(/(\|\s*이미지\s*=)[^|\]]*/i, `$1 ${url} `)
-      } else {
-        updatedBlock = block.replace(/\]\]$/i, ` | 이미지=${url} ]]`)
-      }
-    } else if (type === 'personinfobox') {
-      // 인물정보상자의 경우 이미지 필드가 있는지 확인하고 업데이트
-      const hasImage = /\|\s*이미지\s*=/.test(block)
-      if (hasImage) {
-        updatedBlock = block.replace(/(\|\s*이미지\s*=)[^|}\n]*/i, `$1 ${url}`)
-      } else {
-        // 이미지 필드가 없으면 첫 번째 | 뒤에 추가
-        const firstParamMatch = block.match(/(\{\{인물정보상자[^\n]*\n)/)
-        if (firstParamMatch) {
-          updatedBlock = block.replace(firstParamMatch[1], `${firstParamMatch[1]}| 이미지= ${url}\n`)
-        }
-      }
-    } else if (type === 'cardgrid') {
-      const m = block.match(/items\s*=\s*(\[[\s\S]*?\])/i)
-      if (m) {
-        try {
-          const arr = JSON.parse(m[1]) as Array<any>
-          if (arr.length === 0) arr.push({ title: '', image: url })
-          else {
-            // 커서 기준으로 첫 아이템에 이미지 설정(간단 규칙)
-            arr[0] = { ...arr[0], image: url }
-          }
-          updatedBlock = block.replace(m[1], JSON.stringify(arr))
-        } catch {
-          updatedBlock = block
-        }
-      }
-    }
-    const newContent = content.substring(0, blockStart) + updatedBlock + content.substring(blockEnd)
-    onChange(newContent)
-  }
-
-  // 목차 생성 함수
-  const generateTableOfContents = useCallback(() => {
-    const lines = content.split('\n')
-    const toc: Array<{level: number, title: string, anchor: string}> = []
-    
-    for (const line of lines) {
-      const trimmed = line.trim()
-      let level = 0
-      let title = ''
-      
-      // 나무위키 스타일 헤딩 매칭
-      const namuHeadingMatch = trimmed.match(/^(=+)\s*(.+?)\s*=+$/)
-      if (namuHeadingMatch) {
-        level = namuHeadingMatch[1].length
-        title = namuHeadingMatch[2].trim()
-      } else {
-        // 마크다운 스타일 헤딩 매칭
-        const markdownHeadingMatch = trimmed.match(/^(#+)\s*(.+)$/)
-        if (markdownHeadingMatch) {
-          level = markdownHeadingMatch[1].length
-          title = markdownHeadingMatch[2].trim()
-        }
-      }
-      
-      if (level > 0 && title) {
-        const anchor = title
-          .toLowerCase()
-          .replace(/[^\w\s가-힣]/g, '')
-          .replace(/\s+/g, '-')
-          .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '')
-        toc.push({ level, title, anchor })
-      }
-    }
-    
-    setTableOfContents(toc)
-    setShowTableOfContents(true)
-  }, [content])
-
-  // 목차 삽입 함수
-  const insertTableOfContents = () => {
-    const tocText = `
-[[목차]]
-
-`
-    insertText(tocText, '', false)
-  }
-
-  // 표 삽입 함수 (색상 지원)
-  const insertTable = (rows: number = 3, cols: number = 3, colors?: {
-    backgroundColor?: string
-    textColor?: string
-    borderColor?: string
-  }) => {
-    let tableText = '\n'
-
-    // 행 단위 색상 캐스케이드 — 헤더 행 첫 셀에 한 번만 적으면 행 전체에 적용된다.
-    // (개별 셀은 <bgcolor:..> 로 덮어쓸 수 있음)
-    const rowDirectiveParts: string[] = []
-    if (colors?.backgroundColor) {
-      const bg = normalizeColor(colors.backgroundColor)
-      if (bg) rowDirectiveParts.push(`rowbgcolor:${bg}`)
-    }
-    if (colors?.textColor) {
-      const tc = normalizeColor(colors.textColor)
-      if (tc) rowDirectiveParts.push(`rowcolor:${tc}`)
-    }
-    const rowDirective = rowDirectiveParts.length ? `<${rowDirectiveParts.join(' ')}>` : ''
-
-    // 헤더 행 — 색상 지시자는 첫 셀에만
-    tableText += '|| '
-    for (let i = 0; i < cols; i++) {
-      const prefix = i === 0 ? rowDirective : ''
-      tableText += `${prefix}헤더${i + 1} || `
-    }
-    tableText += '\n'
-    
-    // 데이터 행들
-    for (let r = 1; r < rows; r++) {
-      tableText += '|| '
-      for (let c = 0; c < cols; c++) {
-        tableText += `데이터${r}-${c + 1} || `
-      }
-      tableText += '\n'
-    }
-    
-    tableText += '\n'
-    insertText(tableText, '', false)
-    setShowTableTools(false) // 표 삽입 후 도구 패널 닫기
-    setShowTableColorPicker(false) // 색상 선택기 닫기
-  }
-
-  // 색상 표 삽입 함수
-  const insertColoredTable = (rows: number, cols: number) => {
-    insertTable(rows, cols, selectedTableColors)
-  }
-
-  // 커스텀 색상 적용
-  const applyCustomColor = (colorType: 'backgroundColor' | 'textColor' | 'borderColor') => {
-    if (isValidHexColor(customColor)) {
-      const normalizedColor = normalizeColor(customColor)
-      setSelectedTableColors(prev => ({
-        ...prev,
-        [colorType]: normalizedColor
-      }))
-      setCustomColor('')
-    } else {
-      alert('올바른 RGB 색상 코드를 입력하세요. (예: #FF0000 또는 FF0000)')
-    }
-  }
-
-  // 색상 초기화
-  const resetTableColors = () => {
-    setSelectedTableColors({})
-  }
-
-  // 표 정렬 기능
-  const insertTableAlignment = (alignment: 'left' | 'center' | 'right') => {
-    if (!textareaRef.current) return
-    
+  /** 여러 줄짜리 블록은 항상 독립된 줄에 들어가도록 앞뒤 줄바꿈을 맞춘다 */
+  const insertBlock = (before: string, after: string = '') => {
     const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const scrollTop = textarea.scrollTop  // 현재 스크롤 위치 저장
-    
-    // 선택된 텍스트가 있는지 확인
-    const selectedText = content.substring(start, end)
-    if (!selectedText) {
+    const start = textarea?.selectionStart ?? content.length
+    const needsLeadingBreak = start > 0 && content[start - 1] !== '\n'
+    insertText(`${needsLeadingBreak ? '\n' : ''}${before}`, after, true)
+  }
+
+  const wrapAlignment = (alignment: 'left' | 'center' | 'right') => {
+    const textarea = textareaRef.current
+    if (!textarea || textarea.selectionStart === textarea.selectionEnd) {
       alert('정렬할 텍스트를 먼저 선택해주세요.')
       return
     }
-    
-    // 정렬 문법 적용
-    let alignedText = ''
-    switch (alignment) {
-      case 'left':
-        alignedText = `{{{<<${selectedText}}}}`
-        break
-      case 'center':
-        alignedText = `{{{^${selectedText}}}}`
-        break
-      case 'right':
-        alignedText = `{{{>>${selectedText}}}}`
-        break
+    const open = alignment === 'left' ? '{{{<<' : alignment === 'center' ? '{{{^' : '{{{>>'
+    insertText(open, '}}}')
+  }
+
+  /* ── 이미지 ── */
+
+  /** 표 셀/정보상자 안이면 그 자리에, 본문이면 단독 줄로 (렌더러가 단독 줄 [이미지:] 만 인식) */
+  const insertImage = (url: string) => {
+    const start = textareaRef.current?.selectionStart ?? content.length
+    const before = content.substring(0, start)
+    const currentLine = before.split('\n').pop() || ''
+    const inTable = currentLine.trim().startsWith('||')
+    const inTemplate =
+      before.lastIndexOf('[[인포박스:') > before.lastIndexOf(']]') ||
+      Math.max(before.lastIndexOf('{{인물정보상자'), before.lastIndexOf('{{그룹정보상자')) > before.lastIndexOf('}}')
+
+    if (inTemplate && /\|\s*이미지\s*=\s*$/.test(currentLine)) {
+      insertText(url, '', false)
+    } else if (inTable || inTemplate) {
+      insertText(`[이미지:${url}]`, '', false)
+    } else {
+      insertBlock(`[이미지:${url}]\n`)
     }
-    
-    const newContent = content.substring(0, start) + alignedText + content.substring(end)
-    onChange(newContent)
-    
-    // 커서 위치와 스크롤 위치 복원
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus()
-        const newPos = start + alignedText.length
-        textareaRef.current.setSelectionRange(newPos, newPos)
-        textareaRef.current.scrollTop = scrollTop  // 스크롤 위치 복원
+  }
+
+  const uploadImage = async (file: File) => {
+    if (file.size > 1024 * 1024) {
+      alert('이미지 크기는 최대 1MB까지 업로드할 수 있습니다.')
+      return
+    }
+    setIsUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/wiki/files/upload', { method: 'POST', body: form, credentials: 'include' })
+      const data = await res.json()
+      if (!data.success || !data.url) {
+        alert(data.error || '이미지 업로드에 실패했습니다.')
+        return
       }
-    }, 0)
-  }
-
-  const insertSuperscript = () => {
-    if (selectedText) {
-      insertText('<sup>', '</sup>')
-    } else {
-      insertText('<sup>상첨자</sup>')
+      insertImage(data.url as string)
+    } catch {
+      alert('이미지 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setIsUploading(false)
     }
   }
 
-  const insertSubscript = () => {
-    if (selectedText) {
-      insertText('<sub>', '</sub>')
-    } else {
-      insertText('<sub>하첨자</sub>')
-    }
+  /* ── 표 ── */
+
+  const insertTable = (rows: number, cols: number, colors?: { backgroundColor?: string; textColor?: string }) => {
+    // 행 단위 색상은 머리 행 첫 셀에 한 번만 적으면 행 전체에 적용된다
+    const directive = [
+      colors?.backgroundColor && normalizeColor(colors.backgroundColor) && `rowbgcolor:${normalizeColor(colors.backgroundColor)}`,
+      colors?.textColor && normalizeColor(colors.textColor) && `rowcolor:${normalizeColor(colors.textColor)}`,
+    ].filter(Boolean).join(' ')
+    const header = Array.from({ length: cols }, (_, c) => `${c === 0 && directive ? `<${directive}>` : ''}머리${c + 1}`)
+    const body = Array.from({ length: rows - 1 }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => `내용${r + 1}-${c + 1}`)
+    )
+    const text = [header, ...body].map((cells) => `|| ${cells.join(' || ')} ||`).join('\n')
+    insertBlock(`${text}\n`)
+    setShowTablePanel(false)
   }
 
-  const performSpellCheck = async () => {
+  const applyCustomColor = (target: 'backgroundColor' | 'textColor') => {
+    if (!isValidHexColor(customColor)) {
+      alert('올바른 색상 코드를 입력하세요. (예: #2F5D8C)')
+      return
+    }
+    setTableColors((prev) => ({ ...prev, [target]: normalizeColor(customColor) }))
+  }
+
+  /* ── 템플릿 ── */
+
+  const insertTemplate = (key: string) => {
+    const template = EDITOR_TEMPLATES[key]
+    if (!template) return
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? content.length
+    const end = textarea?.selectionEnd ?? content.length
+    onChange(content.substring(0, start) + template.template + content.substring(end))
+    restoreCaret(start, start + template.template.length)
+  }
+
+  /* ── 맞춤법 ── */
+
+  const runSpellCheck = async () => {
     if (!content.trim()) {
       alert('맞춤법을 검사할 내용이 없습니다.')
       return
     }
-
     setIsSpellChecking(true)
     try {
-      // 한국어 맞춤법 검사 API 호출
-      const response = await fetch('/api/wiki/spell-check', {
+      const res = await fetch('/api/wiki/spell-check', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: content }),
       })
-
-      if (!response.ok) {
-        throw new Error('맞춤법 검사 서비스에 연결할 수 없습니다.')
-      }
-
-      const data = await response.json()
-      setSpellCheckResults(data.results || [])
-      setShowSpellCheckResults(true)
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
+      setSpellResults((data.results || []) as SpellResult[])
     } catch (error) {
       console.error('맞춤법 검사 오류:', error)
       alert('맞춤법 검사 중 오류가 발생했습니다.')
@@ -637,1157 +353,507 @@ export default function WikiEditor({
     }
   }
 
-  const applySpellCheckSuggestion = (originalWord: string, suggestion: string, position: number) => {
-    const newContent = content.substring(0, position) + 
-                      content.substring(position).replace(originalWord, suggestion)
-    onChange(newContent)
-    
-    // 해당 결과를 제거
-    setSpellCheckResults(prev => prev.filter(result => 
-      !(result.word === originalWord && result.position === position)
-    ))
+  const applySuggestion = (result: SpellResult, suggestion: string) => {
+    onChange(content.substring(0, result.position) + content.substring(result.position).replace(result.word, suggestion))
+    setSpellResults((prev) => prev?.filter((r) => r !== result) ?? null)
   }
 
-  // 텍스트 영역과 줄 번호 스크롤 동기화
-  const handleTextareaScroll = () => {
-    if (textareaRef.current && lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+  const lineOf = (position: number) => {
+    const lineNumber = content.substring(0, position).split('\n').length
+    return { lineNumber, lineContent: content.split('\n')[lineNumber - 1] || '' }
+  }
+
+  /* ── 저장 ── */
+
+  const handleSave = useCallback(() => {
+    if (!onSave) return
+    if (lockedByOther) {
+      alert(`${lockedBy}님이 편집 중인 문서라 지금은 저장할 수 없습니다.`)
+      return
     }
-  }
+    onSave()
+  }, [onSave, lockedByOther, lockedBy])
 
-  // 위치를 줄 번호로 변환하고 해당 줄 내용도 반환하는 함수
-  const getLineInfoFromPosition = (position: number): { lineNumber: number, lineContent: string, wordInLine: string } => {
-    const textUpToPosition = content.substring(0, position)
-    const lineNumber = textUpToPosition.split('\n').length
-    const lines = content.split('\n')
-    const lineContent = lines[lineNumber - 1] || ''
-    
-    // 해당 위치 주변의 단어 찾기
-    const start = Math.max(0, position - 10)
-    const end = Math.min(content.length, position + 10)
-    const wordInLine = content.substring(start, end).trim()
-    
-    return { lineNumber, lineContent, wordInLine }
-  }
-
-  // 템플릿 데이터
-  const templates = {
-    personInfobox: {
-      name: '인물정보상자 (완전판)',
-      icon: User,
-      template: `{{인물정보상자
-|상단로고 = 
-|상단제목 = 태릉고등학교 37기 학생회장
-|상단부제목 = 재학 당시의 모습
-|상단설명 = 촬영일 : 정재원
-|이름 = 정재원
-|영문명 = Jung Jae Won
-|이미지 = /images/default-music-cover.jpg
-|이미지설명 = Jung 'Jay' Jae-Won
-|출생 = 2005년 7월 27일 (만 19세)
-|출생지 = 🇰🇷 대한민국 서울특별시
-|국적 = 🇰🇷 대한민국
-|거주지 = 서울특별시 중구 목동
-|소속 = 🔵 경북대학교 빅데이터학과<br/>🔴 태릉고등학교 부동창장<br/>🟢 2024.03.20 ~ (🔴 현 재)<br/>🟡 태릉고등학교 서기부장 ▼
-|직업 = 대학생
-|학력 = 태릉고등학교 부동창장<br/>2024.03.20 ~ (현 재)<br/>태릉고등학교 서기부장<br/>2022.04.08 ~ 2023.04.30<br/>한창초등학교 전학<br/>(2012 ~ 2014)<br/>원목초등학교 졸업<br/>(2014 ~ 2018)<br/>해룡중학교 졸업<br/>(2018 ~ 2021)<br/>태릉고등학교 졸업<br/>(2021 ~ 2024)<br/>경북대학교<sup>(빅데이터학과)</sup><br/>(2024 ~ )
-|경력 = 전 태릉고등학교 중구 미디어팀<br/>전 FCA를 유스넘 축구부에서 선수단으로 활동한 적이 있다.<br/>전 태릉고등학교 3학년 학급 부회장<br/>전 태릉고등학교 3학년 학급 반장<br/>전 이랑가입원 운영진<br/>전 에스팀 이스쿨다운 6571<br/>현 태릉고등학교 3기 졸업회 부동창장
-|본관 = 은평 정씨
-|신체 = 186cm, INTJ-T
-|별명 = 산업기능요원<sup>(예정)</sup><br/>(미정)
-|종교 = 천주교
-|서명 = (서명 이미지)
-|링크 = 📸 인스타그램
-}}
-
-== 개요 ==
-대한민국의 모델 겸 대학생이다.
-
-[[태릉고등학교]]를 졸업했으며, 경북대학교 [[빅데이터학과]]에 재학하고 있다. 랑구 그룹의 창립자로, 랑구 그룹 멤버이다.
-
-== 생애 ==
-2005년 7월 27일 출생했다.
-
-=== 친구관계 ===
-친구들과의 관계에 대한 내용...
-
-=== 취미 ===
-여러 장르의 게임을 즐긴다...
-
-== 학습 ==
-
-=== 프로그래밍 ===
-어느정도 하는 편이다. 주로 사용하는 프로그램은 [[비주얼 스튜디오]]로 보인다.
-사용 가능한 언어는 [[PYTHON]], [[JAVASCRIPT]], [[HTML5]], [[CSS3]], [[PYCHARM]], [[SQLITE3]]
-
-== 여담 ==
-
-== 작품 목록 ==
-
-[[카드그리드: items=[
-  {
-    "title": "Rangu.fam 웹사이트", 
-    "image": "/images/default-music-cover.jpg",
-    "description": "Next.js로 구축한 개인 포트폴리오",
-    "date": "2024년"
-  },
-  {
-    "title": "이랑위키",
-    "description": "나무위키 스타일 개인 위키",
-    "date": "2024년"
-  }
-]]]
-
-[[분류:RANGU.FAM]]
-[[분류:대학생]]`
-    },
-    groupInfobox: {
-      name: '그룹정보상자',
-      icon: Users,
-      template: `{{그룹정보상자
-|상단로고 = 
-|상단제목 = Rangu.fam
-|상단부제목 = 랑구닷팸
-|그룹명 = Rangu.fam
-|메인제목 = 랑구
-|메인멤버 = R27 정재원, R7 정진규, R20 정민석, R17 강한울
-|서브제목 = 랑구 객원
-|서브멤버 = R1 이승찬, R10 윤의현
-|설립일 = 2024년 3월
-|본부 = 서울특별시
-|설명 = 태릉고등학교 동창회 기반 그룹
-}}
-
-== 개요 ==
-Rangu.fam은 태릉고등학교 동창들로 구성된 그룹이다.
-
-== 멤버 ==
-
-=== 메인 멤버 ===
-* '''R27 정재원''' - 리더
-* '''R7 정진규''' - 
-* '''R20 정민석''' - 
-* '''R17 강한울''' - 
-
-=== 객원 멤버 ===
-* '''R1 이승찬''' - 
-* '''R10 윤의현''' - 
-
-== 활동 ==
-
-== 여담 ==
-
-[[분류:RANGU.FAM]]
-[[분류:그룹]]`
-    },
-    simpleInfobox: {
-      name: '간단한 인포박스',
-      icon: Bookmark,
-      template: `[[인포박스: 제목=정재원 | 이미지=/images/default-music-cover.jpg | 본명=정재원 | 출생=2005년 7월 27일 | 국적=대한민국 | 신체=186cm | 학력=경북대학교 | 소속=빅데이터학과 | 직업=대학생 | 링크=인스타그램]]
-
-== 개요 ==
-
-== 활동 ==
-
-== 여담 ==`
-    },
-    cardGrid: {
-      name: '카드그리드',
-      icon: Layout,
-      template: `[[카드그리드: items=[
-  {
-    "title": "프로젝트 제목",
-    "image": "/images/default-music-cover.jpg",
-    "description": "프로젝트 설명",
-    "date": "2024년"
-  },
-  {
-    "title": "두 번째 프로젝트",
-    "description": "다른 프로젝트 설명",
-    "date": "2024년"
-  }
-]]]`
-    },
-    basicArticle: {
-      name: '기본 문서 구조',
-      icon: FileText,
-      template: `= 문서 제목 =
-
-== 개요 ==
-문서의 개요를 작성하세요.
-
-== 상세 내용 ==
-
-=== 하위 제목 ===
-상세한 내용을 작성하세요.
-
-== 참고 ==
-* [[관련 문서]]
-* [외부 링크 https://example.com]
-
-[[분류:분류명]]`
-    },
-    colorTable: {
-      name: '색상 표 (행 단위)',
-      icon: Table,
-      template: `|| <rowbgcolor:#4472C4 rowcolor:#ffffff>헤더1 || 헤더2 || 헤더3 ||
-|| <rowbgcolor:#D4E6F1>데이터1-1 || 데이터1-2 || 데이터1-3 ||
-|| 데이터2-1 || <bgcolor:#F8D7DA>강조 셀 || 데이터2-3 ||
-
-표 맨앞 셀에 <rowbgcolor:..> 를 한 번만 적으면 그 행 전체에 색이 적용됩니다.
-개별 셀은 <bgcolor:..> 로 덮어쓸 수 있어요.
-표 전체 가운데 정렬은 첫 셀에 <tablealign:center>, 표 전체 색은 <tablebgcolor:..> 입니다.`
-    },
-    timeline: {
-      name: '타임라인',
-      icon: Calendar,
-      template: `:::timeline
-2024-03-20 | 랑구 그룹 결성 | 태릉고 동창들이 처음 모였다
-2024-05 | 첫 정기 모임
-2025-01-01 | 새해 다짐
-:::`
-    },
-    poll: {
-      name: '투표',
-      icon: BarChart3,
-      template: `:::poll 다음 모임 메뉴는?
-햄버거
-커피
-치킨
-:::`
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      const key = e.key.toLowerCase()
+      if (key === 'b') { e.preventDefault(); insertText("'''", "'''") }
+      else if (key === 'i') { e.preventDefault(); insertText("''", "''") }
+      else if (key === 'k') { e.preventDefault(); insertText('[[', ']]') }
+      else if (key === 's') { e.preventDefault(); handleSave() }
+      else if (e.key === 'Enter') { e.preventDefault(); setMode((m) => (m === 'write' ? 'split' : 'write')) }
+      return
     }
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault()
+      insertText('  ', '', false)
+    }
+    if (e.key === 'Escape' && isFocusMode) setIsFocusMode(false)
   }
 
-  const insertTemplate = (templateKey: keyof typeof templates) => {
-    const template = templates[templateKey]
-    if (!textareaRef.current) return
-    
-    const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    
-    const newContent = content.substring(0, start) + template.template + content.substring(end)
-    onChange(newContent)
-    
-    // 커서를 템플릿 시작 부분으로 이동
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus()
-        textareaRef.current.setSelectionRange(start, start + template.template.length)
-      }
-    }, 0)
-    
-    setShowTemplates(false)
-  }
-
-  const handlePickImage = () => fileInputRef.current?.click()
-  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    uploadImageAndInsert(file)
-    e.currentTarget.value = ''
-  }
+  /* ── 임시 저장 (문서별) ── */
 
   useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
-      localStorage.setItem('wiki-editor-autosave', content)
-    }, 30000)
-
-    return () => clearInterval(autoSaveInterval)
-  }, [content])
-
-  // 내용이 변경될 때마다 목차 자동 업데이트
-  useEffect(() => {
-    if (showTableOfContents) {
-      generateTableOfContents()
-    }
-  }, [content, showTableOfContents, generateTableOfContents])
-
-  // 문서 편집 잠금 획득
-  const acquireEditLock = useCallback(async (): Promise<boolean> => {
-    if (!title || title === '문서 편집') return true
-    
     try {
-      const response = await fetch('/api/wiki/pages/lock', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ title })
-      })
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        // 잠금 획득 성공
-        setIsLocked(true)
-        setLockedBy(wikiUser?.username || null)
-        return true
-      } else {
-        // 잠금 획득 실패 (다른 사용자가 편집 중)
-        setIsLocked(true)
-        setLockedBy(data.lockedBy || null)
-        return false
-      }
-    } catch (error) {
-      console.error('편집 잠금 획득 오류:', error)
-      return false
+      const raw = localStorage.getItem(draftKey)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { content: string; savedAt: number }
+      if (saved?.content && saved.content !== content) setDraft(saved)
+      else localStorage.removeItem(draftKey)
+    } catch {
+      /* 저장소 접근 불가 — 무시 */
     }
-  }, [title, wikiUser?.username])
+    // 처음 열 때 한 번만 확인
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey])
 
-  // 문서 편집 잠금 해제
-  const releaseEditLock = useCallback(async (): Promise<void> => {
-    if (!title || title === '문서 편집') return
-    
-    try {
-      await fetch(`/api/wiki/pages/lock?title=${encodeURIComponent(title)}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      // 상태 업데이트
-      setIsLocked(false)
-      setLockedBy(null)
-    } catch (error) {
-      console.error('편집 잠금 해제 오류:', error)
-    }
-  }, [title])
-
-  // 문서 편집 잠금 상태 확인
   useEffect(() => {
-    const checkEditLock = async () => {
-      if (!title || title === '문서 편집') return
-      
+    if (draft) return // 복원 여부를 고르기 전엔 덮어쓰지 않는다
+    const timer = setTimeout(() => {
       try {
-        const response = await fetch(`/api/wiki/pages/lock?title=${encodeURIComponent(title)}`)
-        const data = await response.json()
-        
-        if (data.success) {
-          setIsLocked(data.isLocked)
-          setLockedBy(data.lockedBy)
-        }
-      } catch (error) {
-        console.error('편집 잠금 상태 확인 오류:', error)
+        if (content.trim()) localStorage.setItem(draftKey, JSON.stringify({ content, savedAt: Date.now() }))
+      } catch {
+        /* 무시 */
       }
-    }
-    
-    // 초기 잠금 상태 확인
-    checkEditLock()
-    
-    // 주기적으로 잠금 상태 확인 (30초마다)
-    const interval = setInterval(checkEditLock, 30000)
-    setLockCheckInterval(interval)
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval)
-      }
-    }
-  }, [title, acquireEditLock, releaseEditLock])
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [content, draftKey, draft])
 
-  // 편집 잠금 획득 및 해제
+  const discardDraft = () => {
+    try { localStorage.removeItem(draftKey) } catch { /* 무시 */ }
+    setDraft(null)
+  }
+
+  /* ── 편집 잠금 (기존 문서만) ── */
+
   useEffect(() => {
-    const handleLock = async () => {
-      if (!title || title === '문서 편집') return
-      
-      // 편집 잠금 획득 시도
-      const lockAcquired = await acquireEditLock()
-      
-      if (!lockAcquired) {
-        // 잠금 획득 실패 시 사용자에게 알림
-        console.warn('편집 잠금 획득 실패')
+    if (!documentTitle || isNewDocument) return
+    const query = `/api/wiki/pages/lock?title=${encodeURIComponent(documentTitle)}`
+    let cancelled = false
+
+    const refresh = async () => {
+      try {
+        const data = await (await fetch(query, { credentials: 'include' })).json()
+        if (!cancelled && data.success) setLockedBy(data.isLocked ? data.lockedBy || null : null)
+      } catch {
+        /* 네트워크 오류는 무시 — 잠금은 참고용 */
       }
     }
-    
-    handleLock()
-    
-    // 컴포넌트 언마운트 시 잠금 해제
+
+    ;(async () => {
+      try {
+        const res = await fetch('/api/wiki/pages/lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ title: documentTitle }),
+        })
+        const data = await res.json()
+        if (!cancelled && !data.success && data.lockedBy) setLockedBy(data.lockedBy)
+      } catch {
+        /* 무시 */
+      }
+    })()
+
+    const interval = setInterval(refresh, 30000)
     return () => {
-      releaseEditLock()
+      cancelled = true
+      clearInterval(interval)
+      fetch(query, { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {})
     }
-  }, [title, acquireEditLock, releaseEditLock])
+  }, [documentTitle, isNewDocument])
 
-  return (
-    <div className={`wiki-editor ${className}`}>
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-200">{title}</h3>
-            <div className="flex items-center space-x-2">
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handlePickImage}
-                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
-                title="사진 선택 후 커서 위치에 삽입"
-              >
-                <ImageIcon className="w-4 h-4" aria-hidden="true" />
-                <span>사진 선택</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTemplates(!showTemplates)}
-                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
-                title="템플릿 불러오기"
-              >
-                <FileText className="w-4 h-4" />
-                <span>템플릿</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertTableOfContents}
-                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
-                title="목차 삽입"
-              >
-                <Menu className="w-4 h-4" />
-                <span>목차</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  setEditorHeight(
-                    editorHeight === 'normal' ? 'tall' : editorHeight === 'tall' ? 'full' : 'normal'
-                  )
-                }
-                className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
-                title="편집창 크기 (보통 / 크게 / 전체)"
-              >
-                <Layout className="w-4 h-4" />
-                <span>
-                  {editorHeight === 'normal' ? '보통' : editorHeight === 'tall' ? '크게' : '전체'}
-                </span>
-              </Button>
-              <Button
-                variant={showPreview ? "primary" : "ghost"}
-                size="sm"
-                onClick={() => setShowPreview(!showPreview)}
-                className={`flex items-center space-x-1 ${
-                  showPreview
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                <span>{showPreview ? '편집모드' : '미리보기'}</span>
-              </Button>
-              {onSave && (
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    // 편집 잠금 상태 확인
-                    if (isLocked && lockedBy && lockedBy !== wikiUser?.username) {
-                      alert(`${lockedBy}님이 편집 중인 문서입니다. 저장할 수 없습니다.`)
-                      return
-                    }
-                    
-                    // 편집 잠금 갱신
-                    try {
-                      const response = await fetch('/api/wiki/pages/lock', {
-                        method: 'PUT',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify({ title })
-                      })
-                      
-                      const data = await response.json()
-                      
-                      if (!data.success) {
-                        console.warn('편집 잠금 갱신 실패:', data.error)
-                      }
-                    } catch (error) {
-                      console.error('편집 잠금 갱신 오류:', error)
-                    }
-                    
-                    onSave?.()
-                  }}
-                  className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-gray-200"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>저장</span>
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        {/* 편집 잠금 경고 메시지 */}
-        {isLocked && lockedBy && lockedBy !== wikiUser?.username && (
-          <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mx-4 mt-2">
-            <div className="flex items-center text-red-400">
-              <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-              <span className="font-medium">
-                이 문서는 <span className="font-bold">{lockedBy}</span>님이 편집 중입니다.
-              </span>
-            </div>
-          </div>
-        )}
-        <CardContent className="space-y-4">
-          {/* 툴바 — 깔끔한 그룹 + 호버 라벨 */}
-          <div className="border-b border-gray-700 pb-3">
-            <div className="flex flex-wrap items-center gap-1 bg-gray-900/40 rounded-lg p-1.5 border border-gray-700/60">
-              {toolbarButtons.map((group, groupIndex) => (
-                <React.Fragment key={groupIndex}>
-                  <div className="flex items-center gap-0.5">
-                    {group.map((button) => (
-                      <motion.button
-                        key={button.label}
-                        className={`px-2.5 py-1.5 rounded-md transition-all relative group inline-flex items-center justify-center ${
-                          button.label.includes('검사 중')
-                            ? 'bg-gray-700 cursor-not-allowed opacity-60'
-                            : 'hover:bg-gray-700/80 active:bg-gray-600 text-gray-400 hover:text-gray-100'
-                        }`}
-                        onClick={button.label.includes('검사 중') ? undefined : button.action}
-                        whileHover={button.label.includes('검사 중') ? {} : { scale: 1.04 }}
-                        whileTap={button.label.includes('검사 중') ? {} : { scale: 0.96 }}
-                      >
-                        <button.icon className="w-4 h-4" />
-                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-black/90 text-white text-[11px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                          {button.label}
-                          {button.shortcut && (
-                            <span className="ml-1.5 text-gray-400">{button.shortcut}</span>
-                          )}
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-                  {groupIndex < toolbarButtons.length - 1 && (
-                    <div className="w-px h-5 bg-gray-700 mx-0.5" aria-hidden="true" />
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
+  // 집중 모드에선 뒤 페이지 스크롤을 막는다
+  useEffect(() => {
+    if (!isFocusMode) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previous }
+  }, [isFocusMode])
 
-          {/* 마이너 편집 옵션 */}
-          <div className="flex items-center gap-3 text-sm text-gray-300 py-2">
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="accent-blue-500" 
-                checked={isMinorEdit} 
-                onChange={(e) => setIsMinorEdit(e.target.checked)} 
-              />
-              <span className="select-none">마이너 편집</span>
-            </label>
-            <div className="text-xs text-gray-400">
-              (오타 수정, 문법 교정 등 내용에 큰 변화가 없는 편집)
-            </div>
-          </div>
+  /* ── 메뉴 정의 ── */
 
-          {/* 목차 표시 영역 */}
-          {showTableOfContents && tableOfContents.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium text-gray-300">목차</h4>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={insertTableOfContents}
-                    className="text-gray-400 hover:text-gray-200 text-xs"
-                  >
-                    문서에 삽입
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowTableOfContents(false)}
-                    className="text-gray-400 hover:text-gray-200"
-                  >
-                    닫기
-                  </Button>
-                </div>
-              </div>
-              <div className="max-h-60 overflow-y-auto">
-                {tableOfContents.map((item, index) => (
-                  <div
-                    key={index}
-                    className={`py-1 px-2 text-sm text-gray-300 hover:bg-gray-700 rounded cursor-pointer`}
-                    style={{ paddingLeft: `${8 + item.level * 12}px` }}
-                    onClick={() => {
-                      // 해당 제목으로 스크롤
-                      const element = document.getElementById(item.anchor)
-                      if (element) {
-                        element.scrollIntoView({ behavior: 'smooth' })
-                      }
-                    }}
-                  >
-                    {item.title}
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
+  const tableMenu: MenuItem[] = [
+    { kind: 'heading', label: '표 넣기' },
+    ...([[2, 2], [3, 3], [4, 4], [5, 3]] as const).map(([r, c]) => ({
+      kind: 'item' as const, label: `${r} × ${c} 표`, icon: Table, onSelect: () => insertTable(r, c),
+    })),
+    { kind: 'item', label: '색상 표 만들기…', icon: PaintBucket, onSelect: () => setShowTablePanel(true) },
+    { kind: 'divider' },
+    { kind: 'heading', label: '선택한 글 정렬' },
+    { kind: 'item', label: '왼쪽', icon: AlignLeft, onSelect: () => wrapAlignment('left') },
+    { kind: 'item', label: '가운데', icon: AlignCenter, onSelect: () => wrapAlignment('center') },
+    { kind: 'item', label: '오른쪽', icon: AlignRight, onSelect: () => wrapAlignment('right') },
+  ]
 
-          {/* 표 도구 영역 */}
-          {showTableTools && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4"
-            >
-              <h4 className="text-sm font-medium text-gray-300 mb-3">표 도구</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <motion.button
-                  onClick={() => insertTable(2, 2)}
-                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Table className="w-6 h-6 text-gray-400 mb-2" />
-                  <span className="text-sm text-gray-200">2×2 표</span>
-                </motion.button>
-                <motion.button
-                  onClick={() => insertTable(3, 3)}
-                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Table className="w-6 h-6 text-gray-400 mb-2" />
-                  <span className="text-sm text-gray-200">3×3 표</span>
-                </motion.button>
-                <motion.button
-                  onClick={() => insertTable(4, 4)}
-                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Table className="w-6 h-6 text-gray-400 mb-2" />
-                  <span className="text-sm text-gray-200">4×4 표</span>
-                </motion.button>
-                <motion.button
-                  onClick={() => insertTable(5, 3)}
-                  className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Table className="w-6 h-6 text-gray-400 mb-2" />
-                  <span className="text-sm text-gray-200">5×3 표</span>
-                </motion.button>
-              </div>
-              
-              {/* 표 색상 선택 영역 */}
-              <div className="mt-4 border-t border-gray-600 pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h5 className="text-sm font-medium text-gray-300">표 색상 설정</h5>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowTableColorPicker(!showTableColorPicker)}
-                    className="flex items-center space-x-1 text-gray-400 hover:text-gray-200"
-                  >
-                    <PaintBucket className="w-4 h-4" />
-                    <span>{showTableColorPicker ? '숨기기' : '색상 선택'}</span>
-                  </Button>
-                </div>
-                
-                {showTableColorPicker && (
-                  <div className="space-y-4">
-                    {/* 미리 정의된 색상 팔레트 */}
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2">미리 정의된 색상:</p>
-                      <div className="grid grid-cols-6 gap-2">
-                        {COLOR_PICKER_PALETTE.map((colorItem, index) => (
-                          <button
-                            key={index}
-                            className="w-8 h-8 rounded border-2 border-gray-600 hover:border-gray-400 transition-colors"
-                            style={{ backgroundColor: colorItem.value }}
-                            title={colorItem.name}
-                            onClick={() => setSelectedTableColors(prev => ({
-                              ...prev,
-                              backgroundColor: colorItem.value
-                            }))}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* 커스텀 색상 입력 — 실시간 미리보기 + 컬러 피커 */}
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2">커스텀 RGB 색상 (예: #FF0000 또는 FF0000):</p>
-                      <div className="flex items-center gap-2">
-                        {/* 네이티브 컬러 피커 → 텍스트와 동기화 */}
-                        <input
-                          type="color"
-                          aria-label="색상 선택기"
-                          value={(() => {
-                            const c = normalizeColor(customColor.trim())
-                            return /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#4472C4'
-                          })()}
-                          onChange={(e) => setCustomColor(e.target.value)}
-                          className="h-9 w-10 shrink-0 cursor-pointer rounded border border-gray-600 bg-gray-700 p-0.5"
-                        />
-                        {/* 실시간 미리보기 스와치 */}
-                        <span
-                          className="h-9 w-9 shrink-0 rounded border border-gray-600"
-                          title={normalizeColor(customColor.trim()) || '유효한 색상 코드를 입력하세요'}
-                          style={{
-                            backgroundColor: normalizeColor(customColor.trim()) || 'transparent',
-                            backgroundImage: normalizeColor(customColor.trim())
-                              ? undefined
-                              : 'repeating-conic-gradient(#4b5563 0% 25%, #374151 0% 50%) 50% / 10px 10px',
-                          }}
-                        />
-                        <input
-                          type="text"
-                          value={customColor}
-                          onChange={(e) => setCustomColor(e.target.value)}
-                          placeholder="#FF0000"
-                          className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 text-sm focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                      <div className="mt-2 flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => applyCustomColor('backgroundColor')}
-                          className="bg-blue-600 hover:bg-blue-500 text-white px-3"
-                          disabled={!customColor.trim()}
-                        >
-                          배경 적용
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => applyCustomColor('textColor')}
-                          className="bg-green-600 hover:bg-green-500 text-white px-3"
-                          disabled={!customColor.trim()}
-                        >
-                          글자 적용
-                        </Button>
-                        <span className="self-center text-[11px] text-gray-500">
-                          {normalizeColor(customColor.trim())
-                            ? `미리보기: ${normalizeColor(customColor.trim())}`
-                            : customColor.trim()
-                              ? '⚠ 인식할 수 없는 색상'
-                              : ''}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* 선택된 색상 미리보기 */}
-                    {(selectedTableColors.backgroundColor || selectedTableColors.textColor) && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-2">선택된 색상 미리보기:</p>
-                        <div 
-                          className="p-3 rounded border border-gray-600 text-center"
-                          style={{
-                            backgroundColor: selectedTableColors.backgroundColor || 'transparent',
-                            color: selectedTableColors.textColor || '#e5e7eb'
-                          }}
-                        >
-                          샘플 표 셀 텍스트
-                        </div>
-                        <div className="flex justify-between mt-2">
-                          <div className="text-xs text-gray-400">
-                            {selectedTableColors.backgroundColor && `배경: ${selectedTableColors.backgroundColor}`}
-                            {selectedTableColors.backgroundColor && selectedTableColors.textColor && ' | '}
-                            {selectedTableColors.textColor && `글자: ${selectedTableColors.textColor}`}
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={resetTableColors}
-                            className="text-red-400 hover:text-red-300 text-xs"
-                          >
-                            초기화
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 색상 표 생성 버튼 */}
-                    {(selectedTableColors.backgroundColor || selectedTableColors.textColor) && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-2">색상이 적용된 표 생성:</p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => insertColoredTable(2, 2)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
-                          >
-                            2×2 색상 표
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => insertColoredTable(3, 3)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
-                          >
-                            3×3 색상 표
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => insertColoredTable(4, 4)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
-                          >
-                            4×4 색상 표
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => insertColoredTable(5, 3)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs"
-                          >
-                            5×3 색상 표
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end mt-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowTableTools(false)}
-                  className="text-gray-400 hover:text-gray-200"
-                >
-                  닫기
-                </Button>
-              </div>
-            </motion.div>
-          )}
+  const blockMenu: MenuItem[] = [
+    { kind: 'item', label: '정보 상자', icon: Info, hint: ':::info', onSelect: () => insertBlock(':::info\n', '\n:::\n') },
+    { kind: 'item', label: '경고 상자', icon: AlertCircle, hint: ':::warn', onSelect: () => insertBlock(':::warn\n', '\n:::\n') },
+    { kind: 'item', label: '성공 상자', icon: CheckCircle, hint: ':::success', onSelect: () => insertBlock(':::success\n', '\n:::\n') },
+    { kind: 'item', label: '접기', icon: ChevronRight, hint: '>>>', onSelect: () => insertBlock('>>> 자세히 보기\n', '\n<<<\n') },
+    { kind: 'divider' },
+    { kind: 'item', label: '타임라인', icon: Calendar, onSelect: () => insertBlock(':::timeline\n2026-01-01 | 사건 제목 | 설명\n', ':::\n') },
+    { kind: 'item', label: '투표', icon: BarChart3, onSelect: () => insertBlock(':::poll 질문을 입력하세요\n선택지1\n선택지2\n', ':::\n') },
+    { kind: 'item', label: '가로줄', icon: Minus, hint: '---', onSelect: () => insertBlock('---\n') },
+    { kind: 'item', label: '목차', icon: ListTree, hint: '[[목차]]', onSelect: () => insertBlock('[[목차]]\n') },
+  ]
 
-          {/* 템플릿 선택 영역 */}
-          {showTemplates && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4"
-            >
-              <h4 className="text-sm font-medium text-gray-300 mb-3">템플릿 선택</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                {Object.entries(templates).map(([key, template]) => (
-                  <motion.button
-                    key={key}
-                    onClick={() => insertTemplate(key as keyof typeof templates)}
-                    className="flex flex-col items-center p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-left"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <template.icon className="w-6 h-6 text-gray-400 mb-2" />
-                    <span className="text-sm font-medium text-gray-200">{template.name}</span>
-                    <span className="text-xs text-gray-400 mt-1 text-center">
-                      {key === 'personInfobox' && '구글 문서와 동일한 복잡한 구조'}
-                      {key === 'groupInfobox' && '여러 표로 나뉘는 그룹/팀 구조'}
-                      {key === 'simpleInfobox' && '기존 호환 버전'}
-                      {key === 'cardGrid' && '작품/프로젝트 목록'}
-                      {key === 'basicArticle' && '일반 문서 구조'}
-                    </span>
-                  </motion.button>
-                ))}
-              </div>
-              <div className="flex justify-end mt-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowTemplates(false)}
-                  className="text-gray-400 hover:text-gray-200"
-                >
-                  닫기
-                </Button>
-              </div>
-            </motion.div>
-          )}
+  const styleMenu: MenuItem[] = [
+    { kind: 'item', label: '위첨자', icon: Superscript, hint: '^^', onSelect: () => insertText('^^', '^^') },
+    { kind: 'item', label: '아래첨자', icon: Subscript, hint: ',,', onSelect: () => insertText(',,', ',,') },
+    { kind: 'item', label: '인라인 코드', icon: Code, hint: '`', onSelect: () => insertText('`', '`') },
+    { kind: 'divider' },
+    { kind: 'item', label: '글자 색', icon: Palette, onSelect: () => insertText('{{{#a33a2e ', '}}}') },
+    { kind: 'item', label: '글자 크게', icon: Type, onSelect: () => insertText('{{{+1 ', '}}}') },
+    { kind: 'item', label: '글꼴 지정', icon: Type, onSelect: () => insertText('{{{font:"Noto Sans KR" ', '}}}') },
+  ]
 
-                    {showPreview ? (
-            /* 미리보기 모드: 편집창 + 미리보기 */
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="hidden lg:block">
-                <div className="relative">
-                  <div className={`flex border border-gray-600 rounded-lg bg-gray-900 ${editorHeight === 'normal' ? 'h-96' : editorHeight === 'tall' ? 'h-[640px]' : 'h-[80vh]'}`}>
-                    {/* 줄 번호 표시 영역 */}
-                    <div 
-                      ref={lineNumbersRef}
-                      className="flex-shrink-0 bg-gray-800 border-r border-gray-600 p-2 font-mono text-sm text-gray-500 min-w-[50px] overflow-hidden"
-                    >
-                      {content.split('\n').map((_, index) => (
-                        <div key={index} className="text-right pr-2 leading-5 select-none h-5">
-                          {index + 1}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* 텍스트 입력 영역 */}
-                    <textarea
-                      ref={textareaRef}
-                      value={content}
-                      onChange={(e) => onChange(e.target.value)}
-                      onSelect={handleTextSelection}
-                      onKeyDown={handleKeyDown}
-                      onScroll={handleTextareaScroll}
-                      className="flex-1 p-4 font-mono text-sm resize-none bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none leading-5"
-                      style={{ lineHeight: '1.25rem' }}
-                      placeholder={WIKI_EDITOR_PLACEHOLDER}
-                    />
-                  </div>
-                  
-                  <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-                    {content.length.toLocaleString()} 글자 | {content.split('\n').length} 줄
-                  </div>
-                </div>
-              </div>
+  const templateMenu: MenuItem[] = [
+    { kind: 'heading', label: '기본 틀 (커서 위치에 삽입)' },
+    ...Object.entries(EDITOR_TEMPLATES).map(([key, t]) => ({
+      kind: 'item' as const, label: t.name, icon: t.icon, onSelect: () => insertTemplate(key),
+    })),
+    ...(templateCategories.length && onLoadTemplateCategory
+      ? [
+          { kind: 'divider' as const },
+          { kind: 'heading' as const, label: '분야별 템플릿 (본문 전체 교체)' },
+          ...templateCategories.map((category) => ({
+            kind: 'item' as const, label: category, icon: FileText, onSelect: () => onLoadTemplateCategory(category),
+          })),
+        ]
+      : []),
+  ]
 
-              <div>
-                <div className={`border border-gray-600 rounded-lg p-4 overflow-y-auto bg-gray-900 ${editorHeight === 'normal' ? 'h-96' : editorHeight === 'tall' ? 'h-[640px]' : 'h-[80vh]'}`}>
-                  <h4 className="text-sm font-medium text-gray-400 mb-4 border-b border-gray-600 pb-2">
-                    미리보기
-                  </h4>
-                  <div className="image-render-stable">
-                    <NamuWikiRenderer
-                      content={content || '*편집 영역에 내용을 입력하면 여기에 미리보기가 표시됩니다.*'}
-                      generateTableOfContents={true}
-                      isPreview
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* 편집 모드: 편집창만 풀사이즈 */
-            <div className="w-full">
-              <div className="relative">
-                <div className="flex border border-gray-600 rounded-lg bg-gray-900 h-96">
-                  {/* 줄 번호 표시 영역 */}
-                  <div 
-                    ref={lineNumbersRef}
-                    className="flex-shrink-0 bg-gray-800 border-r border-gray-600 p-2 font-mono text-sm text-gray-500 min-w-[50px] overflow-hidden"
-                  >
-                    {content.split('\n').map((_, index) => (
-                      <div key={index} className="text-right pr-2 leading-5 select-none h-5">
-                        {index + 1}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* 텍스트 입력 영역 */}
-                  <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={(e) => onChange(e.target.value)}
-                    onSelect={handleTextSelection}
-                    onKeyDown={handleKeyDown}
-                    onScroll={handleTextareaScroll}
-                    className="flex-1 p-4 font-mono text-sm resize-none bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none leading-5"
-                    style={{ lineHeight: '1.25rem' }}
-                    placeholder={WIKI_EDITOR_PLACEHOLDER}
-                  />
-                </div>
-                
-                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-                  {content.length.toLocaleString()} 글자 | {content.split('\n').length} 줄
-                </div>
-              </div>
-            </div>
-          )}
+  /* ── 렌더 ── */
 
-          {/* 도움말 토글 버튼 */}
-          <div className="mt-3 flex items-center justify-end">
-            <button
-              type="button"
-              onClick={() => setShowHelp(!showHelp)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-800/60 hover:bg-gray-800 border border-gray-700 text-xs text-gray-300 hover:text-gray-100 transition-colors"
-              title={showHelp ? '도움말 숨기기' : '문법 도움말 펼치기'}
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>{showHelp ? '도움말 숨기기' : '문법 도움말'}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
-            </button>
-          </div>
-
-          {showHelp && (
-          <div className="mt-3 p-4 bg-gray-800 rounded-lg border border-gray-600">
-            <div className="flex items-start space-x-2">
-              <HelpCircle className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-gray-400 w-full">
-                <h4 className="font-medium mb-2 text-gray-300">편집 도움말</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <p className="font-medium mb-1 text-gray-300">기본 서식:</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">**굵게**</code> 또는 <code className="bg-gray-700 px-1 rounded">{"'''굵게'''"}</code> → <strong>굵게</strong></li>
-                      <li><code className="bg-gray-700 px-1 rounded">*기울임*</code> 또는 <code className="bg-gray-700 px-1 rounded">{"''기울임''"}</code> → <em>기울임</em></li>
-                      <li><code className="bg-gray-700 px-1 rounded">~~취소선~~</code> → <del>취소선</del></li>
-                      <li><code className="bg-gray-700 px-1 rounded">__밑줄__</code> → <u>밑줄</u></li>
-                      <li><code className="bg-gray-700 px-1 rounded">^^상첨자^^</code> → x<sup>2</sup></li>
-                      <li><code className="bg-gray-700 px-1 rounded">,,하첨자,,</code> → H<sub>2</sub>O</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-gray-300">링크와 참조:</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">[[내부링크]]</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">[링크텍스트](URL)</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">[*1]</code> 또는 <code className="bg-gray-700 px-1 rounded">[*]</code> → 각주</li>
-                      <li><code className="bg-gray-700 px-1 rounded">`코드`</code> → 인라인 코드</li>
-                      <li><code className="bg-gray-700 px-1 rounded">!icon:{`{home}`}</code> → 아이콘</li>
-                      <li><code className="bg-gray-700 px-1 rounded">[!icon:{`{insta}`}](URL)</code> → 아이콘 링크</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-gray-300">고급 기능:</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">[[목차]]</code> → 목차 삽입</li>
-                      <li><code className="bg-gray-700 px-1 rounded">|| 셀1 || 셀2 ||</code> → 표</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<rowbgcolor:#ff0000>첫 셀 || … ||`}</code> → 행 전체 색상</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`{{{#ff0000 빨간글씨}}}`}</code> → 색상 텍스트</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`{{{+1 큰글씨}}}`}</code> → 크기 조절</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-gray-300">편집 기능:</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><strong>미리보기:</strong> 실시간 렌더링 확인</li>
-                      <li><strong>각주 자동 번호:</strong> [*]로 순서 자동 배정</li>
-                      <li><strong>각주 클릭 이동:</strong> 각주↔본문 이동</li>
-                      <li><strong>맞춤법 검사:</strong> 한국어 오타 검출</li>
-                      <li><strong>Ctrl+Enter:</strong> 미리보기 토글</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-gray-300">표 색상·정렬·폰트 (행/표 단위):</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<bgcolor:#ff0000> 셀 한 칸 ||`}</code> → 그 셀만</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<rowbgcolor:#4472C4>첫 셀 || 나머지 || 전부 ||`}</code> → 행 전체</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`||<tablebgcolor:#222 tablealign:center>... ||`}</code> → 표 전체</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`<align:center>`}</code> / <code className="bg-gray-700 px-1 rounded">{`<rowalign:center>`}</code> → 가운데 정렬</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`<font:"Noto Sans KR">`}</code> → 폰트 지정</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{`<-3>`}</code> → 열 3칸 병합 / <code className="bg-gray-700 px-1 rounded">{`<|2>`}</code> → 행 2칸 병합 (병합된 칸은 생략)</li>
-                      <li className="text-gray-500">우선순위: 셀 &gt; 행 &gt; 표 (개별 셀로 덮어쓰기 가능)</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-emerald-300">스니펫 (2026 신규):</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">{`{{{font:"맑은 고딕" 글자}}}`}</code> → 본문 폰트 변경</li>
-                      <li><code className="bg-gray-700 px-1 rounded">:::timeline … :::</code> → 세로 타임라인 (각 줄 <code className="bg-gray-700 px-1 rounded">날짜 | 제목 | 설명</code>)</li>
-                      <li><code className="bg-gray-700 px-1 rounded">:::poll 질문 … :::</code> → 실시간 투표 (줄마다 선택지)</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-gray-300">템플릿:</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><strong>인물정보상자:</strong> 동적 이미지 표시</li>
-                      <li><strong>그룹정보상자:</strong> 색상 속성 지원</li>
-                      <li><strong>카드그리드:</strong> 프로젝트 목록</li>
-                      <li><strong>간단 인포박스:</strong> 기본 정보</li>
-                      <li>템플릿 버튼으로 쉽게 삽입</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-emerald-300">새 기능 (2026):</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">{':::info\\n본문\\n:::'}</code> → 정보 박스</li>
-                      <li><code className="bg-gray-700 px-1 rounded">{':::warn'}</code> / <code className="bg-gray-700 px-1 rounded">{':::success'}</code> / <code className="bg-gray-700 px-1 rounded">{':::error'}</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">{':::note'}</code> / <code className="bg-gray-700 px-1 rounded">{':::tip'}</code></li>
-                      <li><code className="bg-gray-700 px-1 rounded">{'>>> 제목\\n내용\\n<<<'}</code> → 접기 블록</li>
-                      <li><code className="bg-gray-700 px-1 rounded">---</code> → 수평선</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1 text-blue-300">각주 (개선):</p>
-                    <ul className="space-y-0.5 text-gray-400">
-                      <li><code className="bg-gray-700 px-1 rounded">[*]</code> 자동 번호 / <code className="bg-gray-700 px-1 rounded">[*1]</code> 수동</li>
-                      <li>본문 [N] 클릭 → 각주 영역 점프 + 깜빡임</li>
-                      <li>각주의 <strong>↑[N]</strong> 클릭 → 본문 위치로 복귀</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          )}
-
-          {/* 맞춤법 검사 결과 */}
-          {showSpellCheckResults && (
-            <div className="mt-4 p-4 border border-red-600 rounded-lg bg-red-900/20">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium text-red-400 flex items-center">
-                  맞춤법 검사 결과
-                  {isSpellChecking && (
-                    <div className="ml-2 w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
-                  )}
-                </h4>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowSpellCheckResults(false)}
-                  className="text-gray-400 hover:text-gray-300"
-                >
-                  ✕
-                </Button>
-              </div>
-              
-              {spellCheckResults.length === 0 ? (
-                <p className="text-green-400">맞춤법 오류가 발견되지 않았습니다!</p>
-              ) : (
-                <div className="space-y-2">
-                  {spellCheckResults.map((result, index) => {
-                    const lineInfo = getLineInfoFromPosition(result.position)
-                    const actualWordExists = lineInfo.lineContent.includes(result.word)
-                    
-                    // 실제로 단어가 없는 경우 건너뛰기
-                    if (!actualWordExists) {
-                      return null
-                    }
-                    
-                    return (
-                      <div key={index} className="p-3 bg-gray-800 rounded border border-gray-600">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-red-400 font-medium">&quot;{result.word}&quot;</span>
-                          <span className="text-xs text-gray-400">{lineInfo.lineNumber}줄</span>
-                        </div>
-                        
-                        {/* 해당 줄 내용 표시 */}
-                        <div className="mb-2 p-2 bg-gray-700 rounded text-xs">
-                          <span className="text-gray-500">{lineInfo.lineNumber}줄: </span>
-                          <span className="text-gray-300 font-mono">
-                            {lineInfo.lineContent.length > 60 
-                              ? lineInfo.lineContent.substring(0, 60) + '...' 
-                              : lineInfo.lineContent || '(빈 줄)'}
-                          </span>
-                        </div>
-                        
-                        {result.suggestions.length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-xs text-gray-400 mb-1">제안:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {result.suggestions.map((suggestion, suggestionIndex) => (
-                                <Button
-                                  key={suggestionIndex}
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => applySpellCheckSuggestion(result.word, suggestion, result.position)}
-                                  className="text-xs bg-blue-600 hover:bg-blue-500 border border-blue-500"
-                                >
-                                  {suggestion}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  }).filter(Boolean)}
-                </div>
-              )}
-            </div>
-          )}
-
-        </CardContent>
-      </Card>
+  const editorPane = (
+    <div className="wiki-editor__pane">
+      <div ref={lineNumbersRef} className="wiki-editor__gutter" aria-hidden="true">
+        {Array.from({ length: lineCount }, (_, i) => (
+          <div key={i}>{i + 1}</div>
+        ))}
+      </div>
+      <textarea
+        ref={textareaRef}
+        value={content}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onScroll={() => {
+          if (textareaRef.current && lineNumbersRef.current) {
+            lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+          }
+        }}
+        placeholder={EDITOR_PLACEHOLDER}
+        spellCheck={false}
+        aria-label="문서 내용"
+        className="wiki-editor__textarea"
+      />
     </div>
   )
-} 
+
+  const previewPane = (
+    <div className="wiki-editor__preview" aria-label="미리보기">
+      <div className="image-render-stable wiki-content">
+        {content.trim() ? (
+          <NamuWikiRenderer content={content} generateTableOfContents isPreview />
+        ) : (
+          <p className="text-sm text-[color:var(--wiki-ink-faint)]">왼쪽에 내용을 입력하면 여기에 미리보기가 표시됩니다.</p>
+        )}
+      </div>
+    </div>
+  )
+
+  const hasSaveBar = Boolean(onSave || onSummaryChange || onMinorEditChange)
+
+  return (
+    <div className={`wiki-editor ${isFocusMode ? 'is-focus' : ''} ${className}`}>
+      {/* 머리: 제목 · 보기 방식 · 집중 모드 */}
+      <div className="wiki-editor__head">
+        <div className="flex min-w-0 items-center gap-2">
+          <PenLine className="h-4 w-4 shrink-0 text-[color:var(--wiki-accent)]" aria-hidden="true" />
+          <h3 className="truncate text-sm font-semibold text-[color:var(--wiki-ink)]">{title}</h3>
+          {isNewDocument && <span className="wiki-chip is-active shrink-0">새 문서</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="wiki-editor__segmented" role="tablist" aria-label="보기 방식">
+            {([
+              ['write', '편집'],
+              ['split', '나란히'],
+              ['preview', '미리보기'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={mode === value}
+                onClick={() => setMode(value)}
+                className={`${mode === value ? 'is-active' : ''} ${value === 'split' ? 'hidden lg:inline-flex' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <ToolButton
+            icon={isFocusMode ? Minimize2 : Maximize2}
+            label={isFocusMode ? '집중 모드 끄기' : '집중 모드'}
+            shortcut={isFocusMode ? 'Esc' : undefined}
+            onClick={() => setIsFocusMode((v) => !v)}
+          />
+        </div>
+      </div>
+
+      {/* 툴바 */}
+      {mode !== 'preview' && (
+        <div className="wiki-editor__toolbar" role="toolbar" aria-label="서식 도구">
+          <ToolButton icon={Bold} label="굵게" shortcut="Ctrl+B" onClick={() => insertText("'''", "'''")} />
+          <ToolButton icon={Italic} label="기울임" shortcut="Ctrl+I" onClick={() => insertText("''", "''")} />
+          <ToolButton icon={Underline} label="밑줄" onClick={() => insertText('__', '__')} />
+          <ToolButton icon={Strikethrough} label="취소선" onClick={() => insertText('~~', '~~')} />
+          <ToolMenu icon={Type} label="글자" items={styleMenu} />
+          <ToolDivider />
+          <ToolButton icon={Heading1} label="큰 제목" onClick={() => insertAtLineStart('= ')} />
+          <ToolButton icon={Heading2} label="문단 제목" onClick={() => insertAtLineStart('== ')} />
+          <ToolButton icon={Heading3} label="소제목" onClick={() => insertAtLineStart('=== ')} />
+          <ToolButton icon={List} label="목록" onClick={() => insertAtLineStart('* ')} />
+          <ToolButton icon={ListOrdered} label="번호 목록" onClick={() => insertAtLineStart('1. ')} />
+          <ToolButton icon={Quote} label="인용" onClick={() => insertAtLineStart('> ')} />
+          <ToolDivider />
+          <ToolButton icon={Link2} label="위키 링크" shortcut="Ctrl+K" onClick={() => insertText('[[', ']]')} />
+          <ToolButton icon={Link} label="외부 링크" onClick={() => insertText('[', '](https://)')} />
+          <ToolButton icon={Hash} label="각주" onClick={() => insertText('[*] ', '')} />
+          <ToolButton icon={Tag} label="분류" onClick={() => insertBlock('[[분류:', ']]\n')} />
+          <ToolButton
+            icon={ImageIcon}
+            label={isUploading ? '올리는 중…' : '사진 올리기'}
+            disabled={isUploading}
+            onClick={() => fileInputRef.current?.click()}
+          />
+          <ToolDivider />
+          <ToolMenu icon={Table} label="표" items={tableMenu} />
+          <ToolMenu icon={Blocks} label="블록" items={blockMenu} />
+          <ToolMenu icon={FileText} label="템플릿" items={templateMenu} />
+          <span className="ml-auto flex items-center gap-0.5">
+            <ToolButton
+              icon={SpellCheck}
+              label={isSpellChecking ? '검사 중…' : '맞춤법 검사'}
+              disabled={isSpellChecking}
+              onClick={runSpellCheck}
+            />
+            <ToolButton icon={HelpCircle} label="문법 요약" active={showHelp} onClick={() => setShowHelp((v) => !v)} />
+          </span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) uploadImage(file)
+              e.currentTarget.value = ''
+            }}
+          />
+        </div>
+      )}
+
+      {/* 알림 줄 */}
+      {lockedByOther && (
+        <div className="wiki-mbox wiki-mbox--danger wiki-editor__notice" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--wiki-danger)]" aria-hidden="true" />
+          <span>
+            <strong>{lockedBy}</strong>님이 이 문서를 편집 중입니다. 편집이 끝날 때까지(최대 10분) 저장할 수 없어요.
+          </span>
+        </div>
+      )}
+      {draft && (
+        <div className="wiki-mbox wiki-mbox--info wiki-editor__notice">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--wiki-accent)]" aria-hidden="true" />
+          <span className="flex-1">
+            {new Date(draft.savedAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}에 저장되지 않은
+            임시 원고가 있습니다.
+          </span>
+          <span className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              className="wiki-editor__btn wiki-editor__btn--primary"
+              onClick={() => {
+                onChange(draft.content)
+                setDraft(null)
+              }}
+            >
+              복원
+            </button>
+            <button type="button" className="wiki-editor__btn" onClick={discardDraft}>버리기</button>
+          </span>
+        </div>
+      )}
+
+      {showHelp && mode !== 'preview' && <SyntaxHelp onOpenFullHelp={onOpenFullHelp} />}
+
+      {/* 색상 표 만들기 */}
+      {showTablePanel && (
+        <div className="wiki-editor__panel">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-[color:var(--wiki-ink)]">색상 표 만들기</h4>
+            <button type="button" aria-label="닫기" className="wiki-editor__tool" onClick={() => setShowTablePanel(false)}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mb-2 text-xs text-[color:var(--wiki-ink-muted)]">머리 행 배경색</p>
+          <div className="flex flex-wrap gap-1.5">
+            {COLOR_PICKER_PALETTE.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                title={c.name}
+                aria-label={c.name}
+                aria-pressed={tableColors.backgroundColor === c.value}
+                onClick={() => setTableColors((prev) => ({ ...prev, backgroundColor: c.value }))}
+                className="h-7 w-7 rounded-md border border-[color:var(--wiki-rule-strong)] aria-pressed:ring-2 aria-pressed:ring-[color:var(--wiki-accent)] aria-pressed:ring-offset-1"
+                style={{ backgroundColor: c.value }}
+              />
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              type="color"
+              aria-label="색 고르기"
+              value={/^#[0-9a-fA-F]{6}$/.test(normalizeColor(customColor.trim())) ? normalizeColor(customColor.trim()) : '#2F5D8C'}
+              onChange={(e) => setCustomColor(e.target.value)}
+              className="h-8 w-10 cursor-pointer rounded-md p-0.5"
+            />
+            <input
+              type="text"
+              value={customColor}
+              onChange={(e) => setCustomColor(e.target.value)}
+              placeholder="#2F5D8C"
+              className="w-28 px-2 py-1 text-sm"
+            />
+            <button type="button" className="wiki-editor__btn" disabled={!customColor.trim()} onClick={() => applyCustomColor('backgroundColor')}>
+              배경으로
+            </button>
+            <button type="button" className="wiki-editor__btn" disabled={!customColor.trim()} onClick={() => applyCustomColor('textColor')}>
+              글자색으로
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span
+              className="rounded-md border border-[color:var(--wiki-rule)] px-3 py-1.5 text-sm"
+              style={{ backgroundColor: tableColors.backgroundColor, color: tableColors.textColor }}
+            >
+              머리 행 미리보기
+            </span>
+            {(tableColors.backgroundColor || tableColors.textColor) && (
+              <button type="button" className="text-xs text-[color:var(--wiki-ink-muted)] hover:underline" onClick={() => setTableColors({})}>
+                색 초기화
+              </button>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {([[2, 2], [3, 3], [4, 4], [5, 3]] as const).map(([r, c]) => (
+              <button key={`${r}x${c}`} type="button" className="wiki-editor__btn" onClick={() => insertTable(r, c, tableColors)}>
+                {r} × {c} 넣기
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 본문 */}
+      <div className={`wiki-editor__body wiki-editor__body--${mode}`}>
+        {mode !== 'preview' && editorPane}
+        {mode !== 'write' && previewPane}
+      </div>
+
+      <div className="wiki-editor__status">
+        <span>{content.length.toLocaleString('ko-KR')}자 · {lineCount.toLocaleString('ko-KR')}줄</span>
+        <span className="hidden sm:inline">Ctrl+S 저장 · Ctrl+Enter 미리보기 · Ctrl+K 링크</span>
+      </div>
+
+      {/* 맞춤법 결과 */}
+      {spellResults && (
+        <div className="wiki-editor__panel">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-[color:var(--wiki-ink)]">맞춤법 검사 결과</h4>
+            <button type="button" aria-label="닫기" className="wiki-editor__tool" onClick={() => setSpellResults(null)}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {spellResults.filter((r) => lineOf(r.position).lineContent.includes(r.word)).length === 0 ? (
+            <p className="text-sm text-[color:var(--wiki-success)]">맞춤법 오류가 발견되지 않았습니다.</p>
+          ) : (
+            <ul className="space-y-2">
+              {spellResults
+                .filter((r) => lineOf(r.position).lineContent.includes(r.word))
+                .map((result) => {
+                  const { lineNumber, lineContent } = lineOf(result.position)
+                  return (
+                    <li key={`${result.position}-${result.word}`} className="rounded-md border border-[color:var(--wiki-rule)] bg-[color:var(--wiki-bg)] p-3 text-sm">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-medium text-[color:var(--wiki-danger)]">“{result.word}”</span>
+                        <span className="text-xs text-[color:var(--wiki-ink-muted)]">{lineNumber}줄</span>
+                      </div>
+                      <p className="mt-1 truncate font-mono text-xs text-[color:var(--wiki-ink-soft)]">{lineContent || '(빈 줄)'}</p>
+                      {result.suggestions.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {result.suggestions.map((s) => (
+                            <button key={s} type="button" className="wiki-editor__btn" onClick={() => applySuggestion(result, s)}>
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* 저장 영역 */}
+      {hasSaveBar && (
+        <div className="wiki-editor__savebar">
+          {onSummaryChange && (
+            <label className="flex-1 min-w-0">
+              <span className="sr-only">편집 요약</span>
+              <input
+                value={summary ?? ''}
+                onChange={(e) => onSummaryChange(e.target.value)}
+                placeholder="편집 요약 — 무엇을 바꿨나요? (선택)"
+                maxLength={200}
+                className="w-full px-3 py-2 text-sm"
+              />
+            </label>
+          )}
+          {onMinorEditChange && (
+            <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-sm text-[color:var(--wiki-ink-soft)]" title="오타 수정처럼 내용에 큰 변화가 없는 편집">
+              <input
+                type="checkbox"
+                checked={isMinorEdit}
+                onChange={(e) => onMinorEditChange(e.target.checked)}
+                className="h-4 w-4 accent-[color:var(--wiki-accent)]"
+              />
+              사소한 편집
+            </label>
+          )}
+          <div className="flex shrink-0 gap-2">
+            {onCancel && (
+              <button type="button" className="wiki-editor__btn" onClick={onCancel}>취소</button>
+            )}
+            {onSave && (
+              <button
+                type="button"
+                className="wiki-editor__btn wiki-editor__btn--primary"
+                onClick={handleSave}
+                disabled={lockedByOther}
+              >
+                <Save className="h-4 w-4" aria-hidden="true" />
+                {saveLabel || (isNewDocument ? '새 문서 만들기' : '저장')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
