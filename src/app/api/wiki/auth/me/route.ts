@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { wikiUsers } from '@/db/schema/wiki'
 import { isWhitelistedWikiAdmin } from '@/lib/doublejAuth'
+import { getCountryFromRequest, getIpAddress, getLocationFromIp } from '@/lib/getIpAddress'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,6 +130,12 @@ export async function GET(request: NextRequest) {
         isActive: user.isActive,
         lastLogin: user.lastLogin,
         mainUserId: user.mainUserId,
+      },
+      // 알림 센터의 "로그인 알림" 용 — 세션(토큰) 발급 시각이 바뀌면 새 로그인으로 본다
+      session: {
+        issuedAt: typeof decoded.iat === 'number' ? decoded.iat * 1000 : null,
+        ipAddress: getIpAddress(request),
+        location: getCountryFromRequest(request) || getLocationFromIp(getIpAddress(request)),
       },
     })
   } catch (error) {

@@ -36,7 +36,16 @@ interface WikiUser {
   mainUserId?: string
 }
 
+export interface WikiSessionInfo {
+  /** 토큰 발급 시각(ms) — 바뀌면 새 로그인 */
+  issuedAt: number | null
+  ipAddress: string
+  location: string
+}
+
 interface WikiAuthContextType {
+  /** 현재 로그인 세션 정보 (알림 센터의 로그인 알림용) */
+  wikiSession: WikiSessionInfo | null
   wikiUser: WikiUser | null
   isLoading: boolean
   login: () => Promise<boolean>
@@ -59,6 +68,7 @@ const WikiAuthContext = createContext<WikiAuthContextType | undefined>(undefined
 export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
   const [wikiUser, setWikiUser] = useState<WikiUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [wikiSession, setWikiSession] = useState<WikiSessionInfo | null>(null)
   const { addNotification } = useNotifications()
 
   // 페이지 로드 시 인증 상태 확인
@@ -76,6 +86,7 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json()
         if (data.success && data.user) {
           setWikiUser(data.user)
+          setWikiSession(data.session ?? null)
           return
         }
       }
@@ -161,6 +172,7 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         setWikiUser(null)
+        setWikiSession(null)
         
         // 로그아웃 알림 추가
         if (currentUsername) {
@@ -192,6 +204,7 @@ export function WikiAuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: WikiAuthContextType = {
     wikiUser,
+    wikiSession,
     isLoading,
     login,
     register,

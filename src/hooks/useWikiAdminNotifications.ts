@@ -40,7 +40,7 @@ export function useWikiAdminNotifications(enabled: boolean) {
           const isCreate = sub.type === 'create'
           addRef.current({
             type: 'wiki',
-            category: 'wiki',
+            category: 'document',
             severity: 'info',
             title: isCreate ? '새 문서 생성 요청' : '문서 수정 요청',
             message: `${sub.author || '알 수 없음'}님이 "${sub.targetTitle}" 문서 ${

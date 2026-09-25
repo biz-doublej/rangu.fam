@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import NamuWikiRenderer from '@/components/ui/NamuWikiRenderer'
 import WikiEditor from '@/components/ui/WikiEditor'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
@@ -123,6 +124,7 @@ export default function WikiDocumentPage() {
   const router = useRouter()
   const params = useParams()
   const { wikiUser, isLoggedIn, isModerator } = useWikiAuth()
+  const { addNotification } = useNotifications()
 
   const rawSlug = Array.isArray(params.slug) ? params.slug.join('/') : params.slug || ''
   const slug = decodeURIComponent(rawSlug)
@@ -490,6 +492,16 @@ export default function WikiDocumentPage() {
 
       const data = await res.json()
       if (data.success) {
+        const savedTitle = currentPage?.title || slug
+        addNotification({
+          type: 'success',
+          category: 'document',
+          title: currentPage ? '문서를 저장했어요' : '새 문서를 만들었어요',
+          message: currentPage
+            ? `"${savedTitle}" 문서에 변경 사항을 저장했습니다.${editSummary ? ` (${editSummary})` : ''}`
+            : `"${savedTitle}" 문서가 이랑위키에 새로 생겼습니다.`,
+          link: `/wiki/${encodeURIComponent(savedTitle)}`,
+        })
         window.location.reload()
       } else {
         if (res.status === 409 && data.conflict?.currentRevision) {

@@ -1,289 +1,281 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Bell,
-  X,
-  LogIn,
-  LogOut,
-  Edit,
-  AlertTriangle,
-  Info,
-  CheckCircle,
-  MapPin,
-  Clock,
-  Trash2,
-  Check,
-  ShieldAlert,
-  Shield,
-  Link as LinkIcon
-} from 'lucide-react'
-import { useNotifications, Notification } from '@/contexts/NotificationContext'
-import { Button } from './Button'
-import { formatDistanceToNow } from 'date-fns'
-import { ko } from 'date-fns/locale'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { formatDistanceToNow, isToday, isYesterday, differenceInCalendarDays } from 'date-fns'
+import { ko } from 'date-fns/locale'
+import {
+  Bell, BellOff, CheckCheck, CheckCircle2, ExternalLink, FilePen, Globe2, Info, LogIn, LogOut,
+  ShieldAlert, Trash2, X,
+} from 'lucide-react'
+import {
+  useNotifications,
+  getNotificationGroup,
+  type Notification,
+  type NotificationGroup,
+} from '@/contexts/NotificationContext'
 
-interface NotificationDropdownProps {
-  className?: string
+type Tab = 'all' | NotificationGroup
+
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: 'all', label: '전체' },
+  { key: 'document', label: '문서' },
+  { key: 'account', label: '계정' },
+  { key: 'notice', label: '안내' },
+]
+
+const EMPTY_TEXT: Record<Tab, string> = {
+  all: '새 알림이 없어요.',
+  document: '감시 중인 문서가 바뀌거나 문서를 저장하면 여기에 알려드려요.',
+  account: '로그인 기록이 여기에 쌓여요.',
+  notice: '이랑위키 안내가 여기에 표시돼요.',
 }
 
-export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ className = '' }) => {
+/** 알림 종류별 아이콘 + 톤 */
+function visualFor(n: Notification): { Icon: React.ElementType; tone: 'accent' | 'success' | 'warning' | 'danger' | 'neutral' } {
+  if (n.severity === 'critical' || n.type === 'alert') return { Icon: ShieldAlert, tone: 'danger' }
+  if (n.type === 'login') return { Icon: n.severity === 'warning' ? ShieldAlert : LogIn, tone: n.severity === 'warning' ? 'warning' : 'success' }
+  if (n.type === 'logout') return { Icon: LogOut, tone: 'neutral' }
+  if (n.type === 'success') return { Icon: CheckCircle2, tone: 'success' }
+  if (n.type === 'warning' || n.severity === 'warning') return { Icon: ShieldAlert, tone: 'warning' }
+  if (getNotificationGroup(n) === 'document') return { Icon: FilePen, tone: 'accent' }
+  return { Icon: Info, tone: 'neutral' }
+}
+
+function dayLabel(date: Date): string {
+  if (isToday(date)) return '오늘'
+  if (isYesterday(date)) return '어제'
+  if (differenceInCalendarDays(new Date(), date) < 7) return '이번 주'
+  return '이전'
+}
+
+export const NotificationDropdown: React.FC<{ className?: string }> = ({ className = '' }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'wiki' | 'system' | 'unread'>('all')
+  const [tab, setTab] = useState<Tab>('all')
+  const [confirmClear, setConfirmClear] = useState(false)
   const { notifications, unreadCount, markAsRead, markAllAsRead, removeNotification, clearAll } = useNotifications()
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
+    if (!isOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setIsOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setIsOpen(false)
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [isOpen])
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  useEffect(() => {
+    if (!isOpen) setConfirmClear(false)
+  }, [isOpen])
 
-  const getNotificationIcon = (notification: Notification) => {
-    const { type, severity, category } = notification
-    if (type === 'login') return <LogIn className="w-4 h-4 text-emerald-400" />
-    if (type === 'logout') return <LogOut className="w-4 h-4 text-amber-400" />
-    if (type === 'edit' || category === 'wiki') return <Edit className="w-4 h-4 text-sky-400" />
-    if (type === 'warning' || severity === 'warning') return <AlertTriangle className="w-4 h-4 text-yellow-400" />
-    if (severity === 'critical' || type === 'alert' || category === 'security') return <ShieldAlert className="w-4 h-4 text-rose-400" />
-    if (type === 'success') return <CheckCircle className="w-4 h-4 text-emerald-400" />
-    if (type === 'info') return <Info className="w-4 h-4 text-blue-400" />
-    return <Bell className="w-4 h-4 text-slate-300" />
-  }
-
-  const filteredNotifications = useMemo(() => {
-    return notifications.filter((n) => {
-      if (filter === 'unread') return !n.isRead
-      if (filter === 'wiki') return n.category === 'wiki' || n.type === 'edit'
-      if (filter === 'system') return n.category === 'system' || n.type === 'login' || n.type === 'logout'
-      return true
-    })
-  }, [notifications, filter])
-
-  const counts = useMemo(() => {
-    const wiki = notifications.filter((n) => n.category === 'wiki' || n.type === 'edit').length
-    const system = notifications.filter((n) => n.category === 'system' || n.type === 'login' || n.type === 'logout').length
-    const unread = notifications.filter((n) => !n.isRead).length
-    return { wiki, system, unread }
+  const unreadByTab = useMemo(() => {
+    const counts: Record<Tab, number> = { all: 0, document: 0, account: 0, notice: 0 }
+    for (const n of notifications) {
+      if (n.isRead) continue
+      counts.all += 1
+      counts[getNotificationGroup(n)] += 1
+    }
+    return counts
   }, [notifications])
 
-  const handleNotificationClick = (notification: Notification) => {
-    if (!notification.isRead) {
-      markAsRead(notification.id)
+  const sections = useMemo(() => {
+    const visible = notifications.filter((n) => tab === 'all' || getNotificationGroup(n) === tab)
+    const grouped: Array<{ label: string; items: Notification[] }> = []
+    for (const n of visible) {
+      const label = dayLabel(n.createdAt)
+      const last = grouped[grouped.length - 1]
+      if (last?.label === label) last.items.push(n)
+      else grouped.push({ label, items: [n] })
     }
-    if (notification.link) {
-      router.push(notification.link)
-      setIsOpen(false)
-    }
+    return grouped
+  }, [notifications, tab])
+
+  const open = (n: Notification) => {
+    if (!n.isRead) markAsRead(n.id)
+    if (!n.link) return
+    if (/^https?:\/\//.test(n.link)) window.open(n.link, '_blank', 'noopener,noreferrer')
+    else router.push(n.link)
+    setIsOpen(false)
   }
 
   return (
-    <div ref={dropdownRef} className={`relative ${className}`}>
-      {/* Bell Icon Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative text-gray-200 hover:text-white"
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        aria-label={unreadCount > 0 ? `알림 ${unreadCount}개 읽지 않음` : '알림'}
+        aria-expanded={isOpen}
+        className="wiki-notify__bell"
       >
-        <Bell className="w-4 h-4" />
-        {unreadCount > 0 && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white"
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </motion.span>
-        )}
-      </Button>
+        <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
+        {unreadCount > 0 && <span className="wiki-notify__badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+      </button>
 
-      {/* Dropdown */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="absolute right-0 top-full mt-2 w-[26rem] max-h-[28rem] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur z-50"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200">이랑위키 알림</p>
-                <h3 className="font-semibold text-white">Notification Center</h3>
-              </div>
-              <div className="flex items-center space-x-2">
-                {unreadCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={markAllAsRead}
-                    className="text-emerald-200 hover:text-emerald-100 text-xs"
-                  >
-                    <Check className="mr-1 h-3 w-3" />
-                    모두 읽음
-                  </Button>
-                )}
-                {notifications.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAll}
-                    className="text-rose-200 hover:text-rose-100 text-xs"
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    모두 삭제
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsOpen(false)}
-                  className="text-slate-400 hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2 text-xs text-slate-200">
-              {[
-                { key: 'all', label: '전체', count: notifications.length },
-                { key: 'wiki', label: '위키', count: counts.wiki },
-                { key: 'system', label: '시스템', count: counts.system },
-                { key: 'unread', label: '미확인', count: counts.unread },
-              ].map(({ key, label, count }) => (
-                <button
-                  key={key}
-                  onClick={() => setFilter(key as typeof filter)}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-3 py-1 transition',
-                    filter === key
-                      ? 'border-emerald-300/60 bg-emerald-500/15 text-emerald-100'
-                      : 'border-white/10 bg-white/5 text-slate-300 hover:border-emerald-200/50 hover:text-emerald-100'
-                  )}
-                >
-                  <span>{label}</span>
-                  <span className="text-[11px] text-emerald-100/80">{count}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Notifications List */}
-            <div className="max-h-[20rem] overflow-y-auto">
-              {filteredNotifications.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">
-                  <Bell className="mx-auto mb-2 h-8 w-8 text-slate-600" />
-                  <p>표시할 알림이 없습니다</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-white/5">
-                  {filteredNotifications.map((notification) => (
-                    <motion.div
-                      key={notification.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={cn(
-                        'cursor-pointer bg-white/[0.02] p-4 transition hover:bg-white/[0.06]',
-                        !notification.isRead && 'border-l-2 border-emerald-300/70 bg-emerald-500/5'
-                      )}
-                      onClick={() => handleNotificationClick(notification)}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="mt-1 flex-shrink-0">
-                          {getNotificationIcon(notification)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between">
-                            <h4
-                              className={cn(
-                                'text-sm font-semibold text-white',
-                                !notification.isRead ? 'text-emerald-100' : 'text-slate-100'
-                              )}
-                            >
-                              {notification.title}
-                            </h4>
-                            {notification.category && (
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
-                                {notification.category === 'wiki' ? '위키' : notification.category}
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-1 text-sm text-slate-200 line-clamp-2">{notification.message}</p>
-                          {notification.data?.ipAddress && (
-                            <div className="mt-1 flex items-center text-xs text-slate-400">
-                              <MapPin className="mr-1 h-3 w-3" /> IP: {notification.data.ipAddress}
-                            </div>
-                          )}
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatDistanceToNow(notification.createdAt, {
-                                addSuffix: true,
-                                locale: ko,
-                              })}
-                            </span>
-                            {notification.link && (
-                              <button
-                                className="inline-flex items-center gap-1 rounded-full border border-emerald-300/50 px-2 py-0.5 text-[11px] text-emerald-100 hover:border-emerald-200"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  router.push(notification.link as string)
-                                  markAsRead(notification.id)
-                                  setIsOpen(false)
-                                }}
-                              >
-                                <LinkIcon className="h-3 w-3" /> 열기
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {!notification.isRead && <div className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-emerald-300"></div>}
-                      </div>
-                      <div className="mt-3 flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-slate-400 hover:text-emerald-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            markAsRead(notification.id)
-                          }}
-                        >
-                          읽음 처리
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-slate-400 hover:text-rose-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removeNotification(notification.id)
-                          }}
-                        >
-                          삭제
-                        </Button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
+      {isOpen && (
+        <div role="dialog" aria-label="알림" className="wiki-notify">
+          <header className="wiki-notify__head">
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-base font-bold text-[color:var(--wiki-ink)]">알림</h3>
+              {unreadCount > 0 && (
+                <span className="text-xs text-[color:var(--wiki-ink-muted)]">읽지 않은 알림 {unreadCount}개</span>
               )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                className="wiki-notify__icon-btn"
+                onClick={markAllAsRead}
+                disabled={unreadCount === 0}
+                title="모두 읽음으로 표시"
+                aria-label="모두 읽음으로 표시"
+              >
+                <CheckCheck className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="wiki-notify__icon-btn"
+                onClick={() => setConfirmClear(true)}
+                disabled={notifications.length === 0}
+                title="모든 알림 지우기"
+                aria-label="모든 알림 지우기"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button type="button" className="wiki-notify__icon-btn" onClick={() => setIsOpen(false)} aria-label="닫기">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
+
+          {confirmClear && (
+            <div className="wiki-notify__confirm">
+              <span>알림 {notifications.length}개를 모두 지울까요?</span>
+              <span className="flex gap-1.5">
+                <button type="button" className="wiki-editor__btn" onClick={() => setConfirmClear(false)}>취소</button>
+                <button
+                  type="button"
+                  className="wiki-editor__btn wiki-editor__btn--danger"
+                  onClick={() => {
+                    clearAll()
+                    setConfirmClear(false)
+                  }}
+                >
+                  지우기
+                </button>
+              </span>
+            </div>
+          )}
+
+          <nav className="wiki-notify__tabs" role="tablist" aria-label="알림 종류">
+            {TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={tab === key ? 'is-active' : ''}
+              >
+                {label}
+                {unreadByTab[key] > 0 && <span className="wiki-notify__tab-count">{unreadByTab[key]}</span>}
+              </button>
+            ))}
+          </nav>
+
+          <div className="wiki-notify__list">
+            {sections.length === 0 ? (
+              <div className="wiki-notify__empty">
+                <BellOff className="h-7 w-7" aria-hidden="true" />
+                <p>{EMPTY_TEXT[tab]}</p>
+              </div>
+            ) : (
+              sections.map((section) => (
+                <section key={section.label}>
+                  <p className="wiki-notify__day">{section.label}</p>
+                  <ul>
+                    {section.items.map((n) => {
+                      const { Icon, tone } = visualFor(n)
+                      return (
+                        <li key={n.id} className={`wiki-notify__item ${n.isRead ? '' : 'is-unread'}`}>
+                          <button type="button" className="wiki-notify__item-main" onClick={() => open(n)}>
+                            <span className={`wiki-notify__icon wiki-notify__icon--${tone}`}>
+                              <Icon className="h-4 w-4" aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0 flex-1 text-left">
+                              <span className="wiki-notify__title">{n.title}</span>
+                              <span className="wiki-notify__message">{n.message}</span>
+                              <span className="wiki-notify__meta">
+                                <time dateTime={n.createdAt.toISOString()}>
+                                  {formatDistanceToNow(n.createdAt, { addSuffix: true, locale: ko })}
+                                </time>
+                                {n.data?.ipAddress && (
+                                  <span className="inline-flex items-center gap-1">
+                                    <Globe2 className="h-3 w-3" aria-hidden="true" />
+                                    {n.data.ipAddress}
+                                    {n.data.location && ` · ${n.data.location}`}
+                                  </span>
+                                )}
+                                {n.link && /^https?:\/\//.test(n.link) && (
+                                  <span className="inline-flex items-center gap-0.5">
+                                    보안 확인 <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </button>
+                          <span className="wiki-notify__actions">
+                            {!n.isRead && (
+                              <button
+                                type="button"
+                                className="wiki-notify__icon-btn"
+                                onClick={() => markAsRead(n.id)}
+                                title="읽음으로 표시"
+                                aria-label="읽음으로 표시"
+                              >
+                                <CheckCheck className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="wiki-notify__icon-btn"
+                              onClick={() => removeNotification(n.id)}
+                              title="알림 지우기"
+                              aria-label="알림 지우기"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                          {!n.isRead && <span className="wiki-notify__dot" aria-hidden="true" />}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              ))
+            )}
+          </div>
+
+          <footer className="wiki-notify__foot">
+            <button
+              type="button"
+              onClick={() => {
+                router.push('/wiki/watchlist')
+                setIsOpen(false)
+              }}
+            >
+              감시 목록 관리
+            </button>
+            <span>알림은 이 브라우저에만 저장돼요</span>
+          </footer>
+        </div>
+      )}
     </div>
   )
 }

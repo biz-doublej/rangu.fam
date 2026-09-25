@@ -4,7 +4,6 @@ import React, { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Toaster } from 'react-hot-toast'
 import { Footer } from '@/components/ui'
-import { DemoNotificationTrigger } from '@/components/DemoNotificationTrigger'
 import { GiftBoxLayer } from '@/components/GiftBoxLayer'
 import { RANGU_ARCHIVE_MODE } from '@/config/archive'
 
@@ -46,7 +45,6 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative" data-section={section}>
-      {!RANGU_ARCHIVE_MODE && <DemoNotificationTrigger />}
       {children}
       {/* 랜덤 선물상자 — 랑구팸 메인 페이지에서만 (위키/멤버/대학/관리자 제외) */}
       {isRangu && !RANGU_ARCHIVE_MODE && <GiftBoxLayer />}
