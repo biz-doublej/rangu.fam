@@ -413,14 +413,9 @@ export default function WikiMainPage() {
         <div className="relative flex items-start gap-3">
           <BookOpen className="w-5 h-5 mt-0.5 text-[color:var(--wiki-cyan)]" />
           <div>
-            <p
-              className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--wiki-cyan)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              MISSION&nbsp;BRIEF · v2026.05
-            </p>
+            <p className="text-xs font-medium text-[color:var(--wiki-ink-muted)]">안내</p>
             <h2 className="mt-1 text-lg font-semibold text-[color:var(--wiki-ink)]"
-                style={{ fontFamily: "'Space Grotesk', 'Pretendard', sans-serif" }}>
+                style={{ fontFamily: "'Pretendard', sans-serif" }}>
               이랑위키에 오신 것을 환영합니다.
             </h2>
             <p className="mt-1.5 text-sm text-[color:var(--wiki-ink-soft)] leading-relaxed">

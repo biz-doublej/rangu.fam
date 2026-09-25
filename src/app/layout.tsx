@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Black_Han_Sans, Gaegu, Caveat } from 'next/font/google'
 import './globals.css'
+import './palette.css'
 import React from 'react'
 import { AppProviders } from '@/components/providers/AppProviders'
 import { AppChrome } from '@/components/layout/AppChrome'

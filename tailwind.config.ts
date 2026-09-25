@@ -1,5 +1,23 @@
 import type { Config } from 'tailwindcss'
 
+// Tailwind 기본 색 계열을 CSS 변수로 노출한다 (값은 src/app/palette.css).
+// 섹션별로 변수만 바꿔 같은 유틸리티 클래스가 다른 팔레트를 쓰게 하기 위함 — 현재는 이랑위키 라이트 테마.
+const VAR_COLOR_FAMILIES = [
+  'gray', 'slate', 'zinc', 'neutral', 'stone',
+  'blue', 'sky', 'cyan', 'indigo', 'violet', 'purple', 'fuchsia', 'pink',
+  'emerald', 'green', 'teal', 'lime',
+  'amber', 'yellow', 'orange',
+  'red', 'rose',
+] as const
+const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'] as const
+
+const varColors = Object.fromEntries(
+  VAR_COLOR_FAMILIES.map((family) => [
+    family,
+    Object.fromEntries(SHADES.map((shade) => [shade, `rgb(var(--tw-c-${family}-${shade}) / <alpha-value>)`])),
+  ])
+)
+
 const config: Config = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
@@ -10,6 +28,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        ...varColors,
+        white: 'rgb(var(--tw-c-white) / <alpha-value>)',
+        black: 'rgb(var(--tw-c-black) / <alpha-value>)',
+
         // Legacy (used by wiki — keep)
         primary: {
           50: '#e6f2ff',

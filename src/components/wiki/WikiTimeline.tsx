@@ -57,7 +57,7 @@ export function WikiTimeline({
               style={{ backgroundColor: 'var(--wiki-accent, #4472C4)' }}
             />
             {entry.date && (
-              <time className="mb-0.5 block font-mono text-[11px] font-semibold uppercase tracking-wide text-[color:var(--wiki-accent,#6ea8fe)]">
+              <time className="mb-0.5 block font-mono text-[11px] font-semibold tracking-wide text-[color:var(--wiki-accent,#6ea8fe)]">
                 {entry.date}
               </time>
             )}

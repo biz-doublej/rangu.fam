@@ -281,7 +281,7 @@ function WikiWorkshopListPageContent() {
                 </span>
                 <span
                   className="wiki-chip"
-                  style={{ borderColor: 'rgba(167,139,250,0.45)', color: 'var(--wiki-violet)' }}
+                  style={{ borderColor: 'var(--wiki-accent-line)', color: 'var(--wiki-violet)' }}
                 >
                   <UserRound className="w-3 h-3" />
                   @{statement.listAuthor}

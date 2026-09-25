@@ -342,7 +342,7 @@ function YearTable({ rows }: { rows: YearPoint[] }) {
     <div className="overflow-hidden rounded-md border border-[color:var(--wiki-rule)]">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[color:var(--wiki-rule)] text-left text-[11px] uppercase tracking-wider text-[color:var(--wiki-ink-muted)]">
+          <tr className="border-b border-[color:var(--wiki-rule)] text-left text-[11px] tracking-wider text-[color:var(--wiki-ink-muted)]">
             <th className="px-3 py-2 font-medium">연도</th>
             <th className="px-3 py-2 font-medium">편집</th>
             <th className="px-3 py-2 font-medium">새 문서</th>

@@ -63,7 +63,7 @@ export default function WorkshopCeremony2025Page() {
               <ArrowLeft className="h-3.5 w-3.5" />
               작업공작소 목록으로
             </Link>
-            <p className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-500/15 px-3 py-1 text-xs uppercase tracking-[0.2em] text-amber-100">
+            <p className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-500/15 px-3 py-1 text-xs text-amber-100">
               <Sparkles className="h-3.5 w-3.5" />
               ceremony
             </p>
@@ -75,7 +75,7 @@ export default function WorkshopCeremony2025Page() {
         </section>
 
         <section className="mt-6 rounded-3xl border border-amber-400/35 bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent p-6">
-          <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-amber-100">
+          <p className="inline-flex items-center gap-2 text-xs text-amber-100">
             <Crown className="h-4 w-4" />
             올해의 발언인
           </p>
@@ -130,7 +130,7 @@ export default function WorkshopCeremony2025Page() {
                 dragElastic={0.8}
                 onDragEnd={handleDragEnd}
               >
-                <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-amber-100">
+                <p className="inline-flex items-center gap-2 text-xs text-amber-100">
                   <Medal className="h-4 w-4 text-amber-300" />
                   [{currentAward.category}]
                 </p>

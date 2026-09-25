@@ -33,7 +33,7 @@ function toKey(d: Date): string {
 }
 
 function intensityClass(count: number): string {
-  if (count <= 0) return 'fill-[#1b2436]'
+  if (count <= 0) return 'fill-[color:var(--wiki-bg-2,#1b2436)]'
   if (count === 1) return 'fill-emerald-900'
   if (count <= 3) return 'fill-emerald-700'
   if (count <= 6) return 'fill-emerald-500'
@@ -44,13 +44,13 @@ function intensityClass(count: number): string {
 // 주의: Tailwind JIT 인식을 위해 클래스는 '완전한 리터럴'이어야 함 (런타임 보간 금지).
 type BadgeStyle = { icon: string; chip: string; label: string; glow: string }
 const BADGE_THEMES: Record<string, BadgeStyle> = {
-  first: { icon: 'from-emerald-300 to-emerald-600', chip: 'border-emerald-500/30 bg-emerald-500/10', label: 'text-emerald-200', glow: 'shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)]' },
-  edits: { icon: 'from-amber-300 to-amber-600', chip: 'border-amber-500/30 bg-amber-500/10', label: 'text-amber-200', glow: 'shadow-[0_0_18px_-4px_rgba(245,158,11,0.6)]' },
-  creator: { icon: 'from-sky-300 to-sky-600', chip: 'border-sky-500/30 bg-sky-500/10', label: 'text-sky-200', glow: 'shadow-[0_0_18px_-4px_rgba(14,165,233,0.55)]' },
-  writer: { icon: 'from-violet-300 to-violet-600', chip: 'border-violet-500/30 bg-violet-500/10', label: 'text-violet-200', glow: 'shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)]' },
-  streak: { icon: 'from-orange-300 to-rose-600', chip: 'border-rose-500/30 bg-rose-500/10', label: 'text-rose-200', glow: 'shadow-[0_0_18px_-4px_rgba(244,63,94,0.55)]' },
-  active: { icon: 'from-teal-300 to-emerald-600', chip: 'border-teal-500/30 bg-teal-500/10', label: 'text-teal-200', glow: 'shadow-[0_0_18px_-4px_rgba(20,184,166,0.55)]' },
-  breadth: { icon: 'from-cyan-300 to-blue-600', chip: 'border-cyan-500/30 bg-cyan-500/10', label: 'text-cyan-200', glow: 'shadow-[0_0_18px_-4px_rgba(6,182,212,0.55)]' },
+  first: { icon: 'from-emerald-300 to-emerald-600', chip: 'border-emerald-500/30 bg-emerald-500/10', label: 'text-emerald-200', glow: '' },
+  edits: { icon: 'from-amber-300 to-amber-600', chip: 'border-amber-500/30 bg-amber-500/10', label: 'text-amber-200', glow: '' },
+  creator: { icon: 'from-sky-300 to-sky-600', chip: 'border-sky-500/30 bg-sky-500/10', label: 'text-sky-200', glow: '' },
+  writer: { icon: 'from-violet-300 to-violet-600', chip: 'border-violet-500/30 bg-violet-500/10', label: 'text-violet-200', glow: '' },
+  streak: { icon: 'from-orange-300 to-rose-600', chip: 'border-rose-500/30 bg-rose-500/10', label: 'text-rose-200', glow: '' },
+  active: { icon: 'from-teal-300 to-emerald-600', chip: 'border-teal-500/30 bg-teal-500/10', label: 'text-teal-200', glow: '' },
+  breadth: { icon: 'from-cyan-300 to-blue-600', chip: 'border-cyan-500/30 bg-cyan-500/10', label: 'text-cyan-200', glow: '' },
   default: { icon: 'from-slate-300 to-slate-600', chip: 'border-slate-500/30 bg-slate-500/10', label: 'text-slate-200', glow: '' },
 }
 const TOP_TIER = new Set(['edits-500', 'creator-30', 'writer-50k', 'streak-7', 'active-30', 'breadth-20'])
@@ -211,7 +211,7 @@ export function WikiContributionGraph({
       <div className="flex items-center gap-1.5 text-[10px] text-[color:var(--wiki-ink-soft,#94a3b8)]">
         <span>적음</span>
         <svg width={64} height={11}>
-          {['fill-[#1b2436]', 'fill-emerald-900', 'fill-emerald-700', 'fill-emerald-500', 'fill-emerald-300'].map(
+          {['fill-[color:var(--wiki-bg-2,#1b2436)]', 'fill-emerald-900', 'fill-emerald-700', 'fill-emerald-500', 'fill-emerald-300'].map(
             (c, i) => (
               <rect key={i} x={i * 13} y={0} width={11} height={11} rx={2} className={c} />
             )

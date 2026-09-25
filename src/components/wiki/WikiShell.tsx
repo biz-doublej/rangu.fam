@@ -433,28 +433,22 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
                 className="relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] text-[color:var(--wiki-cyan)] overflow-hidden group-hover:border-[color:var(--wiki-cyan)]"
                 aria-hidden
               >
-                <span className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(34,211,238,0.45),transparent_60%)]" />
                 <BookOpen className="w-4 h-4 relative" />
               </span>
               <span className="flex items-center gap-2">
                 <span
                   className="text-lg sm:text-xl font-semibold text-[color:var(--wiki-ink)]"
-                  style={{ fontFamily: "'Space Grotesk', 'Pretendard', sans-serif", letterSpacing: '0.005em' }}
+                  style={{ fontFamily: "'Pretendard', sans-serif", letterSpacing: '0.005em' }}
                 >
                   {BRANDING.brandWiki}
-                </span>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-[color:var(--wiki-cyan)] border border-[color:var(--wiki-cyan)]/40 rounded-sm px-1.5 py-0.5 tracking-[0.18em]">
-                  <span className="wiki-pulse-dot" />
-                  LIVE
                 </span>
               </span>
             </button>
 
             <span
-              className="hidden lg:inline-block text-[11px] tracking-[0.18em] uppercase text-[color:var(--wiki-ink-faint)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="hidden lg:inline-block text-xs text-[color:var(--wiki-ink-faint)]"
             >
-              {'// 여러분이 가꾸는 작은 백과사전'}
+              여러분이 가꾸는 작은 백과사전
             </span>
 
             <form onSubmit={handleSearch} className="ml-auto flex flex-1 max-w-md items-center relative">
@@ -822,7 +816,7 @@ export function WikiPageHeader({
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               {m.icon && <m.icon className="w-3 h-3 text-[color:var(--wiki-cyan)]" />}
-              <span className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--wiki-ink-faint)]">
+              <span className="text-[10px] text-[color:var(--wiki-ink-faint)]">
                 {m.label}
               </span>
               <span className="text-[color:var(--wiki-ink)]">{m.value}</span>

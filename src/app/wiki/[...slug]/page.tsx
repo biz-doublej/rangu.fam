@@ -996,7 +996,7 @@ export default function WikiDocumentPage() {
 
                 {(currentPage.incomingLinks?.length || 0) > 0 && (
                   <div className="mb-3">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--wiki-ink-muted)] mb-1.5">
+                    <div className="text-[10px] text-[color:var(--wiki-ink-muted)] mb-1.5">
                       이 문서를 가리키는 문서 ({currentPage.incomingLinks.length})
                     </div>
                     <ul className="space-y-0.5">
@@ -1023,7 +1023,7 @@ export default function WikiDocumentPage() {
 
                 {(currentPage.outgoingLinks?.length || 0) > 0 && (
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--wiki-ink-muted)] mb-1.5">
+                    <div className="text-[10px] text-[color:var(--wiki-ink-muted)] mb-1.5">
                       이 문서가 가리키는 문서 ({currentPage.outgoingLinks.length})
                     </div>
                     <ul className="space-y-0.5">
@@ -1097,7 +1097,7 @@ export default function WikiDocumentPage() {
           />
           <div className="flex-1">
             <p
-              className="text-[10px] uppercase tracking-[0.2em] mb-1"
+              className="text-[10px] mb-1"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 color: currentPage ? 'var(--wiki-danger)' : 'var(--wiki-cyan)'
@@ -1138,7 +1138,7 @@ export default function WikiDocumentPage() {
             </div>
             {!currentPage && suggestions.length > 0 && (
               <div className="mt-3 pt-3 border-t border-[color:var(--wiki-rule)]">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--wiki-ink-muted)] mb-2">
+                <p className="text-[11px] text-[color:var(--wiki-ink-muted)] mb-2">
                   혹시 이 문서를 찾으시나요?
                 </p>
                 <ul className="space-y-1.5">
@@ -1319,7 +1319,7 @@ export default function WikiDocumentPage() {
           {/* 문서 기여 정보 — 처음 작성자 + 마지막 편집자 + 통계 */}
           <footer className="mt-6 pt-4 border-t border-[color:var(--wiki-rule)] grid sm:grid-cols-2 gap-3 text-[11px]">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[color:var(--wiki-ink-muted)] mb-1">
+              <div className="text-[10px] text-[color:var(--wiki-ink-muted)] mb-1">
                 처음 작성
               </div>
               <div className="text-[color:var(--wiki-ink-soft)]">
@@ -1338,7 +1338,7 @@ export default function WikiDocumentPage() {
               </div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[color:var(--wiki-ink-muted)] mb-1">
+              <div className="text-[10px] text-[color:var(--wiki-ink-muted)] mb-1">
                 마지막 편집
               </div>
               <div className="text-[color:var(--wiki-ink-soft)]">
@@ -1758,7 +1758,7 @@ export default function WikiDocumentPage() {
                         >
                           {isExpanded ? '▼' : '▶'}
                         </button>
-                        <span className={`text-[10px] font-bold tracking-[0.05em] rounded-sm border px-1.5 py-0.5 ${sty.cls}`}>
+                        <span className={`text-[10px] font-bold rounded-sm border px-1.5 py-0.5 ${sty.cls}`}>
                           {sty.label}
                         </span>
                         {d.category && d.category !== 'general' && (

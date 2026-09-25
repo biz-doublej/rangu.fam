@@ -117,7 +117,7 @@ export default function WorkshopCeremony2025Page() {
         <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-[color:var(--wiki-warning)]/15 blur-3xl pointer-events-none" />
         <div className="relative">
           <p
-            className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--wiki-warning)] inline-flex items-center gap-1"
+            className="text-[10px] text-[color:var(--wiki-warning)] inline-flex items-center gap-1"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             <Crown className="w-3.5 h-3.5" />
@@ -125,7 +125,7 @@ export default function WorkshopCeremony2025Page() {
           </p>
           <h2
             className="mt-1 text-3xl font-bold text-[color:var(--wiki-ink)]"
-            style={{ fontFamily: "'Space Grotesk', 'Pretendard', sans-serif" }}
+            style={{ fontFamily: "'Pretendard', sans-serif" }}
           >
             {workshopAward2025.winner.name}
           </h2>
@@ -142,7 +142,7 @@ export default function WorkshopCeremony2025Page() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p
-            className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--wiki-ink-muted)]"
+            className="text-[11px] text-[color:var(--wiki-ink-muted)]"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             {`// 시상 부문 · ${currentIndex + 1} / ${awards.length}`}
@@ -187,7 +187,7 @@ export default function WorkshopCeremony2025Page() {
               onDragEnd={handleDragEnd}
             >
               <p
-                className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-[color:var(--wiki-warning)]"
+                className="inline-flex items-center gap-1.5 text-[11px] text-[color:var(--wiki-warning)]"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 <Medal className="w-3.5 h-3.5" />
@@ -195,7 +195,7 @@ export default function WorkshopCeremony2025Page() {
               </p>
               <p
                 className="mt-2 text-lg font-semibold text-[color:var(--wiki-ink)]"
-                style={{ fontFamily: "'Space Grotesk', 'Pretendard', sans-serif" }}
+                style={{ fontFamily: "'Pretendard', sans-serif" }}
               >
                 {currentAward.issueLabel} · {currentAward.speaker}
               </p>

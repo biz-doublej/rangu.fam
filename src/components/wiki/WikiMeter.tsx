@@ -20,26 +20,18 @@ interface WikiMeterProps {
   className?: string
 }
 
-const TONE_GRADIENT: Record<NonNullable<WikiMeterProps['tone']>, string> = {
-  cyan:    'linear-gradient(90deg, #22D3EE, #67E8F9)',
-  violet:  'linear-gradient(90deg, #A78BFA, #C4B5FD)',
-  magenta: 'linear-gradient(90deg, #F472B6, #F9A8D4)',
-  warning: 'linear-gradient(90deg, #FBBF24, #FDE68A)',
-  danger:  'linear-gradient(90deg, #FB7185, #FCA5A5)',
-  success: 'linear-gradient(90deg, #34D399, #6EE7B7)'
-}
-
-const TONE_GLOW: Record<NonNullable<WikiMeterProps['tone']>, string> = {
-  cyan:    'rgba(34, 211, 238, 0.45)',
-  violet:  'rgba(167, 139, 250, 0.45)',
-  magenta: 'rgba(244, 114, 182, 0.45)',
-  warning: 'rgba(251, 191, 36, 0.45)',
-  danger:  'rgba(251, 113, 133, 0.45)',
-  success: 'rgba(52, 211, 153, 0.45)'
+// 단일 액센트 원칙 — cyan/violet/magenta 는 모두 액센트로, 상태 톤만 별도 색
+const TONE_COLOR: Record<NonNullable<WikiMeterProps['tone']>, string> = {
+  cyan:    'var(--wiki-accent)',
+  violet:  'var(--wiki-accent)',
+  magenta: 'var(--wiki-accent)',
+  warning: 'var(--wiki-warning)',
+  danger:  'var(--wiki-danger)',
+  success: 'var(--wiki-success)'
 }
 
 /**
- * Tiny HUD-style progress meter. Use inside `wiki-infobox` cells or panels
+ * Tiny progress meter. Use inside `wiki-infobox` cells or panels
  * to surface things like 문서 완성도, 감시자 비율, 진행률 등.
  */
 export function WikiMeter({
@@ -62,8 +54,7 @@ export function WikiMeter({
         <div className="flex items-center justify-between gap-2 mb-1">
           {label && (
             <span
-              className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--wiki-ink-faint)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="text-[10px] text-[color:var(--wiki-ink-faint)]"
             >
               {label}
             </span>
@@ -82,7 +73,7 @@ export function WikiMeter({
         className="relative w-full overflow-hidden rounded-full"
         style={{
           height: barHeight,
-          background: 'rgba(8, 13, 24, 0.85)',
+          background: 'var(--wiki-bg-2)',
           border: '1px solid var(--wiki-rule)'
         }}
       >
@@ -90,16 +81,7 @@ export function WikiMeter({
           className="absolute inset-y-0 left-0 transition-[width] duration-500 ease-out"
           style={{
             width: `${pct}%`,
-            background: TONE_GRADIENT[tone],
-            boxShadow: `0 0 12px ${TONE_GLOW[tone]}`
-          }}
-        />
-        {/* Subtle scan-shimmer */}
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-30 pointer-events-none"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 4px, rgba(255,255,255,0.06) 4px 5px)'
+            background: TONE_COLOR[tone]
           }}
         />
       </div>

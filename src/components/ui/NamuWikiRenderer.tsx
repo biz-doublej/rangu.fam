@@ -146,7 +146,7 @@ const CalloutBox = ({
         <Icon className="w-4 h-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className={`text-[10px] font-bold tracking-[0.16em] mb-1 ${style.text} opacity-80`}>
+        <div className={`text-[10px] font-bold mb-1 ${style.text} opacity-80`}>
           {style.label}
         </div>
         <div className="text-sm text-gray-200 leading-relaxed space-y-1">
@@ -257,7 +257,7 @@ const RoleBanner = ({ role }: { role: string }) => {
       {/* 색상 헤더 — namuwiki 인포박스 헤더와 동일한 두께/패딩 */}
       <div className={`${banner.headerBg} px-4 py-2 flex items-center gap-2`}>
         <Icon className="h-4 w-4 text-white/90" />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+        <span className="text-[11px] font-semibold text-white/80">
           Role
         </span>
       </div>
@@ -995,7 +995,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                       className={`border-b border-gray-700/60 last:border-b-0 ${zebra} hover:bg-gray-700/30 transition-colors`}
                     >
                       <td
-                        className="py-2 px-2 font-semibold w-24 text-center align-middle text-[11px] tracking-[0.05em] border-r border-blue-900/40"
+                        className="py-2 px-2 font-semibold w-24 text-center align-middle text-[11px] border-r border-blue-900/40"
                         style={{ ...finalHeaderStyle, fontFamily: "'Gowun Batang', serif" }}
                       >
                         {key}
@@ -1138,7 +1138,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           >
             {/* 헤더 — 그라디언트 + 인너 보더 */}
             <div className="bg-gradient-to-b from-red-600 via-red-700 to-red-800 text-white text-center py-3 px-4 border-b border-red-900/40">
-              <div className="text-[11px] tracking-[0.18em] uppercase font-medium flex items-center justify-center gap-2 opacity-90">
+              <div className="text-[11px] font-medium flex items-center justify-center gap-2 opacity-90">
                 {params['상단로고'] && (
                   <img
                     src={normalizeWikiImageSrc(params['상단로고'])}
@@ -1213,7 +1213,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                             className={`border-b border-gray-700/60 last:border-b-0 ${zebra} hover:bg-gray-700/30 transition-colors`}
                           >
                             <td
-                              className="bg-gradient-to-r from-red-700 to-red-800 text-white py-2 px-2 font-semibold w-24 text-center align-middle text-[11px] tracking-[0.05em] border-r border-red-900/40"
+                              className="bg-gradient-to-r from-red-700 to-red-800 text-white py-2 px-2 font-semibold w-24 text-center align-middle text-[11px] border-r border-red-900/40"
                               style={{ fontFamily: "'Gowun Batang', serif" }}
                             >
                               {key}
@@ -2000,8 +2000,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                   {parsedRows.map(({ cells, rowStyle }, rowIndex) => {
                     const isHeaderRow = rowIndex === 0
                     const defaultStyle: WikiCellStyle = isHeaderRow
-                      ? { backgroundColor: '#374151' }
-                      : { backgroundColor: '#1f2937' }
+                      ? { backgroundColor: 'var(--wiki-table-head, #374151)' }
+                      : { backgroundColor: 'var(--wiki-table-cell, #1f2937)' }
 
                     return (
                       <tr key={rowIndex} className="border-b border-gray-600">
@@ -2082,7 +2082,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
         elements.push(
           <div key={`code-${i}`} className="my-4 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
-            <div className="px-3 py-1 text-xs text-gray-400 border-b border-gray-800 bg-gray-800/60 uppercase tracking-wide">
+            <div className="px-3 py-1 text-xs text-gray-400 border-b border-gray-800 bg-gray-800/60 tracking-wide">
               {usedLanguage ? usedLanguage.toUpperCase() : 'CODE'}
             </div>
             <pre className="overflow-x-auto p-4 text-sm bg-gray-900 whitespace-pre hljs rounded-none">
