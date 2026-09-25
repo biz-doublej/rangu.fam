@@ -6,8 +6,9 @@ import { Toaster } from 'react-hot-toast'
 import { Footer } from '@/components/ui'
 import { DemoNotificationTrigger } from '@/components/DemoNotificationTrigger'
 import { GiftBoxLayer } from '@/components/GiftBoxLayer'
+import { RANGU_ARCHIVE_MODE } from '@/config/archive'
 
-type Section = 'rangu' | 'wiki' | 'university' | 'admin' | 'member'
+type Section = 'rangu' | 'archive' | 'wiki' | 'university' | 'admin' | 'member'
 
 function detectSection(pathname: string | null): Section {
   if (!pathname) return 'rangu'
@@ -15,6 +16,8 @@ function detectSection(pathname: string | null): Section {
   if (pathname.startsWith('/wiki')) return 'wiki'
   if (pathname.startsWith('/admin')) return 'admin'
   if (pathname.startsWith('/m/')) return 'member'
+  // 아카이브 모드의 랑구팸 메인은 스크랩북 테마 없이 기본 디자인으로
+  if (RANGU_ARCHIVE_MODE && pathname === '/') return 'archive'
   return 'rangu'
 }
 
@@ -24,6 +27,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const isUniversity = section === 'university'
   const isMember = section === 'member'
   const isRangu = section === 'rangu'
+  const isArchive = section === 'archive'
 
   useEffect(() => {
     const html = document.documentElement
@@ -33,8 +37,8 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     }
   }, [section])
 
-  // Member subdomain pages render fully autonomously — no shared chrome.
-  if (isMember) {
+  // Member subdomain pages and the archive home render fully autonomously — no shared chrome.
+  if (isMember || isArchive) {
     return (
       <div className="relative" data-section={section}>
         {children}
@@ -44,10 +48,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative" data-section={section}>
-      {!isUniversity && <DemoNotificationTrigger />}
+      {!isUniversity && !RANGU_ARCHIVE_MODE && <DemoNotificationTrigger />}
       {children}
       {/* 랜덤 선물상자 — 랑구팸 메인 페이지에서만 (위키/멤버/대학/관리자 제외) */}
-      {isRangu && <GiftBoxLayer />}
+      {isRangu && !RANGU_ARCHIVE_MODE && <GiftBoxLayer />}
       {!isUniversity && <Footer />}
       {!isUniversity && (
         <Toaster

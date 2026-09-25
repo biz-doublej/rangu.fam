@@ -974,6 +974,106 @@ video:hover {
 }
 
 /* ============================================================
+   ★ Rangu.fam 아카이브 — 기본 디자인 (시스템 폰트 · 기본 색 · 무장식)
+   (스코프: [data-section="archive"]. 아카이브 모드의 `/` 에만 적용)
+   ============================================================ */
+
+:root[data-section='archive'],
+[data-section='archive'] {
+  --archive-bg: #ffffff;
+  --archive-fg: #1a1a1a;
+  --archive-muted: #6b6b6b;
+  --archive-rule: #e5e5e5;
+  --archive-link: #0b57d0;
+  --page-background: var(--archive-bg);
+  --page-foreground: var(--archive-fg);
+  background: var(--archive-bg);
+  color: var(--archive-fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  min-height: 100vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-section='archive'],
+  [data-section='archive'] {
+    --archive-bg: #121212;
+    --archive-fg: #ececec;
+    --archive-muted: #9a9a9a;
+    --archive-rule: #2c2c2c;
+    --archive-link: #8ab4f8;
+  }
+}
+
+[data-section='archive'] .archive-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 16px 32px;
+  line-height: 1.7;
+}
+[data-section='archive'] .archive-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+[data-section='archive'] .archive-logo { border-radius: 8px; }
+[data-section='archive'] .archive-title { font-size: 1.75rem; font-weight: 700; line-height: 1.2; margin: 0; }
+[data-section='archive'] .archive-subtitle { margin: 2px 0 0; color: var(--archive-muted); font-size: 0.95rem; }
+[data-section='archive'] .archive-hero { margin: 28px 0 0; }
+[data-section='archive'] .archive-hero img { width: 100%; height: auto; display: block; border-radius: 6px; }
+
+[data-section='archive'] .archive-dday {
+  margin-top: 32px;
+  padding: 24px 0;
+  border-top: 1px solid var(--archive-rule);
+  border-bottom: 1px solid var(--archive-rule);
+  text-align: center;
+}
+[data-section='archive'] .archive-dday__label { margin: 0; color: var(--archive-muted); font-size: 0.9rem; }
+[data-section='archive'] .archive-dday__value {
+  margin: 4px 0 0;
+  font-size: clamp(2.5rem, 10vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+[data-section='archive'] .archive-dday__date { margin: 4px 0 0; color: var(--archive-muted); font-size: 0.85rem; }
+[data-section='archive'] .archive-dday__rest {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--archive-muted);
+}
+[data-section='archive'] .archive-dday__rest li { display: flex; justify-content: center; gap: 8px; }
+[data-section='archive'] .archive-dday__rest-value { color: var(--archive-fg); font-variant-numeric: tabular-nums; }
+
+[data-section='archive'] .archive-section { margin-top: 36px; }
+[data-section='archive'] .archive-section h2 { font-size: 1.1rem; font-weight: 700; margin: 0 0 8px; }
+[data-section='archive'] .archive-section p { margin: 0 0 8px; }
+[data-section='archive'] .archive-section a { color: var(--archive-link); text-decoration: underline; text-underline-offset: 2px; }
+
+[data-section='archive'] .archive-members,
+[data-section='archive'] .archive-links { list-style: none; margin: 0; padding: 0; }
+[data-section='archive'] .archive-members li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--archive-rule);
+}
+[data-section='archive'] .archive-members__name { font-weight: 600; }
+[data-section='archive'] .archive-members__role { color: var(--archive-muted); text-align: right; }
+[data-section='archive'] .archive-links li { padding: 4px 0; }
+
+[data-section='archive'] .archive-footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--archive-rule);
+  color: var(--archive-muted);
+  font-size: 0.8rem;
+}
+
+/* ============================================================
    ★ Rangu.fam — Refined Polaroid Editorial design system
    (스코프: [data-section="rangu"]. 위키/대학 페이지엔 영향 없음)
    ============================================================ */

@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  ARCHIVED_API_PREFIXES,
+  ARCHIVED_PAGE_PREFIXES,
+  RANGU_ARCHIVE_MODE,
+  matchesPrefix,
+} from '@/config/archive'
 
 const UNIVERSITY_HOSTS = new Set(['university.rangu.com', 'www.university.rangu.com'])
 const WIKI_HOSTS = new Set(['irang.wiki', 'www.irang.wiki'])
@@ -67,6 +73,22 @@ function isMainDomainPath(pathname: string): boolean {
 export function middleware(request: NextRequest) {
   const host = resolveHost(request)
   const { pathname, search } = request.nextUrl
+
+  // 랑구팸 아카이브 모드 — 쓰기 위주 기능을 호스트와 무관하게 차단
+  if (RANGU_ARCHIVE_MODE) {
+    if (matchesPrefix(pathname, ARCHIVED_API_PREFIXES)) {
+      return NextResponse.json(
+        { error: 'archived', message: '랑구팸은 아카이브로 전환되어 이 기능은 더 이상 제공되지 않습니다.' },
+        { status: 410 }
+      )
+    }
+    if (!WIKI_HOSTS.has(host) && matchesPrefix(pathname, ARCHIVED_PAGE_PREFIXES)) {
+      const homeUrl = request.nextUrl.clone()
+      homeUrl.pathname = '/'
+      homeUrl.search = ''
+      return NextResponse.redirect(homeUrl, 307)
+    }
+  }
 
   // university.rangu.com → /university (기존)
   if (UNIVERSITY_HOSTS.has(host)) {
