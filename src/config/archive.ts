@@ -20,19 +20,18 @@ export function matchesPrefix(pathname: string, prefixes: readonly string[]): bo
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
-export type ArchiveDday = {
+export type ArchiveAnniversary = {
   label: string
-  /** YYYY-MM-DD (KST 기준 날짜) */
+  /** YYYY-MM-DD (KST 기준 시작일) */
   date: string
 }
 
 /**
- * 메인에 표시할 기준일. 과거 날짜면 D+N, 미래 날짜면 D-N 으로 표시된다.
+ * 메인에 표시할 기념일 기준일. 경과 N주년·N일째와 다음 기념일(N주년 / 100일 단위)까지의 D-day 를 보여준다.
  * 첫 항목이 크게, 나머지는 보조로 표시된다.
  */
-export const ARCHIVE_DDAYS: ArchiveDday[] = [
-  { label: 'Rangu.fam 사이트 시작', date: '2025-07-27' },
-  { label: '아카이브 전환', date: '2026-09-25' },
+export const ARCHIVE_ANNIVERSARIES: ArchiveAnniversary[] = [
+  { label: 'Rangu.fam 사이트 오픈', date: '2025-07-27' },
 ]
 
 export const ARCHIVE_MEMBERS = [

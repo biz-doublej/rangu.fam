@@ -1044,7 +1044,9 @@ video:hover {
   font-size: 0.9rem;
   color: var(--archive-muted);
 }
-[data-section='archive'] .archive-dday__rest li { display: flex; justify-content: center; gap: 8px; }
+[data-section='archive'] .archive-dday__rest li { display: flex; justify-content: center; gap: 10px; }
+[data-section='archive'] .archive-dday__item--sub { margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--archive-rule); }
+[data-section='archive'] .archive-dday__item--sub .archive-dday__value { font-size: 1.75rem; }
 [data-section='archive'] .archive-dday__rest-value { color: var(--archive-fg); font-variant-numeric: tabular-nums; }
 
 [data-section='archive'] .archive-section { margin-top: 36px; }

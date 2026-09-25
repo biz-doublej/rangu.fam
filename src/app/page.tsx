@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { BRANDING } from '@/config/branding'
-import { ARCHIVE_DDAYS, ARCHIVE_MEMBERS, RANGU_ARCHIVE_MODE } from '@/config/archive'
-import { DdayCounter } from '@/components/archive/DdayCounter'
+import { ARCHIVE_ANNIVERSARIES, ARCHIVE_MEMBERS, RANGU_ARCHIVE_MODE } from '@/config/archive'
+import { AnniversaryCounter } from '@/components/archive/AnniversaryCounter'
 import { LegacyHomePage } from '@/components/legacy/LegacyHomePage'
 
 export default function HomePage() {
@@ -28,7 +28,7 @@ export default function HomePage() {
         />
       </figure>
 
-      <DdayCounter ddays={ARCHIVE_DDAYS} />
+      <AnniversaryCounter anniversaries={ARCHIVE_ANNIVERSARIES} />
 
       <section className="archive-section">
         <h2>소개</h2>
@@ -57,7 +57,6 @@ export default function HomePage() {
         <h2>바로가기</h2>
         <ul className="archive-links">
           <li><a href={BRANDING.wikiPublicUrl}>이랑위키</a></li>
-          <li><a href="/baseball.html">랑구야구단 기록실</a></li>
         </ul>
       </section>
 
