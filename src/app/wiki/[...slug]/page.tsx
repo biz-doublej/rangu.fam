@@ -460,7 +460,7 @@ export default function WikiDocumentPage() {
     if (!editContent.trim()) { alert('내용이 비어 있습니다.'); return }
     if (!isLoggedIn) {
       alert('로그인이 필요합니다. 로그인 페이지로 이동합니다.')
-      router.push('/auth/start?callbackUrl=%2Fwiki')
+      router.push('/wiki/login')
       return
     }
     try {
@@ -486,7 +486,7 @@ export default function WikiDocumentPage() {
 
       if (res.status === 401) {
         alert('로그인이 필요합니다. 로그인 페이지로 이동합니다.')
-        router.push('/auth/start?callbackUrl=%2Fwiki')
+        router.push('/wiki/login')
         return
       }
 
@@ -519,7 +519,7 @@ export default function WikiDocumentPage() {
   // 감시 목록 토글
   const handleWatchToggle = async () => {
     if (!isLoggedIn) {
-      router.push(`/auth/start?callbackUrl=${encodeURIComponent(`/wiki/${slug}`)}`)
+      router.push('/wiki/login?chooser=1')
       return
     }
     if (!currentPage) return
@@ -546,7 +546,7 @@ export default function WikiDocumentPage() {
   }
 
   const handleProtect = async () => {
-    if (!isLoggedIn) { router.push('/auth/start?callbackUrl=%2Fwiki'); return }
+    if (!isLoggedIn) { router.push('/wiki/login'); return }
     try {
       setIsProtecting(true)
       const res = await fetch('/api/wiki/pages/protect', {
@@ -590,7 +590,7 @@ export default function WikiDocumentPage() {
   }
 
   const handleAddDiscussion = async () => {
-    if (!isLoggedIn) { router.push('/auth/start?callbackUrl=%2Fwiki'); return }
+    if (!isLoggedIn) { router.push('/wiki/login'); return }
     if (!newDiscussion.topic.trim() || !newDiscussion.content.trim()) {
       alert('주제와 내용을 입력해 주세요.')
       return
@@ -616,7 +616,7 @@ export default function WikiDocumentPage() {
 
   // 토론 답글 작성
   const handleReplyToDiscussion = async (discussionId: string, content: string) => {
-    if (!isLoggedIn) { router.push('/auth/start?callbackUrl=%2Fwiki'); return }
+    if (!isLoggedIn) { router.push('/wiki/login'); return }
     if (!content.trim()) return
     try {
       const res = await fetch('/api/wiki/discussions', {
@@ -659,7 +659,7 @@ export default function WikiDocumentPage() {
 
   const handleEditMode = () => {
     if (!isLoggedIn) {
-      router.push('/auth/start?callbackUrl=%2Fwiki')
+      router.push('/wiki/login')
       return
     }
     setActiveTab('edit')

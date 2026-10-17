@@ -1,0 +1,1 @@
+"use strict";exports.id=1512,exports.ids=[1512],exports.modules={61512:(e,s,r)=>{r.r(s),r.d(s,{default:()=>t});let t=(0,r(68570).createProxy)(String.raw`C:\Users\jaewo\Desktop\rangu.fam\src\app\m\_pages\jaewon.tsx#default`)}};

@@ -150,8 +150,47 @@ export async function POST(request: NextRequest) {
       .replace(/\[파일:.*?\]/g, '') // 파일 링크 제거
       .replace(/\[\*\d+\]/g, '') // 각주 제거
     
-    // 맞춤법 검사 수행
-    const cleanResults = performSpellCheck(cleanText)
+    // 바른 REST(Connect) API를 서버에서 호출한다. API 키가 없는 개발 환경이나
+    // 일시적인 장애에서는 기존의 간단한 로컬 규칙 검사로 편집을 계속한다.
+    const spellApiUrl = process.env.BAREUN_CORRECT_URL || 'https://api.bareun.ai/bareun.RevisionService/CorrectError'
+    const bareunApiKey = process.env.BAREUN_API_KEY
+    let cleanResults: SpellCheckResult[] | null = null
+    try {
+      if (!bareunApiKey) throw new Error('BAREUN_API_KEY is not configured')
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 8_000)
+      const upstream = await fetch(spellApiUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json', 'api-key': bareunApiKey },
+        body: JSON.stringify({
+          document: { content: cleanText.slice(0, 50_000), language: 'ko_KR' },
+          // UTF-16 offsets align with JavaScript string indices.
+          encoding_type: 'UTF16',
+          config: { enable_cleanup_whitespace: true },
+        }),
+        signal: controller.signal,
+        cache: 'no-store',
+      })
+      clearTimeout(timeout)
+      if (upstream.ok) {
+        const payload = await upstream.json() as { revised_blocks?: Array<any> }
+        const blocks: Array<any> = []
+        const collect = (items: Array<any> | undefined) => items?.forEach(item => { blocks.push(item); collect(item.nested) })
+        collect(payload.revised_blocks)
+        cleanResults = blocks
+          .map(item => {
+            const word = item.origin?.content as string | undefined
+            const position = item.origin?.begin_offset as number | undefined
+            const candidates = (item.revisions || []).map((revision: any) => revision.revised).filter(Boolean)
+            if (item.revised && !candidates.includes(item.revised)) candidates.unshift(item.revised)
+            return { word, suggestions: candidates, position }
+          })
+          .filter(item => item.word && item.suggestions.length > 0 && Number.isFinite(item.position)) as SpellCheckResult[]
+      }
+    } catch {
+      // 공개 API가 일시적으로 unavailable이면 로컬 검사를 사용한다.
+    }
+    if (!cleanResults) cleanResults = performSpellCheck(cleanText)
     
     // 원본 텍스트에서 실제 위치 찾기
     const results = cleanResults.map(result => ({

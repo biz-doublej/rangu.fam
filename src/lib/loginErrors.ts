@@ -1,7 +1,9 @@
 /** /auth/callback 이 `?error=` 로 넘기는 코드 → 사용자 안내 문구 */
 const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  database_unavailable: 'Google 인증 이후 위키 계정 서버에 연결하지 못했습니다. 잠시 후 다시 로그인해 주세요.',
   oidc_not_configured: '구글 로그인 설정이 누락되었습니다. 관리자에게 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET 설정을 요청해주세요.',
   oidc_start_failed: '로그인 시작 처리에 실패했습니다. 잠시 후 다시 시도해주세요.',
+  naver_not_configured: '네이버 로그인 설정이 아직 완료되지 않았습니다. 관리자에게 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 설정을 요청해주세요.',
   oidc_authorize_failed: 'Google 로그인이 취소되었거나 실패했습니다.',
   invalid_oauth_callback: '로그인 응답이 올바르지 않습니다. 다시 시도해주세요.',
   state_missing: '로그인 세션이 만료되었습니다. 다시 로그인해주세요.',

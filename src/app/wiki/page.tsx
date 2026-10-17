@@ -19,7 +19,7 @@ import {
   TrendingUp,
   Users
 } from 'lucide-react'
-import { WikiShell, WikiPageHeader, WikiMeter } from '@/components/wiki'
+import { WikiShell, WikiPageHeader, WikiMeter, WikiAppearanceControls } from '@/components/wiki'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 
 const iconLibrary = {
@@ -85,6 +85,8 @@ type DashboardPayload = {
   portals: DashboardPortal[]
   communitySignals: DashboardCommunitySignal[]
   supportLinks: DashboardSupportLink[]
+  featuredArticle: { title: string; slug: string; summary: string; views: number } | null
+  goodArticle: { title: string; slug: string; summary: string; views: number } | null
 }
 
 type CategoryOverview = {
@@ -194,7 +196,7 @@ export default function WikiMainPage() {
 
   const handleEditMainPage = () => {
     if (!isLoggedIn) {
-      router.push('/auth/start?callbackUrl=%2Fwiki')
+      router.push('/wiki/login?chooser=1')
       return
     }
     if (!isModerator) {
@@ -210,7 +212,13 @@ export default function WikiMainPage() {
       pageHeader={
         <WikiPageHeader
           title="이랑위키:대문"
-          subtitle="여러분이 직접 가꾸는 작은 백과사전 — 누구나 읽고, 로그인하면 누구나 기여할 수 있습니다."
+          subtitle={
+            <div className="wiki-welcome-hero text-center">
+              <strong>여러분이 가꾸어 나가는 백과사전</strong>
+              <span>이랑위키에 오신 것을 환영합니다!</span>
+              <small>이랑위키는 누구나 기여할 수 있는 위키입니다.</small>
+            </div>
+          }
           hatnote={
             <>
               이 문서는 이랑위키의 대문(메인) 페이지입니다. 일반 문서를 찾으려면 상단 검색 또는{' '}
@@ -236,6 +244,7 @@ export default function WikiMainPage() {
       }
       rightRail={
         <>
+          <WikiAppearanceControls />
           {/* 통계 인포박스 */}
           <table className="wiki-infobox">
             <caption>이랑위키 통계</caption>
@@ -386,6 +395,27 @@ export default function WikiMainPage() {
         </>
       }
     >
+      <section className="wiki-panel mb-5 wiki-ad-slot" aria-label="광고 영역">
+        <span>광고</span>
+      </section>
+
+      <section className="mb-6 grid gap-4 lg:grid-cols-2">
+        <article className="wiki-feature-card wiki-feature-card--featured">
+          <div className="flex items-center justify-between gap-3">
+            <h2>알찬 글: {dashboard?.featuredArticle?.title || '이랑위키 추천 문서'}</h2>
+            <button type="button" onClick={() => dashboard?.featuredArticle && router.push(`/wiki/${encodeURIComponent(dashboard.featuredArticle.slug)}`)}>더 보기</button>
+          </div>
+          <p>{dashboard?.featuredArticle?.summary || '이랑위키에서 유익한 문서를 찾아보세요.'}</p>
+        </article>
+        <article className="wiki-feature-card wiki-feature-card--good">
+          <div className="flex items-center justify-between gap-3">
+            <h2>좋은 글: {dashboard?.goodArticle?.title || '새로운 문서를 기다리고 있어요'}</h2>
+            <button type="button" onClick={() => dashboard?.goodArticle && router.push(`/wiki/${encodeURIComponent(dashboard.goodArticle.slug)}`)}>더 보기</button>
+          </div>
+          {dashboard?.goodArticle?.summary && <p>{dashboard.goodArticle.summary}</p>}
+        </article>
+      </section>
+
       {/* ── 환영 / 미션 브리프 ─────────────────────────── */}
       <section className="relative wiki-panel mb-5 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none opacity-50">

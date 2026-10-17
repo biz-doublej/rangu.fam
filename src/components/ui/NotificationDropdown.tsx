@@ -263,15 +263,6 @@ export const NotificationDropdown: React.FC<{ className?: string }> = ({ classNa
           </div>
 
           <footer className="wiki-notify__foot">
-            <button
-              type="button"
-              onClick={() => {
-                router.push('/wiki/watchlist')
-                setIsOpen(false)
-              }}
-            >
-              감시 목록 관리
-            </button>
             <span>알림은 이 브라우저에만 저장돼요</span>
           </footer>
         </div>

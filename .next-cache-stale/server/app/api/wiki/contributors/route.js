@@ -1,0 +1,14 @@
+"use strict";(()=>{var e={};e.id=5113,e.ids=[5113],e.modules={20399:e=>{e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},30517:e=>{e.exports=require("next/dist/compiled/next-server/app-route.runtime.prod.js")},8678:e=>{e.exports=import("pg")},32529:(e,t,a)=>{a.a(e,async(e,r)=>{try{a.r(t),a.d(t,{originalPathname:()=>h,patchFetch:()=>p,requestAsyncStorage:()=>d,routeModule:()=>l,serverHooks:()=>m,staticGenerationAsyncStorage:()=>c});var i=a(49303),o=a(88716),s=a(60670),n=a(99914),u=e([n]);n=(u.then?(await u)():u)[0];let l=new i.AppRouteRouteModule({definition:{kind:o.x.APP_ROUTE,page:"/api/wiki/contributors/route",pathname:"/api/wiki/contributors",filename:"route",bundlePath:"app/api/wiki/contributors/route"},resolvedPagePath:"C:\\Users\\jaewo\\Desktop\\rangu.fam\\src\\app\\api\\wiki\\contributors\\route.ts",nextConfigOutput:"standalone",userland:n}),{requestAsyncStorage:d,staticGenerationAsyncStorage:c,serverHooks:m}=l,h="/api/wiki/contributors/route";function p(){return(0,s.patchFetch)({serverHooks:m,staticGenerationAsyncStorage:c})}r()}catch(e){r(e)}})},99914:(e,t,a)=>{a.a(e,async(e,r)=>{try{a.r(t),a.d(t,{GET:()=>l,dynamic:()=>d,revalidate:()=>c});var i=a(87070),o=a(62315),s=a(57745),n=a(63719),u=a(31986),p=e([n]);n=(p.then?(await p)():p)[0];let d="force-dynamic",c=600;async function l(e){try{let t=(0,n.z)(),{searchParams:a}=new URL(e.url),r=Math.min(parseInt(a.get("limit")||"20"),100),p=await t.execute((0,o.i6)`
+      SELECT
+        author,
+        COUNT(*)::int AS edits,
+        COUNT(DISTINCT page_id)::int AS pages,
+        COALESCE(SUM(size_change), 0)::int AS total_size_change,
+        MAX(timestamp_at) AS last_edit,
+        MIN(timestamp_at) AS first_edit
+      FROM wiki_revisions
+      WHERE author IS NOT NULL AND author != ''
+      GROUP BY author
+      ORDER BY edits DESC
+      LIMIT ${r}
+    `),l=p.rows??p,d=l.map(e=>e.author),c={};if(d.length>0)for(let e of(await t.select({username:u.NA.username,avatar:u.NA.avatar,displayName:u.NA.displayName,role:u.NA.role,reputation:u.NA.reputation}).from(u.NA).where((0,s.d3)(u.NA.username,d))))c[e.username]={avatar:e.avatar||void 0,displayName:e.displayName||void 0,role:e.role||void 0,reputation:e.reputation||void 0};let m=l.map(e=>({author:e.author,edits:Number(e.edits),pages:Number(e.pages),totalSizeChange:Number(e.total_size_change||0),lastEdit:e.last_edit,firstEdit:e.first_edit,avatar:c[e.author]?.avatar||null,displayName:c[e.author]?.displayName||null,role:c[e.author]?.role||null,reputation:c[e.author]?.reputation||0}));return i.NextResponse.json({success:!0,contributors:m})}catch(e){return console.error("contributors 조회 오류:",e),i.NextResponse.json({success:!1,error:"기여자 목록 조회 중 오류"},{status:500})}}r()}catch(e){r(e)}})}};var t=require("../../../../webpack-runtime.js");t.C(e);var a=e=>t(t.s=e),r=t.X(0,[8948,5972,6001,3719],()=>a(32529));module.exports=r})();

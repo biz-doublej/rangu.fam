@@ -20,10 +20,8 @@ import {
   Clock,
   Layers,
   Shuffle,
-  Network,
   HelpCircle,
   FileText,
-  Bell,
   Edit,
   Trophy,
   Info,
@@ -50,7 +48,6 @@ type ActiveNav =
   | 'category'
   | 'random'
   | 'search'
-  | 'graph'
   | 'help'
   | 'mod'
 
@@ -79,7 +76,6 @@ const NAV_LINKS: Array<{ key: ActiveNav; label: string; href: string; icon: Reac
   { key: 'category', label: '분류', icon: Layers, href: '/wiki/category' },
   { key: 'random', label: '임의 문서', icon: Shuffle, href: '/wiki/random' },
   { key: 'search', label: '문서 검색', icon: Search, href: '/wiki/search' },
-  { key: 'graph', label: '지식 그래프', icon: Network, href: '/wiki/graph' }
 ]
 
 const HELP_LINKS = [
@@ -89,10 +85,7 @@ const HELP_LINKS = [
   { label: '규정', href: '/wiki/이랑위키:규정' }
 ]
 
-const TOOL_LINKS = [
-  { label: '내 감시 목록', href: '/wiki/watchlist', icon: Bell },
-  { label: '기여자', href: '/wiki/contributors', icon: Trophy }
-]
+const TOOL_LINKS = [{ label: '기여자', href: '/wiki/contributors', icon: Trophy }]
 
 /* 사이트 전체(랑구팸) 셀렉 메뉴 — 위키 토프바 아래에 노출. 랑구팸 본 사이트의
  * 메뉴와 동일한 6 항목을 그대로 가져옵니다. 현재 위치는 "이랑위키"이므로
@@ -160,14 +153,6 @@ const SITE_MENU_ITEMS: SiteMenuItem[] = [
     matchPaths: [/^\/wiki\/category\/카드/]
   }
 ]
-
-const SITE_MENU_LOGIN: SiteMenuItem = {
-  key: 'login',
-  label: '로그인',
-  subtitle: '이랑위키 로그인',
-  href: '/auth/start?callbackUrl=%2Fwiki',
-  icon: LogIn
-}
 
 const SITE_MENU_TERMS: SiteMenuItem = {
   key: 'terms',
@@ -303,7 +288,6 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
           case 'h': e.preventDefault(); router.push('/wiki'); break
           case 'r': e.preventDefault(); router.push('/wiki/recent'); break
           case 'c': e.preventDefault(); router.push('/wiki/category'); break
-          case 'w': e.preventDefault(); router.push('/wiki/watchlist'); break
           case 'n': e.preventDefault(); router.push('/wiki/random'); break
           case 's': e.preventDefault(); router.push('/wiki/search'); break
         }
@@ -449,7 +433,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
             <span
               className="hidden lg:inline-block text-xs text-[color:var(--wiki-ink-faint)]"
             >
-              여러분이 가꾸는 작은 백과사전
+              누구나 함께 가꾸는 지식의 공간
             </span>
 
             <form onSubmit={handleSearch} className="ml-auto flex flex-1 max-w-md items-center relative">
@@ -552,7 +536,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
               ) : (
                 <button
                   type="button"
-                  onClick={() => router.push('/auth/start?callbackUrl=%2Fwiki')}
+                  onClick={() => router.push(`/wiki/login?callbackUrl=${encodeURIComponent(window.location.pathname.startsWith('/wiki/login') ? '/wiki' : window.location.pathname + window.location.search + window.location.hash)}`)}
                   className="inline-flex items-center gap-1 text-xs text-[color:var(--wiki-cyan)] hover:text-[color:var(--wiki-link-hover)]"
                 >
                   <LogIn className="w-3.5 h-3.5" />
@@ -566,13 +550,12 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
           <SiteSelectMenu
             isLoggedIn={isLoggedIn}
             displayName={wikiUser?.displayName || wikiUser?.username || null}
-            onLogin={() => router.push('/auth/start?callbackUrl=%2Fwiki')}
           />
         </header>
 
         {/* ── Sidebar + main + right rail ──────────────────────── */}
         <div
-          className={`grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] ${
+          className={`wiki-shell-grid grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] ${
             // 오른쪽 레일(목차·정보상자)이 있을 때만 세 번째 열을 만든다
             active.rightRail
               ? 'xl:grid-cols-[200px_minmax(0,1fr)_280px] 2xl:grid-cols-[240px_minmax(0,1fr)_320px]'
@@ -615,7 +598,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
               <button
                 onClick={() => {
                   if (!isLoggedIn) {
-                    router.push('/auth/start?callbackUrl=%2Fwiki')
+                    router.push('/wiki/login?chooser=1')
                     return
                   }
                   router.push('/wiki/search')
@@ -735,7 +718,6 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
                   { keys: ['g', 'h'], desc: '대문 (위키 홈)' },
                   { keys: ['g', 'r'], desc: '최근 변경' },
                   { keys: ['g', 'c'], desc: '분류 목록' },
-                  { keys: ['g', 'w'], desc: '내 감시 목록' },
                   { keys: ['g', 'n'], desc: '임의 문서 (random)' },
                   { keys: ['g', 's'], desc: '검색 페이지' },
                 ].map(({ keys, desc }) => (
@@ -788,7 +770,6 @@ export function WikiPageHeader({
           className="wiki-label"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
-          / Iranggi · DOC
         </span>
         <span className="h-px flex-1 bg-gradient-to-r from-[color:var(--wiki-cyan)]/40 via-[color:var(--wiki-violet)]/30 to-transparent" />
       </div>
@@ -802,7 +783,7 @@ export function WikiPageHeader({
       </div>
 
       {subtitle && (
-        <p className="mt-2 text-sm text-[color:var(--wiki-ink-soft)] leading-relaxed">{subtitle}</p>
+        <div className="mt-2 text-sm text-[color:var(--wiki-ink-soft)] leading-relaxed">{subtitle}</div>
       )}
 
       {hatnote && <div className="wiki-hatnote">{hatnote}</div>}
@@ -844,6 +825,33 @@ export function WikiPageHeader({
   )
 }
 
+export function WikiAppearanceControls() {
+  const savedAppearance = typeof window !== 'undefined' ? (() => { try { return JSON.parse(localStorage.getItem('irangwiki-appearance') || '{}') } catch { return {} } })() : {}
+  const [fontSize, setFontSize] = useState(savedAppearance.fontSize || 'standard')
+  const [width, setWidth] = useState(savedAppearance.width || 'standard')
+  const [color, setColor] = useState(savedAppearance.color || 'auto')
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.wikiFont = fontSize
+    root.dataset.wikiWidth = width
+    root.dataset.wikiColor = color
+    localStorage.setItem('irangwiki-appearance', JSON.stringify({ fontSize, width, color }))
+  }, [fontSize, width, color])
+
+  const label = (value: string) => ({ small: '작음', standard: '표준', large: '큼', wide: '넓게', auto: '자동', light: '라이트', dark: '다크' } as Record<string, string>)[value] || value
+  const choice = (group: string, value: string, current: string, set: (value: string) => void) => (
+    <label className="wiki-appearance-option"><input type="radio" name={`wiki-${group}`} checked={current === value} onChange={() => set(value)} /><span>{label(value)}</span></label>
+  )
+
+  return <section className="wiki-appearance wiki-panel" aria-label="외관 설정">
+    <div className="flex items-center justify-between border-b border-[color:var(--wiki-rule)] pb-2"><h3>외관</h3><button type="button" onClick={(e) => (e.currentTarget.closest('section') as HTMLElement)?.classList.toggle('is-collapsed')}>숨기기</button></div>
+    <fieldset><legend>글</legend>{choice('font', 'small', fontSize, setFontSize)}{choice('font', 'standard', fontSize, setFontSize)}{choice('font', 'large', fontSize, setFontSize)}</fieldset>
+    <fieldset><legend>너비</legend>{choice('width', 'standard', width, setWidth)}{choice('width', 'wide', width, setWidth)}</fieldset>
+    <fieldset><legend>색 (베타)</legend>{choice('color', 'auto', color, setColor)}{choice('color', 'light', color, setColor)}{choice('color', 'dark', color, setColor)}</fieldset>
+  </section>
+}
+
 /* ────────────────────────────────────────────────────────────
  * SiteSelectMenu — 이랑위키 내부 셀렉 메뉴.
  * 위키 토프바 바로 아래 두 번째 줄에 노출. 라벨 6개(홈/소개/멤버/이랑위키/카드/로그인)
@@ -855,11 +863,9 @@ export function WikiPageHeader({
 function SiteSelectMenu({
   isLoggedIn,
   displayName,
-  onLogin
 }: {
   isLoggedIn: boolean
   displayName: string | null
-  onLogin: () => void
 }) {
   const router = useRouter()
   const pathname = usePathname() || ''
@@ -956,27 +962,14 @@ function SiteSelectMenu({
           )
         })}
 
-        {/* 우측: 로그인 / 사용자 표시 */}
+        {/* 우측: 로그인은 상단 헤더에만 표시 */}
         <span className="ml-auto" />
         {isLoggedIn ? (
           <span className="wiki-sitemenu__item is-passive" aria-disabled title="현재 로그인된 위키 계정">
             <span className="wiki-pulse-dot" aria-hidden />
             <span className="text-[color:var(--wiki-cyan)]">@{displayName || '내 계정'}</span>
           </span>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onLogin}
-              className="wiki-sitemenu__item"
-              title={SITE_MENU_LOGIN.subtitle}
-            >
-              <SITE_MENU_LOGIN.icon className="w-3.5 h-3.5" />
-              <span>{SITE_MENU_LOGIN.label}</span>
-              <span className="wiki-sitemenu__sub">{SITE_MENU_LOGIN.subtitle}</span>
-            </button>
-          </>
-        )}
+        ) : null}
         <a
           href={SITE_MENU_TERMS.href}
           className="wiki-sitemenu__item wiki-sitemenu__item--muted"

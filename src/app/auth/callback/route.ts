@@ -27,13 +27,12 @@ function clearOidcStateCookie(response: NextResponse) {
   })
 }
 
-const WIKI_HOSTS = new Set(['irang.wiki', 'www.irang.wiki'])
-
 function redirectWithError(request: NextRequest, code: string) {
   const origin = resolvePublicOrigin(request)
-  // 이랑위키 도메인에서 시작한 로그인은 위키 로그인 화면으로 돌려보낸다
-  const loginPath = WIKI_HOSTS.has(new URL(origin).hostname) ? '/wiki/login' : '/login'
-  const url = new URL(loginPath, origin)
+  const url = new URL('/wiki/login', origin)
+  const stateCookie = request.cookies.get(OIDC_STATE_COOKIE)?.value
+  const savedState = stateCookie ? parseOidcStateCookieValue(stateCookie) : null
+  if (savedState) url.searchParams.set('callbackUrl', sanitizeCallbackPath(savedState.callbackUrl, '/wiki'))
   url.searchParams.set('error', code)
   return NextResponse.redirect(url)
 }
@@ -139,7 +138,8 @@ export async function GET(request: NextRequest) {
     return response
   } catch (error) {
     console.error('OIDC 콜백 처리 오류:', error)
-    const response = redirectWithError(request, 'oidc_callback_failed')
+    const cause = (error as { cause?: { code?: string } })?.cause
+    const response = redirectWithError(request, cause?.code === 'ECONNREFUSED' ? 'database_unavailable' : 'oidc_callback_failed')
     clearOidcStateCookie(response)
     return response
   }

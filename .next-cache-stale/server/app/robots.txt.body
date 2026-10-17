@@ -1,0 +1,10 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /settings/
+Disallow: /m/
+
+Sitemap: https://rangu-fam.com/sitemap.xml
+Sitemap: https://irang.wiki/sitemap.xml

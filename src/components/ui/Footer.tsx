@@ -16,10 +16,10 @@ const Footer: React.FC = () => {
     { label: '회사소개', href: 'https://accounts.doublej.app/company' },
   ]
 
-  // 회사 정책 페이지는 DoubleJ Account 의 공식 페이지로 직접 link (next.config redirect 도 동시에 작동).
+  // 서비스 안에서 바로 확인할 수 있는 정책 페이지
   const companyInfo = [
-    { label: '이용약관', href: 'https://accounts.doublej.app/terms', external: true },
-    { label: '개인정보처리방침', href: 'https://accounts.doublej.app/privacy', external: true },
+    { label: '이용약관', href: '/terms' },
+    { label: '개인정보처리방침', href: '/privacy' },
   ]
 
   const services = [
@@ -108,8 +108,6 @@ const Footer: React.FC = () => {
                 <li key={item.label}>
                   <a
                     href={item.href}
-                    target={item.external ? '_blank' : undefined}
-                    rel={item.external ? 'noopener noreferrer' : undefined}
                     className="group inline-flex items-center gap-1.5 text-sm text-ink-300 transition-colors hover:text-coral-500"
                   >
                     {item.label}

@@ -23,17 +23,18 @@ function WikiLoginContent() {
   const { isLoggedIn, linkedWikiUsername } = useAuth()
   const { wikiUser, isLoading } = useWikiAuth()
   const errorMessage = getLoginErrorMessage(searchParams.get('error'))
+  const requestedCallback = searchParams.get('callbackUrl') || '/wiki'
+  const callbackUrl = requestedCallback.startsWith('/wiki') && !requestedCallback.startsWith('/wiki/login') && !requestedCallback.startsWith('//') ? requestedCallback : '/wiki'
 
   return (
     <WikiShell
       pageHeader={
         <WikiPageHeader
           title="이랑위키 로그인"
-          subtitle="Google 계정으로 로그인합니다."
+          subtitle="Google 또는 네이버 계정으로 로그인합니다."
           hatnote={
             <>
-              처음 로그인하면 계정이 자동으로 만들어집니다. 기존 회원은 같은 이메일의 Google 계정으로
-              로그인하면 기존 계정과 기여 기록이 그대로 이어집니다.
+              로그인 방법을 선택해 이랑위키에 참여하세요.
             </>
           }
         />
@@ -62,14 +63,14 @@ function WikiLoginContent() {
           <button
             type="button"
             disabled={isLoading}
-            onClick={() => router.push('/wiki')}
+            onClick={() => router.push(callbackUrl)}
             className="w-full rounded-md bg-[color:var(--wiki-accent)] px-3 py-2 text-sm font-medium text-[#fff] hover:opacity-90 disabled:opacity-50"
           >
             위키로 이동
           </button>
         ) : (
           <div className="space-y-2">
-            <GoogleSignInButton callbackUrl="/wiki" />
+            <GoogleSignInButton callbackUrl={callbackUrl} inline />
             <p className="text-xs text-[color:var(--wiki-ink-muted)] text-center">
               로그인이 끝나면 자동으로 위키로 돌아옵니다.
             </p>

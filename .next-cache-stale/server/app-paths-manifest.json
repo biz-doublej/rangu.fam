@@ -1,0 +1,4 @@
+{
+  "/wiki/page": "app/wiki/page.js",
+  "/wiki/[...slug]/page": "app/wiki/[...slug]/page.js"
+}

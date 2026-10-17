@@ -1,0 +1,1 @@
+"use strict";exports.id=8510,exports.ids=[8510],exports.modules={38510:(e,s,r)=>{r.r(s),r.d(s,{default:()=>t});let t=(0,r(68570).createProxy)(String.raw`C:\Users\jaewo\Desktop\rangu.fam\src\app\m\_pages\minseok.tsx#default`)}};

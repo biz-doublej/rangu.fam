@@ -1,6 +1,7 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 
 function GoogleMark({ className }: { className?: string }) {
   return (
@@ -21,18 +22,45 @@ export function GoogleSignInButton({
   callbackUrl = '/',
   label = 'Google 계정으로 로그인',
   className = '',
+  autoOpen = false,
+  inline = false,
 }: {
   callbackUrl?: string
   label?: string
   className?: string
+  autoOpen?: boolean
+  inline?: boolean
 }) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => { if (autoOpen) setOpen(true) }, [autoOpen])
   return (
-    <a
-      href={`/auth/start?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+    <>
+    {!inline && !autoOpen && <button
+      type="button"
+      onClick={() => setOpen(true)}
       className={`inline-flex w-full items-center justify-center gap-3 rounded-md border border-[#DADCE0] bg-[#FFFFFF] px-4 py-2.5 text-sm font-medium text-[#1F1F1F] shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-colors hover:bg-[#F7F8F8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F5D8C] ${className}`}
     >
-      <GoogleMark className="h-[18px] w-[18px]" />
-      <span>{label}</span>
-    </a>
+      <GoogleMark className="h-[18px] w-[18px]" /><span>로그인 방법 선택</span>
+    </button>}
+    {(inline || open) && (
+      <div className={inline ? '' : 'fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4'} role={inline ? undefined : 'dialog'} aria-modal={inline ? undefined : true} aria-labelledby={inline ? undefined : 'login-choice-title'}>
+        <div className={inline ? 'w-full' : 'w-full max-w-md rounded-2xl bg-paper-50 p-6 shadow-2xl'}>
+          <div className="flex items-start justify-between gap-4">
+            <div>{!inline && <h2 id="login-choice-title" className="text-xl font-bold text-ink-500">이랑위키 로그인</h2>}<p className="mt-1 text-sm text-ink-300">로그인 방법을 선택하세요.</p></div>
+            {!inline && <button type="button" onClick={() => setOpen(false)} className="text-xl text-ink-300" aria-label="닫기">×</button>}
+          </div>
+          <div className="wiki-login-providers mt-5 space-y-2">
+            <a href={`/auth/start?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="inline-flex w-full items-center justify-center gap-3 rounded-md border border-[#DADCE0] bg-white px-4 py-3 text-sm font-medium text-[#1F1F1F] hover:bg-[#F7F8F8]"><GoogleMark className="h-[18px] w-[18px]" /><span>{label}</span></a>
+            <a href={`/auth/naver/start?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="inline-flex w-full items-center justify-center gap-3 rounded-md bg-[#03C75A] px-4 py-3 text-sm font-semibold text-white hover:bg-[#02b351]"><span className="flex h-[18px] w-[18px] items-center justify-center rounded-sm bg-white text-xs font-black text-[#03C75A]">N</span><span>네이버로 로그인</span></a>
+          </div>
+          <div className="mt-5 rounded-lg border border-ink-500/10 bg-paper-100 px-3 py-3 text-xs leading-5 text-ink-300">
+            <p className="font-semibold text-ink-500">수집·이용 안내</p>
+            <p className="mt-1">로그인 제공자의 계정 식별자, 이메일, 이름·닉네임, 프로필 이미지를 계정 생성·로그인 유지·위키 기여자 표시를 위해 사용합니다. 비밀번호는 서비스가 저장하지 않습니다.</p>
+            <p className="mt-1">로그인하면 <Link href="/terms" className="underline hover:text-coral-500">이용약관</Link>과 <Link href="/privacy" className="underline hover:text-coral-500">개인정보처리방침</Link>에 동의합니다.</p>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

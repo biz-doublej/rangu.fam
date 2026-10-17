@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CaveatText, Handwritten, InkUnderline, PaperCard, Pin, TapeStrip } from '@/components/scrapbook'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { getLoginErrorMessage } from '@/lib/loginErrors'
+import Link from 'next/link'
 
 export default function LoginPage() {
   return (
@@ -95,6 +96,11 @@ function LoginPageContent() {
             <div className="mt-7">
               <GoogleSignInButton callbackUrl="/" />
             </div>
+            <p className="mt-4 text-center text-xs leading-5 text-ink-300">
+              로그인하면 <Link href="/terms" className="underline hover:text-coral-500">이용약관</Link>과{' '}
+              <Link href="/privacy" className="underline hover:text-coral-500">개인정보처리방침</Link>에 동의하는 것으로 봅니다.
+              Google 계정의 인증 정보는 계정 식별과 서비스 제공에 필요한 범위에서만 사용합니다.
+            </p>
           </div>
         </PaperCard>
 

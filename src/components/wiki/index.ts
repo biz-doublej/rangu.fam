@@ -1,4 +1,4 @@
-export { WikiShell, WikiShellLayoutFrame, WikiPageHeader } from './WikiShell'
+export { WikiShell, WikiShellLayoutFrame, WikiPageHeader, WikiAppearanceControls } from './WikiShell'
 export { WikiMeter } from './WikiMeter'
 export { WikiTableOfContents } from './WikiTableOfContents'
 export {

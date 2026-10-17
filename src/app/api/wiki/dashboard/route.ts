@@ -33,6 +33,7 @@ export async function GET() {
       openDiscussionsRaw,
       namespacesRaw,
       siteHistoryRows,
+      featuredPagesRaw,
     ] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)::int` })
@@ -99,6 +100,12 @@ export async function GET() {
         .orderBy(asc(wikiNamespaces.createdAt))
         .limit(6),
       db.select({ stats: siteHistory.stats }).from(siteHistory).limit(1),
+      db
+        .select({ title: wikiPages.title, slug: wikiPages.slug, summary: wikiPages.summary, content: wikiPages.content, views: wikiPages.views })
+        .from(wikiPages)
+        .where(ne(wikiPages.isDeleted, true))
+        .orderBy(desc(wikiPages.views), desc(wikiPages.lastEditDate))
+        .limit(2),
     ])
 
     const totalPages = totalPagesRows[0]?.count ?? 0
@@ -141,6 +148,13 @@ export async function GET() {
         icon: 'MessageCircle',
       },
     ]
+
+    const featuredArticle = featuredPagesRaw[0]
+      ? { title: featuredPagesRaw[0].title, slug: featuredPagesRaw[0].slug, summary: featuredPagesRaw[0].summary || featuredPagesRaw[0].content?.replace(/<[^>]+>/g, '').slice(0, 520) || '', views: featuredPagesRaw[0].views || 0 }
+      : null
+    const goodArticle = featuredPagesRaw[1]
+      ? { title: featuredPagesRaw[1].title, slug: featuredPagesRaw[1].slug, summary: featuredPagesRaw[1].summary || featuredPagesRaw[1].content?.replace(/<[^>]+>/g, '').slice(0, 280) || '', views: featuredPagesRaw[1].views || 0 }
+      : null
 
     const staticPortals = [
       {
@@ -225,6 +239,8 @@ export async function GET() {
       data: {
         stats: derivedStats,
         quickActions,
+        featuredArticle,
+        goodArticle,
         portals,
         communitySignals,
         supportLinks,
