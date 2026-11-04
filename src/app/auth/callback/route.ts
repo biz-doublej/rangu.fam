@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/db/client'
+import { wikiUsers } from '@/db/schema/wiki'
+import { ACCOUNT_LINK_COOKIE, getAccountLinkCookieOptions, readAccountLinkUserId } from '@/lib/accountLink'
+import { recordLoginEvent } from '@/lib/loginEvents'
 import {
+  AccountLoginError,
   createDesktopHandoffCode,
   createDoubleJToken,
   createWikiToken,
@@ -35,6 +41,37 @@ function redirectWithError(request: NextRequest, code: string) {
   if (savedState) url.searchParams.set('callbackUrl', sanitizeCallbackPath(savedState.callbackUrl, '/wiki'))
   url.searchParams.set('error', code)
   return NextResponse.redirect(url)
+}
+
+function redirectToAccountSettings(request: NextRequest, params: Record<string, string>) {
+  const url = new URL('/settings/account', resolvePublicOrigin(request))
+  url.searchParams.set('tab', 'accounts')
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+  const response = NextResponse.redirect(url)
+  clearOidcStateCookie(response)
+  response.cookies.set(ACCOUNT_LINK_COOKIE, '', getAccountLinkCookieOptions(0))
+  return response
+}
+
+async function linkGoogleAccount(request: NextRequest, userId: string, subject: string) {
+  const linkCookie = request.cookies.get(ACCOUNT_LINK_COOKIE)?.value
+  if (readAccountLinkUserId(linkCookie) !== userId) {
+    return redirectToAccountSettings(request, { linkError: 'link_session_expired' })
+  }
+  const db = getDb()
+  const [owner] = await db
+    .select({ id: wikiUsers.id })
+    .from(wikiUsers)
+    .where(eq(wikiUsers.ssoSubject, subject))
+    .limit(1)
+  if (owner && owner.id !== userId) {
+    return redirectToAccountSettings(request, { linkError: 'provider_already_linked' })
+  }
+  await db
+    .update(wikiUsers)
+    .set({ ssoSubject: subject, googleUnlinkedAt: null, updatedAt: new Date() })
+    .where(eq(wikiUsers.id, userId))
+  return redirectToAccountSettings(request, { linked: 'google' })
 }
 
 export async function GET(request: NextRequest) {
@@ -89,6 +126,10 @@ export async function GET(request: NextRequest) {
       return response
     }
 
+    if (parsedState.linkUserId) {
+      return await linkGoogleAccount(request, parsedState.linkUserId, identity.subject)
+    }
+
     if (!identity.email || !identity.emailVerified) {
       const response = redirectWithError(request, 'email_not_verified')
       clearOidcStateCookie(response)
@@ -130,6 +171,8 @@ export async function GET(request: NextRequest) {
       return response
     }
 
+    await recordLoginEvent(request, String((user as { _id?: string; id?: string })._id || (user as { id?: string }).id), 'google')
+
     const callbackUrl = sanitizeCallbackPath(parsedState.callbackUrl, '/')
     const response = NextResponse.redirect(new URL(callbackUrl, publicOrigin))
     setDoubleJAuthCookie(response, createDoubleJToken(user))
@@ -137,6 +180,11 @@ export async function GET(request: NextRequest) {
     clearOidcStateCookie(response)
     return response
   } catch (error) {
+    if (error instanceof AccountLoginError) {
+      const response = redirectWithError(request, error.code)
+      clearOidcStateCookie(response)
+      return response
+    }
     console.error('OIDC 콜백 처리 오류:', error)
     const cause = (error as { cause?: { code?: string } })?.cause
     const response = redirectWithError(request, cause?.code === 'ECONNREFUSED' ? 'database_unavailable' : 'oidc_callback_failed')

@@ -14,6 +14,7 @@ interface RecentChange {
     editType: string
     summary?: string
     author: string
+    authorDisplayName?: string
     timestamp: string
     sizeChange?: number
     contentLength?: number
@@ -373,7 +374,7 @@ function WikiRecentChangesPageContent() {
                                 className="text-[11px] text-[color:var(--wiki-ink-soft)] hover:text-[color:var(--wiki-link)] hover:underline flex-shrink-0"
                                 title="이 작성자의 변경만 보기"
                               >
-                                {item.revision.author}
+                                {item.revision.authorDisplayName || item.revision.author}
                               </button>
                             </div>
 

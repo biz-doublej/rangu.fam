@@ -1,3 +1,4 @@
+import { loadDisplayNames } from '@/lib/wikiDisplayNames'
 import { NextRequest, NextResponse } from 'next/server'
 import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { getDb } from '@/db/client'
@@ -61,9 +62,18 @@ export async function GET(request: NextRequest) {
       .innerJoin(wikiPages, eq(wikiPages.id, wikiRevisions.pageId))
       .where(where as any)
 
+    const names = await loadDisplayNames(rows.map((row) => row.revision.authorId))
+    const changes = rows.map((row) => ({
+      ...row,
+      revision: {
+        ...row.revision,
+        authorDisplayName: (row.revision.authorId && names.get(row.revision.authorId)) || row.revision.author,
+      },
+    }))
+
     return NextResponse.json({
       success: true,
-      changes: rows,
+      changes,
       pagination: {
         total,
         skip,

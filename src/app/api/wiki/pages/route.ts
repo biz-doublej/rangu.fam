@@ -1,3 +1,4 @@
+import { loadDisplayNames } from '@/lib/wikiDisplayNames'
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
@@ -279,7 +280,14 @@ export async function GET(request: NextRequest) {
         `)
       } catch {}
 
-      return NextResponse.json({ success: true, page: toPageResponse(page) })
+      const editorNames = await loadDisplayNames([page.lastEditorId]).catch(() => new Map<string, string>())
+      return NextResponse.json({
+        success: true,
+        page: {
+          ...toPageResponse(page),
+          lastEditorDisplayName: (page.lastEditorId && editorNames.get(page.lastEditorId)) || page.lastEditor,
+        },
+      })
     }
 
     if (slug) {

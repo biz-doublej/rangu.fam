@@ -90,6 +90,10 @@ export function middleware(request: NextRequest) {
 
   // irang.wiki → /wiki/* (host 라우팅)
   if (WIKI_HOSTS.has(host)) {
+    // 내 계정 설정은 호스트별 로그인 쿠키를 그대로 쓰도록 위키 호스트에서도 연다.
+    if (pathname === '/settings' || pathname.startsWith('/settings/')) {
+      return NextResponse.next()
+    }
     // 메인 도메인 전용 페이지(/settings, /login 등) 잘못 진입 → rangu-fam.com 으로 redirect
     if (isMainDomainPath(pathname)) {
       const redirectUrl = new URL(`https://rangu-fam.com${pathname}${search}`)

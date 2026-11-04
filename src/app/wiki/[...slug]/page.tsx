@@ -45,6 +45,7 @@ interface WikiPageData {
   creator: string
   creatorId: string
   lastEditor: string
+  lastEditorDisplayName?: string
   lastEditorId: string
   lastEditDate: string
   lastEditSummary: string
@@ -758,7 +759,7 @@ export default function WikiDocumentPage() {
       { label: '편집', value: `${currentPage.edits.toLocaleString()}회`, icon: History },
       { label: '리비전', value: `r${currentPage.currentRevision}` },
       { label: '최근', value: formatDate.relative(new Date(currentPage.lastEditDate)), icon: Sparkles },
-      { label: '편집자', value: currentPage.lastEditor }
+      { label: '편집자', value: currentPage.lastEditorDisplayName || currentPage.lastEditor }
     )
   }
 
@@ -854,7 +855,7 @@ export default function WikiDocumentPage() {
       rightRail={
         currentPage ? (
           <>
-            {/* 목차 (sticky, scroll-spy) — 문서 탭에서만 */}
+            {/* 목차 (scroll-spy) — 문서 탭에서만 */}
             {activeTab === 'document' && currentPage.content && (
               <WikiTableOfContents content={currentPage.content} />
             )}
@@ -873,7 +874,7 @@ export default function WikiDocumentPage() {
                 </tr>
                 <tr>
                   <th className="text-left">편집자</th>
-                  <td>{currentPage.lastEditor}</td>
+                  <td>{currentPage.lastEditorDisplayName || currentPage.lastEditor}</td>
                 </tr>
                 <tr>
                   <th className="text-left">편집 요약</th>
@@ -1346,7 +1347,7 @@ export default function WikiDocumentPage() {
                   onClick={() => router.push(`/wiki/recent?author=${encodeURIComponent(currentPage.lastEditor)}`)}
                   className="font-semibold text-[color:var(--wiki-ink)] hover:text-[color:var(--wiki-link)]"
                 >
-                  {currentPage.lastEditor || '—'}
+                  {currentPage.lastEditorDisplayName || currentPage.lastEditor || '—'}
                 </button>
                 <span className="ml-1.5 text-[color:var(--wiki-ink-muted)]">
                   {currentPage.lastEditDate ? formatDate.relative(new Date(currentPage.lastEditDate)) : '—'}
@@ -1535,7 +1536,7 @@ export default function WikiDocumentPage() {
                         </span>
                         <span className="text-xs text-[color:var(--wiki-ink-muted)]">·</span>
                         <span className="text-xs text-[color:var(--wiki-ink-soft)]">
-                          {r.author || '—'}
+                          {r.authorDisplayName || r.author || '—'}
                         </span>
 
                         <span className="ml-auto" />

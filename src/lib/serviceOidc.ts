@@ -38,6 +38,7 @@ interface OidcStatePayload {
   codeVerifier: string
   callbackUrl: string
   desktop?: OidcDesktopTarget
+  linkUserId?: string
   iat?: number
   exp?: number
 }
@@ -149,6 +150,7 @@ export function createOidcStateCookieValue(payload: {
   codeVerifier: string
   callbackUrl: string
   desktop?: OidcDesktopTarget
+  linkUserId?: string
 }): string {
   return jwt.sign(
     {
@@ -156,6 +158,7 @@ export function createOidcStateCookieValue(payload: {
       codeVerifier: payload.codeVerifier,
       callbackUrl: sanitizeCallbackPath(payload.callbackUrl, '/'),
       ...(payload.desktop ? { desktop: payload.desktop } : {}),
+      ...(payload.linkUserId ? { linkUserId: payload.linkUserId } : {}),
     },
     JWT_SECRET,
     { expiresIn: `${STATE_TTL_SECONDS}s` }

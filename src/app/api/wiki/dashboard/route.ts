@@ -1,3 +1,4 @@
+import { loadDisplayNames } from '@/lib/wikiDisplayNames'
 import { NextResponse } from 'next/server'
 import { and, asc, desc, eq, ne, sql } from 'drizzle-orm'
 import { getDb } from '@/db/client'
@@ -53,6 +54,7 @@ export async function GET() {
           title: wikiPages.title,
           slug: wikiPages.slug,
           lastEditor: wikiPages.lastEditor,
+          lastEditorId: wikiPages.lastEditorId,
           lastEditDate: wikiPages.lastEditDate,
           views: wikiPages.views,
           summary: wikiPages.summary,
@@ -112,13 +114,18 @@ export async function GET() {
     const activeContributors = activeContributorsRows[0]?.count ?? 0
     const totalUsers = totalUsersRows[0]?.count ?? 0
     const latestEditedPage = latestEditedPageRows[0] || null
+    const editorNames = await loadDisplayNames([latestEditedPage?.lastEditorId]).catch(() => new Map<string, string>())
+    const lastEditorName =
+      (latestEditedPage?.lastEditorId && editorNames.get(latestEditedPage.lastEditorId)) ||
+      latestEditedPage?.lastEditor ||
+      null
     const safeSiteStats = (siteHistoryRows[0]?.stats as any) || {}
 
     const derivedStats = {
       totalPages: safeSiteStats.totalPages || totalPages,
       totalUsers: safeSiteStats.totalUsers || totalUsers,
       pageViews: latestEditedPage?.views || safeSiteStats.totalVisits || 0,
-      lastEditor: latestEditedPage?.lastEditor || null,
+      lastEditor: lastEditorName,
       lastEditDate: latestEditedPage?.lastEditDate
         ? new Date(latestEditedPage.lastEditDate).toISOString()
         : null,

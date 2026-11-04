@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { wikiUsers } from '@/db/schema/wiki'
-import { getAuthenticatedWikiUser } from '@/lib/doublejAuth'
+import { getAuthenticatedWikiUser, isWhitelistedWikiAdmin, resolveMemberIdForUser } from '@/lib/doublejAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +13,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: '로그인이 필요합니다.' },
         { status: 401 }
+      )
+    }
+
+    // 멤버나 관리자 자격이 Discord 연결에만 달려 있으면 해제로 권한이 사라지므로 막는다.
+    const withoutDiscord = { ...authUser, discordId: null, discordUsername: null }
+    const losesAdmin = isWhitelistedWikiAdmin(authUser) && !isWhitelistedWikiAdmin(withoutDiscord)
+    const losesMember = Boolean(resolveMemberIdForUser(authUser)) && !resolveMemberIdForUser(withoutDiscord)
+    if (losesAdmin || losesMember) {
+      return NextResponse.json(
+        { success: false, error: 'Discord 연결로 유지되는 권한이 있어 해제할 수 없습니다. 운영진에게 문의해 주세요.' },
+        { status: 400 }
       )
     }
 

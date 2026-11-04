@@ -35,9 +35,13 @@ export const wikiUsers = pgTable(
     discordId: text('discord_id').unique(),
     discordUsername: text('discord_username'),
     discordAvatar: text('discord_avatar'),
+    naverId: text('naver_id').unique(),
+    naverEmail: text('naver_email'),
+    googleUnlinkedAt: timestamp('google_unlinked_at', { withTimezone: true }),
 
     // 프로필
     displayName: text('display_name'),
+    displayNameChangedAt: timestamp('display_name_changed_at', { withTimezone: true }),
     avatar: text('avatar'),
     bio: text('bio'),
     signature: text('signature'),
@@ -108,6 +112,22 @@ export const wikiUsers = pgTable(
 )
 
 // ── Wiki 페이지 ────────────────────────────────────────────────
+/** 로그인 성공 기록. 설정 화면의 최근 로그인 내역에 쓴다. */
+export const wikiLoginEvents = pgTable(
+  'wiki_login_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => wikiUsers.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    ip: text('ip'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userCreatedIdx: index('wiki_login_events_user_created_idx').on(t.userId, t.createdAt),
+  })
+)
+
 export const wikiPages = pgTable(
   'wiki_pages',
   {

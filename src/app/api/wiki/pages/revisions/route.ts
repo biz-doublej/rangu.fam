@@ -1,3 +1,4 @@
+import { loadDisplayNames } from '@/lib/wikiDisplayNames'
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, desc, eq, or, sql } from 'drizzle-orm'
 import { getDb } from '@/db/client'
@@ -117,13 +118,18 @@ export async function GET(request: NextRequest) {
       .offset(skip)
       .limit(limit)
 
+    const names = await loadDisplayNames(sliced.map((r) => r.authorId))
+
     return NextResponse.json({
       success: true,
       total,
       limit,
       skip,
       hasMore: skip + sliced.length < total,
-      revisions: sliced.map((r) => sanitizeRevision(r, /*omitContent*/ true)),
+      revisions: sliced.map((r) => ({
+        ...sanitizeRevision(r, /*omitContent*/ true),
+        authorDisplayName: (r.authorId && names.get(r.authorId)) || r.author,
+      })),
     })
   } catch (error) {
     console.error('리비전 조회 오류:', error)

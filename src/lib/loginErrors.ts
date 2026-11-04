@@ -14,6 +14,10 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   oidc_callback_failed: '로그인 처리 중 오류가 발생했습니다.',
   account_inactive: '비활성화된 계정입니다.',
   account_banned: '차단된 계정입니다.',
+  google_account_mismatch: '이 계정은 다른 구글 계정과 연결되어 있습니다. 연결된 구글 계정으로 로그인해 주세요.',
+  google_not_linked: '구글 연결이 해제된 계정입니다. 다른 로그인 수단으로 들어가 설정에서 다시 연결해 주세요.',
+  naver_not_linked: '연결된 계정이 없습니다. 구글로 로그인한 뒤 내 계정 설정에서 네이버를 연결해 주세요.',
+  naver_login_failed: '네이버 로그인에 실패했습니다. 다시 시도해 주세요.',
 }
 
 export function getLoginErrorMessage(code: string | null | undefined): string | null {

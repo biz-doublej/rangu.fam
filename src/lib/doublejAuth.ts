@@ -1,3 +1,4 @@
+import { classifyGoogleEmailMatch, validateDisplayName } from '@/lib/accountRules'
 import { getRequiredEnv } from '@/lib/env'
 import { isRanguTacticsMemberId } from '@/lib/ranguMembers'
 import jwt from 'jsonwebtoken'
@@ -337,6 +338,13 @@ function isReservedUsername(username: string): boolean {
   )
 }
 
+/** 로그인 화면에 오류 코드로 보여줘야 하는 계정 매칭 실패 */
+export class AccountLoginError extends Error {
+  constructor(public readonly code: string) {
+    super(code)
+  }
+}
+
 export async function findOrCreateWikiUserFromOidcProfile(
   profile: OidcUserProfile
 ): Promise<IWikiUser | null> {
@@ -366,6 +374,11 @@ export async function findOrCreateWikiUserFromOidcProfile(
       .from(wikiUsers)
       .where(eq(wikiUsers.email, normalizedEmail))
       .limit(1)
+    if (byEmail) {
+      // 예전 DoubleJ 회원의 첫 구글 로그인만 이메일로 연결한다.
+      const match = classifyGoogleEmailMatch(byEmail)
+      if (match !== 'link') throw new AccountLoginError(match)
+    }
     user = byEmail
   }
 
@@ -377,6 +390,7 @@ export async function findOrCreateWikiUserFromOidcProfile(
       : normalizedUsername
     const username = await resolveUniqueUsername(usernameBase)
     const email = await resolveUniqueEmail(normalizedEmail)
+    const safeDisplayName = validateDisplayName(displayName)
     // 로컬 password auth는 제거됐지만 wiki_users.password 컬럼이 NOT NULL이라 placeholder 필요.
     // SSO-only 사용자는 이 값으로 절대 로그인 불가 (bcrypt가 아닌 임의 base64 문자열).
     const placeholderPassword = `__oidc__${crypto.randomBytes(48).toString('base64')}`
@@ -388,7 +402,7 @@ export async function findOrCreateWikiUserFromOidcProfile(
         email,
         password: placeholderPassword,
         ssoSubject: subject,
-        displayName: displayName || username,
+        displayName: safeDisplayName.ok ? safeDisplayName.value : username,
         avatar: avatar || null,
         role: 'editor',
         permissions: {
@@ -422,25 +436,7 @@ export async function findOrCreateWikiUserFromOidcProfile(
       updates.ssoSubject = subject
     }
 
-    if (user.email !== normalizedEmail) {
-      // 이메일 충돌 체크 (자기 자신 제외)
-      const [conflict] = await db
-        .select({ id: wikiUsers.id })
-        .from(wikiUsers)
-        .where(eq(wikiUsers.email, normalizedEmail))
-        .limit(1)
-      if (!conflict || conflict.id === user.id) {
-        updates.email = normalizedEmail
-      }
-    }
-
-    if (displayName && user.displayName !== displayName) {
-      updates.displayName = displayName
-    }
-
-    if (avatar && user.avatar !== avatar) {
-      updates.avatar = avatar
-    }
+    // 표시 이름, 사진, 이메일은 사이트에서 관리하므로 로그인 때 구글 값으로 덮어쓰지 않는다.
 
     const [updated] = await db
       .update(wikiUsers)
