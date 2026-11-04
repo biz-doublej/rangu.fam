@@ -15,6 +15,7 @@ npm-debug.log*
 yarn-debug.log*
 *.tsbuildinfo
 exports
+.next-cache-stale
 coverage
 .eslintcache
 README.md

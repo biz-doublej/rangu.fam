@@ -44,6 +44,9 @@ $secrets = @(
   'DATABASE_URL=rangu-database-url:latest',
   'GOOGLE_CLIENT_ID=rangu-google-client-id:latest',
   'GOOGLE_CLIENT_SECRET=rangu-google-client-secret:latest',
+  'NAVER_CLIENT_ID=rangu-naver-client-id:latest',
+  'NAVER_CLIENT_SECRET=rangu-naver-client-secret:latest',
+  'DISCORD_CLIENT_ID=rangu-discord-client-id:latest',
   'DISCORD_CLIENT_SECRET=rangu-discord-client-secret:latest',
   'DISCORD_WEBHOOK_URL=rangu-discord-webhook-url:latest'
 ) -join ','
