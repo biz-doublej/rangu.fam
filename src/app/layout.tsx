@@ -29,6 +29,8 @@ const caveat = Caveat({
   display: 'swap',
 })
 
+const WIKI_APPEARANCE_BOOTSTRAP = `try{var a=JSON.parse(localStorage.getItem('irangwiki-appearance')||'{}'),d=document.documentElement.dataset;if(a.fontSize)d.wikiFont=a.fontSize;if(a.width)d.wikiWidth=a.width;if(a.color)d.wikiColor=a.color}catch(e){}`
+
 export const metadata: Metadata = {
   title: 'Rangu.fam — 친구 다섯의 기록',
   description: '네 친구의 특별한 온라인 공간, Rangu.fam에 오신 것을 환영합니다.',
@@ -53,6 +55,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* 이랑위키 보기 설정을 첫 페인트 전에 적용 — 모든 위키 페이지에서 유지되도록 */}
+        <script dangerouslySetInnerHTML={{ __html: WIKI_APPEARANCE_BOOTSTRAP }} />
+      </head>
       <body
         className={`${inter.variable} ${blackHanSans.variable} ${gaegu.variable} ${caveat.variable} min-h-screen`}
         suppressHydrationWarning

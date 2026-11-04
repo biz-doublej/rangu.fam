@@ -20,9 +20,9 @@ export const metadata: Metadata = {
   description: '랑구팸과 그 주변을 정리하는 협업 백과사전. 모두가 함께 만들어 갑니다.',
   // 위키 섹션 favicon — root layout 의 rang_web_logo 를 override.
   icons: {
-    icon: '/irang_web_logo.png',
-    shortcut: '/irang_web_logo.png',
-    apple: '/irang_web_logo.png',
+    icon: '/irang_icon.png',
+    shortcut: '/irang_icon.png',
+    apple: '/irang_icon.png',
   },
   openGraph: {
     siteName: '이랑위키',

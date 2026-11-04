@@ -1484,6 +1484,17 @@ video:hover {
   --wiki-tab-rest:       transparent;
   --wiki-table-head:     var(--wiki-bg-2);
   --wiki-table-cell:     #FFFFFF;
+  --wiki-field:          #FFFFFF;
+  --wiki-infobox-label-bg: #F5DFDC;
+  --wiki-infobox-label-ink: #561C15;
+  --wiki-mbox-bg:        #FBF6EC;
+  --wiki-mbox-line:      #EADBBE;
+  --wiki-mbox-info-bg:   #F2F5FA;
+  --wiki-mbox-info-line: #D5E0EC;
+  --wiki-mbox-danger-bg: #FCF4F3;
+  --wiki-mbox-danger-line: #EFD3CF;
+  --wiki-mbox-success-bg: #F2F8F4;
+  --wiki-mbox-success-line: #D3E5DA;
 
   /* 전역 페이지 변수 덮어쓰기 — theme-surface가 이걸 사용 */
   --page-background:     var(--wiki-bg-deep);
@@ -1736,7 +1747,7 @@ video:hover {
 [data-section='wiki'] input,
 [data-section='wiki'] textarea,
 [data-section='wiki'] select {
-  background: #FFFFFF;
+  background: var(--wiki-field);
   border: 1px solid var(--wiki-rule-strong);
   color: var(--wiki-ink);
   border-radius: 6px;
@@ -1828,7 +1839,26 @@ video:hover {
 :root[data-wiki-width='wide'] [data-section='wiki'] .wiki-shell-grid { width:100%; max-width:none; }
 :root[data-wiki-width='wide'] [data-section='wiki'] main { max-width:none; width:100%; }
 :root[data-wiki-color='light'] [data-section='wiki'] .theme-surface { --wiki-bg-deep:#F1F1EE; --wiki-bg:#F6F6F3; --wiki-bg-2:#EDEDE9; --wiki-panel:#FFFFFF; --wiki-chrome:#FFFFFF; --wiki-ink:#1C2025; --wiki-ink-soft:#3A4047; --wiki-ink-muted:#646A72; --wiki-ink-faint:#8E939A; --wiki-rule:#E2E2DD; --wiki-rule-strong:#CDCDC7; --wiki-link:#2F5D8C; }
-:root[data-wiki-color='dark'] [data-section='wiki'] .theme-surface { --wiki-bg-deep:#111318; --wiki-bg:#17191E; --wiki-bg-2:#20232A; --wiki-panel:#1B1E24; --wiki-chrome:#15171B; --wiki-ink:#F1F3F5; --wiki-ink-soft:#D1D5DB; --wiki-ink-muted:#9CA3AF; --wiki-ink-faint:#6B7280; --wiki-rule:#343942; --wiki-rule-strong:#4B5563; --wiki-link:#8EC5FF; --wiki-accent:#65A7E8; --wiki-accent-strong:#9BCBFF; }
+:root[data-wiki-color='dark'][data-section='wiki'],
+:root[data-wiki-color='dark'] [data-section='wiki'] {
+  --wiki-bg-deep:#111318; --wiki-bg:#17191E; --wiki-bg-2:#20232A; --wiki-panel:#1B1E24; --wiki-panel-strong:#20232A; --wiki-chrome:#15171B;
+  --wiki-ink:#F1F3F5; --wiki-ink-soft:#D1D5DB; --wiki-ink-muted:#9CA3AF; --wiki-ink-faint:#6B7280;
+  --wiki-rule:#343942; --wiki-rule-strong:#4B5563;
+  --wiki-accent:#65A7E8; --wiki-accent-strong:#9BCBFF; --wiki-accent-soft:rgba(101,167,232,.14); --wiki-accent-line:rgba(101,167,232,.4);
+  --wiki-link:#8EC5FF; --wiki-link-hover:#B7DBFF; --wiki-link-visited:#B3A8E6; --wiki-link-redlink:#F19A8E;
+  --wiki-success:#6FBF97; --wiki-warning:#E0B061; --wiki-danger:#EE8A7C;
+  --wiki-table-cell:#1B1E24; --wiki-field:#15171B;
+  --wiki-infobox-label-bg:#3A2020; --wiki-infobox-label-ink:#F6D2CC;
+  --wiki-mbox-bg:#2A2519; --wiki-mbox-line:#57482A;
+  --wiki-mbox-info-bg:#18232F; --wiki-mbox-info-line:#2E4358;
+  --wiki-mbox-danger-bg:#2E1C1A; --wiki-mbox-danger-line:#5E352F;
+  --wiki-mbox-success-bg:#182820; --wiki-mbox-success-line:#2F4C3D;
+  color-scheme: dark;
+}
+:root[data-wiki-color='dark'] [data-section='wiki'] .bg-paper-50 { background-color: var(--wiki-panel); color: var(--wiki-ink-soft); }
+[data-section='wiki'] .wiki-brand-compact { display: none; align-items: center; gap: 0.5rem; }
+:root[data-wiki-color='dark'] [data-section='wiki'] .wiki-brand-wordmark { display: none; }
+:root[data-wiki-color='dark'] [data-section='wiki'] .wiki-brand-compact { display: inline-flex; }
 [data-section='wiki'] .wiki-content p { margin: 0.7em 0; color: var(--wiki-ink); }
 [data-section='wiki'] .wiki-content a {
   color: var(--wiki-link);
@@ -1866,27 +1896,27 @@ video:hover {
   gap: 12px;
   align-items: flex-start;
   padding: 12px 16px;
-  border: 1px solid #EADBBE;
+  border: 1px solid var(--wiki-mbox-line);
   border-left: 3px solid var(--wiki-warning);
-  background: #FBF6EC;
+  background: var(--wiki-mbox-bg);
   font-size: 0.9rem;
   color: var(--wiki-ink-soft);
   border-radius: 6px;
   box-shadow: var(--wiki-shadow-paper);
 }
 [data-section='wiki'] .wiki-mbox--info {
-  background: #F2F5FA;
-  border-color: #D5E0EC;
+  background: var(--wiki-mbox-info-bg);
+  border-color: var(--wiki-mbox-info-line);
   border-left-color: var(--wiki-accent);
 }
 [data-section='wiki'] .wiki-mbox--danger {
-  background: #FCF4F3;
-  border-color: #EFD3CF;
+  background: var(--wiki-mbox-danger-bg);
+  border-color: var(--wiki-mbox-danger-line);
   border-left-color: var(--wiki-danger);
 }
 [data-section='wiki'] .wiki-mbox--success {
-  background: #F2F8F4;
-  border-color: #D3E5DA;
+  background: var(--wiki-mbox-success-bg);
+  border-color: var(--wiki-mbox-success-line);
   border-left-color: var(--wiki-success);
 }
 
@@ -1970,8 +2000,8 @@ video:hover {
 }
 [data-section='wiki'] .person-infobox table tr td:first-child,
 [data-section='wiki'] .group-infobox table tr td:first-child {
-  background: #F5DFDC;
-  color: #561C15;
+  background: var(--wiki-infobox-label-bg);
+  color: var(--wiki-infobox-label-ink);
 }
 [data-section='wiki'] .person-infobox table tr td:last-child,
 [data-section='wiki'] .group-infobox table tr td:last-child {
@@ -1997,7 +2027,7 @@ video:hover {
 /* ── WikiEditor ── */
 [data-section='wiki'] .wiki-editor-shell,
 [data-section='wiki'] textarea {
-  background-color: #FFFFFF !important;
+  background-color: var(--wiki-field) !important;
   border-color: var(--wiki-rule-strong) !important;
   color: var(--wiki-ink);
 }
@@ -2348,7 +2378,7 @@ video:hover {
   border: 1px solid var(--wiki-rule-strong);
   border-radius: 8px;
   overflow: hidden;
-  background: #FFFFFF;
+  background: var(--wiki-field);
 }
 [data-section='wiki'] .wiki-editor.is-focus .wiki-editor__body { flex: 1; height: auto; }
 @media (min-width: 1024px) {
@@ -2380,7 +2410,7 @@ video:hover {
   box-shadow: none !important;
   resize: none;
   outline: none;
-  background: #FFFFFF !important;
+  background: var(--wiki-field) !important;
   color: var(--wiki-ink);
   font-family: 'JetBrains Mono', 'Pretendard', ui-monospace, monospace;
   font-size: 0.875rem;

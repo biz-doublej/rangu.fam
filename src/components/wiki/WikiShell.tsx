@@ -413,14 +413,14 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
               type="button"
               onClick={() => router.push('/wiki')}
               className="flex items-center gap-2.5 group"
+              aria-label={BRANDING.brandWiki}
             >
-              <span
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-[color:var(--wiki-rule-strong)] bg-[color:var(--wiki-bg-2)] text-[color:var(--wiki-cyan)] overflow-hidden group-hover:border-[color:var(--wiki-cyan)]"
-                aria-hidden
-              >
-                <BookOpen className="w-4 h-4 relative" />
-              </span>
-              <span className="flex items-center gap-2">
+              {/* 가로 로고의 남색 글자는 다크 배경에서 안 보여, 다크에서는 엠블럼+글자로 바꾼다. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/assets/irang_logo_header.png" alt="" className="wiki-brand-wordmark h-9 w-auto" />
+              <span className="wiki-brand-compact">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/assets/irang_emblem_96.png" alt="" className="h-9 w-9" />
                 <span
                   className="text-lg sm:text-xl font-semibold text-[color:var(--wiki-ink)]"
                   style={{ fontFamily: "'Pretendard', sans-serif", letterSpacing: '0.005em' }}
@@ -962,10 +962,10 @@ function SiteSelectMenu({
           )
         })}
 
-        {/* 우측: 로그인은 상단 헤더에만 표시 */}
+        {/* 우측: 상단 헤더의 계정 영역이 숨는 모바일에서만 표시 */}
         <span className="ml-auto" />
         {isLoggedIn ? (
-          <span className="wiki-sitemenu__item is-passive" aria-disabled title="현재 로그인된 위키 계정">
+          <span className="wiki-sitemenu__item is-passive sm:!hidden" aria-disabled title="현재 로그인된 위키 계정">
             <span className="wiki-pulse-dot" aria-hidden />
             <span className="text-[color:var(--wiki-cyan)]">@{displayName || '내 계정'}</span>
           </span>

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       SELECT p.title AS title, p.slug AS slug, SUM(d.count)::int AS views
       FROM "wiki_page_view_daily" d
       JOIN "wiki_pages" p ON p.id = d.page_id
-      WHERE d.day >= (now() AT TIME ZONE 'Asia/Seoul')::date - ${days - 1}
+      WHERE d.day >= (now() AT TIME ZONE 'Asia/Seoul')::date - ${days - 1}::int
         AND p.is_deleted = false
       GROUP BY p.id, p.title, p.slug
       HAVING SUM(d.count) > 0
@@ -56,8 +56,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, period, fallback: true, mock: true, trending: mockTrending(period, limit) })
     }
     return NextResponse.json({ success: true, period, fallback: true, trending: cum })
-  } catch {
-    // 표가 아직 없음(마이그레이션 전) → 누적 폴백
+  } catch (error) {
+    // 표가 아직 없음(마이그레이션 전, 42P01) → 누적 폴백. 다른 오류는 로그로 남긴다.
+    if ((error as { code?: string })?.code !== '42P01') {
+      console.error('[wiki/trending] period query failed', error)
+    }
     try {
       const cum = await cumulativeTop(db, limit)
       if (cum.length === 0 && process.env.NODE_ENV !== 'production') {

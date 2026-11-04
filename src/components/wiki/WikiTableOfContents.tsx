@@ -65,7 +65,7 @@ interface Props {
 }
 
 /**
- * 문서 우측에 떠 있는 sticky 목차. 스크롤에 따라 현재 섹션을 강조(scroll-spy)한다.
+ * 문서 우측 레일의 목차. 스크롤에 따라 현재 섹션을 강조(scroll-spy)한다.
  * 앵커는 NamuWikiRenderer 가 헤딩에 부여하는 id(toSlug)와 동일하게 맞춰져 있다.
  * 헤딩이 2개 미만이면 렌더하지 않는다.
  */
@@ -125,7 +125,7 @@ export function WikiTableOfContents({ content }: Props) {
   return (
     <nav
       aria-label="목차"
-      className="wiki-panel sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto"
+      className="wiki-panel max-h-[calc(100vh-6rem)] overflow-y-auto"
     >
       <div className="mb-2 flex items-center gap-1.5 border-b border-[color:var(--wiki-rule)] pb-2">
         <List className="h-3.5 w-3.5 text-[color:var(--wiki-accent)]" />
