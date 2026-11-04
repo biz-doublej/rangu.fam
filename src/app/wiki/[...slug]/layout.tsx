@@ -13,6 +13,7 @@ import { wikiPages } from '@/db/schema/wiki'
 function cleanWikiContent(content: string): string {
   return (content || '')
     .replace(/\{\{[\s\S]*?\}\}/g, '')
+    .replace(/^\s*\|\|.*$/gm, '')
     .replace(/\[\[(?:목차|탭바|카드그리드|분류|category|TOC)[^\]]*\]\]/gi, '')
     .replace(/\[\[([^\]]+)\]\]/g, (_m, inner) => String(inner).split('|').pop() || '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
@@ -91,11 +92,13 @@ export async function generateMetadata(
         publishedTime: page.createdAt?.toString(),
         authors: page.creator ? [page.creator] : undefined,
         url: `https://irang.wiki/wiki/${encodeURIComponent(page.title)}`,
+        images: [{ url: 'https://irang.wiki/og/irang-wiki.png', width: 1200, height: 630, alt: '이랑위키 — 누구나 함께 가꾸는 지식의 공간' }],
       },
       twitter: {
-        card: 'summary',
+        card: 'summary_large_image',
         title: `${page.title} | 이랑위키`,
         description,
+        images: ['https://irang.wiki/og/irang-wiki.png'],
       },
       alternates: {
         canonical: `https://irang.wiki/wiki/${encodeURIComponent(page.title)}`,
