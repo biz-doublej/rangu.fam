@@ -1816,7 +1816,17 @@ video:hover {
 [data-section='wiki'] .wiki-feature-card h2 { font-size:calc(1rem * var(--wiki-font-scale, 1)); font-weight:700; color:var(--wiki-link); }
 [data-section='wiki'] .wiki-feature-card button { border:1px solid var(--wiki-rule); border-radius:999px; padding:.3rem .75rem; font-size:calc(.75rem * var(--wiki-font-scale, 1)); color:var(--wiki-link); }
 [data-section='wiki'] .wiki-feature-card p { margin:.8rem 0 0; line-height:1.75; color:var(--wiki-ink-soft); }
-[data-section='wiki'] .wiki-ad-slot { min-height:64px; display:flex; align-items:center; justify-content:center; color:var(--wiki-ink-faint); font-size:.7rem; letter-spacing:.15em; }
+[data-section='wiki'] .wiki-ad { position: relative; overflow: hidden; margin-bottom: 1.25rem; aspect-ratio: 3 / 1; border-radius: 8px; background: #0a0a0c; }
+@media (min-width: 640px) { [data-section='wiki'] .wiki-ad { aspect-ratio: 5 / 1; } }
+[data-section='wiki'] .wiki-ad__track { display: flex; height: 100%; transition: transform 0.5s ease; }
+@media (prefers-reduced-motion: reduce) { [data-section='wiki'] .wiki-ad__track { transition: none; } }
+[data-section='wiki'] .wiki-ad__slide { flex: 0 0 100%; height: 100%; }
+[data-section='wiki'] .wiki-ad__slide picture, [data-section='wiki'] .wiki-ad__slide img { display: block; width: 100%; height: 100%; object-fit: contain; }
+[data-section='wiki'] .wiki-ad__label { position: absolute; top: 6px; left: 8px; padding: 1px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 0.65rem; pointer-events: none; }
+[data-section='wiki'] .wiki-ad__dots { position: absolute; right: 8px; bottom: 6px; display: flex; gap: 2px; }
+[data-section='wiki'] .wiki-ad__dot { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+[data-section='wiki'] .wiki-ad__dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); }
+[data-section='wiki'] .wiki-ad__dot[aria-current='true']::before { background: #fff; }
 [data-section='wiki'] .wiki-appearance h3 { font-size:.85rem; font-weight:700; }
 [data-section='wiki'] .wiki-appearance button { font-size:.7rem; color:var(--wiki-link); }
 [data-section='wiki'] .wiki-appearance fieldset { border:0; border-bottom:1px solid var(--wiki-rule); padding:.65rem 0; margin:0; }

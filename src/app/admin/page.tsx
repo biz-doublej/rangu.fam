@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { AdManagement } from './components/AdManagement'
 import {
   Activity,
   AlertTriangle,
@@ -11,6 +12,7 @@ import {
   Clock,
   FileText,
   Flag,
+  Image as ImageIcon,
   Inbox,
   LogIn,
   LogOut,
@@ -82,7 +84,7 @@ interface AdminUser {
   role: string
 }
 
-type TabKey = 'overview' | 'submissions' | 'users' | 'documents' | 'pages' | 'system'
+type TabKey = 'overview' | 'submissions' | 'users' | 'documents' | 'pages' | 'ads' | 'system'
 
 const TABS: Array<{ key: TabKey; label: string; icon: any; desc?: string }> = [
   { key: 'overview', label: '개요', icon: BarChart3 },
@@ -90,6 +92,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: any; desc?: string }> = [
   { key: 'users', label: '사용자', icon: Users },
   { key: 'documents', label: '문서 관리', icon: FileText },
   { key: 'pages', label: '정적 페이지', icon: Settings, desc: '회사·약관·개인정보' },
+  { key: 'ads', label: '광고', icon: ImageIcon },
   { key: 'system', label: '시스템', icon: Activity },
 ]
 
@@ -338,6 +341,8 @@ export default function AdminDashboard() {
             message="정적 페이지 데이터를 불러오는 중입니다… (`/api/admin/pages` 응답 대기)"
           />
         )}
+
+        {activeTab === 'ads' && <AdManagement />}
 
         {activeTab === 'system' && <SystemTab stats={stats} />}
       </main>

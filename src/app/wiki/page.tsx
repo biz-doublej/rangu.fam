@@ -20,6 +20,7 @@ import {
   Users
 } from 'lucide-react'
 import { WikiShell, WikiPageHeader, WikiMeter, WikiAppearanceControls } from '@/components/wiki'
+import { WikiAdCarousel } from '@/components/wiki/WikiAdCarousel'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 
 const iconLibrary = {
@@ -395,9 +396,7 @@ export default function WikiMainPage() {
         </>
       }
     >
-      <section className="wiki-panel mb-5 wiki-ad-slot" aria-label="광고 영역">
-        <span>광고</span>
-      </section>
+      <WikiAdCarousel />
 
       <section className="mb-6 grid gap-4 lg:grid-cols-2">
         <article className="wiki-feature-card wiki-feature-card--featured">

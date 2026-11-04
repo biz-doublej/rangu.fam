@@ -128,6 +128,25 @@ export const wikiLoginEvents = pgTable(
   })
 )
 
+/** 위키 메인 광고 슬라이드. 어드민 대시보드에서 관리한다. */
+export const wikiAds = pgTable(
+  'wiki_ads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: text('title').notNull(),
+    linkUrl: text('link_url').notNull(),
+    desktopImage: text('desktop_image').notNull(),
+    mobileImage: text('mobile_image').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    sortIdx: index('wiki_ads_sort_idx').on(t.sortOrder),
+  })
+)
+
 export const wikiPages = pgTable(
   'wiki_pages',
   {
