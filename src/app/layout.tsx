@@ -3,6 +3,7 @@ import { Inter, Black_Han_Sans, Gaegu, Caveat } from 'next/font/google'
 import './globals.css'
 import './palette.css'
 import React from 'react'
+import { headers } from 'next/headers'
 import { AppProviders } from '@/components/providers/AppProviders'
 import { AppChrome } from '@/components/layout/AppChrome'
 
@@ -53,6 +54,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // irang.wiki 는 /wiki 로 rewrite 되므로 서버 렌더에서도 호스트로 구역을 판정한다.
+  const requestHeaders = headers()
+  const hostname = (requestHeaders.get('x-forwarded-host') || requestHeaders.get('host') || '')
+    .toLowerCase()
+    .split(':')[0]
+
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
@@ -64,7 +71,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <AppProviders>
-          <AppChrome>{children}</AppChrome>
+          <AppChrome hostname={hostname}>{children}</AppChrome>
         </AppProviders>
       </body>
     </html>

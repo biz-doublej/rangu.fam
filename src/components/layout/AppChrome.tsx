@@ -6,22 +6,11 @@ import { Toaster } from 'react-hot-toast'
 import { Footer } from '@/components/ui'
 import { GiftBoxLayer } from '@/components/GiftBoxLayer'
 import { RANGU_ARCHIVE_MODE } from '@/config/archive'
+import { detectSection } from '@/lib/appSection'
 
-type Section = 'rangu' | 'archive' | 'wiki' | 'admin' | 'member'
-
-function detectSection(pathname: string | null): Section {
-  if (!pathname) return 'rangu'
-  if (pathname.startsWith('/wiki')) return 'wiki'
-  if (pathname.startsWith('/admin')) return 'admin'
-  if (pathname.startsWith('/m/')) return 'member'
-  // 아카이브 모드의 랑구팸 메인은 스크랩북 테마 없이 기본 디자인으로
-  if (RANGU_ARCHIVE_MODE && pathname === '/') return 'archive'
-  return 'rangu'
-}
-
-export function AppChrome({ children }: { children: React.ReactNode }) {
+export function AppChrome({ children, hostname }: { children: React.ReactNode; hostname: string }) {
   const pathname = usePathname()
-  const section = detectSection(pathname)
+  const section = detectSection(pathname, hostname, RANGU_ARCHIVE_MODE)
   const isMember = section === 'member'
   const isRangu = section === 'rangu'
   const isArchive = section === 'archive'
