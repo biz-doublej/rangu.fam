@@ -77,3 +77,13 @@ describe('imageAddress', () => {
     expect(imageAddress('[[파일:/a.png|width=40]]')).toBe('/a.png')
   })
 })
+
+describe('readBannerBox without |본문=', () => {
+  it('treats the first table line as the start of the body', () => {
+    const lines = ['{{배너상자', '|제목=주장', '|접힘=예', '|| 정재원 || 주장 ||', '|아래왼쪽=[[이전|◀ 이전]]', '}}']
+    const { spec } = readBannerBox(lines, 0)
+    expect(spec.params['접힘']).toBe('예')
+    expect(spec.body).toBe('|| 정재원 || 주장 ||')
+    expect(spec.params['아래왼쪽']).toBe('[[이전|◀ 이전]]')
+  })
+})

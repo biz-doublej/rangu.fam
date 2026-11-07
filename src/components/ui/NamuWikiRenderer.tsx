@@ -1065,8 +1065,22 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           style={templateStyle}
         >
           {/* 헤더 — 그라디언트 (블루) */}
-          <div className="bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white text-center py-3 px-4 border-b border-blue-900/40">
-            <div
+          <div
+            className={`relative isolate overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white text-center py-3 px-4 border-b border-blue-900/40 ${
+              params['배경'] ? '[text-shadow:0_1px_3px_rgba(0,0,0,0.55)]' : ''
+            }`}
+          >
+            {params['배경'] && (
+              <img
+                src={normalizeWikiImageSrc(params['배경'])}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 -z-10 h-full w-full object-cover"
+                data-fallback-attempt="0"
+                onError={handleWikiImageError}
+              />
+            )}
+              <div
               className="text-xl font-bold leading-tight"
               style={{ fontFamily: "'Gowun Batang', serif" }}
             >
@@ -1081,7 +1095,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           <div>
             <table className="w-full text-sm">
               <tbody>
-                {orderedParams.map(([key, value], index) => {
+                {orderedParams.filter(([key]) => key !== '배경').map(([key, value], index) => {
                   // parseCellDirectives = parseTableColorAttributes 상위호환 (bg/color/border + align/font)
                   const directives = parseCellDirectives(value)
                   const headerCellStyles = getTableCellStyles({
@@ -1240,7 +1254,21 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             style={templateStyle}
           >
             {/* 헤더 — 그라디언트 + 인너 보더 */}
-            <div className="bg-gradient-to-b from-red-600 via-red-700 to-red-800 text-white text-center py-3 px-4 border-b border-red-900/40">
+            <div
+              className={`relative isolate overflow-hidden bg-gradient-to-b from-red-600 via-red-700 to-red-800 text-white text-center py-3 px-4 border-b border-red-900/40 ${
+                params['배경'] ? '[text-shadow:0_1px_3px_rgba(0,0,0,0.55)]' : ''
+              }`}
+            >
+              {params['배경'] && (
+                <img
+                  src={normalizeWikiImageSrc(params['배경'])}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 -z-10 h-full w-full object-cover"
+                  data-fallback-attempt="0"
+                  onError={handleWikiImageError}
+                />
+              )}
               <div className="text-[11px] font-medium flex items-center justify-center gap-2 opacity-90">
                 {params['상단로고'] && (
                   <img
@@ -1298,7 +1326,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 <tbody>
                   {(() => {
                     const excludeFields = new Set([
-                      '상단로고', '상단제목', '상단부제목', '상단설명',
+                      '상단로고', '상단제목', '상단부제목', '상단설명', '배경',
                       '이름', '본명', '영문명', '한문명', '이미지', '이미지설명',
                     ])
 

@@ -58,6 +58,13 @@ export function readBannerBox(lines: string[], start: number): { spec: BannerBox
       continue
     }
 
+    // |본문= 을 빼먹고 바로 표(||)를 써도 거기서부터 본문으로 본다
+    if (trimmed.startsWith('||')) {
+      inBody = true
+      bodyLines.push(raw)
+      continue
+    }
+
     const pair = trimmed.match(/^\|\s*([^=|]+?)\s*=\s*(.*)$/)
     if (pair) {
       const key = pair[1]
