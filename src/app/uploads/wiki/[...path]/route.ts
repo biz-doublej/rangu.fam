@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
 import { eq } from 'drizzle-orm'
-import { inlineContentDisposition } from '@/lib/contentDisposition'
+import { uploadedFileHeaders } from '@/lib/uploadedFileHeaders'
 import { serveMediaByPath } from '@/lib/serveMediaByPath'
 import { getDb } from '@/db/client'
 import { images } from '@/db/schema/media'
@@ -55,12 +55,7 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
     const imageBuffer = Buffer.from(imageDoc.data, 'base64')
 
     return new NextResponse(imageBuffer, {
-      headers: {
-        'Content-Type': imageDoc.mimeType,
-        'Content-Length': imageBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Disposition': inlineContentDisposition(imageDoc.originalName || decodedFilename),
-      },
+      headers: uploadedFileHeaders(imageDoc.mimeType, imageDoc.originalName || decodedFilename, imageBuffer.length),
     })
   } catch (error) {
     console.error('Failed to serve legacy wiki image:', error)
@@ -97,12 +92,7 @@ async function tryServeLocalWikiFile(segments: string[]) {
     const originalName = path.basename(filePath)
 
     return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': String(mimeType),
-        'Content-Length': fileBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Disposition': inlineContentDisposition(originalName),
-      },
+      headers: uploadedFileHeaders(String(mimeType), originalName, fileBuffer.length),
     })
   } catch {
     return null

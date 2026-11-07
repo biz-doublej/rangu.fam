@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { images } from '@/db/schema/media'
-import { inlineContentDisposition } from '@/lib/contentDisposition'
+import { uploadedFileHeaders } from '@/lib/uploadedFileHeaders'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,12 +28,7 @@ export async function GET(
     const imageBuffer = Buffer.from(imageDoc.data, 'base64')
 
     return new NextResponse(imageBuffer, {
-      headers: {
-        'Content-Type': imageDoc.mimeType,
-        'Content-Length': imageBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Disposition': inlineContentDisposition(imageDoc.originalName),
-      },
+      headers: uploadedFileHeaders(imageDoc.mimeType, imageDoc.originalName, imageBuffer.length),
     })
   } catch (error) {
     console.error('이미지 서빙 오류:', error)
