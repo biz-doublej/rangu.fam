@@ -1143,8 +1143,15 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     const headings: TableOfContentsItem[] = []
     const lines = text.split('\n')
     
+    let inFence = false
     for (const line of lines) {
       const trimmed = line.trim()
+      // 코드 블록(```) 안의 예시 제목은 목차에 넣지 않는다
+      if (trimmed.startsWith('```')) {
+        inFence = !inFence
+        continue
+      }
+      if (inFence) continue
       const heading = parseHeadingLine(trimmed)
       const level = heading?.level ?? 0
       const title = heading?.title ?? ''

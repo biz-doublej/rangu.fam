@@ -47,6 +47,13 @@ const TASKS: MaintenanceTask[] = [
     isDone: (data) => Boolean(data.wikiPollVotesExists),
   },
   {
+    key: 'help-2026',
+    label: '편집 도움말 갱신',
+    description: '이랑위키:도움말_2026 문서를 최신(2026-11) 내용으로 바꿉니다. 실행할 때마다 새 판이 쌓입니다.',
+    repeatable: true,
+    isDone: () => null,
+  },
+  {
     key: 'recompute-links',
     label: '역링크 다시 계산',
     description: '문서 사이의 링크 정보를 다시 계산합니다. 링크 목록이 이상할 때 실행하세요.',
