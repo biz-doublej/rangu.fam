@@ -2894,6 +2894,29 @@ video:hover {
     font-size: 9pt;
   }
 
+  /* 화면 전용 요소 — 광고, 공지 띠, 문단 접기 화살표, 각주 미리보기, 외관 설정 */
+  [data-section='wiki'] .wiki-ad,
+  [data-section='wiki'] .wiki-page-actions,
+  [data-section='wiki'] .wiki-tabs,
+  [data-section='wiki'] main .wiki-mbox:not(.wiki-content .wiki-mbox),
+  .wiki-notice-stack,
+  .wiki-fold-toggle,
+  .wiki-fn-pop,
+  [data-section='wiki'] .wiki-appearance {
+    display: none !important;
+  }
+
+  /* 접어 둔 문단도 종이에는 모두 펼쳐서 싣는다 */
+  [data-fold-body][hidden] {
+    display: block !important;
+  }
+
+  /* 페이지 바탕은 테마와 상관없이 흰 종이 */
+  html,
+  body {
+    background: #fff !important;
+  }
+
   /* 인쇄 색상 = 자동 (Chrome — 강제 print color adjust) */
   * {
     -webkit-print-color-adjust: economy;

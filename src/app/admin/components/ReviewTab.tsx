@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { CheckCircle2, ChevronDown, ChevronUp, Pause, RefreshCw, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -15,6 +16,14 @@ import {
   jsonInit,
   requestJson,
 } from './adminUi'
+
+// 위키 렌더러는 무거우므로 미리보기를 열 때만 불러온다
+const NamuWikiRenderer = dynamic(() => import('@/components/ui/NamuWikiRenderer'), {
+  ssr: false,
+  loading: () => <EmptyState>미리보기를 불러오는 중입니다.</EmptyState>,
+})
+
+type ViewMode = 'preview' | 'source'
 
 type Status = 'pending' | 'onhold' | 'approved' | 'rejected'
 
@@ -41,6 +50,7 @@ const STATUS_TABS: Array<{ key: Status; label: string }> = [
 
 function SubmissionItem({ submission, onDone }: { submission: Submission; onDone: () => void }) {
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState<ViewMode>('preview')
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const actionable = submission.status === 'pending' || submission.status === 'onhold'
@@ -88,9 +98,36 @@ function SubmissionItem({ submission, onDone }: { submission: Submission; onDone
       </div>
 
       {open && (
-        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-adm-well p-3 text-[13px] text-adm-soft">
-          {submission.content}
-        </pre>
+        <div className="mt-3">
+          <div className="mb-2 flex gap-1" role="tablist" aria-label="내용 보기 방식">
+            {(['preview', 'source'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={view === mode}
+                className={filterClass(view === mode)}
+                onClick={() => setView(mode)}
+              >
+                {mode === 'preview' ? '미리보기' : '원문'}
+              </button>
+            ))}
+          </div>
+          {view === 'preview' ? (
+            // 위키 화면과 같은 색으로 보이도록 위키 구역으로 감싼다
+            <div data-section="wiki" className="wiki-review-preview max-h-[32rem] overflow-auto rounded border border-adm-rule px-5 py-4">
+              <NamuWikiRenderer
+                content={submission.content}
+                isPreview
+                onLinkClick={(link) => window.open(`/wiki/${encodeURIComponent(link)}`, '_blank', 'noopener')}
+              />
+            </div>
+          ) : (
+            <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap rounded bg-adm-well p-3 text-[13px] text-adm-soft">
+              {submission.content}
+            </pre>
+          )}
+        </div>
       )}
 
       {actionable && (

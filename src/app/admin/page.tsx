@@ -74,7 +74,9 @@ export default function AdminDashboard() {
 
   const loadDashboard = useCallback(async () => {
     try {
-      setDashboard(await requestJson('/api/admin/dashboard-stats'))
+      const data = await requestJson<DashboardData>('/api/admin/dashboard-stats')
+      // 모양이 다른 응답이 와도 화면 전체가 멈추지 않게 확인하고 넣는다
+      setDashboard(data?.stats && data?.system ? data : null)
     } catch (error) {
       toast.error((error as Error).message)
     }
@@ -167,7 +169,7 @@ export default function AdminDashboard() {
   }
 
   const countFor = (key: TabKey) =>
-    key === 'review' ? dashboard?.stats.submissions.pending : key === 'reports' ? dashboard?.stats.reports.open ?? undefined : undefined
+    key === 'review' ? dashboard?.stats?.submissions?.pending : key === 'reports' ? dashboard?.stats?.reports?.open ?? undefined : undefined
   const groups = Array.from(new Set(visibleTabs.map((tab) => tab.group)))
   const current = TABS.find((tab) => tab.key === activeTab)!
 

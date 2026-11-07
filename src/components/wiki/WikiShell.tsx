@@ -36,6 +36,7 @@ import { BRANDING } from '@/config/branding'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { WikiNoticeBar } from './WikiNoticeBar'
 import { useWikiAdminNotifications } from '@/hooks/useWikiAdminNotifications'
+import { usePrintInLightTheme } from '@/hooks/usePrintInLightTheme'
 import { useWikiNotificationSources } from '@/hooks/useWikiNotificationSources'
 
 const NotificationDropdown = dynamic(
@@ -221,6 +222,8 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
   const { wikiUser, wikiSession, isLoggedIn, logout, isModerator, isAdmin } = useWikiAuth()
   // 관리자에게 검수 대기(문서 생성/수정 요청) 알림을 Notification Center 로 푸시
   useWikiAdminNotifications(Boolean(isLoggedIn && isAdmin))
+  // 다크 화면에서도 인쇄는 라이트 색으로
+  usePrintInLightTheme()
   // 환영 인사 · 로그인(IP) · 감시 문서 수정 알림
   useWikiNotificationSources({
     userId: wikiUser?.id ?? null,
@@ -782,7 +785,7 @@ export function WikiPageHeader({
           {title}
           {titleBadge}
         </h1>
-        {actions && <div className="ml-auto flex items-center gap-2 pb-1 flex-wrap">{actions}</div>}
+        {actions && <div className="wiki-page-actions ml-auto flex items-center gap-2 pb-1 flex-wrap">{actions}</div>}
       </div>
 
       {subtitle && (
