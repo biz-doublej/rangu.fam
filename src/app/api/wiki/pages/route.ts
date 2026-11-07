@@ -1,4 +1,5 @@
 import { loadDisplayNames } from '@/lib/wikiDisplayNames'
+import { parseHeadingLine } from '@/lib/wikiHeadings'
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
@@ -33,19 +34,9 @@ function generateTableOfContents(content: string) {
   for (const rawLine of content.split('\n')) {
     const trimmed = rawLine.trim()
     if (!trimmed) continue
-    let level = 0
-    let title = ''
-    const namuMatch = trimmed.match(/^(=+)\s*(.+?)\s*=+$/)
-    if (namuMatch) {
-      level = namuMatch[1].length
-      title = namuMatch[2].trim()
-    } else if (trimmed.startsWith('#')) {
-      const mdMatch = trimmed.match(/^(#+)\s*(.+)$/)
-      if (mdMatch) {
-        level = mdMatch[1].length
-        title = mdMatch[2].trim()
-      }
-    }
+    const heading = parseHeadingLine(trimmed)
+    const level = heading?.level ?? 0
+    const title = heading?.title ?? ''
     if (level > 0 && title) {
       headings.push({ level, title, anchor: toSlug(title) })
     }

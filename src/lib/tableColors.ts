@@ -192,6 +192,8 @@ export interface WikiCellStyle {
   borderColor?: string
   textAlign?: 'left' | 'center' | 'right'
   fontFamily?: string
+  /** 표는 <tablewidth:100%>, 칸은 <width:30%> — 숫자만 쓰면 px */
+  width?: string
 }
 
 export interface ParsedCellDirectives {
@@ -206,6 +208,14 @@ export interface ParsedCellDirectives {
 }
 
 const ALIGN_VALUES = new Set(['left', 'center', 'right'])
+
+/** 너비 값 정제 — 1~4자리 숫자에 px 또는 % 만 허용 */
+export function normalizeWidth(value: string): string | undefined {
+  const m = value.trim().match(/^(\d{1,4})(px|%)?$/)
+  if (!m) return undefined
+  if (m[2] === '%' && Number(m[1]) > 100) return undefined
+  return `${m[1]}${m[2] || 'px'}`
+}
 
 /** font-family 값 정제 — CSS 주입 위험 문자를 제거 */
 export function sanitizeFontFamily(value: string): string {
@@ -228,7 +238,7 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
       const spans: Array<{ kind: 'col' | 'row'; n: number }> = []
       // key:value 지시자 또는 병합 토큰(-N = 열 병합, |N = 행 병합)
       const pairRe =
-        /\s*(?:(table|row)?(bgcolor|color|border|align|font):("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+))\s*/y
+        /\s*(?:(table|row)?(bgcolor|color|border|align|font|width):("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+))\s*/y
       let idx = 0
       let ok = true
       while (idx < inner.length) {
@@ -285,6 +295,11 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
             if (f) target.fontFamily = f
             break
           }
+          case 'width': {
+            const w = normalizeWidth(value)
+            if (w) target.width = w
+            break
+          }
         }
       }
       return ''
@@ -301,6 +316,7 @@ export function assignStyleDefaults(target: WikiCellStyle, source: WikiCellStyle
   if (!target.borderColor && source.borderColor) target.borderColor = source.borderColor
   if (!target.textAlign && source.textAlign) target.textAlign = source.textAlign
   if (!target.fontFamily && source.fontFamily) target.fontFamily = source.fontFamily
+  if (!target.width && source.width) target.width = source.width
 }
 
 /** 레이어 병합 (뒤 레이어가 우선) → React inline style */
@@ -315,6 +331,7 @@ export function mergeCellStylesToCss(
     if (layer.borderColor) merged.borderColor = layer.borderColor
     if (layer.textAlign) merged.textAlign = layer.textAlign
     if (layer.fontFamily) merged.fontFamily = layer.fontFamily
+    if (layer.width) merged.width = layer.width
   }
 
   const css: React.CSSProperties = {}
@@ -323,6 +340,7 @@ export function mergeCellStylesToCss(
   if (merged.borderColor) css.borderColor = merged.borderColor
   if (merged.textAlign) css.textAlign = merged.textAlign
   if (merged.fontFamily) css.fontFamily = merged.fontFamily
+  if (merged.width) css.width = merged.width
   return css
 }
 

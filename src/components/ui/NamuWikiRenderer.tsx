@@ -2,6 +2,8 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { flushSync } from 'react-dom'
+import { isFoldCollapsed, onRevealWikiElement, parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
 import { FootnoteRef } from '@/components/wiki/FootnoteRef'
 import dynamic from 'next/dynamic'
 import hljs from 'highlight.js/lib/core'
@@ -15,7 +17,7 @@ import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
 import 'highlight.js/styles/github-dark.css'
 import { motion } from 'framer-motion'
-import { ExternalLink, ArrowUpRight, Quote, AlertCircle, Info, CheckCircle, XCircle, Star } from 'lucide-react'
+import { ExternalLink, ArrowUpRight, Quote, AlertCircle, Info, CheckCircle, XCircle, Star, ChevronDown } from 'lucide-react'
 import { WikiIcon, parseIconSyntax } from './WikiIcon'
 import { WikiTimeline, parseTimeline } from '@/components/wiki/WikiTimeline'
 import { WikiPoll, parsePoll } from '@/components/wiki/WikiPoll'
@@ -345,6 +347,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   const footnoteMappingRef = React.useRef<{[key: string]: number}>({})
   // 본문에서 각주 번호별 첫 등장 여부 — id="fnref-N" 부여
   const footnoteRefSeenRef = React.useRef<Set<number>>(new Set())
+  // 문단 접기 — 독자가 기본 상태에서 뒤집은 문단 번호
+  const [toggledFolds, setToggledFolds] = useState<Set<number>>(() => new Set())
+  const foldCounterRef = React.useRef(0)
   const PLACEHOLDER_IMAGE = '/images/default-music-cover.jpg'
 
   const getImageServePathFromSource = (value: string) => {
@@ -441,7 +446,52 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     footnoteMappingRef.current = {}
     footnoteRefSeenRef.current = new Set()
     extractFootnotes(content)
+    setToggledFolds(new Set())
   }, [content])
+
+  const toggleFold = (foldId: number) => {
+    setToggledFolds((current) => {
+      const next = new Set(current)
+      if (next.has(foldId)) next.delete(foldId)
+      else next.add(foldId)
+      return next
+    })
+  }
+
+  // 접힌 문단 안으로 이동할 때(목차, 각주 되돌아가기, 주소의 #앵커) 감싼 문단을 모두 펼친다
+  useEffect(() => {
+    const reveal = (element: Element) => {
+      const closed: number[] = []
+      let body = element.closest('[data-fold-body]')
+      while (body) {
+        if (body.hasAttribute('hidden')) closed.push(Number(body.getAttribute('data-fold-body')))
+        body = body.parentElement?.closest('[data-fold-body]') ?? null
+      }
+      if (closed.length === 0) return
+      flushSync(() => {
+        setToggledFolds((current) => {
+          const next = new Set(current)
+          closed.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
+          return next
+        })
+      })
+    }
+    const stop = onRevealWikiElement(reveal)
+    const revealHash = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1))
+      const target = id ? document.getElementById(id) : null
+      if (target && target.closest('[data-fold-body][hidden]')) {
+        reveal(target)
+        target.scrollIntoView({ block: 'start' })
+      }
+    }
+    revealHash()
+    window.addEventListener('hashchange', revealHash)
+    return () => {
+      stop()
+      window.removeEventListener('hashchange', revealHash)
+    }
+  }, [])
 
   function toSlug(text: string): string {
     return text
@@ -607,6 +657,37 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               </a>
             )
           }
+        },
+        // 1.5 문장·표 칸 안의 이미지 [[파일:주소|width=300]] — 위키 링크보다 먼저 본다
+        {
+          regex: /\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const options = Object.fromEntries(
+              (match[2] || '')
+                .split('&')
+                .map((pair) => pair.split('=').map((part) => part.trim()))
+                .filter(([name, value]) => name && value)
+            )
+            const width = /^\d+(px|%)?$/.test(options.width || '')
+              ? (/^\d+$/.test(options.width) ? `${options.width}px` : options.width)
+              : undefined
+            return (
+              <img
+                key={key}
+                src={normalizeWikiImageSrc(match[1].trim())}
+                alt={options.alt || ''}
+                className="inline-block max-w-full h-auto align-middle"
+                style={width ? { width } : undefined}
+                data-fallback-attempt="0"
+                onError={handleWikiImageError}
+              />
+            )
+          }
+        },
+        // 1.6 줄바꿈 [br] — 한 줄로 써야 하는 표 칸 안에서 줄을 바꿀 때
+        {
+          regex: /\[br\]/gi,
+          render: (_match: RegExpMatchArray, key: number) => <br key={key} />
         },
         // 2. 위키 링크 [[페이지|표시텍스트]]
         {
@@ -1022,20 +1103,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     
     for (const line of lines) {
       const trimmed = line.trim()
-      let level = 0
-      let title = ''
-      
-      const namuHeadingMatch = trimmed.match(/^(=+)\s*(.+?)\s*=+$/)
-      if (namuHeadingMatch) {
-        level = namuHeadingMatch[1].length
-        title = namuHeadingMatch[2].trim()
-      } else {
-        const markdownHeadingMatch = trimmed.match(/^(#+)\s*(.+)$/)
-        if (markdownHeadingMatch) {
-          level = markdownHeadingMatch[1].length
-          title = markdownHeadingMatch[2].trim()
-        }
-      }
+      const heading = parseHeadingLine(trimmed)
+      const level = heading?.level ?? 0
+      const title = heading?.title ?? ''
       
       if (level > 0 && title) {
         const anchor = toSlug(title)
@@ -1074,7 +1144,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     })
     
     // 2. 인라인 각주 정의 찾기 (문장 중간의 [*1] 각주내용 또는 [*] 각주내용)
-    const inlineFootnoteRegex = /\[\*(\d*)\]\s+([^[\n\r]+)/g
+    // 같은 줄 안에서만, 표 칸 경계(|) 앞까지만 본다 — 다음 줄 제목이나 표의 || 를 먹지 않게
+    const inlineFootnoteRegex = /\[\*(\d*)\][ \t]+([^[\n\r|]+)/g
     let match
     let autoInlineCounter = 0
     while ((match = inlineFootnoteRegex.exec(text)) !== null) {
@@ -1094,7 +1165,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   const preprocessInlineFootnotes = (text: string): string => {
     // [*1] ??????? ?? [*1] (????????? extractFootnotes???? ?????)
     // [*] ??????? ?? [*] (??? ??? ????)
-    return (text || '').replace(/\[\*(\d*)\]\s+([^[[\n\r]+)/g, '[*$1]')
+    // 줄 맨 앞의 각주 정의([*1] 내용)는 그대로 둔다 — 본문 렌더 단계에서 정의 줄로 건너뛴다
+    return (text || '').replace(/(?<!^[ \t]*)\[\*(\d*)\][ \t]+([^[\n\r|]+)/gm, '[*$1]')
   }
 
   const parseContent = (originalText: string): React.ReactNode => {
@@ -1102,6 +1174,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     const text = preprocessInlineFootnotes(originalText)
     const lines = text.split('\n')
     const elements: React.ReactNode[] = []
+    // elements 위치 → 문단 제목 정보. 끝에서 제목 아래 내용을 접을 수 있게 묶는다.
+    const headingMarks = new Map<number, { level: number; foldId: number; collapsed: boolean }>()
     let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
 
     const parseMarkdownTableRow = (row: string) => {
@@ -1581,6 +1655,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                       onClick={(e) => {
                         e.preventDefault()
                         const element = document.getElementById(item.anchor)
+                        revealWikiElement(element)
                         if (element) {
                           element.scrollIntoView({ behavior: 'smooth' })
                         }
@@ -1740,24 +1815,42 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         continue
       }
       
-      const headingMatch = trimmed.match(/^(=+)\s*(.+?)\s*=+$/) || trimmed.match(/^(#+)\s*(.+)$/)
-      if (headingMatch) {
-        const level = headingMatch[1].length
-        const title = headingMatch[2].trim()
+      const heading = parseHeadingLine(trimmed)
+      if (heading) {
+        const { level, title } = heading
         const anchor = toSlug(title)
+        const foldId = foldCounterRef.current++
+        const collapsed = isFoldCollapsed(heading.folded, toggledFolds.has(foldId))
+        headingMarks.set(elements.length, { level, foldId, collapsed })
 
         const HeadingTag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements
         elements.push(
           <HeadingTag
             key={i}
             id={anchor}
-            className={`group font-bold mb-4 mt-6 text-gray-200 scroll-mt-24 relative
+            data-folded={collapsed ? '' : undefined}
+            onClick={(event: React.MouseEvent) => {
+              // 제목 안의 링크나 버튼을 누른 것은 접기로 보지 않는다
+              if ((event.target as HTMLElement).closest('a, button')) return
+              toggleFold(foldId)
+            }}
+            className={`wiki-fold-heading group font-bold mb-4 mt-6 text-gray-200 scroll-mt-24 relative
               ${level === 1 ? 'text-3xl border-b-2 border-gray-600 pb-2' : ''}
               ${level === 2 ? 'text-2xl' : ''}
               ${level === 3 ? 'text-xl' : ''}
               ${level >= 4 ? 'text-lg' : ''}
             `}
           >
+            <button
+              type="button"
+              className="wiki-fold-toggle"
+              aria-expanded={!collapsed}
+              aria-controls={`wiki-fold-${foldId}`}
+              aria-label={collapsed ? `${title} 문단 펼치기` : `${title} 문단 접기`}
+              onClick={() => toggleFold(foldId)}
+            >
+              <ChevronDown aria-hidden="true" />
+            </button>
             {parseInlineElements(title)}
             <a
               href={`#${anchor}`}
@@ -1989,10 +2082,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
           // 표 생성 — 우선순위: 셀 > 행 > 표 > 기본값 (기존 문서는 그대로 렌더)
           const tableElement = (
-            <div key={i} className="my-4 overflow-x-auto flex justify-center">
+            <div key={i} className="my-4 overflow-x-auto flex justify-center wiki-table-wrap">
               <table
                 className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto"
-                style={tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : undefined}
+                style={{
+                  ...(tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : {}),
+                  ...(tableStyle.width ? { width: tableStyle.width } : {}),
+                }}
               >
                 <tbody>
                   {parsedRows.map(({ cells, rowStyle }, rowIndex) => {
@@ -2005,10 +2101,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                       <tr key={rowIndex} className="border-b border-gray-600">
                         {cells.map((parsed, cellIndex) => {
                           const CellTag = isHeaderRow ? 'th' : 'td'
+                          // 표·행 너비는 표 자체에만 쓰고 칸에는 물려주지 않는다
                           const cellStyles = mergeCellStylesToCss(
                             defaultStyle,
-                            tableStyle,
-                            rowStyle,
+                            { ...tableStyle, width: undefined },
+                            { ...rowStyle, width: undefined },
                             parsed.cell
                           )
 
@@ -2019,7 +2116,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                               rowSpan={parsed.rowSpan}
                               className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
                                 isHeaderRow ? 'font-semibold' : ''
-                              }`}
+                              } ${cellStyles.color ? 'wiki-cell-colored' : ''}`}
                               style={cellStyles}
                             >
                               {parseInlineElements(parsed.content)}
@@ -2137,7 +2234,45 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       i = j - 1
     }
     
-    return elements
+    return groupFoldSections(elements, headingMarks)
+  }
+
+  /**
+   * 평평한 요소 목록을 문단 단위로 묶는다. 제목 아래(다음 같은·상위 단계 제목 전까지)를
+   * 하나의 몸통으로 감싸고, 접힌 문단은 hidden 으로 숨긴다. 숨겨도 그려 두므로
+   * 각주 번호와 앵커는 그대로 유지된다.
+   */
+  function groupFoldSections(
+    items: React.ReactNode[],
+    marks: Map<number, { level: number; foldId: number; collapsed: boolean }>
+  ): React.ReactNode[] {
+    if (marks.size === 0) return items
+    type Open = { level: number; foldId: number; collapsed: boolean; heading: React.ReactNode; children: React.ReactNode[] }
+    const root: React.ReactNode[] = []
+    const stack: Open[] = []
+    const close = () => {
+      const section = stack.pop()!
+      const node = (
+        <div key={`wiki-fold-section-${section.foldId}`} className="wiki-fold-section">
+          {section.heading}
+          <div id={`wiki-fold-${section.foldId}`} data-fold-body={section.foldId} hidden={section.collapsed}>
+            {section.children}
+          </div>
+        </div>
+      )
+      ;(stack.length ? stack[stack.length - 1].children : root).push(node)
+    }
+    items.forEach((item, index) => {
+      const mark = marks.get(index)
+      if (mark) {
+        while (stack.length && stack[stack.length - 1].level >= mark.level) close()
+        stack.push({ ...mark, heading: item, children: [] })
+        return
+      }
+      ;(stack.length ? stack[stack.length - 1].children : root).push(item)
+    })
+    while (stack.length) close()
+    return root
   }
 
   const renderInlineElement = (type: string, groups: RegExpMatchArray): React.ReactElement => {
@@ -2263,6 +2398,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   footnoteCounterRef.current = 0
   footnoteMappingRef.current = {}
   footnoteRefSeenRef.current = new Set()
+  foldCounterRef.current = 0
   const renderedContent = parseContent(content);
 
   return (
@@ -2313,6 +2449,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                       e.preventDefault()
                       e.stopPropagation()
                       const refEl = document.getElementById(`fnref-${footnoteNumber}`)
+                      revealWikiElement(refEl)
                       if (refEl) {
                         refEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
                         refEl.classList.add('footnote-flash')

@@ -2990,3 +2990,18 @@ video:hover {
 .wiki-fn-pop__body { padding: .6rem .8rem .7rem; }
 .wiki-fn-pop__body a { color: var(--wiki-link, #2F5D8C); text-decoration: underline; text-underline-offset: 3px; }
 .wiki-fn-ref:focus-visible { outline: 2px solid var(--wiki-accent, #2F5D8C); outline-offset: 2px; border-radius: 2px; }
+
+/* 문단 접기 — 제목이나 화살표를 누르면 그 아래 내용을 접는다 */
+.wiki-fold-heading { cursor: pointer; }
+.wiki-fold-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15em; height: 1.15em; margin: 0 .3em 0 -.1em; vertical-align: -0.14em;
+  border-radius: 4px; color: var(--wiki-ink-faint, #8E939A);
+}
+.wiki-fold-toggle svg { width: .75em; height: .75em; transition: transform .15s ease; }
+.wiki-fold-toggle:hover { color: var(--wiki-ink, #1C2025); background: var(--wiki-bg-2, #EDEDE9); }
+.wiki-fold-heading[data-folded] .wiki-fold-toggle svg { transform: rotate(-90deg); }
+[data-section='wiki'] .wiki-fold-heading[data-folded] { color: var(--wiki-ink-muted, #646A72); }
+@media (prefers-reduced-motion: reduce) { .wiki-fold-toggle svg { transition: none; } }
+/* 글자색을 지정한 표 칸 안의 굵게·기울임 등은 칸 색을 따른다 */
+.wiki-cell-colored strong, .wiki-cell-colored em, .wiki-cell-colored u, .wiki-cell-colored del, .wiki-cell-colored sub { color: inherit; }

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
 import { List } from 'lucide-react'
 
 interface TocItem {
@@ -40,19 +41,9 @@ function extractHeadings(content: string): TocItem[] {
     }
     if (inFence) continue
 
-    let level = 0
-    let title = ''
-    const namu = trimmed.match(/^(=+)\s*(.+?)\s*=+$/)
-    if (namu) {
-      level = namu[1].length
-      title = namu[2].trim()
-    } else {
-      const md = trimmed.match(/^(#+)\s*(.+)$/)
-      if (md) {
-        level = md[1].length
-        title = md[2].trim()
-      }
-    }
+    const heading = parseHeadingLine(trimmed)
+    const level = heading?.level ?? 0
+    const title = heading?.title ?? ''
     if (level > 0 && title) {
       out.push({ level, title: stripInline(title), anchor: toSlug(title) })
     }
@@ -111,6 +102,7 @@ export function WikiTableOfContents({ content }: Props) {
   const handleClick = (e: React.MouseEvent, anchor: string) => {
     e.preventDefault()
     const el = document.getElementById(anchor)
+    revealWikiElement(el)
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       setActive(anchor)
