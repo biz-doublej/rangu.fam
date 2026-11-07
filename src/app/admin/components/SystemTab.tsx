@@ -48,10 +48,9 @@ const TASKS: MaintenanceTask[] = [
   },
   {
     key: 'help-2026',
-    label: '편집 도움말 갱신',
-    description: '이랑위키:도움말_2026 문서를 최신(2026-11) 내용으로 바꿉니다. 실행할 때마다 새 판이 쌓입니다.',
-    repeatable: true,
-    isDone: () => null,
+    label: '안내 문서 갱신',
+    description: '편집 도움말(2026), 문법, 도움말 문서를 최신(2026-11) 내용으로 바꿉니다. 이미 최신인 문서는 건너뜁니다.',
+    isDone: (data) => Array.isArray(data.pages) && data.pages.every((page: { upToDate?: boolean }) => page.upToDate),
   },
   {
     key: 'recompute-links',

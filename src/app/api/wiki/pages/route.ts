@@ -31,9 +31,16 @@ function toSlug(text: string): string {
 
 function generateTableOfContents(content: string) {
   const headings: Array<{ level: number; title: string; anchor: string }> = []
+  let inFence = false
   for (const rawLine of content.split('\n')) {
     const trimmed = rawLine.trim()
     if (!trimmed) continue
+    // 코드 블록 안의 예시 제목은 목차에 넣지 않는다
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
     const heading = parseHeadingLine(trimmed)
     const level = heading?.level ?? 0
     const title = heading?.title ?? ''

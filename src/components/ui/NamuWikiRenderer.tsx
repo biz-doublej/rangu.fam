@@ -995,15 +995,19 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       ]
     
     // 모든 패턴의 매치들을 찾아서 위치순으로 정렬
-    const matches: Array<{ index: number; length: number; element: React.ReactNode; patternIndex: number }> = []
+    // 그리기는 겹침을 걸러 낸 뒤에만 한다 — 버려지는 매치(예: 인라인 코드 안의 [*1])가
+    // 각주 번호를 올리는 등 부작용을 남기지 않게
+    const matches: Array<{ index: number; length: number; render: () => React.ReactNode; patternIndex: number }> = []
     patterns.forEach((pattern, patternIndex) => {
-      let match
+      let match: RegExpExecArray | null
       const regex = new RegExp(pattern.regex.source, pattern.regex.flags)
       while ((match = regex.exec(text)) !== null) {
+        const found = match
+        const key = matches.length
         matches.push({
-          index: match.index,
-          length: match[0].length,
-          element: pattern.render(match, matches.length),
+          index: found.index,
+          length: found[0].length,
+          render: () => pattern.render(found, key),
           patternIndex
         })
       }
@@ -1034,7 +1038,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         }
       }
       // 매치된 요소 추가
-      elements.push(match.element)
+      elements.push(match.render())
       lastIndex = match.index + match.length
     })
     
@@ -1180,9 +1184,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     extractFootnotes(content)
   }, [content, generateTableOfContents, generateTOC])
 
-  const extractFootnotes = (text: string) => {
+  const extractFootnotes = (rawText: string) => {
     const footnoteMap: {[key: string]: string} = {}
-    
+    // 코드 블록 안의 각주 예시는 실제 각주로 세지 않는다
+    const text = (rawText || '').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '')
+
     // 1. 독립된 라인에서 각주 정의 찾기
     const lines = text.split('\n')
     lines.forEach((line, lineIndex) => {
@@ -1223,7 +1229,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     // [*1] ??????? ?? [*1] (????????? extractFootnotes???? ?????)
     // [*] ??????? ?? [*] (??? ??? ????)
     // 줄 맨 앞의 각주 정의([*1] 내용)는 그대로 둔다 — 본문 렌더 단계에서 정의 줄로 건너뛴다
-    return (text || '').replace(/(?<!^[ \t]*)\[\*(\d*)\][ \t]+([^[\n\r|]+)/gm, '[*$1]')
+    // 코드 블록(```)과 인라인 코드(`…`) 안의 예시는 건드리지 않는다
+    return (text || '')
+      .split(/(```[\s\S]*?```|`[^`\n]*`)/g)
+      .map((part, index) =>
+        index % 2 === 1 ? part : part.replace(/(?<!^[ \t]*)\[\*(\d*)\][ \t]+([^[\n\r|]+)/gm, '[*$1]')
+      )
+      .join('')
   }
 
   const parseContent = (originalText: string): React.ReactNode => {

@@ -3,6 +3,7 @@ import { and, eq, ne, or } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { wikiPages, wikiRevisions } from '@/db/schema/wiki'
 import { checkAdminAuth } from '@/lib/adminAuth'
+import { GUIDE_DOC, GUIDE_DOC_TITLE, SYNTAX_DOC, SYNTAX_DOC_TITLE } from '@/lib/helpDocs'
 
 export const dynamic = 'force-dynamic'
 
@@ -384,11 +385,133 @@ const HELP_CONTENT = `= 이랑위키 편집 도움말 (2026-11) =
 
 [[분류:도움말]]`
 
+interface HelpPageSpec {
+  title: string
+  content: string
+  summary: string
+  pageSummary: string
+}
+
+/** 이 라우트가 최신 내용으로 맞춰 두는 안내 문서들 */
+const HELP_PAGES: HelpPageSpec[] = [
+  {
+    title: HELP_TITLE,
+    content: HELP_CONTENT,
+    summary: '2026-11 업데이트(배너상자·표 안 이미지·배경 그림·이미지 크기)로 도움말 갱신',
+    pageSummary: '편집기 사용법 — 배너상자, 표 안 이미지·배경 그림, 이미지 크기, 표 색상/병합 등 2026 문법 안내',
+  },
+  {
+    title: SYNTAX_DOC_TITLE,
+    content: SYNTAX_DOC,
+    summary: '2026-11 기준 문법 레퍼런스로 전면 갱신 (표 지시자, 이미지, 각주, 틀과 상자)',
+    pageSummary: '이랑위키 문법 레퍼런스 — 글자 꾸미기, 링크, 이미지, 표, 각주, 틀과 상자',
+  },
+  {
+    title: GUIDE_DOC_TITLE,
+    content: GUIDE_DOC,
+    summary: '2026-11 기준 첫 안내로 갱신 (구글·네이버 로그인, 계정 설정, 문서 화면, 신고)',
+    pageSummary: '처음 오신 분을 위한 이랑위키 사용 안내',
+  },
+]
+
+type Db = ReturnType<typeof getDb>
+type Admin = NonNullable<Awaited<ReturnType<typeof checkAdminAuth>>>
+
+async function findPage(db: Db, title: string) {
+  const [page] = await db
+    .select()
+    .from(wikiPages)
+    .where(and(ne(wikiPages.isDeleted, true), or(eq(wikiPages.title, title), eq(wikiPages.slug, title))))
+    .limit(1)
+  return page
+}
+
+/** 문서가 있으면 새 리비전을 쌓아 갱신하고, 없으면 help 네임스페이스로 만든다. 내용이 같으면 건너뛴다. */
+async function upsertHelpPage(db: Db, admin: Admin, spec: HelpPageSpec) {
+  const page = await findPage(db, spec.title)
+  const now = new Date()
+
+  if (page) {
+    if (page.content === spec.content) {
+      return { title: spec.title, action: 'unchanged' as const, revision: page.currentRevision }
+    }
+    const newRev = page.currentRevision + 1
+    await db.insert(wikiRevisions).values({
+      pageId: page.id,
+      revisionNumber: newRev,
+      content: spec.content,
+      summary: spec.summary,
+      author: admin.username,
+      authorId: admin.userId,
+      editType: 'edit',
+      isMinorEdit: false,
+      isAutomated: true,
+      contentLength: spec.content.length,
+      sizeChange: spec.content.length - (page.content?.length || 0),
+      isVerified: true,
+      timestampAt: now,
+    })
+    await db
+      .update(wikiPages)
+      .set({
+        content: spec.content,
+        lastEditor: admin.username,
+        lastEditorId: admin.userId,
+        lastEditDate: now,
+        lastEditSummary: spec.summary,
+        currentRevision: newRev,
+        edits: page.edits + 1,
+        isStub: false,
+        updatedAt: now,
+      })
+      .where(eq(wikiPages.id, page.id))
+    return { title: spec.title, action: 'updated' as const, revision: newRev }
+  }
+
+  const [created] = await db
+    .insert(wikiPages)
+    .values({
+      title: spec.title,
+      slug: spec.title,
+      namespace: 'help',
+      content: spec.content,
+      summary: spec.pageSummary,
+      categories: ['도움말'],
+      creator: admin.username,
+      creatorId: admin.userId,
+      lastEditor: admin.username,
+      lastEditorId: admin.userId,
+      lastEditDate: now,
+      lastEditSummary: spec.summary,
+      currentRevision: 1,
+      edits: 1,
+      watchers: [admin.userId],
+    })
+    .returning({ id: wikiPages.id })
+
+  await db.insert(wikiRevisions).values({
+    pageId: created.id,
+    revisionNumber: 1,
+    content: spec.content,
+    summary: spec.summary,
+    author: admin.username,
+    authorId: admin.userId,
+    editType: 'create',
+    isMinorEdit: false,
+    isAutomated: true,
+    contentLength: spec.content.length,
+    sizeChange: spec.content.length,
+    isVerified: true,
+    timestampAt: now,
+  })
+  return { title: spec.title, action: 'created' as const, revision: 1 }
+}
+
 /**
- * 이랑위키:도움말_2026 문서를 최신(2026-11) 내용으로 갱신하는 라우트. 다시 실행해도 새 리비전만 쌓인다.
- * 문서가 있으면 새 리비전을 쌓으며 업데이트, 없으면 help 네임스페이스로 생성.
+ * 안내 문서(편집 도움말 2026 · 문법 · 도움말)를 최신(2026-11) 내용으로 맞추는 라우트.
+ * 내용이 이미 같으면 건너뛰므로 여러 번 실행해도 안전하다.
  *
- *   GET /api/admin/maintenance/help-2026            → dry-run (대상 문서 상태)
+ *   GET /api/admin/maintenance/help-2026            → dry-run (문서별 상태)
  *   GET /api/admin/maintenance/help-2026?confirm=1  → 반영
  */
 export async function GET(request: NextRequest) {
@@ -399,114 +522,38 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getDb()
-    const [page] = await db
-      .select()
-      .from(wikiPages)
-      .where(
-        and(
-          ne(wikiPages.isDeleted, true),
-          or(eq(wikiPages.title, HELP_TITLE), eq(wikiPages.slug, HELP_TITLE))
-        )
-      )
-      .limit(1)
-
     const { searchParams } = new URL(request.url)
     if (searchParams.get('confirm') !== '1') {
+      const status = await Promise.all(
+        HELP_PAGES.map(async (spec) => {
+          const page = await findPage(db, spec.title)
+          return {
+            title: spec.title,
+            exists: Boolean(page),
+            upToDate: page?.content === spec.content,
+            currentRevision: page?.currentRevision ?? null,
+          }
+        })
+      )
       return NextResponse.json({
         success: true,
         applied: false,
-        message: 'dry-run — ?confirm=1 로 호출하면 도움말을 갱신합니다.',
-        target: HELP_TITLE,
-        exists: Boolean(page),
-        currentRevision: page?.currentRevision ?? null,
-        newContentLength: HELP_CONTENT.length,
+        message: 'dry-run — ?confirm=1 로 호출하면 안내 문서를 최신 내용으로 갱신합니다.',
+        pages: status,
       })
     }
 
-    const now = new Date()
-
-    if (page) {
-      const newRev = page.currentRevision + 1
-      await db.insert(wikiRevisions).values({
-        pageId: page.id,
-        revisionNumber: newRev,
-        content: HELP_CONTENT,
-        summary: '2026-11 업데이트(배너상자·표 안 이미지·배경 그림·이미지 크기)로 도움말 갱신',
-        author: admin.username,
-        authorId: admin.userId,
-        editType: 'edit',
-        isMinorEdit: false,
-        isAutomated: true,
-        contentLength: HELP_CONTENT.length,
-        sizeChange: HELP_CONTENT.length - (page.content?.length || 0),
-        isVerified: true,
-        timestampAt: now,
-      })
-      await db
-        .update(wikiPages)
-        .set({
-          content: HELP_CONTENT,
-          lastEditor: admin.username,
-          lastEditorId: admin.userId,
-          lastEditDate: now,
-          lastEditSummary: '2026-11 업데이트(배너상자·표 안 이미지·배경 그림·이미지 크기)로 도움말 갱신',
-          currentRevision: newRev,
-          edits: page.edits + 1,
-          isStub: false,
-          updatedAt: now,
-        })
-        .where(eq(wikiPages.id, page.id))
-
-      return NextResponse.json({
-        success: true,
-        applied: true,
-        message: `"${HELP_TITLE}" 갱신 완료 (r${newRev}).`,
-        appliedBy: admin.username,
-      })
+    const results = []
+    for (const spec of HELP_PAGES) {
+      results.push(await upsertHelpPage(db, admin, spec))
     }
-
-    // 없으면 생성
-    const [created] = await db
-      .insert(wikiPages)
-      .values({
-        title: HELP_TITLE,
-        slug: HELP_TITLE,
-        namespace: 'help',
-        content: HELP_CONTENT,
-        summary: '편집기 사용법 — 배너상자, 표 안 이미지·배경 그림, 이미지 크기, 표 색상/병합 등 2026 문법 안내',
-        categories: ['도움말'],
-        creator: admin.username,
-        creatorId: admin.userId,
-        lastEditor: admin.username,
-        lastEditorId: admin.userId,
-        lastEditDate: now,
-        lastEditSummary: '2026 도움말 생성',
-        currentRevision: 1,
-        edits: 1,
-        watchers: [admin.userId],
-      })
-      .returning({ id: wikiPages.id })
-
-    await db.insert(wikiRevisions).values({
-      pageId: created.id,
-      revisionNumber: 1,
-      content: HELP_CONTENT,
-      summary: '2026 도움말 생성',
-      author: admin.username,
-      authorId: admin.userId,
-      editType: 'create',
-      isMinorEdit: false,
-      isAutomated: true,
-      contentLength: HELP_CONTENT.length,
-      sizeChange: HELP_CONTENT.length,
-      isVerified: true,
-      timestampAt: now,
-    })
+    const changed = results.filter((result) => result.action !== 'unchanged').length
 
     return NextResponse.json({
       success: true,
       applied: true,
-      message: `"${HELP_TITLE}" 생성 완료.`,
+      message: changed === 0 ? '안내 문서가 모두 최신입니다.' : `안내 문서 ${changed}개를 갱신했습니다.`,
+      pages: results,
       appliedBy: admin.username,
     })
   } catch (error) {
