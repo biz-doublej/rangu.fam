@@ -19,9 +19,9 @@ type AdDraft = Pick<Ad, 'title' | 'linkUrl' | 'desktopImage' | 'mobileImage' | '
 const EMPTY_DRAFT: AdDraft = { title: '', linkUrl: '', desktopImage: '', mobileImage: '', isActive: true }
 
 const INPUT_CLASS =
-  'w-full rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none'
+  'w-full rounded-md border border-adm-rule bg-adm-well px-2.5 py-1.5 text-[13px] text-adm-ink placeholder:text-adm-faint focus:border-adm-accent focus:outline-none'
 const BUTTON_CLASS =
-  'inline-flex items-center gap-1.5 rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40'
+  'inline-flex items-center gap-1.5 rounded-md border border-adm-rule px-2.5 py-1.5 text-[13px] text-adm-soft hover:bg-adm-well disabled:opacity-40'
 
 async function requestJson(url: string, init?: RequestInit) {
   const response = await fetch(url, { credentials: 'include', ...init })
@@ -55,15 +55,15 @@ function ImageField({
 
   return (
     <div>
-      <p className="mb-1 text-xs text-slate-400">
-        {label} <span className="text-slate-600">{hint}</span>
+      <p className="mb-1 text-[13px] text-adm-muted">
+        {label} <span className="text-adm-faint">{hint}</span>
       </p>
-      <div className="flex h-24 items-center justify-center overflow-hidden rounded-md border border-slate-700 bg-black">
+      <div className="flex h-24 items-center justify-center overflow-hidden rounded-md border border-adm-rule bg-black">
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt={`${label} 미리보기`} className="max-h-full max-w-full object-contain" />
         ) : (
-          <ImageIcon className="h-5 w-5 text-slate-600" />
+          <ImageIcon className="h-5 w-5 text-adm-faint" />
         )}
       </div>
       <label className={`${BUTTON_CLASS} mt-1.5 cursor-pointer`}>
@@ -105,7 +105,7 @@ function AdForm({
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-xs text-slate-400">
+        <label className="text-[13px] text-adm-muted">
           광고 이름
           <input
             className={`${INPUT_CLASS} mt-1`}
@@ -114,7 +114,7 @@ function AdForm({
             onChange={(event) => onChange({ ...draft, title: event.target.value })}
           />
         </label>
-        <label className="text-xs text-slate-400">
+        <label className="text-[13px] text-adm-muted">
           이동 주소
           <input
             className={`${INPUT_CLASS} mt-1`}
@@ -141,7 +141,7 @@ function AdForm({
         />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+        <label className="inline-flex items-center gap-2 text-[13px] text-adm-soft">
           <input
             type="checkbox"
             checked={draft.isActive}
@@ -202,7 +202,7 @@ function AdCard({
   }
 
   return (
-    <li className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+    <li className="rounded-lg border border-adm-rule bg-adm-well p-4">
       <AdForm draft={draft} onChange={setDraft}>
         <button type="button" className={BUTTON_CLASS} disabled={isFirst} onClick={() => onMove(-1)} aria-label="위로 이동">
           <ArrowUp className="h-3.5 w-3.5" />
@@ -286,8 +286,8 @@ export function AdManagement() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-white">위키 광고</h3>
-          <p className="mt-0.5 text-xs text-slate-500">위키 메인에서 5초마다 넘어갑니다. 위 순서대로 노출됩니다.</p>
+          <h3 className="text-sm font-semibold text-adm-ink">위키 광고</h3>
+          <p className="mt-0.5 text-[13px] text-adm-muted">위키 메인에서 5초마다 넘어갑니다. 위 순서대로 노출됩니다.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" className={BUTTON_CLASS} onClick={load}>
@@ -301,10 +301,10 @@ export function AdManagement() {
         </div>
       </div>
 
-      {loadError && <p className="text-xs text-amber-400">{loadError}</p>}
+      {loadError && <p className="text-[13px] text-adm-warn">{loadError}</p>}
 
       {creating && (
-        <div className="rounded-lg border border-cyan-500/30 bg-slate-900/50 p-4">
+        <div className="rounded-lg border border-adm-accent/40 bg-adm-well p-4">
           <AdForm draft={draft} onChange={setDraft}>
             <button type="button" className={BUTTON_CLASS} onClick={() => setCreating(false)}>
               취소
@@ -317,9 +317,9 @@ export function AdManagement() {
       )}
 
       {ads === null ? (
-        <p className="text-xs text-slate-500">불러오는 중입니다.</p>
+        <p className="text-[13px] text-adm-muted">불러오는 중입니다.</p>
       ) : ads.length === 0 && !loadError ? (
-        <p className="text-xs text-slate-500">등록된 광고가 없습니다.</p>
+        <p className="text-[13px] text-adm-muted">등록된 광고가 없습니다.</p>
       ) : (
         <ul className="space-y-3">
           {ads.map((ad, index) => (

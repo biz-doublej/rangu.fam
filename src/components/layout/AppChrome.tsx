@@ -14,6 +14,7 @@ export function AppChrome({ children, hostname }: { children: React.ReactNode; h
   const isMember = section === 'member'
   const isRangu = section === 'rangu'
   const isArchive = section === 'archive'
+  const isAdmin = section === 'admin'
 
   useEffect(() => {
     const html = document.documentElement
@@ -37,13 +38,21 @@ export function AppChrome({ children, hostname }: { children: React.ReactNode; h
       {children}
       {/* 랜덤 선물상자 — 랑구팸 메인 페이지에서만 (위키/멤버/대학/관리자 제외) */}
       {isRangu && !RANGU_ARCHIVE_MODE && <GiftBoxLayer />}
-      <Footer />
+      {!isAdmin && <Footer />}
       {(
         <Toaster
           position="top-center"
           toastOptions={{
             duration: 3000,
-            style: isRangu
+            style: isAdmin
+              ? {
+                  background: 'rgb(var(--adm-ink))',
+                  color: 'rgb(var(--adm-sheet))',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontFamily: 'Pretendard, sans-serif',
+                }
+              : isRangu
               ? {
                   background: '#FBF7EE',
                   color: '#2B2118',

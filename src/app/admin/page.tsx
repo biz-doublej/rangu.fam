@@ -37,16 +37,16 @@ interface StaffMe {
 
 type TabKey = 'overview' | 'review' | 'reports' | 'users' | 'accounts' | 'documents' | 'ads' | 'notices' | 'system'
 
-const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly: boolean }> = [
-  { key: 'overview', label: '개요', icon: BarChart3, adminOnly: true },
-  { key: 'review', label: '편집 검수', icon: Inbox, adminOnly: false },
-  { key: 'reports', label: '신고', icon: Flag, adminOnly: false },
-  { key: 'users', label: '회원', icon: Users, adminOnly: true },
-  { key: 'accounts', label: '계정 연결', icon: Link2, adminOnly: true },
-  { key: 'documents', label: '문서', icon: FileText, adminOnly: true },
-  { key: 'ads', label: '광고', icon: ImageIcon, adminOnly: true },
-  { key: 'notices', label: '공지', icon: Megaphone, adminOnly: true },
-  { key: 'system', label: '시스템', icon: Activity, adminOnly: true },
+const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly: boolean; group: string }> = [
+  { key: 'overview', label: '오늘', icon: BarChart3, adminOnly: true, group: '할 일' },
+  { key: 'review', label: '편집 검수', icon: Inbox, adminOnly: false, group: '할 일' },
+  { key: 'reports', label: '신고', icon: Flag, adminOnly: false, group: '할 일' },
+  { key: 'users', label: '회원', icon: Users, adminOnly: true, group: '회원' },
+  { key: 'accounts', label: '계정 연결', icon: Link2, adminOnly: true, group: '회원' },
+  { key: 'documents', label: '문서', icon: FileText, adminOnly: true, group: '위키' },
+  { key: 'ads', label: '광고', icon: ImageIcon, adminOnly: true, group: '위키' },
+  { key: 'notices', label: '공지', icon: Megaphone, adminOnly: true, group: '위키' },
+  { key: 'system', label: '서버와 DB', icon: Activity, adminOnly: true, group: '서버' },
 ]
 
 function readTabFromUrl(): TabKey | null {
@@ -57,8 +57,8 @@ function readTabFromUrl(): TabKey | null {
 
 function CenterScreen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-200">
-      <div className="w-full max-w-sm rounded-lg border border-slate-800 bg-slate-900/60 p-6 text-center">{children}</div>
+    <div className="flex min-h-screen items-center justify-center bg-adm-bg px-4">
+      <div className="w-full max-w-sm rounded-md border border-adm-rule bg-adm-sheet p-7 text-center">{children}</div>
     </div>
   )
 }
@@ -131,7 +131,7 @@ export default function AdminDashboard() {
   if (authState === 'loading') {
     return (
       <CenterScreen>
-        <p className="text-sm text-slate-400">권한을 확인하는 중입니다.</p>
+        <p className="text-sm text-adm-muted">권한을 확인하는 중입니다.</p>
       </CenterScreen>
     )
   }
@@ -139,12 +139,12 @@ export default function AdminDashboard() {
   if (authState === 'guest') {
     return (
       <CenterScreen>
-        <Shield className="mx-auto h-6 w-6 text-cyan-400" />
-        <p className="mt-3 text-sm font-semibold text-white">로그인이 필요합니다</p>
-        <p className="mt-1 text-xs text-slate-400">관리자나 운영자 계정으로 로그인해 주세요.</p>
+        <Shield className="mx-auto h-6 w-6 text-adm-accent" />
+        <p className="mt-3 text-base font-semibold text-adm-ink">로그인이 필요합니다</p>
+        <p className="mt-1 text-[13px] text-adm-muted">관리자나 운영자 계정으로 로그인해 주세요.</p>
         <a
           href="/auth/start?callbackUrl=%2Fadmin"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
+          className="mt-4 inline-flex items-center gap-1.5 rounded bg-adm-accent px-3 py-1.5 text-[13px] font-semibold text-adm-onaccent hover:bg-adm-accent/90"
         >
           <LogIn className="h-3.5 w-3.5" />
           로그인
@@ -156,80 +156,106 @@ export default function AdminDashboard() {
   if (authState === 'denied' || !me) {
     return (
       <CenterScreen>
-        <Shield className="mx-auto h-6 w-6 text-rose-400" />
-        <p className="mt-3 text-sm font-semibold text-white">접근 권한이 없습니다</p>
-        <p className="mt-1 text-xs text-slate-400">이 화면은 관리자와 운영자만 볼 수 있습니다.</p>
-        <a href="/wiki" className="mt-4 inline-block text-xs text-cyan-300 hover:underline">
+        <Shield className="mx-auto h-6 w-6 text-adm-pencil" />
+        <p className="mt-3 text-base font-semibold text-adm-ink">접근 권한이 없습니다</p>
+        <p className="mt-1 text-[13px] text-adm-muted">이 화면은 관리자와 운영자만 볼 수 있습니다.</p>
+        <a href="/wiki" className="mt-4 inline-block text-[13px] text-adm-accent hover:underline">
           위키로 돌아가기
         </a>
       </CenterScreen>
     )
   }
 
+  const countFor = (key: TabKey) =>
+    key === 'review' ? dashboard?.stats.submissions.pending : key === 'reports' ? dashboard?.stats.reports.open ?? undefined : undefined
+  const groups = Array.from(new Set(visibleTabs.map((tab) => tab.group)))
+  const current = TABS.find((tab) => tab.key === activeTab)!
+
+  const navButton = (tab: (typeof TABS)[number], compact: boolean) => {
+    const Icon = tab.icon
+    const active = activeTab === tab.key
+    const count = countFor(tab.key)
+    return (
+      <button
+        key={tab.key}
+        type="button"
+        onClick={() => selectTab(tab.key)}
+        aria-current={active ? 'page' : undefined}
+        className={
+          compact
+            ? `inline-flex shrink-0 items-center gap-1.5 rounded px-3 py-1.5 text-[13px] ${
+                active ? 'bg-adm-ink font-medium text-adm-sheet' : 'text-adm-muted'
+              }`
+            : `relative flex w-full items-center gap-2.5 rounded px-2.5 py-[7px] text-left text-sm transition-colors ${
+                active ? 'bg-adm-sheet font-semibold text-adm-ink shadow-[0_0_0_1px_rgb(var(--adm-rule))]' : 'text-adm-soft hover:bg-adm-sheet/60 hover:text-adm-ink'
+              }`
+        }
+      >
+        {!compact && <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-adm-accent' : 'text-adm-faint'}`} />}
+        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+        {typeof count === 'number' && count > 0 && <span className="adm-mark" aria-label={`${count}건`}>{count}</span>}
+      </button>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200">
-      <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Shield className="h-5 w-5 shrink-0 text-cyan-400" />
-            <h1 className="truncate text-base font-bold text-white">이랑위키 운영</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-slate-400 sm:inline">
-              {me.displayName} · {ROLE_LABELS[me.role]}
-            </span>
-            <a
-              href="/wiki"
-              className="inline-flex items-center gap-1 rounded-md border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:border-cyan-500/40 hover:text-cyan-300"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              위키
-            </a>
-          </div>
+    <div className="min-h-screen bg-adm-bg md:grid md:grid-cols-[232px_minmax(0,1fr)]">
+      <aside className="sticky top-0 hidden h-screen flex-col border-r border-adm-rule px-3 py-5 md:flex">
+        <a href="/admin" className="flex items-center gap-2.5 px-2.5">
+          <img src="/assets/irang_emblem_96.png" alt="" className="h-7 w-7" />
+          <span className="leading-tight">
+            <span className="block text-[15px] font-bold text-adm-ink">이랑위키</span>
+            <span className="block text-xs text-adm-muted">운영 데스크</span>
+          </span>
+        </a>
+        <nav className="mt-7 flex-1 space-y-5 overflow-y-auto" aria-label="관리 메뉴">
+          {groups.map((group) => (
+            <div key={group}>
+              <p className="mb-1 px-2.5 text-xs text-adm-faint">{group}</p>
+              <div className="space-y-0.5">{visibleTabs.filter((tab) => tab.group === group).map((tab) => navButton(tab, false))}</div>
+            </div>
+          ))}
+        </nav>
+        <div className="border-t border-adm-rule px-2.5 pt-4">
+          <p className="truncate text-sm font-medium text-adm-ink">{me.displayName}</p>
+          <p className="text-xs text-adm-muted">{ROLE_LABELS[me.role]}</p>
+          <a href="/wiki" className="mt-3 inline-flex items-center gap-1.5 text-[13px] text-adm-accent hover:underline">
+            <BookOpen className="h-3.5 w-3.5" />
+            위키로 돌아가기
+          </a>
         </div>
-        <nav className="mx-auto max-w-6xl overflow-x-auto px-4 sm:px-6" aria-label="관리 메뉴">
-          <div className="flex gap-1 pb-2">
-            {visibleTabs.map((tab) => {
-              const Icon = tab.icon
-              const active = activeTab === tab.key
-              const count =
-                tab.key === 'review'
-                  ? dashboard?.stats.submissions.pending
-                  : tab.key === 'reports'
-                    ? dashboard?.stats.reports.open
-                    : undefined
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => selectTab(tab.key)}
-                  aria-current={active ? 'page' : undefined}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    active ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                  {typeof count === 'number' && count > 0 && (
-                    <span className="rounded-full bg-amber-500/20 px-1.5 text-[10px] font-semibold text-amber-300">{count}</span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
+      </aside>
+
+      <header className="sticky top-0 z-40 border-b border-adm-rule bg-adm-bg/95 backdrop-blur md:hidden">
+        <div className="flex items-center justify-between px-4 pb-2 pt-3">
+          <a href="/admin" className="flex items-center gap-2">
+            <img src="/assets/irang_emblem_96.png" alt="" className="h-6 w-6" />
+            <span className="text-[15px] font-bold text-adm-ink">운영 데스크</span>
+          </a>
+          <a href="/wiki" className="text-[13px] text-adm-accent">
+            위키로
+          </a>
+        </div>
+        <nav className="adm-scroll-x flex gap-1 overflow-x-auto px-4 pb-2.5" aria-label="관리 메뉴">
+          {visibleTabs.map((tab) => navButton(tab, true))}
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {activeTab === 'overview' && <OverviewTab data={dashboard} onJump={selectTab} />}
-        {activeTab === 'review' && <ReviewTab />}
-        {activeTab === 'reports' && <ReportsTab />}
-        {activeTab === 'users' && <UsersTab />}
-        {activeTab === 'accounts' && <AccountLinkTab />}
-        {activeTab === 'documents' && <WikiDocsManagement />}
-        {activeTab === 'ads' && <AdManagement />}
-        {activeTab === 'notices' && <NoticesTab />}
-        {activeTab === 'system' && <SystemTab data={dashboard} onRefresh={loadDashboard} />}
+      <main className="min-w-0 px-3 py-4 sm:px-6 md:px-10 md:py-8">
+        <p className="mx-auto mb-3 hidden max-w-5xl text-[13px] text-adm-muted md:block">
+          {current.group} / <span className="text-adm-ink">{current.label}</span>
+        </p>
+        <div key={activeTab} className="adm-sheet-enter mx-auto max-w-5xl overflow-hidden rounded-md border border-adm-rule bg-adm-sheet">
+          {activeTab === 'overview' && <OverviewTab data={dashboard} onJump={selectTab} />}
+          {activeTab === 'review' && <ReviewTab />}
+          {activeTab === 'reports' && <ReportsTab />}
+          {activeTab === 'users' && <UsersTab />}
+          {activeTab === 'accounts' && <AccountLinkTab />}
+          {activeTab === 'documents' && <div className="p-5 sm:p-6"><WikiDocsManagement /></div>}
+          {activeTab === 'ads' && <div className="p-5 sm:p-6"><AdManagement /></div>}
+          {activeTab === 'notices' && <NoticesTab />}
+          {activeTab === 'system' && <SystemTab data={dashboard} onRefresh={loadDashboard} />}
+        </div>
       </main>
     </div>
   )

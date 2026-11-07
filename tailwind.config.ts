@@ -30,6 +30,12 @@ const config: Config = {
       colors: {
         ...varColors,
         white: 'rgb(var(--tw-c-white) / <alpha-value>)',
+        // 운영 대시보드 전용 — 값은 globals.css 의 [data-section='admin']
+        adm: Object.fromEntries(
+          ['bg', 'sheet', 'well', 'ink', 'soft', 'muted', 'faint', 'rule', 'accent', 'onaccent', 'pencil', 'ok', 'warn'].map(
+            (name) => [name, `rgb(var(--adm-${name}) / <alpha-value>)`]
+          )
+        ),
         black: 'rgb(var(--tw-c-black) / <alpha-value>)',
 
         // Legacy (used by wiki — keep)

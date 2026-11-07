@@ -3,13 +3,19 @@
 import React from 'react'
 
 export const INPUT_CLASS =
-  'w-full rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none'
+  'w-full rounded border border-adm-rule bg-adm-sheet px-2.5 py-1.5 text-[13px] text-adm-ink placeholder:text-adm-faint focus:border-adm-accent focus:outline-none'
 export const BUTTON_CLASS =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded border border-adm-rule bg-adm-sheet px-2.5 py-1.5 text-[13px] text-adm-soft hover:border-adm-accent/50 hover:text-adm-ink disabled:cursor-not-allowed disabled:opacity-40'
 export const PRIMARY_BUTTON_CLASS =
-  'inline-flex items-center justify-center gap-1.5 rounded-md bg-cyan-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded bg-adm-accent px-3 py-1.5 text-[13px] font-semibold text-adm-onaccent hover:bg-adm-accent/90 disabled:cursor-not-allowed disabled:opacity-40'
 export const DANGER_BUTTON_CLASS =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-rose-500/40 px-2.5 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded border border-adm-pencil/40 bg-adm-sheet px-2.5 py-1.5 text-[13px] text-adm-pencil hover:bg-adm-pencil/10 disabled:cursor-not-allowed disabled:opacity-40'
+/** 목록 위 필터 버튼 */
+export function filterClass(active: boolean) {
+  return `rounded px-2.5 py-1 text-[13px] ${
+    active ? 'bg-adm-ink text-adm-sheet font-medium' : 'text-adm-muted hover:bg-adm-well hover:text-adm-ink'
+  }`
+}
 
 /** JSON 요청. 실패하면 서버의 오류 문구로 예외를 던진다. */
 export async function requestJson<T = any>(url: string, init?: RequestInit): Promise<T> {
@@ -35,6 +41,7 @@ export function formatDateTime(value: string | Date | null | undefined) {
   })
 }
 
+/** 한 화면 안의 구역. 화면은 한 장의 시트이고, 구역은 가는 선으로 나뉜다. */
 export function Panel({
   title,
   description,
@@ -47,11 +54,11 @@ export function Panel({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+    <section className="border-b border-adm-rule px-5 py-5 last:border-b-0 sm:px-6">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-adm-ink">{title}</h2>
+          {description && <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-adm-muted">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
@@ -61,18 +68,18 @@ export function Panel({
 }
 
 export function EmptyState({ children }: { children: React.ReactNode }) {
-  return <p className="py-6 text-center text-xs text-slate-500">{children}</p>
+  return <p className="py-10 text-center text-[13px] text-adm-muted">{children}</p>
 }
 
 export function Badge({ tone = 'slate', children }: { tone?: 'slate' | 'cyan' | 'amber' | 'rose' | 'emerald'; children: React.ReactNode }) {
   const tones = {
-    slate: 'border-slate-700 text-slate-300',
-    cyan: 'border-cyan-500/40 text-cyan-300',
-    amber: 'border-amber-500/40 text-amber-300',
-    rose: 'border-rose-500/40 text-rose-300',
-    emerald: 'border-emerald-500/40 text-emerald-300',
+    slate: 'bg-adm-well text-adm-soft',
+    cyan: 'bg-adm-accent/10 text-adm-accent',
+    amber: 'bg-adm-warn/10 text-adm-warn',
+    rose: 'bg-adm-pencil/10 text-adm-pencil',
+    emerald: 'bg-adm-ok/10 text-adm-ok',
   }
-  return <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium ${tones[tone]}`}>{children}</span>
+  return <span className={`inline-flex rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${tones[tone]}`}>{children}</span>
 }
 
 export const ROLE_LABELS: Record<string, string> = {

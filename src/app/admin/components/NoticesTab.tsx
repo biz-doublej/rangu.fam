@@ -78,7 +78,7 @@ function NoticeForm({ draft, onChange, children }: { draft: Draft; onChange: (dr
         />
         <select
           aria-label="공지 종류"
-          className="rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
+          className="rounded-md border border-adm-rule bg-adm-well px-2 text-[13px] text-adm-ink"
           value={draft.tone}
           onChange={(event) => onChange({ ...draft, tone: event.target.value as Notice['tone'] })}
         >
@@ -90,7 +90,7 @@ function NoticeForm({ draft, onChange, children }: { draft: Draft; onChange: (dr
         </select>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="text-[11px] text-slate-500">
+        <label className="text-xs text-adm-muted">
           시작 (비우면 바로)
           <input
             type="datetime-local"
@@ -99,7 +99,7 @@ function NoticeForm({ draft, onChange, children }: { draft: Draft; onChange: (dr
             onChange={(event) => onChange({ ...draft, startsAt: event.target.value })}
           />
         </label>
-        <label className="text-[11px] text-slate-500">
+        <label className="text-xs text-adm-muted">
           종료 (비우면 계속)
           <input
             type="datetime-local"
@@ -110,7 +110,7 @@ function NoticeForm({ draft, onChange, children }: { draft: Draft; onChange: (dr
         </label>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+        <label className="inline-flex items-center gap-2 text-[13px] text-adm-soft">
           <input type="checkbox" checked={draft.isActive} onChange={(event) => onChange({ ...draft, isActive: event.target.checked })} />
           노출
         </label>
@@ -155,7 +155,7 @@ function NoticeItem({ notice, onChanged }: { notice: Notice; onChanged: () => vo
 
   if (editing) {
     return (
-      <li className="rounded-md border border-cyan-500/30 p-3">
+      <li className="rounded-md border border-adm-accent/40 p-3">
         <NoticeForm draft={draft} onChange={setDraft}>
           <button type="button" className={BUTTON_CLASS} onClick={() => setEditing(false)}>
             취소
@@ -169,7 +169,7 @@ function NoticeItem({ notice, onChanged }: { notice: Notice; onChanged: () => vo
   }
 
   return (
-    <li className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-slate-800 p-3 text-xs">
+    <li className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-adm-rule p-3 text-[13px]">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
           <Badge tone={notice.tone === 'warning' ? 'amber' : notice.tone === 'success' ? 'emerald' : 'cyan'}>
@@ -177,8 +177,8 @@ function NoticeItem({ notice, onChanged }: { notice: Notice; onChanged: () => vo
           </Badge>
           {!notice.isActive && <Badge>숨김</Badge>}
         </div>
-        <p className="mt-1 text-sm text-slate-100">{notice.message}</p>
-        <p className="mt-0.5 text-slate-500">
+        <p className="mt-1 text-sm text-adm-ink">{notice.message}</p>
+        <p className="mt-0.5 text-adm-muted">
           {notice.linkUrl ? `${notice.linkUrl} · ` : ''}
           {notice.startsAt || notice.endsAt
             ? `${formatDateTime(notice.startsAt)} ~ ${formatDateTime(notice.endsAt)}`
@@ -244,9 +244,9 @@ export function NoticesTab() {
         </button>
       }
     >
-      {loadError && <p className="mb-3 text-xs text-amber-300">{loadError}</p>}
+      {loadError && <p className="mb-3 text-[13px] text-adm-warn">{loadError}</p>}
       {creating && (
-        <div className="mb-3 rounded-md border border-cyan-500/30 p-3">
+        <div className="mb-3 rounded-md border border-adm-accent/40 p-3">
           <NoticeForm draft={draft} onChange={setDraft}>
             <button type="button" className={BUTTON_CLASS} onClick={() => setCreating(false)}>
               취소

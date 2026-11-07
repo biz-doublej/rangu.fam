@@ -2914,3 +2914,60 @@ video:hover {
   color: #fff !important;
 }
 
+
+/* ============================================================
+   운영 대시보드 (/admin) — 교정지 데스크
+   위키와 같은 잉크 네이비를 쓰고, 처리할 일은 교정용 빨간 펜으로 표시한다.
+   다크는 위키 화면 설정(data-wiki-color)을 그대로 따른다.
+   ============================================================ */
+[data-section='admin'] {
+  --adm-bg: 233 236 240;
+  --adm-sheet: 255 255 255;
+  --adm-well: 244 246 248;
+  --adm-ink: 22 32 42;
+  --adm-soft: 58 68 80;
+  --adm-muted: 98 109 121;
+  --adm-faint: 146 154 163;
+  --adm-rule: 218 223 228;
+  --adm-accent: 47 93 140;
+  --adm-onaccent: 255 255 255;
+  --adm-pencil: 184 52 38;
+  --adm-ok: 38 104 74;
+  --adm-warn: 140 88 10;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: rgb(var(--adm-ink));
+  word-break: keep-all;
+}
+[data-section='admin'] .adm-scroll-x { scrollbar-width: none; }
+[data-section='admin'] .adm-scroll-x::-webkit-scrollbar { display: none; }
+:root[data-wiki-color='dark'] [data-section='admin'] {
+  --adm-bg: 15 19 24;
+  --adm-sheet: 23 29 36;
+  --adm-well: 30 37 45;
+  --adm-ink: 229 233 237;
+  --adm-soft: 196 204 212;
+  --adm-muted: 150 160 171;
+  --adm-faint: 108 118 129;
+  --adm-rule: 44 53 63;
+  --adm-accent: 133 170 210;
+  --adm-onaccent: 15 19 24;
+  --adm-pencil: 232 120 100;
+  --adm-ok: 112 192 152;
+  --adm-warn: 222 172 92;
+}
+:root[data-section='admin'] { background: rgb(var(--adm-bg)); color-scheme: light; }
+:root[data-wiki-color='dark'][data-section='admin'] { color-scheme: dark; }
+[data-section='admin'] :focus-visible { outline: 2px solid rgb(var(--adm-accent)); outline-offset: 2px; }
+/* 처리할 일 표시 — 교정지에 빨간 펜으로 동그라미 친 숫자 */
+[data-section='admin'] .adm-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.45rem; height: 1.3rem; padding: 0 .3rem;
+  border: 1.5px solid rgb(var(--adm-pencil)); border-radius: 48% 52% 46% 54% / 55% 45% 55% 45%;
+  color: rgb(var(--adm-pencil)); font-size: .72rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  transform: rotate(-4deg);
+}
+[data-section='admin'] .adm-flag { box-shadow: inset 3px 0 0 rgb(var(--adm-pencil)); }
+@media (prefers-reduced-motion: no-preference) {
+  [data-section='admin'] .adm-sheet-enter { animation: adm-sheet-in .18s ease-out; }
+}
+@keyframes adm-sheet-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

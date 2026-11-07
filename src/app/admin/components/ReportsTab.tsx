@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { BUTTON_CLASS, Badge, EmptyState, Panel, formatDateTime, jsonInit, requestJson } from './adminUi'
+import { BUTTON_CLASS, Badge, EmptyState, Panel, filterClass, formatDateTime, jsonInit, requestJson } from './adminUi'
 
 interface Report {
   id: string
@@ -68,9 +68,7 @@ export function ReportsTab() {
             key={item.key}
             type="button"
             onClick={() => setFilter(item.key)}
-            className={`rounded-md px-2.5 py-1 text-xs ${
-              filter === item.key ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:bg-slate-800'
-            }`}
+            className={filterClass(filter === item.key)}
           >
             {item.label}
           </button>
@@ -81,16 +79,16 @@ export function ReportsTab() {
       ) : reports.length === 0 ? (
         <EmptyState>신고가 없습니다.</EmptyState>
       ) : (
-        <ul className="divide-y divide-slate-800">
+        <ul className="divide-y divide-adm-rule">
           {reports.map((report) => (
             <li key={report.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-              <div className="min-w-0 text-xs">
+              <div className="min-w-0 text-[13px]">
                 <div className="flex items-center gap-2">
                   <a
                     href={`/wiki/${encodeURIComponent(report.pageTitle)}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-medium text-slate-100 hover:text-cyan-300"
+                    className="text-sm font-medium text-adm-ink hover:text-adm-accent"
                   >
                     {report.pageTitle}
                   </a>
@@ -98,8 +96,8 @@ export function ReportsTab() {
                     {report.status === 'open' ? '처리 전' : '처리 완료'}
                   </Badge>
                 </div>
-                <p className="mt-1 whitespace-pre-wrap text-slate-300">{report.reason}</p>
-                <p className="mt-1 text-slate-500">
+                <p className="mt-1 whitespace-pre-wrap text-adm-soft">{report.reason}</p>
+                <p className="mt-1 text-adm-muted">
                   {report.reporter} · {formatDateTime(report.createdAt)}
                   {report.resolvedBy ? ` · ${report.resolvedBy} 처리` : ''}
                 </p>

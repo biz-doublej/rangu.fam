@@ -99,9 +99,9 @@ function MaintenanceRow({ task }: { task: MaintenanceTask }) {
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <div className="min-w-0 text-xs">
+      <div className="min-w-0 text-[13px]">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-100">{task.label}</span>
+          <span className="text-sm font-medium text-adm-ink">{task.label}</span>
           {state === 'loading' ? (
             <Badge>확인 중</Badge>
           ) : state === 'error' ? (
@@ -112,7 +112,7 @@ function MaintenanceRow({ task }: { task: MaintenanceTask }) {
             <Badge tone="amber">적용 필요</Badge>
           ) : null}
         </div>
-        <p className="mt-0.5 text-slate-500">{task.description}</p>
+        <p className="mt-0.5 text-adm-muted">{task.description}</p>
       </div>
       <button
         type="button"
@@ -145,9 +145,9 @@ function DangerAction({ title, description, endpoint, confirmText }: { title: st
   }
 
   return (
-    <div className="rounded-md border border-rose-500/30 p-3 text-xs">
-      <p className="text-sm font-medium text-rose-200">{title}</p>
-      <p className="mt-0.5 text-slate-400">{description}</p>
+    <div className="rounded-md border border-adm-pencil/40 p-3 text-[13px]">
+      <p className="text-sm font-medium text-adm-pencil">{title}</p>
+      <p className="mt-0.5 text-adm-muted">{description}</p>
       <div className="mt-2 flex gap-2">
         <input
           className={INPUT_CLASS}
@@ -188,18 +188,18 @@ export function SystemTab({ data, onRefresh }: { data: DashboardData | null; onR
           </button>
         }
       >
-        <dl className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-3">
           {rows.map(([label, value]) => (
-            <div key={label} className="rounded-md bg-slate-900 p-2.5">
-              <dt className="text-slate-500">{label}</dt>
-              <dd className="mt-0.5 break-all font-mono text-slate-200">{value}</dd>
+            <div key={label} className="rounded-md bg-adm-well p-2.5">
+              <dt className="text-adm-muted">{label}</dt>
+              <dd className="mt-0.5 break-all font-mono text-adm-ink">{value}</dd>
             </div>
           ))}
         </dl>
       </Panel>
 
       <Panel title="유지보수 작업" description="배포 후 DB에 표나 칸을 추가하는 작업입니다. 모두 여러 번 실행해도 안전합니다.">
-        <ul className="divide-y divide-slate-800">
+        <ul className="divide-y divide-adm-rule">
           {TASKS.map((task) => (
             <MaintenanceRow key={task.key} task={task} />
           ))}

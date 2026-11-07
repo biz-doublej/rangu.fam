@@ -10,6 +10,7 @@ import {
   INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   Panel,
+  filterClass,
   formatDateTime,
   jsonInit,
   requestJson,
@@ -62,19 +63,19 @@ function SubmissionItem({ submission, onDone }: { submission: Submission; onDone
   }
 
   return (
-    <li className="rounded-md border border-slate-800 p-3">
+    <li className={`rounded border border-adm-rule p-3 ${actionable ? 'adm-flag' : ''}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-100">
-            <span className="mr-1.5 text-[10px] text-slate-500">{submission.type === 'create' ? '새 문서' : '수정'}</span>
+          <p className="text-sm font-medium text-adm-ink">
+            <span className="mr-1.5 text-[11px] text-adm-muted">{submission.type === 'create' ? '새 문서' : '수정'}</span>
             {submission.targetTitle}
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-[13px] text-adm-muted">
             {submission.author} · {formatDateTime(submission.createdAt)}
             {submission.editSummary || submission.summary ? ` · ${submission.editSummary || submission.summary}` : ''}
           </p>
           {submission.reason && (
-            <p className="mt-1 text-xs text-amber-300">
+            <p className="mt-1 text-[13px] text-adm-warn">
               사유: {submission.reason}
               {submission.reviewedBy ? ` (${submission.reviewedBy})` : ''}
             </p>
@@ -87,7 +88,7 @@ function SubmissionItem({ submission, onDone }: { submission: Submission; onDone
       </div>
 
       {open && (
-        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-slate-950 p-3 text-xs text-slate-300">
+        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-adm-well p-3 text-[13px] text-adm-soft">
           {submission.content}
         </pre>
       )}
@@ -158,9 +159,7 @@ export function ReviewTab() {
             key={tab.key}
             type="button"
             onClick={() => setStatus(tab.key)}
-            className={`rounded-md px-2.5 py-1 text-xs ${
-              status === tab.key ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:bg-slate-800'
-            }`}
+            className={filterClass(status === tab.key)}
           >
             {tab.label}
           </button>

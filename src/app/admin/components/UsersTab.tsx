@@ -12,6 +12,7 @@ import {
   PRIMARY_BUTTON_CLASS,
   Panel,
   ROLE_LABELS,
+  filterClass,
   formatDateTime,
   jsonInit,
   requestJson,
@@ -72,11 +73,11 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={onClose}>
       <aside
-        className="h-full w-full max-w-md overflow-y-auto border-l border-slate-800 bg-slate-950 p-5"
+        className="h-full w-full max-w-md overflow-y-auto border-l border-adm-rule bg-adm-sheet p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">회원 상세</h3>
+          <h3 className="text-sm font-semibold text-adm-ink">회원 상세</h3>
           <button type="button" className={BUTTON_CLASS} onClick={onClose} aria-label="닫기">
             <X className="h-3.5 w-3.5" />
           </button>
@@ -84,20 +85,20 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
         {!detail ? (
           <EmptyState>불러오는 중입니다.</EmptyState>
         ) : (
-          <div className="space-y-5 text-xs">
+          <div className="space-y-5 text-[13px]">
             <section>
-              <p className="text-base font-semibold text-white">{detail.user.displayName}</p>
-              <p className="text-slate-400">
+              <p className="text-base font-semibold text-adm-ink">{detail.user.displayName}</p>
+              <p className="text-adm-muted">
                 @{detail.user.username} · {detail.user.email}
               </p>
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-adm-muted">
                 {ROLE_LABELS[detail.user.role] || detail.user.role} · 편집 {detail.user.edits} · 가입 {formatDateTime(detail.user.createdAt)}
               </p>
             </section>
 
             <section>
-              <h4 className="mb-1.5 font-semibold text-slate-300">연결 계정</h4>
-              <ul className="space-y-1 text-slate-400">
+              <h4 className="mb-1.5 font-semibold text-adm-soft">연결 계정</h4>
+              <ul className="space-y-1 text-adm-muted">
                 <li>구글: {detail.user.identities.google ? '연결됨' : detail.user.identities.legacySso ? '예전 SSO만 있음' : '없음'}</li>
                 <li>네이버: {detail.user.identities.naver || '없음'}</li>
                 <li>Discord: {detail.user.identities.discord || '없음'}</li>
@@ -106,13 +107,13 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
 
             {(detail.user.banStatus?.isBanned || detail.user.warnings.length > 0) && (
               <section>
-                <h4 className="mb-1.5 font-semibold text-slate-300">제재 내역</h4>
+                <h4 className="mb-1.5 font-semibold text-adm-soft">제재 내역</h4>
                 {detail.user.banStatus?.isBanned && (
-                  <p className="text-rose-300">
+                  <p className="text-adm-pencil">
                     차단 중: {detail.user.banStatus.reason || '사유 없음'} ({detail.user.banStatus.bannedBy})
                   </p>
                 )}
-                <ul className="mt-1 space-y-1 text-amber-300">
+                <ul className="mt-1 space-y-1 text-adm-warn">
                   {detail.user.warnings.map((warning, index) => (
                     <li key={index}>
                       경고: {warning.reason} · {warning.warnedBy} · {formatDateTime(warning.warnedAt)}
@@ -123,11 +124,11 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
             )}
 
             <section>
-              <h4 className="mb-1.5 font-semibold text-slate-300">최근 로그인</h4>
+              <h4 className="mb-1.5 font-semibold text-adm-soft">최근 로그인</h4>
               {detail.logins.length === 0 ? (
-                <p className="text-slate-500">기록이 없습니다.</p>
+                <p className="text-adm-muted">기록이 없습니다.</p>
               ) : (
-                <ul className="space-y-1 text-slate-400">
+                <ul className="space-y-1 text-adm-muted">
                   {detail.logins.map((login) => (
                     <li key={login.id}>
                       {formatDateTime(login.createdAt)} · {login.provider} · {login.device} · {login.ip}
@@ -138,18 +139,18 @@ function UserDetailPanel({ userId, onClose }: { userId: string; onClose: () => v
             </section>
 
             <section>
-              <h4 className="mb-1.5 font-semibold text-slate-300">최근 편집</h4>
+              <h4 className="mb-1.5 font-semibold text-adm-soft">최근 편집</h4>
               {detail.edits.length === 0 ? (
-                <p className="text-slate-500">기록이 없습니다.</p>
+                <p className="text-adm-muted">기록이 없습니다.</p>
               ) : (
-                <ul className="space-y-1 text-slate-400">
+                <ul className="space-y-1 text-adm-muted">
                   {detail.edits.map((edit) => (
                     <li key={edit.id}>
                       <a
                         href={`/wiki/${encodeURIComponent(edit.title)}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-slate-200 hover:text-cyan-300"
+                        className="text-adm-ink hover:text-adm-accent"
                       >
                         {edit.title}
                       </a>{' '}
@@ -186,14 +187,14 @@ function UserActions({ user, onChanged }: { user: UserRow; onChanged: () => void
     }
   }
 
-  if (protectedUser) return <span className="text-[11px] text-slate-600">관리자는 변경할 수 없음</span>
+  if (protectedUser) return <span className="text-xs text-adm-faint">관리자는 변경할 수 없음</span>
 
   return (
     <div className="flex flex-col items-end gap-1.5">
       <div className="flex flex-wrap justify-end gap-1.5">
         <select
           aria-label={`${user.username} 권한`}
-          className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-1 text-xs text-slate-200"
+          className="rounded-md border border-adm-rule bg-adm-well px-1.5 py-1 text-[13px] text-adm-ink"
           value={ASSIGNABLE_ROLES.includes(user.role) ? user.role : 'editor'}
           onChange={(event) => run('role', { role: event.target.value })}
         >
@@ -227,7 +228,7 @@ function UserActions({ user, onChanged }: { user: UserRow; onChanged: () => void
           {mode === 'ban' && (
             <select
               aria-label="차단 기간"
-              className="rounded-md border border-slate-700 bg-slate-900 px-1 text-xs text-slate-200"
+              className="rounded-md border border-adm-rule bg-adm-well px-1 text-[13px] text-adm-ink"
               value={days}
               onChange={(event) => setDays(event.target.value)}
             >
@@ -311,9 +312,7 @@ export function UsersTab() {
               key={filter.key}
               type="button"
               onClick={() => setStatus(filter.key)}
-              className={`rounded-md px-2.5 py-1 text-xs ${
-                status === filter.key ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:bg-slate-800'
-              }`}
+              className={filterClass(status === filter.key)}
             >
               {filter.label}
             </button>
@@ -326,12 +325,12 @@ export function UsersTab() {
       ) : users.length === 0 ? (
         <EmptyState>회원이 없습니다.</EmptyState>
       ) : (
-        <ul className="divide-y divide-slate-800">
+        <ul className="divide-y divide-adm-rule">
           {users.map((user) => (
             <li key={user.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-              <button type="button" className="min-w-0 text-left text-xs" onClick={() => setDetailId(user.id)}>
+              <button type="button" className="min-w-0 text-left text-[13px]" onClick={() => setDetailId(user.id)}>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-medium text-slate-100 hover:text-cyan-300">
+                  <span className="text-sm font-medium text-adm-ink hover:text-adm-accent">
                     {user.displayName || user.username}
                   </span>
                   <Badge tone={user.role === 'admin' ? 'rose' : user.role === 'moderator' ? 'cyan' : 'slate'}>
@@ -344,7 +343,7 @@ export function UsersTab() {
                   ) : null}
                   {(user.warnings?.length || 0) > 0 && <Badge tone="amber">경고 {user.warnings!.length}</Badge>}
                 </div>
-                <p className="mt-0.5 text-slate-500">
+                <p className="mt-0.5 text-adm-muted">
                   @{user.username} · {user.email} · 편집 {user.edits} · 최근 로그인 {formatDateTime(user.lastLogin)}
                 </p>
               </button>

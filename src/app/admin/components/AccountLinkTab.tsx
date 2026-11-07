@@ -49,14 +49,14 @@ function UserPicker({ label, hint, value, onChange }: { label: string; hint: str
   }
 
   return (
-    <div className="min-w-0 flex-1 rounded-lg border border-slate-800 p-3">
-      <p className="text-xs font-semibold text-slate-200">{label}</p>
-      <p className="mb-2 text-[11px] text-slate-500">{hint}</p>
+    <div className="min-w-0 flex-1 rounded-lg border border-adm-rule p-3">
+      <p className="text-[13px] font-semibold text-adm-ink">{label}</p>
+      <p className="mb-2 text-xs text-adm-muted">{hint}</p>
       {value ? (
-        <div className="flex items-center justify-between gap-2 rounded-md bg-slate-900 px-2.5 py-2 text-xs">
+        <div className="flex items-center justify-between gap-2 rounded-md bg-adm-well px-2.5 py-2 text-[13px]">
           <div className="min-w-0">
-            <p className="truncate font-medium text-slate-100">{value.displayName || value.username}</p>
-            <p className="truncate text-slate-500">
+            <p className="truncate font-medium text-adm-ink">{value.displayName || value.username}</p>
+            <p className="truncate text-adm-muted">
               @{value.username} · {value.email}
             </p>
           </div>
@@ -86,10 +86,10 @@ function UserPicker({ label, hint, value, onChange }: { label: string; hint: str
                     onChange(user)
                     setResults([])
                   }}
-                  className="w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-slate-800"
+                  className="w-full rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-adm-well"
                 >
-                  <span className="text-slate-100">{user.displayName || user.username}</span>
-                  <span className="ml-1.5 text-slate-500">
+                  <span className="text-adm-ink">{user.displayName || user.username}</span>
+                  <span className="ml-1.5 text-adm-muted">
                     @{user.username} · {user.email}
                     {!user.isActive ? ' · 비활성' : ''}
                   </span>
@@ -105,11 +105,11 @@ function UserPicker({ label, hint, value, onChange }: { label: string; hint: str
 
 function SummaryCard({ title, account }: { title: string; account: AccountSummary }) {
   return (
-    <div className="min-w-0 flex-1 rounded-md bg-slate-900 p-3 text-xs">
-      <p className="text-[11px] text-slate-500">{title}</p>
-      <p className="mt-0.5 font-medium text-slate-100">{account.displayName}</p>
-      <p className="text-slate-500">@{account.username}</p>
-      <ul className="mt-2 space-y-0.5 text-slate-400">
+    <div className="min-w-0 flex-1 rounded-md bg-adm-well p-3 text-[13px]">
+      <p className="text-xs text-adm-muted">{title}</p>
+      <p className="mt-0.5 font-medium text-adm-ink">{account.displayName}</p>
+      <p className="text-adm-muted">@{account.username}</p>
+      <ul className="mt-2 space-y-0.5 text-adm-muted">
         <li>{account.email}</li>
         <li>
           구글 {account.google ? '연결' : '없음'} · 네이버 {account.naver ? '연결' : '없음'}
@@ -158,7 +158,7 @@ export function AccountLinkTab() {
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-stretch">
         <UserPicker label="새로 생긴 계정" hint="회원이 지금 로그인하는 계정" value={source} onChange={setSource} />
-        <div className="flex items-center justify-center text-slate-600">
+        <div className="flex items-center justify-center text-adm-faint">
           <ArrowRight className="h-5 w-5 rotate-90 md:rotate-0" />
         </div>
         <UserPicker label="기존 계정" hint="예전 문서와 기록이 있는 계정" value={target} onChange={setTarget} />
@@ -176,7 +176,7 @@ export function AccountLinkTab() {
               </div>
               {preview.plan.ok ? (
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[13px] text-adm-muted">
                     옮길 로그인: {[preview.plan.moveGoogle && '구글', preview.plan.moveNaver && '네이버'].filter(Boolean).join(', ')}
                   </p>
                   <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={running} onClick={run}>
@@ -184,7 +184,7 @@ export function AccountLinkTab() {
                   </button>
                 </div>
               ) : (
-                <p className="mt-3 text-xs text-amber-300">{preview.plan.error}</p>
+                <p className="mt-3 text-[13px] text-adm-warn">{preview.plan.error}</p>
               )}
             </>
           )}

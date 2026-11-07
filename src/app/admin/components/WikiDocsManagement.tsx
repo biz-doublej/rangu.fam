@@ -193,9 +193,9 @@ export default function WikiDocsManagement() {
       {/* 헤더 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-cyan-400" />
-          <h3 className="text-sm font-semibold text-white">문서 관리</h3>
-          <span className="text-xs text-slate-500">
+          <FileText className="h-4 w-4 text-adm-accent" />
+          <h3 className="text-sm font-semibold text-adm-ink">문서 관리</h3>
+          <span className="text-[13px] text-adm-muted">
             {loading ? '불러오는 중…' : `${visible.length}개 표시 / 전체 ${total.toLocaleString()}개`}
           </span>
         </div>
@@ -206,14 +206,14 @@ export default function WikiDocsManagement() {
               e.preventDefault()
               setAppliedSearch(search.trim())
             }}
-            className="flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2"
+            className="flex items-center gap-1 rounded-md border border-adm-rule bg-adm-well px-2"
           >
-            <Search className="h-3.5 w-3.5 text-slate-500" />
+            <Search className="h-3.5 w-3.5 text-adm-muted" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="제목·내용·태그 검색"
-              className="w-44 bg-transparent py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none"
+              className="w-44 bg-transparent py-1.5 text-[13px] text-adm-ink placeholder:text-adm-faint focus:outline-none"
             />
             {appliedSearch && (
               <button
@@ -222,7 +222,7 @@ export default function WikiDocsManagement() {
                   setSearch('')
                   setAppliedSearch('')
                 }}
-                className="rounded p-0.5 text-slate-500 hover:text-slate-200"
+                className="rounded p-0.5 text-adm-muted hover:text-adm-ink"
                 title="검색 초기화"
               >
                 <X className="h-3 w-3" />
@@ -233,7 +233,7 @@ export default function WikiDocsManagement() {
             type="button"
             onClick={() => load()}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-adm-rule px-2.5 py-1.5 text-[13px] text-adm-soft transition hover:bg-adm-well disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             새로고침
@@ -248,10 +248,10 @@ export default function WikiDocsManagement() {
             key={f.key}
             type="button"
             onClick={() => setFilter(f.key)}
-            className={`rounded-full px-3 py-1 text-xs transition ${
+            className={`rounded-full px-3 py-1 text-[13px] transition ${
               filter === f.key
-                ? 'border border-cyan-500/30 bg-cyan-500/15 text-cyan-300'
-                : 'border border-slate-700 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                ? 'border border-adm-accent/40 bg-adm-accent/10 text-adm-accent'
+                : 'border border-adm-rule text-adm-muted hover:bg-adm-well hover:text-adm-ink'
             }`}
           >
             {f.label}
@@ -260,10 +260,10 @@ export default function WikiDocsManagement() {
       </div>
 
       {/* 목록 */}
-      <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60">
+      <div className="overflow-x-auto rounded-lg border border-adm-rule bg-adm-well">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-adm-rule text-xs uppercase tracking-wide text-adm-muted">
               <th className="px-4 py-2.5 font-medium">문서</th>
               <th className="px-3 py-2.5 font-medium">최근 편집</th>
               <th className="px-3 py-2.5 font-medium">리비전</th>
@@ -274,52 +274,52 @@ export default function WikiDocsManagement() {
           <tbody>
             {visible.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-adm-muted">
                   {loading ? '불러오는 중…' : '조건에 맞는 문서가 없습니다.'}
                 </td>
               </tr>
             )}
             {visible.map((doc) => (
-              <tr key={doc.id} className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/30">
+              <tr key={doc.id} className="border-b border-adm-rule last:border-0 hover:bg-adm-well">
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-medium text-slate-100">{doc.title}</span>
+                    <span className="font-medium text-adm-ink">{doc.title}</span>
                     {doc.namespace !== 'main' && (
-                      <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
+                      <span className="rounded bg-adm-well px-1.5 py-0.5 text-[11px] text-adm-muted">
                         {doc.namespace}
                       </span>
                     )}
                     {(doc.protection?.level ?? 'none') !== 'none' && (
-                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+                      <span className="rounded-full border border-adm-warn/40 bg-adm-warn/10 px-1.5 py-0.5 text-[11px] text-adm-warn">
                         보호: {doc.protection?.level}
                       </span>
                     )}
                     {doc.editLock?.isLocked && (
-                      <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                      <span className="rounded-full border border-adm-accent/40 bg-adm-accent/10 px-1.5 py-0.5 text-[11px] text-adm-accent">
                         잠김: {doc.editLock.lockedBy || '?'}
                       </span>
                     )}
                     {doc.isRedirect && (
-                      <span className="rounded-full border border-slate-500/40 bg-slate-500/10 px-1.5 py-0.5 text-[10px] text-slate-300">
+                      <span className="rounded-full border border-adm-rule bg-adm-well px-1.5 py-0.5 text-[11px] text-adm-soft">
                         → {doc.redirectTarget || '리다이렉트'}
                       </span>
                     )}
                     {doc.isDeleted && (
-                      <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-300">
+                      <span className="rounded-full border border-adm-pencil/40 bg-adm-pencil/10 px-1.5 py-0.5 text-[11px] text-adm-pencil">
                         삭제됨{doc.deletedBy ? ` (${doc.deletedBy})` : ''}
                       </span>
                     )}
                   </div>
                   {doc.isDeleted && doc.deleteReason && (
-                    <p className="mt-0.5 text-[11px] text-slate-500">사유: {doc.deleteReason}</p>
+                    <p className="mt-0.5 text-xs text-adm-muted">사유: {doc.deleteReason}</p>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-xs text-slate-400">
+                <td className="px-3 py-2.5 text-[13px] text-adm-muted">
                   <div>{doc.lastEditor || '—'}</div>
-                  <div className="text-[11px] text-slate-500">{formatDate(doc.lastEditDate)}</div>
+                  <div className="text-xs text-adm-muted">{formatDate(doc.lastEditDate)}</div>
                 </td>
-                <td className="px-3 py-2.5 font-mono text-xs text-slate-400">r{doc.currentRevision}</td>
-                <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-slate-400">
+                <td className="px-3 py-2.5 font-mono text-[13px] text-adm-muted">r{doc.currentRevision}</td>
+                <td className="px-3 py-2.5 font-mono text-[13px] tabular-nums text-adm-muted">
                   {doc.views.toLocaleString()}
                 </td>
                 <td className="px-3 py-2.5">
@@ -328,7 +328,7 @@ export default function WikiDocsManagement() {
                       href={`/wiki/${encodeURIComponent(doc.title)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-cyan-300"
+                      className="rounded p-1.5 text-adm-muted transition hover:bg-adm-well hover:text-adm-accent"
                       title="문서 보기 (새 탭)"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -339,7 +339,7 @@ export default function WikiDocsManagement() {
                           type="button"
                           disabled={busy}
                           onClick={() => setHistoryTarget(doc)}
-                          className="rounded p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-cyan-300 disabled:opacity-40"
+                          className="rounded p-1.5 text-adm-muted transition hover:bg-adm-well hover:text-adm-accent disabled:opacity-40"
                           title="역사 · 되돌리기"
                         >
                           <History className="h-3.5 w-3.5" />
@@ -348,7 +348,7 @@ export default function WikiDocsManagement() {
                           type="button"
                           disabled={busy}
                           onClick={() => setProtectTarget(doc)}
-                          className="rounded p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-amber-300 disabled:opacity-40"
+                          className="rounded p-1.5 text-adm-muted transition hover:bg-adm-well hover:text-adm-warn disabled:opacity-40"
                           title="보호 설정"
                         >
                           <Shield className="h-3.5 w-3.5" />
@@ -357,7 +357,7 @@ export default function WikiDocsManagement() {
                           type="button"
                           disabled={busy}
                           onClick={() => setMoveTarget(doc)}
-                          className="rounded p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-emerald-300 disabled:opacity-40"
+                          className="rounded p-1.5 text-adm-muted transition hover:bg-adm-well hover:text-adm-ok disabled:opacity-40"
                           title="문서 이동 (제목 변경)"
                         >
                           <ArrowRightLeft className="h-3.5 w-3.5" />
@@ -367,7 +367,7 @@ export default function WikiDocsManagement() {
                             type="button"
                             disabled={busy}
                             onClick={() => unlockDoc(doc)}
-                            className="rounded p-1.5 text-cyan-300 transition hover:bg-slate-800 hover:text-cyan-200 disabled:opacity-40"
+                            className="rounded p-1.5 text-adm-accent transition hover:bg-adm-well hover:text-adm-accent disabled:opacity-40"
                             title="편집 잠금 해제"
                           >
                             <LockOpen className="h-3.5 w-3.5" />
@@ -377,7 +377,7 @@ export default function WikiDocsManagement() {
                           type="button"
                           disabled={busy}
                           onClick={() => setDeleteTarget(doc)}
-                          className="rounded p-1.5 text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40"
+                          className="rounded p-1.5 text-adm-muted transition hover:bg-adm-pencil/10 hover:text-adm-pencil disabled:opacity-40"
                           title="문서 삭제"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -389,7 +389,7 @@ export default function WikiDocsManagement() {
                         type="button"
                         disabled={busy}
                         onClick={() => restoreDoc(doc)}
-                        className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-40"
+                        className="inline-flex items-center gap-1 rounded border border-adm-ok/40 bg-adm-ok/10 px-2 py-1 text-xs text-adm-ok transition hover:bg-adm-ok/10 disabled:opacity-40"
                         title="문서 복구"
                       >
                         <Undo2 className="h-3 w-3" />
@@ -404,7 +404,7 @@ export default function WikiDocsManagement() {
         </table>
       </div>
 
-      <p className="text-[11px] text-slate-500">
+      <p className="text-xs text-adm-muted">
         삭제는 소프트 삭제(복구 가능)입니다. 보호 레벨: 준보호(semi)=editor 이상, 완전 보호(full)=moderator
         이상, admin=관리자 전용. 편집 잠금은 10분짜리 동시 편집 방지 잠금입니다.
       </p>
@@ -507,15 +507,15 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[85vh] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-5 shadow-xl`}
+        className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[85vh] overflow-y-auto rounded-md border border-adm-rule bg-adm-sheet p-5 shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          <h3 className="text-sm font-semibold text-adm-ink">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            className="rounded p-1 text-adm-muted transition hover:bg-adm-well hover:text-adm-ink"
           >
             <X className="h-4 w-4" />
           </button>
@@ -527,12 +527,12 @@ function Modal({
 }
 
 const inputClass =
-  'w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500/60 focus:outline-none'
-const labelClass = 'mb-1 block text-xs text-slate-400'
+  'w-full rounded-md border border-adm-rule bg-adm-well px-3 py-2 text-sm text-adm-ink placeholder:text-adm-faint focus:border-adm-accent/40 focus:outline-none'
+const labelClass = 'mb-1 block text-[13px] text-adm-muted'
 const primaryBtnClass =
-  'inline-flex items-center justify-center gap-1.5 rounded-md bg-cyan-500 px-3 py-2 text-xs font-medium text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50'
+  'inline-flex items-center justify-center gap-1.5 rounded-md bg-adm-accent px-3 py-2 text-[13px] font-medium text-adm-onaccent transition hover:bg-adm-accent/90 disabled:opacity-50'
 const ghostBtnClass =
-  'inline-flex items-center justify-center rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:bg-slate-800 disabled:opacity-50'
+  'inline-flex items-center justify-center rounded-md border border-adm-rule px-3 py-2 text-[13px] text-adm-soft transition hover:bg-adm-well disabled:opacity-50'
 
 // ── 보호 설정 모달 ───────────────────────────────────────
 function ProtectModal({
@@ -634,7 +634,7 @@ function MoveModal({
   return (
     <Modal title={`문서 이동 — ${doc.title}`} onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-xs leading-relaxed text-slate-400">
+        <p className="text-[13px] leading-relaxed text-adm-muted">
           원본 문서는 새 제목으로의 리다이렉트로 전환됩니다.
         </p>
         <div>
@@ -727,42 +727,42 @@ function HistoryModal({
           />
         </div>
 
-        {loading && <p className="py-6 text-center text-sm text-slate-500">리비전 불러오는 중…</p>}
+        {loading && <p className="py-6 text-center text-sm text-adm-muted">리비전 불러오는 중…</p>}
         {!loading && revisions.length === 0 && (
-          <p className="py-6 text-center text-sm text-slate-500">리비전 기록이 없습니다.</p>
+          <p className="py-6 text-center text-sm text-adm-muted">리비전 기록이 없습니다.</p>
         )}
 
         {!loading && revisions.length > 0 && (
-          <ul className="divide-y divide-slate-800 rounded-md border border-slate-800">
+          <ul className="divide-y divide-adm-rule rounded-md border border-adm-rule">
             {revisions.map((rev) => {
               const isCurrent = rev.revisionNumber === doc.currentRevision
               return (
                 <li key={rev.revisionNumber} className="flex items-center gap-3 px-3 py-2">
-                  <span className="w-12 shrink-0 font-mono text-xs text-slate-400">
+                  <span className="w-12 shrink-0 font-mono text-[13px] text-adm-muted">
                     r{rev.revisionNumber}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs text-slate-300">
-                      {rev.summary || <span className="text-slate-600">(요약 없음)</span>}
+                    <p className="truncate text-[13px] text-adm-soft">
+                      {rev.summary || <span className="text-adm-faint">(요약 없음)</span>}
                     </p>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-xs text-adm-muted">
                       {rev.author} · {formatDate(rev.timestamp)} · {rev.editType}
                       {rev.isReverted ? ' · 되돌려짐' : ''}
                     </p>
                   </div>
                   <span
-                    className={`shrink-0 font-mono text-[11px] tabular-nums ${
+                    className={`shrink-0 font-mono text-xs tabular-nums ${
                       rev.sizeChange > 0
-                        ? 'text-emerald-400'
+                        ? 'text-adm-ok'
                         : rev.sizeChange < 0
-                          ? 'text-rose-400'
-                          : 'text-slate-500'
+                          ? 'text-adm-pencil'
+                          : 'text-adm-muted'
                     }`}
                   >
                     {rev.sizeChange > 0 ? `+${rev.sizeChange}` : rev.sizeChange}
                   </span>
                   {isCurrent ? (
-                    <span className="shrink-0 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300">
+                    <span className="shrink-0 rounded-full border border-adm-accent/40 bg-adm-accent/10 px-2 py-0.5 text-[11px] text-adm-accent">
                       현재
                     </span>
                   ) : (
@@ -776,7 +776,7 @@ function HistoryModal({
                           summary.trim() || `r${rev.revisionNumber} 판으로 되돌리기 (관리자)`
                         )
                       }}
-                      className="shrink-0 rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-300 transition hover:border-cyan-500/40 hover:text-cyan-300 disabled:opacity-40"
+                      className="shrink-0 rounded border border-adm-rule px-2 py-1 text-xs text-adm-soft transition hover:border-adm-accent/40 hover:text-adm-accent disabled:opacity-40"
                     >
                       {busy ? '처리 중…' : '이 판으로 되돌리기'}
                     </button>
@@ -808,7 +808,7 @@ function DeleteModal({
   return (
     <Modal title={`문서 삭제 — ${doc.title}`} onClose={onClose}>
       <div className="space-y-3">
-        <p className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+        <p className="rounded-md border border-adm-pencil/40 bg-adm-pencil/10 px-3 py-2 text-[13px] leading-relaxed text-adm-pencil">
           소프트 삭제됩니다 — 문서가 위키에서 숨겨지며, &ldquo;삭제됨&rdquo; 필터에서 언제든 복구할 수
           있습니다.
         </p>
@@ -830,7 +830,7 @@ function DeleteModal({
             type="button"
             disabled={busy}
             onClick={() => onSubmit(reason.trim())}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-rose-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-rose-400 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-adm-pencil px-3 py-2 text-[13px] font-medium text-adm-ink transition hover:bg-adm-pencil disabled:opacity-50"
           >
             <Trash2 className="h-3.5 w-3.5" />
             {busy ? '삭제 중…' : '삭제'}
