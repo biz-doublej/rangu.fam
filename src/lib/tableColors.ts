@@ -196,6 +196,24 @@ export interface WikiCellStyle {
   width?: string
   /** <bgimage:주소> — 칸(또는 <tablebgimage:주소> 표) 뒤에 깔리는 그림 */
   backgroundImage?: string
+  /** <bgcolor:#fff,#1c1d1f> 처럼 쉼표 뒤에 적은 다크 모드 색 */
+  backgroundColorDark?: string
+  textColorDark?: string
+  /** <nopad> — 칸 안쪽 여백 없애기 */
+  noPadding?: boolean
+}
+
+/**
+ * `#밝은색,#어두운색` 처럼 라이트/다크 두 색을 받는다. 쉼표가 없으면 한 색만.
+ * rgb(…) 같은 함수형 색은 쉼표를 품고 있으므로 나누지 않는다.
+ */
+export function normalizeColorPair(value: string): { light?: string; dark?: string } {
+  const v = value.trim()
+  if (/^(rgb|hsl)a?\(/i.test(v) || !v.includes(',')) {
+    return { light: normalizeColor(v) || undefined }
+  }
+  const [light, dark] = v.split(',').map((part) => part.trim())
+  return { light: normalizeColor(light) || undefined, dark: normalizeColor(dark || '') || undefined }
 }
 
 export interface ParsedCellDirectives {
@@ -217,7 +235,7 @@ const ALIGN_VALUES = new Set(['left', 'center', 'right'])
  */
 export function normalizeBackgroundImage(value: string): string | undefined {
   const v = value.trim()
-  if (!/^(https?:\/\/|\/(?!\/))[^\s"'()\<>]+$/.test(v)) return undefined
+  if (!/^(https?:\/\/|\/(?!\/))[^\s"'()\\<>]+$/.test(v)) return undefined
   return v
 }
 
@@ -248,9 +266,9 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
     .replace(/<([^<>]+)>/g, (full, inner: string) => {
       const pairs: Array<{ scope: string; attr: string; value: string }> = []
       const spans: Array<{ kind: 'col' | 'row'; n: number }> = []
-      // key:value 지시자 또는 병합 토큰(-N = 열 병합, |N = 행 병합)
+      // key:value(또는 나무위키식 key=value) 지시자, 병합 토큰(-N 열 / |N 행), nopad
       const pairRe =
-        /\s*(?:(table|row)?(bgimage|bgcolor|color|border|align|font|width):("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+))\s*/y
+        /\s*(?:(table|row)?(bgimage|bgcolor|bordercolor|color|border|align|font|width)[:=]("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+)|(nopad))\s*/iy
       let idx = 0
       let ok = true
       while (idx < inner.length) {
@@ -264,6 +282,8 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
           spans.push({ kind: 'col', n: parseInt(m[4].slice(1), 10) })
         } else if (m[5]) {
           spans.push({ kind: 'row', n: parseInt(m[5].slice(1), 10) })
+        } else if (m[6]) {
+          pairs.push({ scope: '', attr: 'nopad', value: '' })
         } else {
           let value = m[3].trim()
           if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
@@ -283,15 +303,26 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
         const target = scope === 'table' ? result.table : scope === 'row' ? result.row : result.cell
         switch (attr) {
           case 'bgcolor': {
-            const c = normalizeColor(value)
-            if (c) target.backgroundColor = c
+            const { light, dark } = normalizeColorPair(value)
+            if (light) {
+              target.backgroundColor = light
+              target.backgroundColorDark = dark
+            }
             break
           }
           case 'color': {
-            const c = normalizeColor(value)
-            if (c) target.textColor = c
+            const { light, dark } = normalizeColorPair(value)
+            if (light) {
+              target.textColor = light
+              target.textColorDark = dark
+            }
             break
           }
+          case 'nopad': {
+            target.noPadding = true
+            break
+          }
+          case 'bordercolor':
           case 'border': {
             const c = normalizeColor(value)
             if (c) target.borderColor = c
@@ -328,8 +359,15 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
 
 /** 행/표 스타일 수집용 — 먼저 지정된 값을 우선한다 (덮어쓰지 않음) */
 export function assignStyleDefaults(target: WikiCellStyle, source: WikiCellStyle): void {
-  if (!target.backgroundColor && source.backgroundColor) target.backgroundColor = source.backgroundColor
-  if (!target.textColor && source.textColor) target.textColor = source.textColor
+  if (!target.backgroundColor && source.backgroundColor) {
+    target.backgroundColor = source.backgroundColor
+    target.backgroundColorDark = source.backgroundColorDark
+  }
+  if (!target.textColor && source.textColor) {
+    target.textColor = source.textColor
+    target.textColorDark = source.textColorDark
+  }
+  if (!target.noPadding && source.noPadding) target.noPadding = true
   if (!target.borderColor && source.borderColor) target.borderColor = source.borderColor
   if (!target.textAlign && source.textAlign) target.textAlign = source.textAlign
   if (!target.fontFamily && source.fontFamily) target.fontFamily = source.fontFamily
@@ -344,18 +382,30 @@ export function mergeCellStylesToCss(
   const merged: WikiCellStyle = {}
   for (const layer of layers) {
     if (!layer) continue
-    if (layer.backgroundColor) merged.backgroundColor = layer.backgroundColor
-    if (layer.textColor) merged.textColor = layer.textColor
+    // 색을 덮어쓰면 그 층의 다크 색도 함께 바꾼다 (아래 층의 다크 색이 남지 않게)
+    if (layer.backgroundColor) {
+      merged.backgroundColor = layer.backgroundColor
+      merged.backgroundColorDark = layer.backgroundColorDark
+    }
+    if (layer.textColor) {
+      merged.textColor = layer.textColor
+      merged.textColorDark = layer.textColorDark
+    }
     if (layer.borderColor) merged.borderColor = layer.borderColor
     if (layer.textAlign) merged.textAlign = layer.textAlign
     if (layer.fontFamily) merged.fontFamily = layer.fontFamily
     if (layer.width) merged.width = layer.width
     if (layer.backgroundImage) merged.backgroundImage = layer.backgroundImage
+    if (layer.noPadding) merged.noPadding = true
   }
 
-  const css: React.CSSProperties = {}
+  const css: React.CSSProperties & Record<string, string> = {}
   if (merged.backgroundColor) css.backgroundColor = merged.backgroundColor
   if (merged.textColor) css.color = merged.textColor
+  // 다크 모드 색은 변수로 넘기고 globals.css 가 다크 화면에서만 적용한다
+  if (merged.backgroundColorDark) css['--wd-bg'] = merged.backgroundColorDark
+  if (merged.textColorDark) css['--wd-color'] = merged.textColorDark
+  if (merged.noPadding) css.padding = '0'
   if (merged.borderColor) css.borderColor = merged.borderColor
   if (merged.textAlign) css.textAlign = merged.textAlign
   if (merged.fontFamily) css.fontFamily = merged.fontFamily

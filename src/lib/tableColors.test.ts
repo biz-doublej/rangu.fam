@@ -44,3 +44,42 @@ describe('background image directive', () => {
     expect(normalizeBackgroundImage('//evil.com/a.png')).toBeUndefined()
   })
 })
+
+describe('namu-style table options', () => {
+  it('accepts = as well as : and namu aliases', () => {
+    const parsed = parseCellDirectives('<tablewidth=100%><tablebordercolor=#0b090c><bgcolor=#e6002d><nopad> 감독')
+    expect(parsed.content).toBe('감독')
+    expect(parsed.table.width).toBe('100%')
+    expect(parsed.table.borderColor).toBe('#0b090c')
+    expect(parsed.cell.backgroundColor).toBe('#e6002d')
+    expect(parsed.cell.noPadding).toBe(true)
+  })
+
+  it('reads light and dark color pairs', () => {
+    const parsed = parseCellDirectives('<tablebgcolor=#fff,#1c1d1f><tablecolor=#212529,#e0e0e0> 칸')
+    expect(parsed.table.backgroundColor).toBe('#fff')
+    expect(parsed.table.backgroundColorDark).toBe('#1c1d1f')
+    expect(mergeCellStylesToCss(parsed.table)).toMatchObject({
+      backgroundColor: '#fff',
+      '--wd-bg': '#1c1d1f',
+      color: '#212529',
+      '--wd-color': '#e0e0e0',
+    })
+  })
+
+  it('drops the lower layer dark color when a cell sets its own color', () => {
+    const table = parseCellDirectives('<tablebgcolor=#fff,#1c1d1f> a').table
+    const cell = parseCellDirectives('<bgcolor=#e6002d> b').cell
+    const css = mergeCellStylesToCss(table, cell)
+    expect(css.backgroundColor).toBe('#e6002d')
+    expect(css['--wd-bg' as keyof typeof css]).toBeUndefined()
+  })
+
+  it('does not split rgb() colors on commas', () => {
+    expect(parseCellDirectives('<bgcolor:rgb(1,2,3)> x').cell.backgroundColor).toBe('rgb(1,2,3)')
+  })
+
+  it('rejects backslashes in background image addresses', () => {
+    expect(normalizeBackgroundImage(`/a${String.fromCharCode(92)}b.png`)).toBeUndefined()
+  })
+})

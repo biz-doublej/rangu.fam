@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { BannerBoxStyle } from '@/lib/bannerBox'
+import { barTrim, bannerTrim, diagonalPattern, type BannerBoxStyle } from '@/lib/bannerBox'
 
 export interface WikiBannerBoxProps {
   style: BannerBoxStyle
@@ -63,23 +63,48 @@ export function WikiBannerBox({
   }, [style.pinTop])
   if (slot === undefined) return null
 
+  const sideClass = `wiki-banner-box__side${style.sideImagesTop ? ' wiki-banner-box__side--top' : ''}`
+  const barStyle = {
+    backgroundColor: style.barColor,
+    ...(style.trim ? { backgroundImage: barTrim(style.bannerColor, style.trimLineColor, style.barColor) } : {}),
+    '--bb-bar-text': style.barText,
+  } as React.CSSProperties
+
   const box = (
     <section
       className={`wiki-banner-box${style.floatRight ? ' wiki-banner-box--float' : ''}`}
-      style={{ borderColor: style.border, ...(style.width ? { width: style.width } : {}) }}
+      style={
+        {
+          borderColor: style.border,
+          ...(style.width ? { width: style.width } : {}),
+          ...(style.badgeColor ? { '--wiki-badge-bg': style.badgeColor } : {}),
+        } as React.CSSProperties
+      }
     >
       <div
         className="wiki-banner-box__banner"
-        style={{ backgroundColor: style.bannerColor, color: style.bannerText, minHeight: style.height }}
+        style={{
+          backgroundColor: style.bannerColor,
+          ...(style.pattern === 'diagonal' ? { backgroundImage: diagonalPattern(style.bannerColor, style.patternColor) } : {}),
+          color: style.bannerText,
+          minHeight: style.height,
+        }}
       >
         {background && (
           <img className="wiki-banner-box__bg" src={background} alt="" aria-hidden="true" onError={onImageError} />
         )}
+        {style.trim && (
+          <div
+            className="wiki-banner-box__trim"
+            aria-hidden="true"
+            style={{ background: bannerTrim(style.trimLineColor, style.trimColor) }}
+          />
+        )}
         {leftImage && (
-          <img className="wiki-banner-box__side wiki-banner-box__side--left" src={leftImage} alt="" onError={onImageError} />
+          <img className={`${sideClass} wiki-banner-box__side--left`} src={leftImage} alt="" onError={onImageError} />
         )}
         {rightImage && (
-          <img className="wiki-banner-box__side wiki-banner-box__side--right" src={rightImage} alt="" onError={onImageError} />
+          <img className={`${sideClass} wiki-banner-box__side--right`} src={rightImage} alt="" onError={onImageError} />
         )}
         <div className="wiki-banner-box__heading">
           {logo && <img className="wiki-banner-box__logo" src={logo} alt="" onError={onImageError} />}
@@ -108,7 +133,7 @@ export function WikiBannerBox({
         <button
           type="button"
           className="wiki-banner-box__toggle"
-          style={{ backgroundColor: style.barColor, ['--bb-bar-text' as string]: style.barText } as React.CSSProperties}
+          style={barStyle}
           aria-expanded={!collapsed}
           aria-controls={bodyId}
           onClick={() => setCollapsed((value) => !value)}
@@ -120,12 +145,18 @@ export function WikiBannerBox({
       {hasBody && (
         <div
           id={bodyId}
-          className="wiki-banner-box__body"
+          className={`wiki-banner-box__body${style.linkColor ? ' wiki-banner-box__body--links' : ''}`}
           hidden={collapsed}
-          style={{
-            ...(style.bodyColor ? { backgroundColor: style.bodyColor } : {}),
-            ...(style.bodyText ? { color: style.bodyText } : {}),
-          }}
+          style={
+            {
+              ...(style.bodyColor ? { backgroundColor: style.bodyColor } : {}),
+              ...(style.bodyColorDark ? { '--wd-bg': style.bodyColorDark } : {}),
+              ...(style.bodyText ? { color: style.bodyText } : {}),
+              ...(style.bodyTextDark ? { '--wd-color': style.bodyTextDark } : {}),
+              ...(style.linkColor ? { '--bb-link': style.linkColor } : {}),
+              ...(style.linkColorDark ? { '--bb-link-dark': style.linkColorDark } : {}),
+            } as React.CSSProperties
+          }
         >
           {children}
           {hasFooter && (

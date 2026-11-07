@@ -1,4 +1,4 @@
-import { normalizeColor, normalizeWidth } from './tableColors'
+import { normalizeColor, normalizeColorPair, normalizeWidth } from './tableColors'
 
 /**
  * {{배너상자 ... }} 블록 — 위쪽 배너(배경 이미지·로고·제목), 사진, 펼치기·접기 띠,
@@ -84,6 +84,8 @@ export function readBannerBox(lines: string[], start: number): { spec: BannerBox
   return { spec: { params, body: bodyLines.join('\n') }, end: i }
 }
 
+const SAFE_COLOR = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/
+
 const YES = new Set(['예', '네', 'yes', 'true', '1', 'o'])
 const NO = new Set(['아니오', '아니요', 'no', 'false', '0', 'x'])
 
@@ -95,9 +97,25 @@ export interface BannerBoxStyle {
   /** 펼치기·접기 띠 색 */
   barColor: string
   barText: string
-  /** 본문 바탕·글자색 (비우면 위키 기본) */
+  /** 본문 바탕·글자색 (비우면 위키 기본). 쉼표 뒤는 다크 모드 색 */
   bodyColor?: string
+  bodyColorDark?: string
   bodyText?: string
+  bodyTextDark?: string
+  /** 배너 무늬 — |무늬=사선 이면 사선 줄무늬 (그림 없이) */
+  pattern?: 'diagonal'
+  patternColor: string
+  /** 유니폼 옆띠 — 배너 양끝과 펼치기 띠에 검은 띠·흰 선 장식 */
+  trim: boolean
+  trimColor: string
+  trimLineColor: string
+  /** 상자 안 배지 기본색 */
+  badgeColor?: string
+  /** 상자 본문 링크색 (쉼표 뒤는 다크 모드) */
+  linkColor?: string
+  linkColorDark?: string
+  /** 왼쪽·오른쪽 이미지를 배너 위쪽 모서리에 붙일지 */
+  sideImagesTop: boolean
   /** 상자 테두리 */
   border: string
   /** 상자 너비 (비우면 문단 폭) */
@@ -124,17 +142,36 @@ function flag(value: string | undefined): boolean | undefined {
 
 /** 색·너비 같은 값은 검증해서 안전한 값만 쓴다 */
 export function resolveBannerBoxStyle(params: Record<string, string>): BannerBoxStyle {
-  const color = (key: string, fallback?: string) => normalizeColor(params[key] || '') || fallback
+  // 배너 색은 CSS 그라디언트 문자열에 들어가므로 #hex 나 색 이름만 받는다
+  const color = (key: string, fallback?: string) => {
+    const value = normalizeColor((params[key] || '').trim())
+    return value && SAFE_COLOR.test(value) ? value : fallback
+  }
   const bannerColor = color('배경색', '#1f2a37')!
   const heightValue = normalizeWidth(params['높이'] || '')
   const collapsible = flag(params['접기']) ?? true
+  const pair = (key: string) => normalizeColorPair(params[key] || '')
+  const body = pair('본문색')
+  const bodyText = pair('본문글자색')
+  const link = pair('링크색')
   return {
+    bodyColorDark: body.dark,
+    bodyTextDark: bodyText.dark,
+    pattern: params['무늬']?.trim() === '사선' ? 'diagonal' : undefined,
+    patternColor: color('무늬색', '#770007')!,
+    trim: flag(params['옆띠']) ?? false,
+    trimColor: color('옆띠색', '#000000')!,
+    trimLineColor: color('옆띠선색', '#ffffff')!,
+    badgeColor: color('배지색'),
+    linkColor: link.light,
+    linkColorDark: link.dark,
+    sideImagesTop: params['옆이미지위치']?.trim() === '위',
     bannerColor,
     bannerText: color('글자색', '#ffffff')!,
     barColor: color('띠색', '#000000')!,
     barText: color('띠글자색', '#ffffff')!,
-    bodyColor: color('본문색'),
-    bodyText: color('본문글자색'),
+    bodyColor: body.light,
+    bodyText: bodyText.light,
     border: color('테두리색', bannerColor)!,
     width: normalizeWidth(params['너비'] || ''),
     height: heightValue && heightValue.endsWith('px') ? heightValue : '92px',
@@ -143,6 +180,29 @@ export function resolveBannerBoxStyle(params: Record<string, string>): BannerBox
     startCollapsed: collapsible && (flag(params['접힘']) ?? false),
     pinTop: flag(params['맨위']) ?? false,
   }
+}
+
+/**
+ * 배너 사선 줄무늬 (나무위키 국가대표 틀의 그 무늬). 색은 검증된 값만 들어온다.
+ */
+export function diagonalPattern(base: string, dark: string): string {
+  return `repeating-linear-gradient(45deg, ${dark} 2%, ${base} 5% 12%, ${dark} 15% 17%, ${base} 20%, ${dark} 22%, ${base} 25% 30%, ${dark} 32%, ${base} 35% 37%, ${dark} 40%, ${base} 42% 45%, ${dark} 47%)`
+}
+
+/** 배너 양끝 유니폼 옆띠 — 바깥 흰 선·검은 띠, 안쪽 세로 막대 */
+export function bannerTrim(line: string, band: string): string {
+  return [
+    `linear-gradient(to bottom, transparent 32%, ${band} 32%) 8% 0% / 2.5% 100% no-repeat`,
+    `linear-gradient(to bottom, transparent 32%, ${band} 32%) 92% 0% / 2.5% 100% no-repeat`,
+    `linear-gradient(to bottom, ${line} 7%, transparent 7% 32%, ${line} 32%) 10% 0% / 1.5% 100% no-repeat`,
+    `linear-gradient(to bottom, ${line} 7%, transparent 7% 32%, ${line} 32%) 90% 0% / 1.5% 100% no-repeat`,
+    `linear-gradient(to right, ${line} 1%, ${band} 1% 3.5%, transparent 3.5% 96.5%, ${band} 96.5% 99%, ${line} 99%)`,
+  ].join(', ')
+}
+
+/** 펼치기·접기 띠의 옆띠 장식 */
+export function barTrim(edge: string, line: string, bar: string): string {
+  return `linear-gradient(to right, ${edge} 2%, ${line} 2% 4%, ${bar} 4% 96%, ${line} 96% 98%, ${edge} 98%)`
 }
 
 /** `[[파일:주소]]` 로 적어도, 주소만 적어도 이미지 주소를 꺼낸다 */

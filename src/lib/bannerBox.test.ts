@@ -87,3 +87,30 @@ describe('readBannerBox without |본문=', () => {
     expect(spec.params['아래왼쪽']).toBe('[[이전|◀ 이전]]')
   })
 })
+
+describe('banner patterns and colors', () => {
+  it('reads pattern, trim, badge, link and paired body colors', () => {
+    const style = resolveBannerBoxStyle({
+      무늬: '사선',
+      옆띠: '예',
+      배지색: '#f20138',
+      링크색: '#0275d8,#ff9800',
+      본문색: '#fff,#1c1d1f',
+      옆이미지위치: '위',
+    })
+    expect(style.pattern).toBe('diagonal')
+    expect(style.trim).toBe(true)
+    expect(style.badgeColor).toBe('#f20138')
+    expect(style.linkColor).toBe('#0275d8')
+    expect(style.linkColorDark).toBe('#ff9800')
+    expect(style.bodyColor).toBe('#fff')
+    expect(style.bodyColorDark).toBe('#1c1d1f')
+    expect(style.sideImagesTop).toBe(true)
+  })
+
+  it('keeps banner colors out of css functions', () => {
+    const style = resolveBannerBoxStyle({ 배경색: 'rgb(0,0,0) 1%, url(https://evil.example/x)', 무늬색: 'red;x' })
+    expect(style.bannerColor).toBe('#1f2a37')
+    expect(style.patternColor).toBe('#770007')
+  })
+})

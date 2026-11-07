@@ -679,7 +679,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 key={key}
                 src={normalizeWikiImageSrc(match[1].trim())}
                 alt={options.alt || ''}
-                className="inline-block max-w-full h-auto align-middle"
+                className={`wiki-inline-img inline-block max-w-full h-auto align-middle${options.border === '1' ? ' wiki-img-bordered' : ''}`}
                 style={width ? { width } : undefined}
                 data-fallback-attempt="0"
                 onError={handleWikiImageError}
@@ -695,7 +695,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               key={key}
               src={normalizeWikiImageSrc(match[1].trim())}
               alt=""
-              className="inline-block max-w-full h-auto align-middle"
+              className="wiki-inline-img inline-block max-w-full h-auto align-middle"
               data-fallback-attempt="0"
               onError={handleWikiImageError}
             />
@@ -734,7 +734,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               >
                 {hasIcons ? parsedDisplayContent.map((part, idx) => (
                   <React.Fragment key={idx}>{part}</React.Fragment>
-                )) : displayText}
+                )) : /'''|''|\{\{\{|~~|__|\[br\]/i.test(displayText)
+                  // [[문서|'''굵게''']] [[문서|{{{#fff 색}}}]] 처럼 표시 글자에 서식이 있으면 서식대로 그린다
+                  ? parseInlineElements(displayText)
+                  : displayText}
               </a>
             )
           }
@@ -881,12 +884,17 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         },
         // 14. 색상 텍스트 {{{#색상 텍스트}}} — 안의 링크도 같은 색으로
         {
-          regex: /\{\{\{#([a-fA-F0-9]{6}|[a-zA-Z]+)\s+([^}]+)\}\}\}/g,
+          // {{{#색 글자}}} 또는 {{{#밝은색,#어두운색 글자}}} (쉼표 뒤는 다크 모드 색)
+          regex: /\{\{\{#([a-fA-F0-9]{6}|[a-fA-F0-9]{3}|[a-zA-Z]+)(?:,#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3}|[a-zA-Z]+))?\s+((?:\{\{\{[^{}]*\}\}\}|[^{}])+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => {
-            const [, color, text] = match
-            const cssColor = /^[a-fA-F0-9]{6}$/.test(color) ? `#${color}` : color
+            const [, color, darkColor, text] = match
+            const toCss = (value: string) => (/^([a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/.test(value) ? `#${value}` : value)
+            const style = {
+              color: toCss(color),
+              ...(darkColor ? { '--wd-color': toCss(darkColor) } : {}),
+            } as React.CSSProperties
             return (
-              <span key={key} style={{ color: cssColor }} className="wiki-color-text font-medium">
+              <span key={key} style={style} className="wiki-color-text font-medium">
                 {parseInlineElements(text)}
               </span>
             )
@@ -894,7 +902,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         },
         // 14.5 폰트 텍스트 {{{font:폰트명 텍스트}}} — 공백 포함 폰트는 따옴표: {{{font:"Noto Sans KR" 텍스트}}}
         {
-          regex: /\{\{\{font:("[^"]+"|[^\s}]+)\s+([^}]+)\}\}\}/g,
+          regex: /\{\{\{font:("[^"]+"|[^\s}]+)\s+((?:\{\{\{[^{}]*\}\}\}|[^{}])+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => {
             const [, rawFont, text] = match
             const family = sanitizeFontFamily(rawFont)
@@ -908,22 +916,22 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         },
         // 15. 큰 텍스트 {{{+숫자 텍스트}}}
         {
-          regex: /\{\{\{\+(\d+)\s+([^}]+)\}\}\}/g,
+          regex: /\{\{\{\+(\d+)\s+((?:\{\{\{[^{}]*\}\}\}|[^{}])+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => {
             const [, sizeNum, text] = match
             const size = parseInt(sizeNum)
             return (
-              <span key={key} className={`font-bold ${size >= 2 ? 'text-xl' : 'text-lg'} text-gray-100`}>
-                {text}
+              <span key={key} className={`wiki-size-text font-bold ${size >= 2 ? 'text-xl' : 'text-lg'} text-gray-100`}>
+                {parseInlineElements(text)}
               </span>
             )
           }
         },
         // 16. 작은 텍스트 {{{-숫자 텍스트}}}
         {
-          regex: /\{\{\{-(\d+)\s+([^}]+)\}\}\}/g,
+          regex: /\{\{\{-(\d+)\s+((?:\{\{\{[^{}]*\}\}\}|[^{}])+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => (
-            <span key={key} className="text-sm text-gray-400">{match[2]}</span>
+            <span key={key} className="wiki-size-text text-sm text-gray-400">{parseInlineElements(match[2])}</span>
           )
         },
         // 17. 인라인 코드 `코드`
@@ -2188,7 +2196,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             const rowStyle: WikiCellStyle = {}
             const cells = row
               .split('||')
-              .filter(cell => cell.trim() !== '')
+              // 줄 양끝 || 바깥만 버리고 가운데 빈 칸(|| ||)은 빈 칸으로 그대로 둔다 (나무위키와 같게)
+              .slice(1, -1)
               .map((cell) => {
                 const parsed = parseCellDirectives(cell.trim())
                 assignStyleDefaults(rowStyle, parsed.row)
@@ -2202,7 +2211,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           const tableElement = (
             <div key={i} className="my-4 overflow-x-auto flex justify-center wiki-table-wrap">
               <table
-                className="border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto"
+                className={`border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto${tableStyle.width ? ' wiki-table-fill' : ''}`}
                 style={{
                   ...(tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : {}),
                   ...(tableStyle.width ? { width: tableStyle.width } : {}),
@@ -2240,7 +2249,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                               rowSpan={parsed.rowSpan}
                               className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
                                 isHeaderRow ? 'font-semibold' : ''
-                              } ${cellStyles.color ? 'wiki-cell-colored' : ''} ${cellStyles.backgroundImage ? 'wiki-cell-bgimage' : ''}`}
+                              } ${
+                                // 칸·행에 직접 글자색을 준 경우만 안의 링크가 그 색을 따른다 (표 전체 글자색은 링크색 유지 — 나무위키와 같게)
+                                parsed.cell.textColor || rowStyle.textColor ? 'wiki-cell-colored' : ''
+                              } ${cellStyles.backgroundImage ? 'wiki-cell-bgimage' : ''}`}
                               style={cellStyles}
                             >
                               {parseInlineElements(parsed.content)}
