@@ -194,7 +194,8 @@ export async function enforceUserAccessPolicy(user: IWikiUser | null): Promise<I
       dirty = true
     }
   } else {
-    if (user.role === 'admin' || user.role === 'owner' || user.role === 'moderator') {
+    // 관리자는 화이트리스트로만 주고, 운영자는 관리자가 부여한 경우 유지한다.
+    if (user.role === 'admin' || user.role === 'owner') {
       user.role = 'editor'
       dirty = true
     }

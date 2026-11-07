@@ -12,6 +12,11 @@ describe('detectSection', () => {
     expect(detectSection('/settings/account', 'irang.wiki', true)).toBe('rangu')
   })
 
+  it('opens the admin dashboard as admin on the wiki host', () => {
+    expect(detectSection('/admin', 'irang.wiki', true)).toBe('admin')
+    expect(detectSection('/administrator', 'irang.wiki', true)).toBe('wiki')
+  })
+
   it('uses the path on the main host', () => {
     expect(detectSection('/', 'rangu-fam.com', true)).toBe('archive')
     expect(detectSection('/', 'rangu-fam.com', false)).toBe('rangu')

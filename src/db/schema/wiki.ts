@@ -128,6 +128,40 @@ export const wikiLoginEvents = pgTable(
   })
 )
 
+/** 문서 신고. 운영자가 관리자 화면에서 처리한다. */
+export const wikiReports = pgTable(
+  'wiki_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pageTitle: text('page_title').notNull(),
+    reason: text('reason').notNull(),
+    targetUserId: uuid('target_user_id'),
+    reporter: text('reporter').notNull(),
+    reporterId: uuid('reporter_id'),
+    status: text('status').notNull().default('open'),
+    resolvedBy: text('resolved_by'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    statusIdx: index('wiki_reports_status_idx').on(t.status, t.createdAt),
+  })
+)
+
+/** 위키 상단 공지 배너. 관리자 화면에서 관리한다. */
+export const wikiNotices = pgTable('wiki_notices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  message: text('message').notNull(),
+  linkUrl: text('link_url'),
+  tone: text('tone').notNull().default('info'),
+  isActive: boolean('is_active').notNull().default(true),
+  startsAt: timestamp('starts_at', { withTimezone: true }),
+  endsAt: timestamp('ends_at', { withTimezone: true }),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 /** 위키 메인 광고 슬라이드. 어드민 대시보드에서 관리한다. */
 export const wikiAds = pgTable(
   'wiki_ads',

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     .where(eq(wikiSubmissions.id, submissionId))
     .limit(1)
 
-  if (!sub || sub.status !== 'pending') {
+  if (!sub || (sub.status !== 'pending' && sub.status !== 'onhold')) {
     return NextResponse.json(
       { success: false, error: '대상이 없거나 이미 처리됨' },
       { status: 404 }

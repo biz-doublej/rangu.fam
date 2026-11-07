@@ -47,7 +47,7 @@ export function useWikiAdminNotifications(enabled: boolean) {
               isCreate ? '생성' : '수정'
             }을 요청했습니다. 검수가 필요합니다.`,
             uniqueKey: `wiki-submission-${id}`,
-            link: '/wiki/mod',
+            link: '/admin?tab=review',
             data: {
               submissionId: id,
               targetTitle: sub.targetTitle,

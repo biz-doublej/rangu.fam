@@ -11,8 +11,10 @@ export function detectSection(
   hostname: string | undefined,
   archiveMode: boolean
 ): Section {
-  const isSettings = pathname === '/settings' || Boolean(pathname?.startsWith('/settings/'))
-  if (hostname && WIKI_HOSTNAMES.has(hostname) && !isSettings) return 'wiki'
+  const isHostShared = ['/settings', '/admin'].some(
+    (prefix) => pathname === prefix || Boolean(pathname?.startsWith(`${prefix}/`))
+  )
+  if (hostname && WIKI_HOSTNAMES.has(hostname) && !isHostShared) return 'wiki'
   if (!pathname) return 'rangu'
   if (pathname.startsWith('/wiki')) return 'wiki'
   if (pathname.startsWith('/admin')) return 'admin'

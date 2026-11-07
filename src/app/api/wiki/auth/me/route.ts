@@ -75,7 +75,8 @@ export async function GET(request: NextRequest) {
         dirty = true
       }
     } else {
-      if (role === 'admin' || role === 'owner' || role === 'moderator') {
+      // 관리자는 화이트리스트로만 주고, 운영자는 관리자가 부여한 경우 유지한다.
+      if (role === 'admin' || role === 'owner') {
         role = 'editor'
         dirty = true
       }

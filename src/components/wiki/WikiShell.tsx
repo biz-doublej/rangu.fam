@@ -34,6 +34,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Input } from '@/components/ui/Input'
 import { BRANDING } from '@/config/branding'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
+import { WikiNoticeBar } from './WikiNoticeBar'
 import { useWikiAdminNotifications } from '@/hooks/useWikiAdminNotifications'
 import { useWikiNotificationSources } from '@/hooks/useWikiNotificationSources'
 
@@ -553,6 +554,8 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
           />
         </header>
 
+        <WikiNoticeBar />
+
         {/* ── Sidebar + main + right rail ──────────────────────── */}
         <div
           className={`wiki-shell-grid grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] ${
@@ -615,7 +618,7 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
               ))}
               {isLoggedIn && isModerator && (
                 <button
-                  onClick={() => router.push('/wiki/mod')}
+                  onClick={() => router.push('/admin?tab=review')}
                   className={active.activeNav === 'mod' ? 'is-active' : ''}
                 >
                   <Shield className="w-4 h-4 opacity-70" />

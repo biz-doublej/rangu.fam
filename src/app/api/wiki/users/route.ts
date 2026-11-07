@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'role': {
-        const allowedRoles = ['user', 'editor', 'moderator']
+        const allowedRoles = ['viewer', 'editor', 'moderator']
         const newRole = String(data?.role || '')
         if (!allowedRoles.includes(newRole)) {
           return NextResponse.json(

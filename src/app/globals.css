@@ -1818,6 +1818,15 @@ video:hover {
 [data-section='wiki'] .wiki-feature-card p { margin:.8rem 0 0; line-height:1.75; color:var(--wiki-ink-soft); }
 [data-section='wiki'] .wiki-ad { position: relative; overflow: hidden; margin-bottom: 1.25rem; aspect-ratio: 3 / 1; border-radius: 8px; background: #0a0a0c; }
 @media (min-width: 640px) { [data-section='wiki'] .wiki-ad { aspect-ratio: 5 / 1; } }
+[data-section='wiki'] .wiki-notice-stack { display: grid; gap: 1px; border-bottom: 1px solid var(--wiki-rule); }
+[data-section='wiki'] .wiki-notice { display: flex; align-items: center; gap: .75rem; padding: .55rem 1rem; background: var(--wiki-mbox-info-bg); color: var(--wiki-ink); font-size: calc(.8125rem * var(--wiki-font-scale, 1)); line-height: 1.5; }
+[data-section='wiki'] .wiki-notice--warning { background: var(--wiki-mbox-bg); }
+[data-section='wiki'] .wiki-notice--success { background: var(--wiki-mbox-success-bg); }
+[data-section='wiki'] .wiki-notice__text { flex: 1; min-width: 0; margin: 0; color: inherit; }
+[data-section='wiki'] a.wiki-notice__text { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--wiki-rule); }
+[data-section='wiki'] a.wiki-notice__text:hover { color: var(--wiki-link); }
+[data-section='wiki'] .wiki-notice__close { flex-shrink: 0; display: inline-flex; padding: .25rem; border-radius: 4px; color: var(--wiki-ink-soft); }
+[data-section='wiki'] .wiki-notice__close:hover { background: var(--wiki-rule); color: var(--wiki-ink); }
 [data-section='wiki'] .wiki-ad__track { display: flex; height: 100%; transition: transform 0.5s ease; }
 @media (prefers-reduced-motion: reduce) { [data-section='wiki'] .wiki-ad__track { transition: none; } }
 [data-section='wiki'] .wiki-ad__slide { flex: 0 0 100%; height: 100%; }
