@@ -1221,6 +1221,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     // 오른쪽에 붙는 정보 상자와 [[목차]] 의 위치 — 목차를 상자 왼쪽에 나란히 두기 위해
     const floatBoxIndexes = new Set<number>()
     const tocIndexes = new Set<number>()
+    // 오른쪽 상자는 첫 번째만 목차와 나란히 둔다. 두 번째부터는 앞 상자 아래로 내려 겹치지 않게 한다.
+    const markFloatBox = () => {
+      if (floatBoxIndexes.size > 0) {
+        elements.push(<div key={`wiki-clear-${elements.length}`} className="wiki-clearfix" aria-hidden="true" />)
+      }
+      floatBoxIndexes.add(elements.length)
+    }
     let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
 
     const parseMarkdownTableRow = (row: string) => {
@@ -1406,7 +1413,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         }
         const inline = (key: string) => (params[key] ? parseInlineElements(params[key].replace(/\n/g, '[br]')) : undefined)
         const bannerStyle = resolveBannerBoxStyle(params)
-        if (bannerStyle.floatRight && !bannerStyle.pinTop) floatBoxIndexes.add(elements.length)
+        if (bannerStyle.floatRight && !bannerStyle.pinTop) markFloatBox()
         elements.push(
           <WikiBannerBox
             key={`banner-${i}`}
@@ -1459,7 +1466,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const paramsText = buf.join('\n')
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
-        floatBoxIndexes.add(elements.length)
+        markFloatBox()
         elements.push(renderPersonInfoboxElement(params, orderedParams, i, colorAttribs))
         continue
       }
@@ -1490,7 +1497,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const paramsText = buf.join('\n')
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
-        floatBoxIndexes.add(elements.length)
+        markFloatBox()
         elements.push(renderGroupInfoboxElement(params, orderedParams, i, colorAttribs))
         continue
       }
@@ -1734,6 +1741,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
       // 카드 그리드 렌더링: [[카드그리드: items=[{"title":"...","subtitle":"...","image":"...","tag":"...","date":"...","link":"..."}]]]
       // 목차 렌더링: [[목차]]
+      // [clearfix] — 앞의 오른쪽 상자 아래로 내린다 (목차를 상자 아래에 두고 싶을 때)
+      if (/^\[clearfix\]$/i.test(trimmed)) {
+        elements.push(<div key={i} className="wiki-clearfix" aria-hidden="true" />)
+        continue
+      }
+
       if (trimmed === '[[목차]]') {
         tocIndexes.add(elements.length)
         if (generateTableOfContents && toc.length > 0) {
@@ -2340,7 +2353,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     
     // [[목차]] 를 정보 상자 바로 앞에 썼어도 상자가 먼저 오게 바꾼다 — 상자는 오른쪽, 목차는 그 왼쪽
     tocIndexes.forEach((index) => {
-      if (floatBoxIndexes.has(index + 1) && !headingMarks.has(index) && !headingMarks.has(index + 1)) {
+      // 이미 앞에 오른쪽 상자가 있으면 바꾸지 않는다 — 목차는 그 첫 상자 옆에 서고, 다음 상자는 아래로 간다
+      const earlierFloat = Array.from(floatBoxIndexes).some((floatIndex) => floatIndex < index)
+      if (!earlierFloat && floatBoxIndexes.has(index + 1) && !headingMarks.has(index) && !headingMarks.has(index + 1)) {
         const tocElement = elements[index]
         elements[index] = elements[index + 1]
         elements[index + 1] = tocElement

@@ -3113,7 +3113,12 @@ video:hover {
 
 
 /* 나무위키식 첫 화면 — 오른쪽 정보 상자 왼쪽에 목차를 나란히, 문단은 그 아래부터 */
-.wiki-toc-inline { display: flow-root; }
+.wiki-toc-inline {
+  display: flow-root;
+  /* 상자 옆 자리가 이보다 좁으면(휴대폰·태블릿, 상자가 넓을 때) 목차는 상자 아래로 내려가 전체 폭이 된다 */
+  min-width: min(100%, 18rem);
+}
+.wiki-clearfix { clear: both; }
 .namu-wiki-content .wiki-toc-inline h3 { clear: none; }
 .namu-wiki-content .wiki-toc-inline:first-child,
 .group-infobox + .wiki-toc-inline,
