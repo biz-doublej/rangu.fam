@@ -263,6 +263,15 @@ export default function WikiEditor({
 
   /* ── 이미지 ── */
 
+  /** 마지막으로 닫힌 틀(}})의 위치 — 색 글자 {{{#색 …}}} 의 }}} 는 틀 닫힘으로 보지 않는다 */
+  const lastTemplateClose = (text: string) => {
+    const closing = /(^|[^}])\}\}(?!\})/g
+    let index = -1
+    let match: RegExpExecArray | null
+    while ((match = closing.exec(text)) !== null) index = match.index
+    return index
+  }
+
   /** 표 셀/정보상자 안이면 그 자리에, 본문이면 단독 줄로 (렌더러가 단독 줄 [이미지:] 만 인식) */
   const insertImage = (url: string) => {
     const start = textareaRef.current?.selectionStart ?? content.length
@@ -271,9 +280,14 @@ export default function WikiEditor({
     const inTable = currentLine.trim().startsWith('||')
     const inTemplate =
       before.lastIndexOf('[[인포박스:') > before.lastIndexOf(']]') ||
-      Math.max(before.lastIndexOf('{{인물정보상자'), before.lastIndexOf('{{그룹정보상자')) > before.lastIndexOf('}}')
+      Math.max(
+        before.lastIndexOf('{{인물정보상자'),
+        before.lastIndexOf('{{그룹정보상자'),
+        before.lastIndexOf('{{배너상자')
+      ) > lastTemplateClose(before)
 
-    if (inTemplate && /\|\s*이미지\s*=\s*$/.test(currentLine)) {
+    // |이미지= |배경= |사진= |로고= |왼쪽이미지= |오른쪽이미지= 처럼 그림 주소를 받는 칸이면 주소만 넣는다
+    if (inTemplate && /\|\s*(이미지|배경|사진|로고|왼쪽이미지|오른쪽이미지)\s*=\s*$/.test(currentLine)) {
       insertText(url, '', false)
     } else if (inTable || inTemplate) {
       insertText(`[이미지:${url}]`, '', false)

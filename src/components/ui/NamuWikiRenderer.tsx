@@ -687,6 +687,20 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             )
           }
         },
+        // 1.55 표 칸·문장 안의 [이미지:주소] — 편집기 이미지 버튼이 표 안에 넣는 형식
+        {
+          regex: /\[이미지:([^\]]+)\]/g,
+          render: (match: RegExpMatchArray, key: number) => (
+            <img
+              key={key}
+              src={normalizeWikiImageSrc(match[1].trim())}
+              alt=""
+              className="inline-block max-w-full h-auto align-middle"
+              data-fallback-attempt="0"
+              onError={handleWikiImageError}
+            />
+          )
+        },
         // 1.6 줄바꿈 [br] — 한 줄로 써야 하는 표 칸 안에서 줄을 바꿀 때
         {
           regex: /\[br\]/gi,
