@@ -140,5 +140,15 @@ export function WikiBannerBox({
     </section>
   )
 
-  return slot ? createPortal(box, slot) : box
+  // 오른쪽에 띄운 상자는 기존 정보상자처럼 바로 아래에서 흐름을 끊는다 — 목차·문단은 상자 아래 전체 폭으로 시작
+  const placed = style.floatRight ? (
+    <>
+      {box}
+      <div className="wiki-banner-box__clear" aria-hidden="true" />
+    </>
+  ) : (
+    box
+  )
+
+  return slot ? createPortal(placed, slot) : placed
 }

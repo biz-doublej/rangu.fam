@@ -3107,3 +3107,5 @@ video:hover {
 
 /* 배경 그림을 깐 표 칸 — 그림 위 글자가 읽히도록 */
 .wiki-cell-bgimage { text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
+
+.wiki-banner-box__clear { clear: both; }
