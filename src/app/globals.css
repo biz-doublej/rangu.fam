@@ -2971,3 +2971,22 @@ video:hover {
   [data-section='admin'] .adm-sheet-enter { animation: adm-sheet-in .18s ease-out; }
 }
 @keyframes adm-sheet-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* 각주 미리보기 — 본문 각주 번호에 마우스를 올리면 뜬다 */
+.wiki-fn-pop {
+  position: fixed; z-index: 70; max-height: min(50vh, 320px); overflow-y: auto;
+  border: 1px solid var(--wiki-rule-strong, #CDCDC7); border-radius: 6px;
+  background: var(--wiki-panel, #fff); color: var(--wiki-ink, #1C2025); box-shadow: var(--wiki-shadow-raised, 0 8px 20px -10px rgba(20,22,25,.2));
+  font-size: calc(.875rem * var(--wiki-font-scale, 1)); line-height: 1.65; word-break: keep-all; overflow-wrap: anywhere;
+}
+.wiki-fn-pop--above { transform: translateY(-100%); }
+.wiki-fn-pop__head {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  padding: .45rem .8rem; border-bottom: 1px solid var(--wiki-rule, #E2E2DD);
+  font-size: .75rem; color: var(--wiki-ink-muted, #646A72);
+}
+.wiki-fn-pop__jump { color: var(--wiki-link, #2F5D8C); font-size: .75rem; }
+.wiki-fn-pop__jump:hover { text-decoration: underline; text-underline-offset: 3px; }
+.wiki-fn-pop__body { padding: .6rem .8rem .7rem; }
+.wiki-fn-pop__body a { color: var(--wiki-link, #2F5D8C); text-decoration: underline; text-underline-offset: 3px; }
+.wiki-fn-ref:focus-visible { outline: 2px solid var(--wiki-accent, #2F5D8C); outline-offset: 2px; border-radius: 2px; }

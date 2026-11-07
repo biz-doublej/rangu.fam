@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { FootnoteRef } from '@/components/wiki/FootnoteRef'
 import dynamic from 'next/dynamic'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -697,15 +698,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             }
 
             return (
-              <sup
+              <FootnoteRef
                 key={key}
-                id={isFirstRef ? `fnref-${footnoteNumber}` : undefined}
-                className="text-blue-400 hover:text-blue-300 cursor-pointer text-xs underline scroll-mt-20"
-                onClick={scrollToFootnote}
-                title={`각주 ${footnoteNumber}로 이동`}
-              >
-                [{footnoteNumber}]
-              </sup>
+                number={footnoteNumber}
+                anchorId={isFirstRef ? `fnref-${footnoteNumber}` : undefined}
+                onJump={scrollToFootnote}
+              />
             )
           }
         },
@@ -2260,6 +2258,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     }
   }
 
+  // 각주 번호와 본문 위치(fnref) 표시는 그릴 때마다 처음부터 센다.
+  // 다시 그려질 때 번호가 밀리거나 fnref id 가 사라지는 것을 막는다.
+  footnoteCounterRef.current = 0
+  footnoteMappingRef.current = {}
+  footnoteRefSeenRef.current = new Set()
   const renderedContent = parseContent(content);
 
   return (
@@ -2323,7 +2326,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                   >
                     ↑ [{footnoteNumber}]
                   </button>
-                  <span className="text-gray-300 leading-relaxed">{parseInlineElements(footnoteText)}</span>
+                  <span data-footnote-body className="text-gray-300 leading-relaxed">{parseInlineElements(footnoteText)}</span>
                 </div>
               )
             })}
