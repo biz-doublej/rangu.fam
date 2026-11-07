@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { images } from '@/db/schema/media'
+import { inlineContentDisposition } from '@/lib/contentDisposition'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,7 @@ export async function GET(
         'Content-Type': imageDoc.mimeType,
         'Content-Length': imageBuffer.length.toString(),
         'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Disposition': `inline; filename="${imageDoc.originalName}"`,
+        'Content-Disposition': inlineContentDisposition(imageDoc.originalName),
       },
     })
   } catch (error) {

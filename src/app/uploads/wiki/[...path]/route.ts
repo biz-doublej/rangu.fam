@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
 import { eq } from 'drizzle-orm'
+import { inlineContentDisposition } from '@/lib/contentDisposition'
 import { serveMediaByPath } from '@/lib/serveMediaByPath'
 import { getDb } from '@/db/client'
 import { images } from '@/db/schema/media'
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
         'Content-Type': imageDoc.mimeType,
         'Content-Length': imageBuffer.length.toString(),
         'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Disposition': `inline; filename="${imageDoc.originalName || decodedFilename}"`,
+        'Content-Disposition': inlineContentDisposition(imageDoc.originalName || decodedFilename),
       },
     })
   } catch (error) {
@@ -100,7 +101,7 @@ async function tryServeLocalWikiFile(segments: string[]) {
         'Content-Type': String(mimeType),
         'Content-Length': fileBuffer.length.toString(),
         'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Disposition': `inline; filename="${originalName}"`,
+        'Content-Disposition': inlineContentDisposition(originalName),
       },
     })
   } catch {
