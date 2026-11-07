@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeCellStylesToCss, normalizeWidth, parseCellDirectives } from './tableColors'
+import { mergeCellStylesToCss, normalizeBackgroundImage, normalizeWidth, parseCellDirectives } from './tableColors'
 
 describe('table width directives', () => {
   it('reads table and cell widths', () => {
@@ -23,5 +23,24 @@ describe('table width directives', () => {
 
   it('applies a cell width as css', () => {
     expect(mergeCellStylesToCss({ width: '30%' })).toEqual({ width: '30%' })
+  })
+})
+
+describe('background image directive', () => {
+  it('puts an image behind the cell text', () => {
+    const parsed = parseCellDirectives('<bgimage:/api/images/serve/a.png><color:#fff> 감독')
+    expect(parsed.content).toBe('감독')
+    expect(mergeCellStylesToCss(parsed.cell)).toMatchObject({
+      backgroundImage: 'url("/api/images/serve/a.png")',
+      backgroundSize: 'cover',
+      color: '#fff',
+    })
+  })
+
+  it('rejects addresses that could break out of css', () => {
+    expect(normalizeBackgroundImage('https://x.com/a.png')).toBe('https://x.com/a.png')
+    expect(normalizeBackgroundImage('/a.png")};body{x')).toBeUndefined()
+    expect(normalizeBackgroundImage('javascript:alert(1)')).toBeUndefined()
+    expect(normalizeBackgroundImage('//evil.com/a.png')).toBeUndefined()
   })
 })

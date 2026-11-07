@@ -5,6 +5,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import { isFoldCollapsed, onRevealWikiElement, parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
 import { FootnoteRef } from '@/components/wiki/FootnoteRef'
+import { WikiBannerBox } from '@/components/wiki/WikiBannerBox'
+import { imageAddress, isBannerBoxStart, readBannerBox, resolveBannerBoxStyle } from '@/lib/bannerBox'
 import dynamic from 'next/dynamic'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -623,7 +625,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     const patterns = [
       // 1. 마크다운 하이퍼링크 [텍스트](URL) - 최우선 처리
         {
-          regex: /\[([^\]]+)\]\(([^)]+)\)/g,
+          // [br]( 처럼 줄바꿈 뒤에 괄호가 오는 경우는 링크가 아니다
+          regex: /\[(?!br\])([^\]]+)\]\(([^)]+)\)/gi,
           render: (match: RegExpMatchArray, key: number) => {
             const [, linkText, url] = match
             const isExternal = url.startsWith('http') || url.startsWith('//')
@@ -850,15 +853,27 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             <u key={key} className="underline text-gray-300">{match[1]}</u>
           )
         },
-        // 14. 색상 텍스트 {{{#색상 텍스트}}}
+        // 13.9 배지 {{{배지 제56대}}} 또는 {{{배지:#e4002b 제56대}}}
+        {
+          regex: /\{\{\{배지(?::(#?[A-Za-z0-9]+))?\s+([^}]+)\}\}\}/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const background = normalizeColor(match[1] || '')
+            return (
+              <span key={key} className="wiki-badge" style={background ? { backgroundColor: background } : undefined}>
+                {match[2].trim()}
+              </span>
+            )
+          }
+        },
+        // 14. 색상 텍스트 {{{#색상 텍스트}}} — 안의 링크도 같은 색으로
         {
           regex: /\{\{\{#([a-fA-F0-9]{6}|[a-zA-Z]+)\s+([^}]+)\}\}\}/g,
           render: (match: RegExpMatchArray, key: number) => {
             const [, color, text] = match
             const cssColor = /^[a-fA-F0-9]{6}$/.test(color) ? `#${color}` : color
             return (
-              <span key={key} style={{ color: cssColor }} className="font-medium">
-                {text}
+              <span key={key} style={{ color: cssColor }} className="wiki-color-text font-medium">
+                {parseInlineElements(text)}
               </span>
             )
           }
@@ -1338,6 +1353,41 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       const trimmed = line.trim()
+      // 배너상자 블록: {{배너상자 \n |키=값 ... \n |본문= \n 위키 문법 ... \n }}
+      if (isBannerBoxStart(trimmed)) {
+        const { spec, end } = readBannerBox(lines, i)
+        const params = spec.params
+        const image = (key: string) => {
+          const address = imageAddress(params[key])
+          return address ? normalizeWikiImageSrc(address) : undefined
+        }
+        const inline = (key: string) => (params[key] ? parseInlineElements(params[key].replace(/\n/g, '[br]')) : undefined)
+        elements.push(
+          <WikiBannerBox
+            key={`banner-${i}`}
+            style={resolveBannerBoxStyle(params)}
+            background={image('배경')}
+            leftImage={image('왼쪽이미지')}
+            rightImage={image('오른쪽이미지')}
+            logo={image('로고')}
+            overline={inline('윗글')}
+            title={inline('제목')}
+            titleNote={inline('덧글')}
+            photo={image('사진')}
+            photoCaption={inline('사진설명')}
+            toggleLabel={params['접기글']}
+            footerLeft={inline('아래왼쪽')}
+            footerCenter={inline('아래')}
+            footerRight={inline('아래오른쪽')}
+            onImageError={handleWikiImageError}
+          >
+            {spec.body.trim() ? parseContent(spec.body) : null}
+          </WikiBannerBox>
+        )
+        i = end
+        continue
+      }
+
       // 인물정보상자 블록 처리: {{인물정보상자<bgcolor:#E8F4FD> \n |키=값 ... \n }}
       if (/^\{\{\s*인물정보상자(<[^>]+>)?\s*$/i.test(trimmed) || /^\{\{\s*인물정보상자(<[^>]+>)?\b/i.test(trimmed)) {
         let j = i + 1
@@ -2088,14 +2138,20 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 style={{
                   ...(tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : {}),
                   ...(tableStyle.width ? { width: tableStyle.width } : {}),
+                  ...(tableStyle.backgroundImage
+                    ? { backgroundImage: `url("${tableStyle.backgroundImage}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : {}),
                 }}
               >
                 <tbody>
                   {parsedRows.map(({ cells, rowStyle }, rowIndex) => {
                     const isHeaderRow = rowIndex === 0
-                    const defaultStyle: WikiCellStyle = isHeaderRow
-                      ? { backgroundColor: 'var(--wiki-table-head, #374151)' }
-                      : { backgroundColor: 'var(--wiki-table-cell, #1f2937)' }
+                    // 표 전체에 배경 그림을 깔았으면 칸 기본 바탕은 비워서 그림이 보이게 한다
+                    const defaultStyle: WikiCellStyle = tableStyle.backgroundImage
+                      ? {}
+                      : isHeaderRow
+                        ? { backgroundColor: 'var(--wiki-table-head, #374151)' }
+                        : { backgroundColor: 'var(--wiki-table-cell, #1f2937)' }
 
                     return (
                       <tr key={rowIndex} className="border-b border-gray-600">
@@ -2104,7 +2160,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                           // 표·행 너비는 표 자체에만 쓰고 칸에는 물려주지 않는다
                           const cellStyles = mergeCellStylesToCss(
                             defaultStyle,
-                            { ...tableStyle, width: undefined },
+                            { ...tableStyle, width: undefined, backgroundImage: undefined },
                             { ...rowStyle, width: undefined },
                             parsed.cell
                           )
@@ -2116,7 +2172,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                               rowSpan={parsed.rowSpan}
                               className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
                                 isHeaderRow ? 'font-semibold' : ''
-                              } ${cellStyles.color ? 'wiki-cell-colored' : ''}`}
+                              } ${cellStyles.color ? 'wiki-cell-colored' : ''} ${cellStyles.backgroundImage ? 'wiki-cell-bgimage' : ''}`}
                               style={cellStyles}
                             >
                               {parseInlineElements(parsed.content)}

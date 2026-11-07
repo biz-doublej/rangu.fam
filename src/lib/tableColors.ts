@@ -194,6 +194,8 @@ export interface WikiCellStyle {
   fontFamily?: string
   /** 표는 <tablewidth:100%>, 칸은 <width:30%> — 숫자만 쓰면 px */
   width?: string
+  /** <bgimage:주소> — 칸(또는 <tablebgimage:주소> 표) 뒤에 깔리는 그림 */
+  backgroundImage?: string
 }
 
 export interface ParsedCellDirectives {
@@ -208,6 +210,16 @@ export interface ParsedCellDirectives {
 }
 
 const ALIGN_VALUES = new Set(['left', 'center', 'right'])
+
+/**
+ * 배경 그림 주소 정제 — 사이트 안 경로(/…) 나 http(s) 주소만, CSS 를 깨는 문자 없이.
+ * CSS url("…") 안에 들어가므로 따옴표·괄호·역슬래시·공백을 허용하지 않는다.
+ */
+export function normalizeBackgroundImage(value: string): string | undefined {
+  const v = value.trim()
+  if (!/^(https?:\/\/|\/(?!\/))[^\s"'()\<>]+$/.test(v)) return undefined
+  return v
+}
 
 /** 너비 값 정제 — 1~4자리 숫자에 px 또는 % 만 허용 */
 export function normalizeWidth(value: string): string | undefined {
@@ -238,7 +250,7 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
       const spans: Array<{ kind: 'col' | 'row'; n: number }> = []
       // key:value 지시자 또는 병합 토큰(-N = 열 병합, |N = 행 병합)
       const pairRe =
-        /\s*(?:(table|row)?(bgcolor|color|border|align|font|width):("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+))\s*/y
+        /\s*(?:(table|row)?(bgimage|bgcolor|color|border|align|font|width):("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+))\s*/y
       let idx = 0
       let ok = true
       while (idx < inner.length) {
@@ -295,6 +307,11 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
             if (f) target.fontFamily = f
             break
           }
+          case 'bgimage': {
+            const url = normalizeBackgroundImage(value)
+            if (url) target.backgroundImage = url
+            break
+          }
           case 'width': {
             const w = normalizeWidth(value)
             if (w) target.width = w
@@ -317,6 +334,7 @@ export function assignStyleDefaults(target: WikiCellStyle, source: WikiCellStyle
   if (!target.textAlign && source.textAlign) target.textAlign = source.textAlign
   if (!target.fontFamily && source.fontFamily) target.fontFamily = source.fontFamily
   if (!target.width && source.width) target.width = source.width
+  if (!target.backgroundImage && source.backgroundImage) target.backgroundImage = source.backgroundImage
 }
 
 /** 레이어 병합 (뒤 레이어가 우선) → React inline style */
@@ -332,6 +350,7 @@ export function mergeCellStylesToCss(
     if (layer.textAlign) merged.textAlign = layer.textAlign
     if (layer.fontFamily) merged.fontFamily = layer.fontFamily
     if (layer.width) merged.width = layer.width
+    if (layer.backgroundImage) merged.backgroundImage = layer.backgroundImage
   }
 
   const css: React.CSSProperties = {}
@@ -341,6 +360,11 @@ export function mergeCellStylesToCss(
   if (merged.textAlign) css.textAlign = merged.textAlign
   if (merged.fontFamily) css.fontFamily = merged.fontFamily
   if (merged.width) css.width = merged.width
+  if (merged.backgroundImage) {
+    css.backgroundImage = `url("${merged.backgroundImage}")`
+    css.backgroundSize = 'cover'
+    css.backgroundPosition = 'center'
+  }
   return css
 }
 

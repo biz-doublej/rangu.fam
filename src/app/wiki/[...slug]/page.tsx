@@ -1175,6 +1175,8 @@ export default function WikiDocumentPage() {
       {/* ─────── 문서 탭 ─────── */}
       {activeTab === 'document' && currentPage && (
         <>
+          {/* {{배너상자}} 에 |맨위=예 를 주면 안내문보다 위인 이 자리로 옮겨 그린다 */}
+          <div id="wiki-doc-top-slot" className="wiki-doc-top-slot" />
           {/* 넘겨주기로 도착 — "○○에서 넘어옴" 안내 */}
           {redirectedFrom && (
             <div className="wiki-mbox mb-4 border-l-2 border-sky-500/60">

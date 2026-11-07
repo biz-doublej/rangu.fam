@@ -872,15 +872,19 @@ video:hover {
   display: flow-root; /* 새로운 BFC로 플로트 영역 분리 */
 }
 
+/* 문단 제목은 오른쪽 정보 상자 옆으로 흐르고(나무위키처럼), 밑줄은 상자 앞에서 끊긴다 */
 .namu-wiki-content h1,
 .namu-wiki-content h2,
 .namu-wiki-content h3,
 .prose h1,
 .prose h2,
-.prose h3,
+.prose h3 {
+  clear: none;
+  display: flow-root;
+}
 .namu-wiki-content hr,
 .prose hr {
-  clear: both; /* 섹션 시작 시 플로트 아래로 내림 */
+  clear: both; /* 가로줄은 플로트 아래로 내림 */
 }
 
 /* 나무위키 스타일 목차 */
@@ -3028,3 +3032,82 @@ video:hover {
 @media (prefers-reduced-motion: reduce) { .wiki-fold-toggle svg { transition: none; } }
 /* 글자색을 지정한 표 칸 안의 굵게·기울임 등은 칸 색을 따른다 */
 .wiki-cell-colored strong, .wiki-cell-colored em, .wiki-cell-colored u, .wiki-cell-colored del, .wiki-cell-colored sub { color: inherit; }
+
+/* 배지 — {{{배지 제56대}}} */
+.wiki-badge {
+  display: inline-block; padding: .05em .45em; border-radius: 4px;
+  background: var(--wiki-danger, #A33A2E); color: #fff;
+  font-size: .8em; font-weight: 700; line-height: 1.6; white-space: nowrap;
+}
+/* 색 글자 안의 링크는 같은 색을 따른다 */
+.wiki-color-text a, .wiki-color-text a:hover { color: inherit !important; }
+
+/* 배너상자 — {{배너상자}} */
+.wiki-banner-box {
+  position: relative; margin: 1.25rem 0; max-width: 100%;
+  border: 2px solid; border-radius: 4px; overflow: hidden;
+  background: var(--wiki-panel, #fff);
+}
+.wiki-banner-box__banner {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  padding: .75rem 4.5rem; overflow: hidden; text-align: center;
+}
+.wiki-banner-box__bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.wiki-banner-box__side {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  max-height: 72%; max-width: 3.75rem; object-fit: contain;
+}
+.wiki-banner-box__side--left { left: .75rem; }
+.wiki-banner-box__side--right { right: .75rem; }
+.wiki-banner-box__heading { position: relative; display: flex; align-items: center; gap: .75rem; }
+.wiki-banner-box__logo { height: 3.25rem; width: auto; object-fit: contain; }
+.wiki-banner-box__titles { text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+.wiki-banner-box .wiki-banner-box__titles p,
+.wiki-banner-box .wiki-banner-box__titles a,
+.wiki-banner-box .wiki-banner-box__photo figcaption a { color: inherit !important; }
+.wiki-banner-box .wiki-banner-box__toggle { color: var(--bb-bar-text, #fff) !important; }
+.wiki-banner-box .wiki-banner-box__photo figcaption { color: var(--bb-bar-text, #fff) !important; }
+/* 글자색을 정한 표 칸 안의 링크도 그 색을 따른다 */
+.wiki-cell-colored a { color: inherit !important; }
+.wiki-banner-box__overline { margin: 0; font-size: .85rem; font-weight: 700; line-height: 1.4; }
+.wiki-banner-box__title { margin: .2rem 0 0; font-size: 1.2rem; font-weight: 800; line-height: 1.35; }
+.wiki-banner-box__title small { margin-left: .15rem; font-size: .7em; font-weight: 600; }
+.wiki-banner-box__photo { margin: 0; }
+.wiki-banner-box__photo img { display: block; width: 100%; height: auto; }
+.wiki-banner-box__photo figcaption { padding: .55rem .75rem; text-align: center; font-weight: 700; line-height: 1.5; }
+.wiki-banner-box__toggle {
+  display: block; width: 100%; padding: .45rem .75rem;
+  font-weight: 700; text-align: center; cursor: pointer;
+}
+.wiki-banner-box__toggle:hover { filter: brightness(1.15); }
+.wiki-banner-box__toggle:focus-visible { outline: 2px solid var(--wiki-accent, #2F5D8C); outline-offset: -4px; }
+.wiki-banner-box__body > :first-child { margin-top: 0; }
+.wiki-banner-box__body > :last-child { margin-bottom: 0; }
+.wiki-banner-box__body > p { padding: .75rem 1rem 0; }
+.wiki-banner-box__body .wiki-table-wrap { margin: 0; }
+.wiki-banner-box__body .wiki-table-wrap table { border-left: 0; border-right: 0; }
+.wiki-banner-box__footer {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: .75rem; align-items: center;
+  padding: .55rem .9rem; border-top: 1px solid var(--wiki-rule, #E2E2DD);
+}
+.wiki-banner-box__footer > span:last-child { text-align: right; }
+.wiki-banner-box__footer-center { text-align: center; }
+@media (min-width: 768px) {
+  .wiki-banner-box--float { float: right; clear: right; margin: 0 0 1rem 1.5rem; max-width: 50%; }
+}
+@media (max-width: 640px) {
+  .wiki-banner-box__banner { padding: .65rem 3rem; }
+  .wiki-banner-box__side { max-width: 2.25rem; }
+  .wiki-banner-box__logo { height: 2.5rem; }
+}
+@media print {
+  .wiki-banner-box__toggle { display: none !important; }
+  .wiki-banner-box__body[hidden] { display: block !important; }
+}
+
+/* 문서 맨 위 자리 — |맨위=예 인 배너상자가 들어온다 */
+.wiki-doc-top-slot:empty { display: none; }
+.wiki-doc-top-slot > .wiki-banner-box:first-child { margin-top: 0; }
+
+/* 배경 그림을 깐 표 칸 — 그림 위 글자가 읽히도록 */
+.wiki-cell-bgimage { text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
