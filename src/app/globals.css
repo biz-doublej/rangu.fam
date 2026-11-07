@@ -875,6 +875,9 @@ video:hover {
 .namu-wiki-content h1,
 .namu-wiki-content h2,
 .namu-wiki-content h3,
+.namu-wiki-content h4,
+.namu-wiki-content h5,
+.namu-wiki-content h6,
 .prose h1,
 .prose h2,
 .prose h3,
@@ -3108,4 +3111,11 @@ video:hover {
 /* 배경 그림을 깐 표 칸 — 그림 위 글자가 읽히도록 */
 .wiki-cell-bgimage { text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
 
-.wiki-banner-box__clear { clear: both; }
+
+/* 나무위키식 첫 화면 — 오른쪽 정보 상자 왼쪽에 목차를 나란히, 문단은 그 아래부터 */
+.wiki-toc-inline { display: flow-root; }
+.namu-wiki-content .wiki-toc-inline h3 { clear: none; }
+.namu-wiki-content .wiki-toc-inline:first-child,
+.group-infobox + .wiki-toc-inline,
+.person-infobox + .wiki-toc-inline,
+.wiki-banner-box--float + .wiki-toc-inline { margin-top: 0; }

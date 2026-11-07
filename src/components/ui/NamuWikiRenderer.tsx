@@ -1107,7 +1107,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             </table>
           </div>
         </div>
-        <div style={{ clear: 'both' }} />
       </React.Fragment>
     )
   }
@@ -1191,6 +1190,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     const elements: React.ReactNode[] = []
     // elements 위치 → 문단 제목 정보. 끝에서 제목 아래 내용을 접을 수 있게 묶는다.
     const headingMarks = new Map<number, { level: number; foldId: number; collapsed: boolean }>()
+    // 오른쪽에 붙는 정보 상자와 [[목차]] 의 위치 — 목차를 상자 왼쪽에 나란히 두기 위해
+    const floatBoxIndexes = new Set<number>()
+    const tocIndexes = new Set<number>()
     let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
 
     const parseMarkdownTableRow = (row: string) => {
@@ -1340,7 +1342,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               </table>
             </div>
           </div>
-          <div style={{ clear: 'both' }} />
         </React.Fragment>
       )
     }
@@ -1362,10 +1363,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           return address ? normalizeWikiImageSrc(address) : undefined
         }
         const inline = (key: string) => (params[key] ? parseInlineElements(params[key].replace(/\n/g, '[br]')) : undefined)
+        const bannerStyle = resolveBannerBoxStyle(params)
+        if (bannerStyle.floatRight && !bannerStyle.pinTop) floatBoxIndexes.add(elements.length)
         elements.push(
           <WikiBannerBox
             key={`banner-${i}`}
-            style={resolveBannerBoxStyle(params)}
+            style={bannerStyle}
             background={image('배경')}
             leftImage={image('왼쪽이미지')}
             rightImage={image('오른쪽이미지')}
@@ -1414,6 +1417,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const paramsText = buf.join('\n')
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
+        floatBoxIndexes.add(elements.length)
         elements.push(renderPersonInfoboxElement(params, orderedParams, i, colorAttribs))
         continue
       }
@@ -1444,6 +1448,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const paramsText = buf.join('\n')
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
+        floatBoxIndexes.add(elements.length)
         elements.push(renderGroupInfoboxElement(params, orderedParams, i, colorAttribs))
         continue
       }
@@ -1688,9 +1693,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // 카드 그리드 렌더링: [[카드그리드: items=[{"title":"...","subtitle":"...","image":"...","tag":"...","date":"...","link":"..."}]]]
       // 목차 렌더링: [[목차]]
       if (trimmed === '[[목차]]') {
+        tocIndexes.add(elements.length)
         if (generateTableOfContents && toc.length > 0) {
           elements.push(
-            <div key={i} className="my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
+            <div key={i} className="wiki-toc-inline my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-200 mb-4 border-b border-gray-600 pb-2">목차</h3>
               <nav className="space-y-1">
                 {toc.map((item, tocIndex) => (
@@ -1720,7 +1726,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           )
         } else {
           elements.push(
-            <div key={i} className="my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
+            <div key={i} className="wiki-toc-inline my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-200 mb-2">목차</h3>
               <p className="text-gray-400 text-sm">문서에 제목이 없어 목차를 생성할 수 없습니다.</p>
             </div>
@@ -2290,6 +2296,15 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       i = j - 1
     }
     
+    // [[목차]] 를 정보 상자 바로 앞에 썼어도 상자가 먼저 오게 바꾼다 — 상자는 오른쪽, 목차는 그 왼쪽
+    tocIndexes.forEach((index) => {
+      if (floatBoxIndexes.has(index + 1) && !headingMarks.has(index) && !headingMarks.has(index + 1)) {
+        const tocElement = elements[index]
+        elements[index] = elements[index + 1]
+        elements[index + 1] = tocElement
+      }
+    })
+
     return groupFoldSections(elements, headingMarks)
   }
 
