@@ -872,19 +872,15 @@ video:hover {
   display: flow-root; /* 새로운 BFC로 플로트 영역 분리 */
 }
 
-/* 문단 제목은 오른쪽 정보 상자 옆으로 흐르고(나무위키처럼), 밑줄은 상자 앞에서 끊긴다 */
 .namu-wiki-content h1,
 .namu-wiki-content h2,
 .namu-wiki-content h3,
 .prose h1,
 .prose h2,
-.prose h3 {
-  clear: none;
-  display: flow-root;
-}
+.prose h3,
 .namu-wiki-content hr,
 .prose hr {
-  clear: both; /* 가로줄은 플로트 아래로 내림 */
+  clear: both; /* 섹션 시작 시 플로트 아래로 내림 */
 }
 
 /* 나무위키 스타일 목차 */
