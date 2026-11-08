@@ -1056,6 +1056,19 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     ))
   }
 
+  /**
+   * 정보상자 제목 칸 글자색.
+   * 위키 라이트 테마는 Tailwind 색을 뒤집어 쓰므로(text-white → 짙은 잉크) 제목 칸에 배경 그림을 깔면
+   * 라이트 모드에서 글자가 그림에 묻힌다. 그림은 테마와 상관없이 같으므로 글자는 진짜 흰색으로 고정하고,
+   * |글자색= 으로 직접 정할 수도 있게 한다.
+   */
+  function infoboxHeaderTextStyle(params: Record<string, string>): React.CSSProperties | undefined {
+    const chosen = normalizeColor((params['글자색'] || '').trim())
+    if (chosen && /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(chosen)) return { color: chosen }
+    if (params['배경']) return { color: '#ffffff' }
+    return undefined
+  }
+
   function renderGroupInfoboxElement(params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key, colorAttribs?: string) {
     const templateColors = parseTemplateColorAttributes(colorAttribs)
     const templateStyle: React.CSSProperties = {}
@@ -1081,6 +1094,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             className={`relative isolate overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white text-center py-3 px-4 border-b border-blue-900/40 ${
               params['배경'] ? '[text-shadow:0_1px_3px_rgba(0,0,0,0.55)]' : ''
             }`}
+            style={infoboxHeaderTextStyle(params)}
           >
             {params['배경'] && (
               <img
@@ -1107,7 +1121,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           <div>
             <table className="w-full text-sm">
               <tbody>
-                {orderedParams.filter(([key]) => key !== '배경').map(([key, value], index) => {
+                {orderedParams.filter(([key]) => key !== '배경' && key !== '글자색').map(([key, value], index) => {
                   // parseCellDirectives = parseTableColorAttributes 상위호환 (bg/color/border + align/font)
                   const directives = parseCellDirectives(value)
                   const headerCellStyles = getTableCellStyles({
@@ -1292,6 +1306,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               className={`relative isolate overflow-hidden bg-gradient-to-b from-red-600 via-red-700 to-red-800 text-white text-center py-3 px-4 border-b border-red-900/40 ${
                 params['배경'] ? '[text-shadow:0_1px_3px_rgba(0,0,0,0.55)]' : ''
               }`}
+              style={infoboxHeaderTextStyle(params)}
             >
               {params['배경'] && (
                 <img
@@ -1360,7 +1375,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 <tbody>
                   {(() => {
                     const excludeFields = new Set([
-                      '상단로고', '상단제목', '상단부제목', '상단설명', '배경',
+                      '상단로고', '상단제목', '상단부제목', '상단설명', '배경', '글자색',
                       '이름', '본명', '영문명', '한문명', '이미지', '이미지설명',
                     ])
 

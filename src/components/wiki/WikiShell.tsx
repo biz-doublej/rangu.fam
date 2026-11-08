@@ -37,6 +37,7 @@ import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { WikiNoticeBar } from './WikiNoticeBar'
 import { useWikiAdminNotifications } from '@/hooks/useWikiAdminNotifications'
 import { usePrintInLightTheme } from '@/hooks/usePrintInLightTheme'
+import { MOBILE_THEME_QUERY, resolveWikiColor } from '@/lib/wikiAppearance'
 import { useWikiNotificationSources } from '@/hooks/useWikiNotificationSources'
 
 const NotificationDropdown = dynamic(
@@ -841,8 +842,17 @@ export function WikiAppearanceControls() {
     const root = document.documentElement
     root.dataset.wikiFont = fontSize
     root.dataset.wikiWidth = width
-    root.dataset.wikiColor = color
     localStorage.setItem('irangwiki-appearance', JSON.stringify({ fontSize, width, color }))
+
+    // '자동'은 화면 폭에 따라 정한다 — 휴대폰 다크, PC 라이트. 창 크기가 바뀌면 다시 맞춘다.
+    const media = window.matchMedia(MOBILE_THEME_QUERY)
+    const apply = () => {
+      root.dataset.wikiColor = resolveWikiColor(color, media.matches)
+    }
+    apply()
+    if (color !== 'auto') return
+    media.addEventListener?.('change', apply)
+    return () => media.removeEventListener?.('change', apply)
   }, [fontSize, width, color])
 
   const label = (value: string) => ({ small: '작음', standard: '표준', large: '큼', wide: '넓게', auto: '자동', light: '라이트', dark: '다크' } as Record<string, string>)[value] || value
@@ -854,7 +864,7 @@ export function WikiAppearanceControls() {
     <div className="flex items-center justify-between border-b border-[color:var(--wiki-rule)] pb-2"><h3>외관</h3><button type="button" onClick={(e) => (e.currentTarget.closest('section') as HTMLElement)?.classList.toggle('is-collapsed')}>숨기기</button></div>
     <fieldset><legend>글</legend>{choice('font', 'small', fontSize, setFontSize)}{choice('font', 'standard', fontSize, setFontSize)}{choice('font', 'large', fontSize, setFontSize)}</fieldset>
     <fieldset><legend>너비</legend>{choice('width', 'standard', width, setWidth)}{choice('width', 'wide', width, setWidth)}</fieldset>
-    <fieldset><legend>색 (베타)</legend>{choice('color', 'auto', color, setColor)}{choice('color', 'light', color, setColor)}{choice('color', 'dark', color, setColor)}</fieldset>
+    <fieldset><legend title="자동: 휴대폰은 다크, PC는 라이트">색 (자동: 휴대폰 다크)</legend>{choice('color', 'auto', color, setColor)}{choice('color', 'light', color, setColor)}{choice('color', 'dark', color, setColor)}</fieldset>
   </section>
 }
 

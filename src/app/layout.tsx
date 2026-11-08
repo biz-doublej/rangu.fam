@@ -6,6 +6,7 @@ import React from 'react'
 import { headers } from 'next/headers'
 import { AppProviders } from '@/components/providers/AppProviders'
 import { AppChrome } from '@/components/layout/AppChrome'
+import { MOBILE_THEME_QUERY } from '@/lib/wikiAppearance'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
@@ -30,7 +31,8 @@ const caveat = Caveat({
   display: 'swap',
 })
 
-const WIKI_APPEARANCE_BOOTSTRAP = `try{var a=JSON.parse(localStorage.getItem('irangwiki-appearance')||'{}'),d=document.documentElement.dataset;if(a.fontSize)d.wikiFont=a.fontSize;if(a.width)d.wikiWidth=a.width;if(a.color)d.wikiColor=a.color}catch(e){}`
+// 그리기 전에 위키 외관을 정한다. 색이 '자동'(또는 미설정)이면 휴대폰은 다크, PC는 라이트 — src/lib/wikiAppearance.ts 와 같은 규칙
+const WIKI_APPEARANCE_BOOTSTRAP = `try{var a=JSON.parse(localStorage.getItem('irangwiki-appearance')||'{}'),d=document.documentElement.dataset;if(a.fontSize)d.wikiFont=a.fontSize;if(a.width)d.wikiWidth=a.width;var c=a.color;if(c!=='dark'&&c!=='light')c=window.matchMedia('${MOBILE_THEME_QUERY}').matches?'dark':'light';d.wikiColor=c}catch(e){}`
 
 export const metadata: Metadata = {
   title: 'Rangu.fam — 친구 다섯의 기록',
