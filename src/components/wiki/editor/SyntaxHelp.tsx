@@ -39,7 +39,7 @@ const SECTIONS: Array<{ title: string; rows: Row[] }> = [
       { desc: '각주', code: '[* 각주 내용]', note: '번호 자동' },
       { desc: '각주 모으기', code: '[[각주]]', note: '여기까지 나온 각주' },
       { desc: '글자 그대로', code: '\\[[문서]]', note: '기호 앞에 \\' },
-      { desc: '분류', code: '[[분류:분류명]]' },
+      { desc: '분류', code: '[[분류:분류명]]', note: '흐리게는 [[분류:분류명|가림]]' },
       { desc: '이미지', code: '[이미지:주소]', note: '한 줄에 단독으로' },
     ],
   },

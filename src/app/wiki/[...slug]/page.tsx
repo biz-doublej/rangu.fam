@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   AlertTriangle,
@@ -33,6 +33,7 @@ import { wikiPath } from '@/lib/wiki/links'
 import { useTemplateExpansion } from '@/hooks/useTemplateExpansion'
 import { TEMPLATE_PREFIX } from '@/lib/wiki/templates'
 import { TemplateInfoPanel } from '@/components/wiki/TemplateInfoPanel'
+import { hiddenCategoriesIn } from '@/lib/wikiCategories'
 import { WikiShell, WikiPageHeader, DocumentFunctionsPanel, WikiMeter, WikiTableOfContents } from '@/components/wiki'
 
 type WikiTabType = 'document' | 'edit' | 'history' | 'discussion'
@@ -706,6 +707,7 @@ export default function WikiDocumentPage() {
 
   // 본문의 틀({{이름|키=값}})을 펼친 글 — 문서 응답에 실려 온 틀로 바로 펼친다
   const expandedContent = useTemplateExpansion(currentPage?.content || '', currentPage?.templates)
+  const hiddenCategories = useMemo(() => hiddenCategoriesIn(currentPage?.content), [currentPage?.content])
 
   /* ── Render ────────────────────────────────────── */
   if (isLoading) {
@@ -1319,7 +1321,11 @@ export default function WikiDocumentPage() {
                   key={`${category}-${idx}`}
                   type="button"
                   onClick={() => router.push(`/wiki/category/${encodeURIComponent(category)}`)}
-                  className="inline-block mr-1 mb-1 text-xs text-[color:var(--wiki-link)] hover:underline"
+                  // [[분류:X|가림]] 은 흐리게 — 마우스를 올리거나 초점을 주면 보인다
+                  className={`inline-block mr-1 mb-1 text-xs text-[color:var(--wiki-link)] hover:underline${
+                    hiddenCategories.has(category) ? ' wiki-category-blur' : ''
+                  }`}
+                  title={hiddenCategories.has(category) ? '가린 분류 — 마우스를 올리면 보입니다' : undefined}
                 >
                   [{category}]
                 </button>

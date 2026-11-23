@@ -628,6 +628,9 @@ function convertLinks(text: string, line: number, warn: Warn, context: InlineCon
       }
       return full
     }
+    // 가린 분류 [[분류:X#blur]] → [[분류:X|가림]]
+    const blurred = target.match(/^(분류|category):(.+)#blur$/i)
+    if (blurred) return `[[분류:${blurred[2].trim()}|가림]]`
     const section = target.match(SECTION_NUMBER)
     if (section) {
       const page = section[1].trim()

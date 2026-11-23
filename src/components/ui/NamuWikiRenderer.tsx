@@ -814,8 +814,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             const linkContent = match[1]
             const [page, display] = linkContent.split('|')
             // [[:파일:…]] [[:분류:…]] 의 앞 : 는 "링크만" 표시라 보이는 글자에서 뺀다
-            const displayText = display?.trim() || page.trim().replace(/^:(?=(파일|분류|file|category):)/i, '')
             const target = resolveWikiLink(page, pageTitle)
+            // [[분류:X|가림]] — '가림'은 보일 글자가 아니라 가린 분류 표시: 분류 이름을 흐리게 보인다
+            const hiddenCategory = target.kind === 'category' && display?.trim() === '가림'
+            const displayText = hiddenCategory
+              ? `분류:${target.kind === 'category' ? target.name : ''}`
+              : display?.trim() || page.trim().replace(/^:(?=(파일|분류|file|category):)/i, '')
 
             // 표시 텍스트에서 아이콘 문법 파싱
             const parsedDisplayContent = parseIconSyntax(displayText)
@@ -841,7 +845,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 href={href}
                 target={opensOutside ? '_blank' : undefined}
                 rel={opensOutside ? 'noopener noreferrer' : undefined}
-                className={`text-blue-400 hover:text-blue-300 ${isIconOnly ? '' : 'underline'} inline-flex items-center gap-1 whitespace-nowrap`}
+                className={`text-blue-400 hover:text-blue-300 ${isIconOnly ? '' : 'underline'} inline-flex items-center gap-1 whitespace-nowrap${hiddenCategory ? ' wiki-category-blur' : ''}`}
+                title={hiddenCategory ? '가린 분류 — 마우스를 올리면 보입니다' : undefined}
                 style={{ display: 'inline-flex', alignItems: 'center' }}
                 onClick={(e) => {
                   if (opensOutside) return

@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronRight, Code, FileText, Hash, Heading1, Heading2, Heading3, HelpCircle,
   Image as ImageIcon, Info, Italic, Link, Link2, List, ListOrdered, ListTree, Maximize2, Minimize2,
   Minus, Palette, PaintBucket, PenLine, Quote, Save, SpellCheck, Strikethrough, Subscript, Superscript,
-  Table, Tag, Type, Underline, X
+  Table, Tag, Type, Underline, Wand2, X
 } from 'lucide-react'
 import NamuWikiRenderer from './NamuWikiRenderer'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
@@ -14,6 +14,8 @@ import { COLOR_PICKER_PALETTE, normalizeColor, isValidHexColor } from '@/lib/tab
 import { BLANK_PATTERN, EDITOR_TEMPLATE_GROUPS, type EditorTemplate } from '@/components/wiki/editor/templates'
 import { SyntaxHelp } from '@/components/wiki/editor/SyntaxHelp'
 import { useTemplateExpansion } from '@/hooks/useTemplateExpansion'
+import { looksLikeNamu } from '@/lib/wiki/convert/detect'
+import { NamuConvertDialog } from '@/components/wiki/NamuConvertDialog'
 
 type EditorMode = 'write' | 'split' | 'preview'
 
@@ -203,6 +205,8 @@ export default function WikiEditor({
 
   const [lockedBy, setLockedBy] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ content: string; savedAt: number } | null>(null)
+  // 나무위키 문법 변환 대화상자 — paste: 붙여 넣은 글, convert: 메뉴에서 고른 범위(선택 또는 문서 전체)
+  const [namuConvert, setNamuConvert] = useState<{ text: string; start: number; end: number; mode: 'paste' | 'convert' } | null>(null)
 
   const lineCount = useMemo(() => content.split('\n').length, [content])
   const blankCount = useMemo(() => content.match(BLANK_PATTERN)?.length ?? 0, [content])
@@ -233,6 +237,33 @@ export default function WikiEditor({
       onChange(content.substring(0, start) + before + after + content.substring(end))
       restoreCaret(start + before.length, start + before.length, scrollTop)
     }
+  }
+
+  // 나무위키 문법을 붙여 넣으면 바로 넣지 않고 변환 비교 창을 띄운다 (표지 2가지 이상일 때만)
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = event.clipboardData.getData('text/plain')
+    if (!pasted || !looksLikeNamu(pasted)) return
+    event.preventDefault()
+    const textarea = event.currentTarget
+    setNamuConvert({ text: pasted, start: textarea.selectionStart, end: textarea.selectionEnd, mode: 'paste' })
+  }
+
+  // 메뉴 '나무위키 문법 변환' — 고른 부분이 있으면 그 부분, 없으면 문서 전체
+  const openNamuConvert = () => {
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? 0
+    const end = textarea?.selectionEnd ?? 0
+    if (start !== end) setNamuConvert({ text: content.substring(start, end), start, end, mode: 'convert' })
+    else setNamuConvert({ text: content, start: 0, end: content.length, mode: 'convert' })
+  }
+
+  const replaceNamuRange = (replacement: string) => {
+    if (!namuConvert) return
+    const scrollTop = textareaRef.current?.scrollTop
+    onChange(content.substring(0, namuConvert.start) + replacement + content.substring(namuConvert.end))
+    const caret = namuConvert.start + replacement.length
+    setNamuConvert(null)
+    restoreCaret(caret, caret, scrollTop)
   }
 
   const insertAtLineStart = (prefix: string) => {
@@ -542,6 +573,8 @@ export default function WikiEditor({
     { kind: 'item', label: '투표', icon: BarChart3, onSelect: () => insertBlock(':::poll 질문을 입력하세요\n선택지1\n선택지2\n', ':::\n') },
     { kind: 'item', label: '가로줄', icon: Minus, hint: '---', onSelect: () => insertBlock('---\n') },
     { kind: 'item', label: '목차', icon: ListTree, hint: '[[목차]]', onSelect: () => insertBlock('[[목차]]\n') },
+    { kind: 'divider' },
+    { kind: 'item', label: '나무위키 문법 변환', icon: Wand2, hint: '선택 또는 전체', onSelect: () => openNamuConvert() },
   ]
 
   const styleMenu: MenuItem[] = [
@@ -625,6 +658,7 @@ export default function WikiEditor({
         ref={textareaRef}
         value={content}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         onScroll={() => {
           if (textareaRef.current && lineNumbersRef.current) {
@@ -956,6 +990,16 @@ export default function WikiEditor({
             )}
           </div>
         </div>
+      )}
+      {namuConvert && (
+        <NamuConvertDialog
+          source={namuConvert.text}
+          title={namuConvert.mode === 'paste' ? '나무위키 문법으로 보입니다' : '나무위키 문법 → 이랑위키 문법'}
+          applyLabel={namuConvert.mode === 'paste' ? '변환해서 넣기' : '변환한 글로 바꾸기'}
+          onApply={replaceNamuRange}
+          onUseOriginal={namuConvert.mode === 'paste' ? () => replaceNamuRange(namuConvert.text) : undefined}
+          onCancel={() => setNamuConvert(null)}
+        />
       )}
     </div>
   )

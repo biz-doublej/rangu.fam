@@ -14,11 +14,13 @@ import {
   Megaphone,
   Shield,
   Users,
+  Wand2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import { AccountLinkTab } from './components/AccountLinkTab'
 import { AdManagement } from './components/AdManagement'
+import { NamuImportTab } from './components/NamuImportTab'
 import { NoticesTab } from './components/NoticesTab'
 import { OverviewTab, type DashboardData } from './components/OverviewTab'
 import { ReportsTab } from './components/ReportsTab'
@@ -35,7 +37,7 @@ interface StaffMe {
   role: 'admin' | 'moderator'
 }
 
-type TabKey = 'overview' | 'review' | 'reports' | 'users' | 'accounts' | 'documents' | 'ads' | 'notices' | 'system'
+type TabKey = 'overview' | 'review' | 'reports' | 'users' | 'accounts' | 'documents' | 'import' | 'ads' | 'notices' | 'system'
 
 const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly: boolean; group: string }> = [
   { key: 'overview', label: '오늘', icon: BarChart3, adminOnly: true, group: '할 일' },
@@ -44,6 +46,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ clas
   { key: 'users', label: '회원', icon: Users, adminOnly: true, group: '회원' },
   { key: 'accounts', label: '계정 연결', icon: Link2, adminOnly: true, group: '회원' },
   { key: 'documents', label: '문서', icon: FileText, adminOnly: true, group: '위키' },
+  { key: 'import', label: '나무위키 가져오기', icon: Wand2, adminOnly: false, group: '위키' },
   { key: 'ads', label: '광고', icon: ImageIcon, adminOnly: true, group: '위키' },
   { key: 'notices', label: '공지', icon: Megaphone, adminOnly: true, group: '위키' },
   { key: 'system', label: '서버와 DB', icon: Activity, adminOnly: true, group: '서버' },
@@ -254,6 +257,7 @@ export default function AdminDashboard() {
           {activeTab === 'users' && <UsersTab />}
           {activeTab === 'accounts' && <AccountLinkTab />}
           {activeTab === 'documents' && <div className="p-5 sm:p-6"><WikiDocsManagement /></div>}
+          {activeTab === 'import' && <NamuImportTab />}
           {activeTab === 'ads' && <div className="p-5 sm:p-6"><AdManagement /></div>}
           {activeTab === 'notices' && <NoticesTab />}
           {activeTab === 'system' && <SystemTab data={dashboard} onRefresh={loadDashboard} />}

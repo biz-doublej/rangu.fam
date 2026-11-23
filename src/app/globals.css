@@ -3154,6 +3154,60 @@ video:hover {
 .wiki-sort-btn:hover, .wiki-sort-btn:focus-visible { opacity: 1; background: rgba(127, 127, 127, .2); }
 th[aria-sort] .wiki-sort-btn { opacity: 1; }
 
+/* 나무위키 → 이랑위키 변환 비교 (붙여넣기 대화상자, 관리 화면 가져오기) */
+.namu-convert-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, .45);
+}
+.namu-convert-dialog__panel {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--wiki-rule-strong);
+  border-radius: 8px;
+  background: var(--wiki-panel, #fff);
+  color: var(--wiki-ink);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .3);
+}
+.namu-convert-dialog__btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid var(--wiki-rule-strong);
+  border-radius: 4px;
+  color: var(--wiki-ink-soft);
+  background: var(--wiki-bg-2);
+}
+.namu-convert-dialog__btn:hover { border-color: var(--wiki-accent); }
+.namu-convert-dialog__btn--primary { color: #fff; background: var(--wiki-accent); border-color: var(--wiki-accent); font-weight: 600; }
+.namu-convert-dialog__btn:disabled { opacity: .5; cursor: wait; }
+.namu-convert__body { border: 1px solid var(--wiki-rule); border-radius: 4px; background: var(--wiki-bg); }
+.namu-convert__diff {
+  max-height: 52vh;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 0;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--wiki-ink-soft);
+}
+.namu-convert__line { padding: 0 10px; }
+.namu-convert__line > span[aria-hidden] { display: inline-block; width: 1.2em; color: var(--wiki-ink-faint); }
+.namu-convert__line--added { background: rgba(34, 197, 94, .14); color: var(--wiki-ink); }
+.namu-convert__line--removed { background: rgba(239, 68, 68, .12); text-decoration: line-through; text-decoration-color: rgba(239, 68, 68, .5); }
+.namu-convert__preview { max-height: 52vh; overflow: auto; padding: 10px 14px; }
+
+/* 가린 분류 [[분류:X|가림]] — 마우스를 올리거나 초점을 주면 보인다 */
+.wiki-category-blur { filter: blur(4px); transition: filter .15s; }
+.wiki-category-blur:hover, .wiki-category-blur:focus-visible { filter: none; }
+
 /* 루비 [루비:漢字(한자)] */
 .namu-wiki-content ruby rt { font-size: .6em; opacity: .85; }
 
