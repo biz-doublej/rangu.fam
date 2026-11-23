@@ -1,0 +1,12 @@
+[
+  {
+    "line": 1,
+    "kind": "unsupported",
+    "message": "안전하지 않은 표 지시자(style·javascript 등)를 지웠습니다."
+  },
+  {
+    "line": 2,
+    "kind": "unsupported",
+    "message": "안전하지 않은 표 지시자(style·javascript 등)를 지웠습니다."
+  }
+]

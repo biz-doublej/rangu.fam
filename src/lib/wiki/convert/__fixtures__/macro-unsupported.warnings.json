@@ -1,0 +1,22 @@
+[
+  {
+    "line": 1,
+    "kind": "unsupported",
+    "message": "[pagecount] 매크로는 아직 옮기지 못해 그대로 두었습니다."
+  },
+  {
+    "line": 2,
+    "kind": "unsupported",
+    "message": "[nicovideo(…)] 매크로는 아직 옮기지 못해 그대로 두었습니다."
+  },
+  {
+    "line": 2,
+    "kind": "unsupported",
+    "message": "[navertv(…)] 매크로는 아직 옮기지 못해 그대로 두었습니다."
+  },
+  {
+    "line": 2,
+    "kind": "unsupported",
+    "message": "[kakaotv(…)] 매크로는 아직 옮기지 못해 그대로 두었습니다."
+  }
+]

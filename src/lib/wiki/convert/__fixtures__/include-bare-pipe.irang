@@ -1,0 +1,2 @@
+[include(틀:표, 내용=가 | 나)]
+[include(틀:표, 내용=`a|b`, 링크=[[https://x.com|x]])]

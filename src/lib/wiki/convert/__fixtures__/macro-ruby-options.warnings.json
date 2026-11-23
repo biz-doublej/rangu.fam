@@ -1,0 +1,12 @@
+[
+  {
+    "line": 1,
+    "kind": "lossy",
+    "message": "루비 옵션 중 이랑위키에서 쓸 수 없는 것을 뺐습니다: color"
+  },
+  {
+    "line": 2,
+    "kind": "unsupported",
+    "message": "[ruby(…)] 을 읽지 못해 그대로 두었습니다."
+  }
+]

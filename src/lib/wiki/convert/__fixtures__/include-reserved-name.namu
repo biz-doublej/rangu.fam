@@ -1,0 +1,2 @@
+[include(틀:인물정보상자, 이름=홍길동)]
+[include(틀:role:developer)]

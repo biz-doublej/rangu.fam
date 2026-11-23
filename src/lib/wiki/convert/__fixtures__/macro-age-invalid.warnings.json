@@ -1,0 +1,12 @@
+[
+  {
+    "line": 1,
+    "kind": "unsupported",
+    "message": "[age(…)] 의 날짜를 읽지 못해 그대로 두었습니다."
+  },
+  {
+    "line": 1,
+    "kind": "unsupported",
+    "message": "[age(…)] 의 날짜를 읽지 못해 그대로 두었습니다."
+  }
+]
