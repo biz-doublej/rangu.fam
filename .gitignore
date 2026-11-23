@@ -89,6 +89,8 @@ jspm_packages/
 
 # Next.js build output
 .next
+# 옛 빌드 캐시를 옮겨 둔 폴더 (2026-10 실수로 커밋됐던 것) — 저장소에 넣지 않는다
+.next-cache-stale/
 
 # Nuxt.js build / generate output
 .nuxt

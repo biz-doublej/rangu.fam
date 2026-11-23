@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST="{\"components\\\\wiki\\\\WikiShell.tsx -> @/components/ui/NotificationDropdown\":{\"id\":\"components\\\\wiki\\\\WikiShell.tsx -> @/components/ui/NotificationDropdown\",\"files\":[\"static/chunks/_app-pages-browser_src_components_ui_NotificationDropdown_tsx.js\"]}}"
