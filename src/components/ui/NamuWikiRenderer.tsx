@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom'
 import { isFoldCollapsed, onRevealWikiElement, revealWikiElement } from '@/lib/wikiHeadings'
 import { createHeadingSlugger } from '@/lib/wiki/slug'
 import { prepareFootnotes } from '@/lib/wiki/footnotes'
-import { resolveWikiLink } from '@/lib/wiki/links'
+import { resolveWikiLink, wikiPath } from '@/lib/wiki/links'
 import { prepareSource } from '@/lib/wiki/source'
 import { parseBlocks, parseMarkdownTableRow } from '@/lib/wiki/parser/blocks'
 import { documentHeadings } from '@/lib/wiki/parser/document'
@@ -1749,8 +1749,18 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         elements.push(
           <div key={i} className="my-4">
             <div className="flex items-center justify-center gap-8 text-sm">
+              {/* 예전에는 #/wiki/… 주소라서 눌러도 이동하지 않았다 — 다른 위키 링크처럼 문서로 간다 */}
               {items.map((it, idx) => (
-                <a key={idx} href={`#/wiki/${encodeURIComponent(it.link)}`} className="text-gray-300 hover:text-gray-100">
+                <a
+                  key={idx}
+                  href={wikiPath(it.link)}
+                  className="text-gray-300 hover:text-gray-100"
+                  onClick={(e) => {
+                    if (!onLinkClick) return
+                    e.preventDefault()
+                    onLinkClick(it.link)
+                  }}
+                >
                   {it.label}
                 </a>
               ))}
@@ -1997,7 +2007,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         const alignClass = options.align === 'left' ? 'text-left' : options.align === 'right' ? 'text-right' : 'text-center'
         elements.push(
           <div key={i} className={`my-4 ${alignClass}${options.theme ? ` wiki-only-${options.theme}` : ''}`}>
-            <img src={path} alt={caption} className={`max-w-full h-auto rounded border border-gray-700 inline-block${imageOptionClasses({ ...options, theme: undefined })}`}
+            {/* 자리를 정한 그림만 wiki-img-placed — 위키 CSS 가 그림을 display:block 으로 두어 자리 옵션이 먹지 않았다.
+                자리를 안 정한 그림은 지금까지처럼 왼쪽에 둔다 (모든 문서의 그림이 갑자기 가운데로 가지 않게) */}
+            <img src={path} alt={caption} className={`max-w-full h-auto rounded border border-gray-700 inline-block${options.align ? ' wiki-img-placed' : ''}${imageOptionClasses({ ...options, theme: undefined })}`}
                  style={options.width ? { width: options.width } : undefined}
                  data-fallback-attempt="0"
                  onError={handleWikiImageError} />
@@ -2396,7 +2408,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         let highlightedCode = rawCode
         let usedLanguage = lang
         try {
-          if (lang && hljs.getLanguage(lang)) {
+          if (lang === 'wiki' || lang === '위키' || lang === 'namu' || lang === '나무위키') {
+            // 위키 원문 예시 — 색칠하지 않는다 (언어를 비워 두면 자동 감지가 PYTHON 같은 엉뚱한 이름을 붙인다)
+            highlightedCode = rawCode.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            usedLanguage = lang === 'namu' || lang === '나무위키' ? '나무위키 문법' : '위키 문법'
+          } else if (lang && hljs.getLanguage(lang)) {
             highlightedCode = hljs.highlight(rawCode, { language: lang }).value
           } else {
             const auto = hljs.highlightAuto(rawCode)

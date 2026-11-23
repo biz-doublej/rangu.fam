@@ -858,7 +858,9 @@ video:hover {
 
 /* 위키 콘텐츠 내 정보상자 반응형 처리 */
 @media (max-width: 768px) {
+  /* 그룹 정보상자가 빠져 있어 휴대폰에서 옆 글이 한 글자 폭으로 눌렸다 */
   .person-infobox,
+  .group-infobox,
   .basic-infobox {
     float: none !important;
     width: 100% !important;
@@ -3232,6 +3234,15 @@ th[aria-sort] .wiki-sort-btn { opacity: 1; }
 /* 배너상자 — 유니폼 옆띠, 위쪽 모서리 로고, 상자 링크색 */
 .wiki-banner-box__trim { position: absolute; inset: 0; pointer-events: none; }
 .wiki-banner-box__side--top { top: .45rem; transform: none; }
+/* 위키 본문 그림 공통 규칙(.namu-wiki-content img — display:block, height:auto, translateZ)이 더 구체적이라
+   배너 그림 크기를 덮었다: 큰 로고가 원래 크기로, 배경 그림이 배너 위쪽 띠로만, 양끝 그림이 가운데에서 어긋나게 나왔다 */
+.namu-wiki-content img.wiki-banner-box__bg { height: 100%; transform: none; }
+.namu-wiki-content img.wiki-banner-box__side { transform: translateY(-50%); }
+.namu-wiki-content img.wiki-banner-box__side--top { transform: none; }
+.namu-wiki-content img.wiki-banner-box__logo { height: 3.25rem; width: auto; max-width: none; }
+@media (max-width: 640px) {
+  .namu-wiki-content img.wiki-banner-box__logo { height: 2.5rem; }
+}
 .wiki-banner-box__body--links a,
 .wiki-banner-box__body--links a:hover { color: var(--bb-link) !important; }
 :root[data-wiki-color='dark'] .wiki-banner-box__body--links[style*='--bb-link-dark'] a { color: var(--bb-link-dark) !important; }
@@ -3248,6 +3259,8 @@ th[aria-sort] .wiki-sort-btn { opacity: 1; }
 .wiki-img-bordered { border: 1px solid rgba(45, 47, 52, .2); }
 /* 문장·표 칸 안의 그림은 글자처럼 가운데 정렬을 따른다 (본문 그림의 block 규칙을 덮어씀) */
 .namu-wiki-content img.wiki-inline-img { display: inline-block; margin: 0; vertical-align: middle; }
+/* [[파일:…|가운데]] 처럼 자리를 정한 단독 그림 — 감싼 줄의 글자 정렬을 따르게 */
+.namu-wiki-content img.wiki-img-placed { display: inline-block; }
 /* 너비를 정한 표(tablewidth)는 휴대폰에서도 표 모양 그대로 폭을 채운다 — 감싼 칸이 가로 스크롤을 맡는다 */
 @media (max-width: 768px) {
   .namu-wiki-content table.wiki-table-fill { display: table; }

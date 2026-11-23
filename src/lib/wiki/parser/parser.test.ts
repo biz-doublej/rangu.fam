@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseBlocks } from './blocks'
-import { documentHeadings, documentLinks, documentProse } from './document'
+import { documentCategories, documentHeadings, documentLinks, documentProse } from './document'
 import { inlineLinks, inlineText, parseInline } from './inline'
 
 const types = (text: string) => parseBlocks(text).map((block) => block.type)
@@ -85,6 +85,11 @@ describe('document helpers', () => {
     expect(documentLinks(content).map((link) => (link.type === 'link' ? link.target : link.type === 'external' ? link.url : link.src)).sort()).toEqual(
       ['각주 링크', '강한울', '작업공작소', '표 안'].sort()
     )
+  })
+
+  it('reads the categories the page shows, not the ones written as examples', () => {
+    const content = '`[[분류:코드 예시]]`\n```\n[[분류:블록 예시]]\n```\n[[:분류:링크만]] [[분류:인물]]\n[[분류:결말 포함|가림]]\n\n분류: 학생 | 인물'
+    expect(documentCategories(content)).toEqual(['인물', '결말 포함', '학생'])
   })
 
   it('gives the prose of a page for previews', () => {

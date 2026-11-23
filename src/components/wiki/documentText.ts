@@ -2,6 +2,7 @@
  * 문서 함수가 쓰는 본문 분석 도우미. 화면과 상관없는 순수 함수라 따로 두고 테스트한다.
  * 본문은 렌더러와 같은 블록 AST(src/lib/wiki/parser)로 읽는다 — 화면에서 제목인 것만 제목, 표인 것만 표.
  */
+import { parseCellDirectives } from '@/lib/tableColors'
 import { prepareFootnotes } from '@/lib/wiki/footnotes'
 import { prepareSource, stripEscapeJoiners } from '@/lib/wiki/source'
 import { nestedBody, parseBlocks, type Block } from '@/lib/wiki/parser/blocks'
@@ -210,11 +211,13 @@ export function auditTables(raw: string): TableAudit[] {
       spans = spans.map((span) => ({ ...span, rows: span.rows - 1 })).filter((span) => span.rows > 0)
       let width = carried
       for (const cell of row.slice(2, -2).split('||')) {
-        const colspan = Number(cell.match(/<-(\d+)>/)?.[1] || 1)
-        const rowspan = Number(cell.match(/<[\^v]?\|(\d+)>/)?.[1] || 1)
+        // 렌더러와 같은 지시자 읽기 — `<-2>` `<|2>` 와 한글 `<가로:2>` `<세로:2>` 모두
+        const directives = parseCellDirectives(cell.trim())
+        const colspan = directives.colSpan || 1
+        const rowspan = directives.rowSpan || 1
         width += colspan
         if (rowspan > 1) spans.push({ rows: rowspan - 1, width: colspan })
-        if (!cell.replace(/<[^<>]*>/g, '').trim()) table.emptyCells++
+        if (!directives.content.replace(/<[^<>]*>/g, '').trim()) table.emptyCells++
       }
       table.rows++
       table.widths.push(width)

@@ -4,6 +4,8 @@ import { getDb } from '@/db/client'
 import { wikiPages, wikiRevisions } from '@/db/schema/wiki'
 import { checkAdminAuth } from '@/lib/adminAuth'
 import { GUIDE_DOC, GUIDE_DOC_TITLE, SYNTAX_DOC, SYNTAX_DOC_TITLE } from '@/lib/helpDocs'
+import { PLAYER_TEMPLATE, PLAYER_TEMPLATE_TITLE, REFERENCE_DOC, REFERENCE_DOC_TITLE } from '@/lib/referenceDoc'
+import { documentCategories, documentPageLinks } from '@/lib/wiki/parser/document'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +14,7 @@ const HELP_TITLE = '이랑위키:도움말_2026'
 const HELP_CONTENT = `= 이랑위키 편집 도움말 (2026-11) =
 
 :::info
-2026년 11월 업데이트로 '''배너상자, 표 안 이미지·배경 그림, 문단 접기, 각주 미리보기, 나무위키식 첫 화면'''이 추가되었습니다. 아래 예시는 실제로 보이는 모습이니, 편집 버튼을 눌러 원문과 비교해 보세요. 기본 문법은 [[이랑위키:문법]]에 있습니다.
+2026년 11월 업데이트로 '''배너상자, 표 안 이미지·배경 그림, 문단 접기, 각주 미리보기, 나무위키식 첫 화면'''이 추가되었습니다. 아래 예시는 실제로 보이는 모습이니, 편집 버튼을 눌러 원문과 비교해 보세요. 기본 문법은 [[이랑위키:문법]]에, 모든 기능의 실제 모습과 원문은 [[이랑위키:기능 레퍼런스]]에 있습니다.
 :::
 
 [[목차]]
@@ -465,6 +467,8 @@ interface HelpPageSpec {
   content: string
   summary: string
   pageSummary: string
+  /** 새로 만들 때의 이름공간 (기본 help). 틀은 template — 편집기로 만든 틀처럼 반보호로 시작한다 */
+  namespace?: 'help' | 'template'
 }
 
 /** 이 라우트가 최신 내용으로 맞춰 두는 안내 문서들 */
@@ -487,7 +491,23 @@ const HELP_PAGES: HelpPageSpec[] = [
     summary: '자주 쓰는 문법 표에 문단 링크와 목록 단계 추가',
     pageSummary: '처음 오신 분을 위한 이랑위키 사용 안내',
   },
+  {
+    // 기능 레퍼런스의 「틀」 문단이 부르는 예시 틀
+    title: PLAYER_TEMPLATE_TITLE,
+    content: PLAYER_TEMPLATE,
+    summary: '기능 레퍼런스·문법 안내의 틀 예시',
+    pageSummary: '선수 이름·등번호·포지션을 한 줄로 — 틀 사용 예시',
+    namespace: 'template',
+  },
+  {
+    title: REFERENCE_DOC_TITLE,
+    content: REFERENCE_DOC,
+    summary: '기존 기능과 2026-11 새 기능을 실제 모습과 원문으로 모은 레퍼런스',
+    pageSummary: '이랑위키 기능을 실제로 보이는 모습으로 — 글자·링크·목록·표·그림·상자·틀·나무위키 변환',
+  },
 ]
+
+const sameList = (a: string[] | null | undefined, b: string[]) => JSON.stringify(a || []) === JSON.stringify(b)
 
 type Db = ReturnType<typeof getDb>
 type Admin = NonNullable<Awaited<ReturnType<typeof checkAdminAuth>>>
@@ -501,14 +521,25 @@ async function findPage(db: Db, title: string) {
   return page
 }
 
-/** 문서가 있으면 새 리비전을 쌓아 갱신하고, 없으면 help 네임스페이스로 만든다. 내용이 같으면 건너뛴다. */
+/**
+ * 문서가 있으면 새 리비전을 쌓아 갱신하고, 없으면 help(틀은 template) 이름공간으로 만든다. 내용이 같으면 건너뛴다.
+ * 분류·나가는 링크는 화면과 같은 규칙(AST)으로 본문에서 다시 계산한다 — 예전에는 처음 만들 때 ['도움말'] 로 고정돼
+ * 문서 끝 `분류: … | 레퍼런스` 가 분류 목록에 반영되지 않았다.
+ */
 async function upsertHelpPage(db: Db, admin: Admin, spec: HelpPageSpec) {
   const page = await findPage(db, spec.title)
   const now = new Date()
+  const categories = documentCategories(spec.content)
+  const outgoingLinks = documentPageLinks(spec.content, spec.title).filter((title) => title !== spec.title)
 
   if (page) {
     if (page.content === spec.content) {
-      return { title: spec.title, action: 'unchanged' as const, revision: page.currentRevision }
+      if (sameList(page.categories, categories)) {
+        return { title: spec.title, action: 'unchanged' as const, revision: page.currentRevision }
+      }
+      // 본문은 같고 분류만 어긋남 — 리비전 없이 분류만 맞춘다
+      await db.update(wikiPages).set({ categories, outgoingLinks, updatedAt: now }).where(eq(wikiPages.id, page.id))
+      return { title: spec.title, action: 'categories' as const, revision: page.currentRevision }
     }
     const newRev = page.currentRevision + 1
     await db.insert(wikiRevisions).values({
@@ -537,6 +568,8 @@ async function upsertHelpPage(db: Db, admin: Admin, spec: HelpPageSpec) {
         currentRevision: newRev,
         edits: page.edits + 1,
         isStub: false,
+        categories,
+        outgoingLinks,
         updatedAt: now,
       })
       .where(eq(wikiPages.id, page.id))
@@ -548,10 +581,11 @@ async function upsertHelpPage(db: Db, admin: Admin, spec: HelpPageSpec) {
     .values({
       title: spec.title,
       slug: spec.title,
-      namespace: 'help',
+      namespace: spec.namespace || 'help',
       content: spec.content,
       summary: spec.pageSummary,
-      categories: ['도움말'],
+      categories,
+      outgoingLinks,
       creator: admin.username,
       creatorId: admin.userId,
       lastEditor: admin.username,
@@ -560,7 +594,19 @@ async function upsertHelpPage(db: Db, admin: Admin, spec: HelpPageSpec) {
       lastEditSummary: spec.summary,
       currentRevision: 1,
       edits: 1,
+      isStub: false,
       watchers: [admin.userId],
+      // 편집기로 만든 틀과 같은 기본 보호 (pages API 의 틀 만들기와 같은 값)
+      ...(spec.namespace === 'template'
+        ? {
+            protection: {
+              level: 'semi' as const,
+              reason: '틀 문서 기본 보호 — 여러 문서에 함께 보입니다',
+              protectedBy: admin.username,
+              allowedRoles: [],
+            },
+          }
+        : {}),
     })
     .returning({ id: wikiPages.id })
 
@@ -583,7 +629,7 @@ async function upsertHelpPage(db: Db, admin: Admin, spec: HelpPageSpec) {
 }
 
 /**
- * 안내 문서(편집 도움말 2026 · 문법 · 도움말)를 최신(2026-11) 내용으로 맞추는 라우트.
+ * 안내 문서(편집 도움말 2026 · 문법 · 도움말 · 기능 레퍼런스 + 예시 틀)를 최신(2026-11) 내용으로 맞추는 라우트.
  * 내용이 이미 같으면 건너뛰므로 여러 번 실행해도 안전하다.
  *
  *   GET /api/admin/maintenance/help-2026            → dry-run (문서별 상태)
@@ -605,7 +651,7 @@ export async function GET(request: NextRequest) {
           return {
             title: spec.title,
             exists: Boolean(page),
-            upToDate: page?.content === spec.content,
+            upToDate: page?.content === spec.content && sameList(page?.categories, documentCategories(spec.content)),
             currentRevision: page?.currentRevision ?? null,
           }
         })

@@ -169,6 +169,21 @@ export function documentPageLinks(content: string, currentTitle = ''): string[] 
 }
 
 /**
+ * 이 문서의 분류 — 화면에 그려지는 것만: `[[분류:X]]` (`|가림` 은 떼고), `분류: A | B` 줄.
+ * 코드 안에 예시로 쓴 분류와 `[[:분류:X]]` 링크는 넣지 않는다.
+ */
+export function documentCategories(content: string): string[] {
+  const names = new Set<string>()
+  for (const link of documentLinks(content)) {
+    if (link.type !== 'link') continue
+    const name = link.target.match(/^(?:분류|카테고리):(.+)$/i)?.[1]
+    const cleaned = name?.trim().replace(/\s+/g, ' ')
+    if (cleaned) names.add(cleaned)
+  }
+  return [...names]
+}
+
+/**
  * 문서에서 읽히는 글자 전부 — 검색 발췌·글자 수용. 제목·표·정보상자 값도 넣고, 코드·그림·틀 부르기는 뺀다.
  */
 export function documentPlainText(content: string): string {

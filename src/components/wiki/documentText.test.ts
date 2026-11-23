@@ -158,6 +158,11 @@ describe('auditTables', () => {
     expect(auditTables(text)[0]).toMatchObject({ widths: [2, 2, 2], uneven: false })
   })
 
+  it('reads the Korean merge directives too', () => {
+    const text = '|| 요일 || 오전 || 오후 ||\n||<세로:2><가운데> 월 || 회의 || 연습 ||\n|| 정리 || 휴식 ||\n||<가로:3> 쉼 ||'
+    expect(auditTables(text)[0]).toMatchObject({ widths: [3, 3, 3, 3], uneven: false })
+  })
+
   it('skips tables inside code blocks', () => {
     expect(auditTables('```\n|| a || b ||\n```')).toEqual([])
   })

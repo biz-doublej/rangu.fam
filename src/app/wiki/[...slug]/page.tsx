@@ -30,6 +30,7 @@ import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { formatDate } from '@/lib/utils'
 import { parseRedirectTarget, redirectPath, splitRedirectTarget } from '@/lib/wiki/redirect'
 import { wikiPath } from '@/lib/wiki/links'
+import { documentCategories } from '@/lib/wiki/parser/document'
 import { useTemplateExpansion } from '@/hooks/useTemplateExpansion'
 import { TEMPLATE_PREFIX } from '@/lib/wiki/templates'
 import { TemplateInfoPanel } from '@/components/wiki/TemplateInfoPanel'
@@ -115,18 +116,11 @@ function mapIncomingProtection(level: any): 'none' | 'semi' | 'full' | 'admin' {
   }
 }
 
-function extractCategories(value: string) {
-  const names = new Set<string>()
-  const regex = /\[\[분류:([^\]]+)\]\]/gi
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(value)) !== null) {
-    match[1].trim().split('|').forEach(part => {
-      const cleaned = part.replace(/^\{?|\}?$/g, '').trim()
-      if (cleaned) names.add(cleaned)
-    })
-  }
-  return Array.from(names)
-}
+/**
+ * 저장할 분류 — 화면에 그려지는 분류와 같게 (렌더러와 같은 AST).
+ * 예전에는 `[[분류:X|가림]]` 의 `가림` 까지 분류로 넣고, 코드 안 예시도 분류로 셌다.
+ */
+const extractCategories = documentCategories
 
 export default function WikiDocumentPage() {
   const router = useRouter()
