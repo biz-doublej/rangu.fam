@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
+import { documentPlainText } from '@/lib/wiki/parser/document'
 import { getDb } from '@/db/client'
 import { wikiPages } from '@/db/schema/wiki'
 
@@ -63,17 +64,21 @@ export async function GET(request: NextRequest) {
 
     // 본문에서 매칭 위치 주변 스니펫 추출 (앞뒤 ~80자)
     const qLower = q.toLowerCase()
-    const buildSnippet = (content: string): string | null => {
-      if (!content) return null
-      const lower = content.toLowerCase()
-      const idx = lower.indexOf(qLower)
+    const cut = (text: string): string | null => {
+      const idx = text.toLowerCase().indexOf(qLower)
       if (idx < 0) return null
       const start = Math.max(0, idx - 80)
-      const end = Math.min(content.length, idx + qLower.length + 80)
-      let snippet = content.slice(start, end).replace(/\s+/g, ' ').trim()
+      const end = Math.min(text.length, idx + qLower.length + 80)
+      let snippet = text.slice(start, end).replace(/\s+/g, ' ').trim()
       if (start > 0) snippet = '… ' + snippet
-      if (end < content.length) snippet = snippet + ' …'
+      if (end < text.length) snippet = snippet + ' …'
       return snippet
+    }
+    // 화면에 보이는 글자(블록 AST)에서 먼저 찾아 발췌에 위키 문법(굵게 따옴표, 링크 괄호)이 보이지 않게 하고,
+    // 문법 안에만 있는 낱말(링크 대상 등)이면 원문에서 찾는다
+    const buildSnippet = (content: string): string | null => {
+      if (!content) return null
+      return cut(documentPlainText(content)) ?? cut(content)
     }
 
     const enriched = docs.map(({ content, ...rest }) => ({

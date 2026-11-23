@@ -1,6 +1,5 @@
 import { loadDisplayNames } from '@/lib/wikiDisplayNames'
-import { parseHeadingLine } from '@/lib/wikiHeadings'
-import { createHeadingSlugger } from '@/lib/wiki/slug'
+import { documentHeadings, documentPageLinks } from '@/lib/wiki/parser/document'
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
@@ -32,39 +31,14 @@ function toSlug(text: string): string {
     .replace(/^-|-$/g, '')
 }
 
+// 목차와 링크는 렌더러와 같은 블록 AST(src/lib/wiki/parser)로 읽는다 —
+// 화면에 제목으로 그려지는 것만 목차에, 코드 예시·그림·분류는 링크에서 뺀다
 function generateTableOfContents(content: string) {
-  const headings: Array<{ level: number; title: string; anchor: string }> = []
-  // 목차 앵커는 렌더러와 같은 규칙(문서 주소용 toSlug 와 다름)
-  const slugger = createHeadingSlugger()
-  let inFence = false
-  for (const rawLine of content.split('\n')) {
-    const trimmed = rawLine.trim()
-    if (!trimmed) continue
-    // 코드 블록 안의 예시 제목은 목차에 넣지 않는다
-    if (trimmed.startsWith('```')) {
-      inFence = !inFence
-      continue
-    }
-    if (inFence) continue
-    const heading = parseHeadingLine(trimmed)
-    const level = heading?.level ?? 0
-    const title = heading?.title ?? ''
-    if (level > 0 && title) {
-      headings.push({ level, title, anchor: slugger(title) })
-    }
-  }
-  return headings
+  return documentHeadings(content).map(({ level, title, anchor }) => ({ level, title, anchor }))
 }
 
-function extractLinks(content: string): string[] {
-  const links: string[] = []
-  const re = /\[\[([^\]]+)\]\]/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(content)) !== null) {
-    const target = m[1].split('|')[0].trim()
-    if (target && !links.includes(target)) links.push(target)
-  }
-  return links
+function extractLinks(content: string, currentTitle = ''): string[] {
+  return documentPageLinks(content, currentTitle)
 }
 
 // ── 인증: wiki-token 쿠키 또는 Authorization 헤더 ──────────────
@@ -555,7 +529,7 @@ export async function POST(request: NextRequest) {
         isStub: content.length < 500,
         edits: 1,
         watchers: [user.id],
-        outgoingLinks: extractLinks(content),
+        outgoingLinks: extractLinks(content, title),
         tableOfContents,
         ...(isTemplatePage
           ? {
@@ -597,7 +571,7 @@ export async function POST(request: NextRequest) {
 
     // 링크 그래프 동기화 — 새 outgoing 링크의 target 페이지들에 우리 title을 incoming으로 추가
     try {
-      const newLinks = extractLinks(content)
+      const newLinks = extractLinks(content, title)
       if (newLinks.length > 0) {
         await db.execute(sql`
           UPDATE wiki_pages
@@ -792,7 +766,7 @@ export async function PUT(request: NextRequest) {
         lastEditSummary: editSummary || '문서 편집',
         currentRevision: newRevisionNumber,
         edits: existingPage.edits + 1,
-        outgoingLinks: extractLinks(content),
+        outgoingLinks: extractLinks(content, existingPage.title),
         tableOfContents,
         isStub: content.length < 500,
         isRedirect: Boolean(detectedRedirect),
@@ -812,7 +786,7 @@ export async function PUT(request: NextRequest) {
     // 링크 그래프 동기화 (편집 시) — 새 outgoing 의 target 페이지에 우리 title 을 incoming 추가
     // 단순화를 위해 "추가" 만 처리. 기존 링크가 제거된 경우의 cleanup 은 후속 cron 작업으로.
     try {
-      const newLinks = extractLinks(content)
+      const newLinks = extractLinks(content, existingPage.title)
       const oldLinks = Array.isArray(existingPage.outgoingLinks) ? existingPage.outgoingLinks : []
       const added = newLinks.filter((l) => !oldLinks.includes(l))
       if (added.length > 0) {

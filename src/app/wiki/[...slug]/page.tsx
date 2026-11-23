@@ -869,7 +869,7 @@ export default function WikiDocumentPage() {
           <>
             {/* 목차 (scroll-spy) — 문서 탭에서만 */}
             {activeTab === 'document' && currentPage.content && (
-              <WikiTableOfContents content={currentPage.content} />
+              <WikiTableOfContents content={expandedContent} />
             )}
 
             {/* 인포박스 */}

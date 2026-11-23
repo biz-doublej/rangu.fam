@@ -3,11 +3,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
-import { isFoldCollapsed, onRevealWikiElement, parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
+import { isFoldCollapsed, onRevealWikiElement, revealWikiElement } from '@/lib/wikiHeadings'
 import { createHeadingSlugger } from '@/lib/wiki/slug'
-import { isFootnoteDefinitionLine, prepareFootnotes } from '@/lib/wiki/footnotes'
+import { prepareFootnotes } from '@/lib/wiki/footnotes'
 import { resolveWikiLink } from '@/lib/wiki/links'
 import { prepareSource } from '@/lib/wiki/source'
+import { parseBlocks, parseMarkdownTableRow } from '@/lib/wiki/parser/blocks'
+import { documentHeadings } from '@/lib/wiki/parser/document'
 import {
   ageOn,
   ddayLabel,
@@ -24,9 +26,6 @@ import {
 
 import {
   buildListTree,
-  collectFencedBlock,
-  isQuoteLine,
-  parseListLine,
   parseQuoteBlock,
   parseStyledBoxOptions,
   type ListLine,
@@ -36,7 +35,7 @@ import {
 import { FootnoteRef } from '@/components/wiki/FootnoteRef'
 import { WikiSortableTable, type TableSort } from '@/components/wiki/WikiSortableTable'
 import { WikiBannerBox } from '@/components/wiki/WikiBannerBox'
-import { imageAddress, isBannerBoxStart, readBannerBox, resolveBannerBoxStyle } from '@/lib/bannerBox'
+import { imageAddress, resolveBannerBoxStyle } from '@/lib/bannerBox'
 import dynamic from 'next/dynamic'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -1309,37 +1308,15 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     )
   }
 
+  // [[목차]] 에 넣을 제목 — 본문을 그리는 것과 같은 블록 AST 로 (제목 id 도 같은 규칙, 같은 순서)
   const generateTOC = useCallback((text: string) => {
-    const headings: TableOfContentsItem[] = []
-    const lines = text.split('\n')
-    
-    const slugger = createHeadingSlugger()
-    let inFence = false
-    for (const line of lines) {
-      const trimmed = line.trim()
-      // 코드 블록(```) 안의 예시 제목은 목차에 넣지 않는다
-      if (trimmed.startsWith('```')) {
-        inFence = !inFence
-        continue
-      }
-      if (inFence) continue
-      const heading = parseHeadingLine(trimmed)
-      const level = heading?.level ?? 0
-      const title = heading?.title ?? ''
-      
-      if (level > 0 && title) {
-        const anchor = slugger(title)
-        headings.push({ level, title, anchor })
-      }
-    }
-    
-    setToc(headings)
+    setToc(documentHeadings(text).map(({ level, title, anchor }) => ({ level, title, anchor })))
   }, [])
 
   useEffect(() => {
     if (generateTableOfContents) {
       // 본문과 같은 원문으로 목차를 만든다 — // 주석 줄과 \ 로 막은 제목은 목차에 넣지 않는다
-      generateTOC(prepareSource(content))
+      generateTOC(content)
     }
   }, [content, generateTableOfContents, generateTOC])
 
@@ -1414,15 +1391,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       floatBoxIndexes.add(elements.length)
     }
 
-    const parseMarkdownTableRow = (row: string) => {
-      const parts = row.split('|')
-      parts.shift()
-      parts.pop()
-      return parts.map((cell) => cell.trim())
-    }
-
-    const isMarkdownTableLine = (value: string) => /^\|.*\|\s*$/.test(value)
-    const isSeparatorRow = (cells: string[]) => cells.length > 0 && cells.every((cell) => /^:?-{2,}:?$/.test(cell))
 
     const renderPersonInfoboxElement = (params: Record<string, string>, orderedParams: Array<[string, string]>, key: React.Key, colorAttribs?: string) => {
       const templateColors = parseTemplateColorAttributes(colorAttribs)
@@ -1579,18 +1547,15 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         </React.Fragment>
       )
     }
-    const imageRegex = /^\[이미지:([^\]]+)\]$/
-    const fileRegex = /^\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]$/
-    const infoboxRegex = /^\[\[인포박스:(.+)\]\]$/
-    const cardGridRegex = /^\[\[카드그리드:(.*)\]\]$/
-    const tabsRegex = /^\[\[탭바:(.+)\]\]$/
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
+    // 블록 AST(src/lib/wiki/parser/blocks.ts)가 나눈 블록을 차례로 그린다 — 줄을 모으는 규칙은 거기 한 곳에
+    for (const block of parseBlocks(text)) {
+      const i = block.start
+      const line = lines[i] ?? ''
       const trimmed = line.trim()
       // 배너상자 블록: {{배너상자 \n |키=값 ... \n |본문= \n 위키 문법 ... \n }}
-      if (isBannerBoxStart(trimmed)) {
-        const { spec, end } = readBannerBox(lines, i)
+      if (block.type === 'banner') {
+        const spec = block.spec
         const params = spec.params
         const image = (key: string) => {
           const address = imageAddress(params[key])
@@ -1621,34 +1586,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             {spec.body.trim() ? parseContent(spec.body) : null}
           </WikiBannerBox>
         )
-        i = end
         continue
       }
 
       // 인물정보상자 블록 처리: {{인물정보상자<bgcolor:#E8F4FD> \n |키=값 ... \n }}
-      if (/^\{\{\s*인물정보상자(<[^>]+>)?\s*$/i.test(trimmed) || /^\{\{\s*인물정보상자(<[^>]+>)?\b/i.test(trimmed)) {
-        let j = i + 1
-        const buf: string[] = []
-        
-        // 색상 속성 추출
-        const colorMatch = trimmed.match(/\{\{\s*인물정보상자(<[^>]+>)/i)
-        const colorAttribs = colorMatch ? colorMatch[1] : undefined
-        
-        // 만약 시작 라인에 내용이 같이 온 경우 처리 ({{인물정보상자|키=값 ...}})
-        const after = line.replace(/^.*인물정보상자(<[^>]+>)?/i, '')
-        if (after.includes('}}')) {
-          const innerInline = after.replace(/^.*?\{\{\s*인물정보상자(<[^>]+>)?\s*/i, '').replace(/}}.*$/, '')
-          buf.push(innerInline)
-        } else {
-          while (j < lines.length) {
-            const t = lines[j].trim()
-            if (/^}}\s*$/.test(t)) break
-            buf.push(lines[j])
-            j++
-          }
-          i = j // 블록 끝으로 이동 (for 루프에서 i++ 되므로 마지막 줄의 다음으로 진행)
-        }
-        const paramsText = buf.join('\n')
+      if (block.type === 'person-infobox') {
+        const colorAttribs = block.colorAttribs
+        const paramsText = block.paramsText
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
         markFloatBox()
@@ -1657,29 +1601,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 그룹정보상자 블록 처리: {{그룹정보상자<bgcolor:#E8F4FD> \n |키=값 ... \n }}
-      if (/^\{\{\s*그룹정보상자(<[^>]+>)?\s*$/i.test(trimmed) || /^\{\{\s*그룹정보상자(<[^>]+>)?\b/i.test(trimmed)) {
-        let j = i + 1
-        const buf: string[] = []
-        
-        // 색상 속성 추출
-        const colorMatch = trimmed.match(/\{\{\s*그룹정보상자(<[^>]+>)/i)
-        const colorAttribs = colorMatch ? colorMatch[1] : undefined
-        
-        // 만약 시작 라인에 내용이 같이 온 경우 처리 ({{그룹정보상자|키=값 ...}})
-        const after = line.replace(/^.*그룹정보상자(<[^>]+>)?/i, '')
-        if (after.includes('}}')) {
-          const innerInline = after.replace(/^.*?\{\{\s*그룹정보상자(<[^>]+>)?\s*/i, '').replace(/}}.*$/, '')
-          buf.push(innerInline)
-        } else {
-          while (j < lines.length) {
-            const t = lines[j].trim()
-            if (/^}}\s*$/.test(t)) break
-            buf.push(lines[j])
-            j++
-          }
-          i = j // 블록 끝으로 이동 (for 루프에서 i++ 되므로 마지막 줄의 다음으로 진행)
-        }
-        const paramsText = buf.join('\n')
+      if (block.type === 'group-infobox') {
+        const colorAttribs = block.colorAttribs
+        const paramsText = block.paramsText
         const params = parseTemplateParams(paramsText)
         const orderedParams = parseTemplateParamsOrdered(paramsText)
         markFloatBox()
@@ -1693,7 +1617,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 분류 태그 렌더링 (예: 분류: A | B | C)
-      if (trimmed.startsWith('분류:')) {
+      if (block.type === 'category-line') {
         const rawSegment = trimmed.substring(3).replace(/^:/, '')
         const categories = rawSegment
           .split('|')
@@ -1723,19 +1647,16 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 역할 배너: {{role:developer}} 등
-      const roleMatch = trimmed.match(/^\{\{\s*role\s*:\s*([a-zA-Z0-9_-]+)\s*\}\}$/i)
-      if (roleMatch) {
-        const roleKey = roleMatch[1].toLowerCase()
+      if (block.type === 'role') {
+        const roleKey = block.role
         elements.push(<RoleBanner key={`role-${i}`} role={roleKey} />)
         continue
       }
 
       // 인용 박스: {{인용| 인용문 | 출처(선택) | 링크(선택) }}
-      const citationMatch = trimmed.match(/^\{\{\s*인용\s*\|(.+)\}\}$/)
-      if (citationMatch) {
-        const segs = citationMatch[1].split('|').map((s) => s.trim())
-        const [quote, source, url] = segs
-        if (quote) {
+      if (block.type === 'citation') {
+        const { quote, source, url } = block
+        {
           elements.push(
             <CitationBox
               key={`cite-${i}`}
@@ -1750,51 +1671,31 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 수평선: --- (3개 이상의 dash)
-      if (/^-{3,}$/.test(trimmed)) {
+      if (block.type === 'rule' && block.variant === 'dash') {
         elements.push(<hr key={i} className="my-6 border-0 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />)
         continue
       }
 
       // 타임라인 블록: :::timeline ... :::  (각 줄 `날짜 | 제목 | 설명`)
-      const timelineOpen = trimmed.match(/^:::timeline\s*$/i)
-      if (timelineOpen) {
-        const buf: string[] = []
-        let j = i + 1
-        while (j < lines.length && !/^:::\s*$/.test(lines[j].trim())) {
-          buf.push(lines[j])
-          j++
-        }
-        i = j
+      if (block.type === 'timeline') {
         elements.push(
-          <WikiTimeline key={i} entries={parseTimeline(buf.join('\n'))} parseInline={parseInlineElements} />
+          <WikiTimeline key={i} entries={parseTimeline(block.body)} parseInline={parseInlineElements} />
         )
         continue
       }
 
       // 투표 블록: :::poll 질문 \n 선택지... \n :::
-      const pollOpen = trimmed.match(/^:::poll\s+(.+)$/i)
-      if (pollOpen) {
-        const buf: string[] = []
-        let j = i + 1
-        while (j < lines.length && !/^:::\s*$/.test(lines[j].trim())) {
-          buf.push(lines[j])
-          j++
-        }
-        i = j
-        const spec = parsePoll(pollOpen[1], buf)
-        if (spec) {
-          elements.push(<WikiPoll key={i} spec={spec} />)
-          continue
-        }
-        // 선택지 부족 등 파싱 실패 시 원문 유지
+      if (block.type === 'poll') {
+        const spec = parsePoll(block.question, block.options)
+        if (spec) elements.push(<WikiPoll key={i} spec={spec} />)
+        continue
       }
 
       // 꾸민 상자 :::상자 배경=#색 글자=#색 테두리=#색 정렬=가운데 위치=가운데 너비=80% 둥글게 … :::
       // 허용한 키·검사한 값만 쓴다 (나무위키 {{{#!wiki style="…"}}} 대신)
-      const styledBox = trimmed.match(/^:::상자(?:\s+(.*))?$/)
-      if (styledBox) {
-        const options = parseStyledBoxOptions(styledBox[1] || '')
-        const { body, end } = collectFencedBlock(lines, i)
+      if (block.type === 'styled-box') {
+        const options = parseStyledBoxOptions(block.options)
+        const body = block.body
         const placement =
           options.position === 'center'
             ? { marginLeft: 'auto', marginRight: 'auto' }
@@ -1807,10 +1708,9 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             className={`wiki-styled-box${options.rounded ? ' wiki-styled-box--rounded' : ''}${options.style.textColor ? ' wiki-box-colored' : ''}`}
             style={{ ...mergeCellStylesToCss(options.style), ...placement }}
           >
-            {parseContent(body.join('\n'))}
+            {parseContent(body)}
           </div>
         )
-        i = end
         continue
       }
 
@@ -1818,49 +1718,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // 예) :::info
       //     본문
       //     :::
-      const calloutOpen = trimmed.match(/^:::(info|warn|warning|success|error|danger|note|tip)\s*(.*)$/i)
-      if (calloutOpen) {
-        const typeRaw = calloutOpen[1].toLowerCase()
-        const type = (typeRaw === 'warning' ? 'warn' : typeRaw === 'danger' ? 'error' : typeRaw) as
-          'info' | 'warn' | 'success' | 'error' | 'note' | 'tip'
-        const inlineRest = calloutOpen[2].trim()
-
-        // 같은 줄에 닫는 ::: 가 있으면 한 줄짜리 callout
-        if (inlineRest.endsWith(':::')) {
-          const inner = inlineRest.slice(0, -3).trim()
-          elements.push(<CalloutBox key={i} type={type} content={inner} parseInline={parseInlineElements} />)
-          continue
-        }
-
-        // 여러 줄 — 다음 ::: 까지 수집
-        const buf: string[] = []
-        if (inlineRest) buf.push(inlineRest)
-        let j = i + 1
-        while (j < lines.length) {
-          const ln = lines[j]
-          if (/^:::\s*$/.test(ln.trim())) break
-          buf.push(ln)
-          j++
-        }
-        i = j // for 루프 i++ 가 ::: 다음 줄로
-        elements.push(
-          <CalloutBox key={i} type={type} content={buf.join('\n')} parseInline={parseInlineElements} />
-        )
+      if (block.type === 'callout') {
+        elements.push(<CalloutBox key={i} type={block.kind} content={block.content} parseInline={parseInlineElements} />)
         continue
       }
 
       // 접기 (collapsible details): >>> 제목 ... <<< 또는 >>>제목
-      const detailsOpen = trimmed.match(/^>>>\s*(.+)?$/)
-      if (detailsOpen) {
-        const summary = (detailsOpen[1] || '자세히 보기').trim()
-        const buf: string[] = []
-        let j = i + 1
-        while (j < lines.length) {
-          if (/^<<<\s*$/.test(lines[j].trim())) break
-          buf.push(lines[j])
-          j++
-        }
-        i = j
+      if (block.type === 'details') {
+        const summary = block.summary
         elements.push(
           <details
             key={i}
@@ -1871,7 +1736,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               <span>{summary}</span>
             </summary>
             <div className="px-4 py-3 text-gray-300 text-sm leading-relaxed">
-              {parseContent(buf.join('\n'))}
+              {parseContent(block.body)}
             </div>
           </details>
         )
@@ -1879,13 +1744,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 탭바 렌더링: [[탭바: 항목=링크 | 항목2=링크2 | ...]] (링크 생략 시 슬러그 동일 가정)
-      const tabsMatch = trimmed.match(tabsRegex)
-      if (tabsMatch) {
-        const raw = tabsMatch[1]
-        const items = raw.split('|').map(s => s.trim()).filter(Boolean).map(pair => {
-          const [label, link] = pair.split('=').map(v => (v || '').trim())
-          return { label, link: link || label }
-        })
+      if (block.type === 'tabs') {
+        const items = block.items
         elements.push(
           <div key={i} className="my-4">
             <div className="flex items-center justify-center gap-8 text-sm">
@@ -1901,22 +1761,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 인포박스 렌더링: [[인포박스: 키=값 | 키2=값2 | ...]]
-      const infoboxMatch = trimmed.match(infoboxRegex)
-      if (infoboxMatch) {
-        const raw = infoboxMatch[1]
-        const pairs = raw.split('|').map(s => s.trim()).filter(Boolean)
-        const rows: Array<{ key: string; value: string }> = []
-        let title = ''
-        let image = ''
-        pairs.forEach(p => {
-          const [k, ...rest] = p.split('=')
-          const key = (k || '').trim()
-          const value = rest.join('=').trim()
-          if (!key) return
-          if (key === '제목' || key.toLowerCase() === 'title') title = value
-          else if (key === '이미지' || key.toLowerCase() === 'image') image = value
-          else rows.push({ key, value })
-        })
+      if (block.type === 'inline-infobox') {
+        const { title, image, rows } = block
         const resolvedImage = normalizeWikiImageSrc(image)
         elements.push(
           <div key={i} className="my-6 border border-gray-700 rounded-lg overflow-hidden bg-gray-900">
@@ -1952,13 +1798,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // 카드 그리드 렌더링: [[카드그리드: items=[{"title":"...","subtitle":"...","image":"...","tag":"...","date":"...","link":"..."}]]]
       // 목차 렌더링: [[목차]]
       // [clearfix] — 앞의 오른쪽 상자 아래로 내린다 (목차를 상자 아래에 두고 싶을 때)
-      if (/^\[clearfix\]$/i.test(trimmed)) {
+      if (block.type === 'clearfix') {
         elements.push(<div key={i} className="wiki-clearfix" aria-hidden="true" />)
         continue
       }
 
       // [[각주]] — 여기까지 나온 각주를 이 자리에 모아 보여 준다 (나머지는 문서 끝)
-      if (trimmed === '[[각주]]') {
+      if (block.type === 'footnotes') {
         const from = footnotesPrintedRef.current + 1
         const to = footnoteCounterRef.current
         if (to >= from) {
@@ -1969,7 +1815,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // [[목차:접기]] — 처음엔 접힌 목차 (제목 '목차' 를 누르면 펼침)
-      if (trimmed === '[[목차:접기]]') {
+      if (block.type === 'toc' && block.folded) {
         tocIndexes.add(elements.length)
         elements.push(
           <div key={i} className="wiki-toc-inline my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
@@ -2005,7 +1851,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         continue
       }
 
-      if (trimmed === '[[목차]]') {
+      if (block.type === 'toc') {
         tocIndexes.add(elements.length)
         if (generateTableOfContents && toc.length > 0) {
           elements.push(
@@ -2049,30 +1895,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
 
       // 카드그리드 처리 (멀티라인 지원)
-      if (trimmed.startsWith('[[카드그리드:')) {
-        let j = i
-        let cardGridContent = ''
-        let foundEnd = false
-        
-        // 단일 라인 카드그리드인지 확인
-        if (trimmed.endsWith(']]')) {
-          cardGridContent = trimmed
-          foundEnd = true
-        } else {
-          // 멀티라인 카드그리드 수집
-          while (j < lines.length) {
-            const currentLine = lines[j].trim()
-            cardGridContent += (j === i ? currentLine : '\n' + currentLine)
-            
-            if (currentLine.endsWith(']]')) {
-              foundEnd = true
-              break
-            }
-            j++
-          }
-        }
-        
-        if (!foundEnd) {
+      if (block.type === 'card-grid') {
+        if (block.content === null) {
           elements.push(
             <div key={i} className="my-4 p-4 bg-red-900 border border-red-700 rounded-lg">
               <div className="text-red-200 font-semibold">카드그리드 문법 오류</div>
@@ -2082,7 +1906,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           continue
         }
         
-        const cardGridMatch = cardGridContent.match(/^\[\[카드그리드:([\s\S]*)\]\]$/)
+        const cardGridMatch = block.content.match(/^\[\[카드그리드:([\s\S]*)\]\]$/)
         if (cardGridMatch) {
           const raw = cardGridMatch[1].trim()
           let items: Array<{ title?: string; subtitle?: string; description?: string; image?: string; tag?: string; date?: string; link?: string }> = []
@@ -2109,7 +1933,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 <div className="text-red-300 text-sm mt-1">오류: {(error as Error).message}</div>
               </div>
             )
-            i = j // 멀티라인이었다면 해당 라인들을 건너뛰기
             continue
           }
 
@@ -2121,7 +1944,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 <div className="text-yellow-300 text-xs mt-1 font-mono">{raw}</div>
               </div>
             )
-            i = j // 멀티라인이었다면 해당 라인들을 건너뛰기
             continue
           }
 
@@ -2148,14 +1970,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           )
         }
         
-        i = j // 멀티라인이었다면 해당 라인들을 건너뛰기
         continue
       }
 
       // 파일/이미지 렌더링
-      const imageMatch = trimmed.match(imageRegex)
-      if (imageMatch) {
-        const src = normalizeWikiImageSrc(imageMatch[1].trim())
+      if (block.type === 'image') {
+        const src = normalizeWikiImageSrc(block.src)
         elements.push(
           <div key={i} className="my-4 text-center">
             <img
@@ -2169,11 +1989,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         )
         continue
       }
-      const fileMatch = trimmed.match(fileRegex)
-      if (fileMatch) {
-        const path = normalizeWikiImageSrc(fileMatch[1].trim())
+      if (block.type === 'file') {
+        const path = normalizeWikiImageSrc(block.path)
         // | 뒤가 옵션 낱말(300px 가운데 둥글게 …)이면 옵션, 아니면 예전처럼 그림 설명
-        const options = parseImageOptions(fileMatch[2] || '')
+        const options = parseImageOptions(block.options)
         const caption = options.alt || ''
         const alignClass = options.align === 'left' ? 'text-left' : options.align === 'right' ? 'text-right' : 'text-center'
         elements.push(
@@ -2188,8 +2007,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         continue
       }
       
-      const heading = parseHeadingLine(trimmed)
-      if (heading) {
+      if (block.type === 'heading') {
+        const heading = block
         const { level, title } = heading
         const anchor = headingSluggerRef.current(title)
         const foldId = foldCounterRef.current++
@@ -2250,38 +2069,21 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
       
       // 리스트 — 원래 줄의 앞 공백(2칸 = 한 단계)으로 깊이를 재고, 연속된 줄을 중첩 <ul>/<ol> 로 묶는다
-      if (parseListLine(line)) {
-        const listLines: ListLine[] = []
-        let j = i
-        while (j < lines.length) {
-          const parsed = parseListLine(lines[j])
-          if (!parsed) break
-          listLines.push(parsed)
-          j++
-        }
-        buildListTree(listLines).forEach((node, index) => elements.push(renderListNode(node, `list-${i}-${index}`)))
-        i = j - 1
+      if (block.type === 'list') {
+        buildListTree(block.items).forEach((node, index) => elements.push(renderListNode(node, `list-${i}-${index}`)))
         continue
       }
 
       // 인용 — 연속된 > 줄은 한 인용, > > 는 안쪽 인용
-      if (isQuoteLine(trimmed)) {
-        const quoteLines: string[] = []
-        let j = i
-        while (j < lines.length && isQuoteLine(lines[j].trim())) {
-          quoteLines.push(lines[j])
-          j++
-        }
-        elements.push(renderQuoteNode(parseQuoteBlock(quoteLines), `quote-${i}`, true))
-        i = j - 1
+      if (block.type === 'quote') {
+        elements.push(renderQuoteNode(parseQuoteBlock(block.lines), `quote-${i}`, true))
         continue
       }
       
-      if (trimmed.startsWith(':::')) {
-        const boxMatch = trimmed.match(/^:::(\w+)\s*(.*)$/)
-        if (boxMatch) {
-          const boxType = boxMatch[1]
-          const boxContent = boxMatch[2]
+      if (block.type === 'box') {
+        {
+          const boxType = block.kind
+          const boxContent = block.content
           
           let boxClass = ''
           let icon = <Info className="w-5 h-5" />
@@ -2322,19 +2124,12 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
       
       // 표 렌더링 (나무위키 스타일: || 셀1 || 셀2 ||)
-      if (isMarkdownTableLine(trimmed)) {
-        const tableLines: string[] = []
-        let j = i
-        while (j < lines.length) {
-          const candidate = lines[j].trim()
-          if (!isMarkdownTableLine(candidate)) break
-          tableLines.push(candidate)
-          j++
-        }
-        if (tableLines.length >= 2) {
+      if (block.type === 'markdown-table') {
+        const tableLines = block.lines
+        {
           const headerCells = parseMarkdownTableRow(tableLines[0])
           const separatorCells = parseMarkdownTableRow(tableLines[1])
-          if (headerCells.length > 0 && isSeparatorRow(separatorCells)) {
+          {
             const alignments = separatorCells.map((cell) => {
               const starts = cell.startsWith(':')
               const ends = cell.endsWith(':')
@@ -2412,22 +2207,13 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               </div>
             )
             elements.push(tableElement)
-            i = j - 1
             continue
           }
         }
       }
 
-      if (trimmed.startsWith('||') && trimmed.endsWith('||')) {
-        // 연속된 표 행들을 수집
-        const tableRows: string[] = []
-        let j = i
-
-        while (j < lines.length && lines[j].trim().startsWith('||') && lines[j].trim().endsWith('||')) {
-          tableRows.push(lines[j].trim())
-          j++
-        }
-
+      if (block.type === 'table') {
+        const tableRows = block.rows
         if (tableRows.length > 0) {
           // 1차 파싱 — 셀별 지시자 추출 + 행(<row…>)/표(<table…>) 단위 스타일 수집.
           // 행/표 지시자는 보통 첫 셀에 한 번만 적지만, 어느 셀에 있어도 인식한다.
@@ -2587,33 +2373,24 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           )
 
           elements.push(tableElement)
-          i = j - 1 // 다음 반복에서 i++가 되므로 -1
           continue
         }
       }
       
       // 독립된 각주 정의 라인 건너뛰기 (인라인 각주는 parseInlineElements에서 처리됨)
       // 라인 전체가 각주 정의인 경우만 건너뛰기 (문장 중간의 인라인 각주는 제외)
-      const footnoteDefMatch = trimmed.match(/^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/)
-      if (isFootnoteDefinitionLine(trimmed) || (footnoteDefMatch && footnoteDefMatch[2].trim().length > 5)) {
+      if (block.type === 'footnote-def') {
         continue
       }
       
-      if (trimmed === '---' || trimmed === '***') {
+      if (block.type === 'rule') {
         elements.push(<hr key={i} className="my-6 border-gray-600" />)
         continue
       }
 
-      if (trimmed.startsWith('```')) {
-        const lang = trimmed.slice(3).trim().toLowerCase()
-        const codeLines: string[] = []
-        let j = i + 1
-        while (j < lines.length && !lines[j].trim().startsWith('```')) {
-          codeLines.push(lines[j])
-          j++
-        }
-        const rawCode = codeLines.join('\n')
-        i = j
+      if (block.type === 'code') {
+        const lang = block.lang
+        const rawCode = block.code
 
         registerHighlightLanguages()
         let highlightedCode = rawCode
@@ -2646,48 +2423,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         continue
       }
       
-      // 일반 텍스트 라인 - 연속된 라인들을 하나의 문단으로 묶기 위해 수집
-      const paragraphLines: string[] = [line]
-      let j = i + 1
-      
-      // 다음 라인들이 일반 텍스트인지 확인하고 수집
-      while (j < lines.length) {
-        const nextLine = lines[j]
-        const nextTrimmed = nextLine.trim()
-        
-        // 빈 줄이거나 특수 문법이 시작되면 문단 종료
-        if (!nextTrimmed || 
-            nextTrimmed.startsWith('=') || 
-            nextTrimmed.startsWith('#') ||
-            nextTrimmed.startsWith('*') || 
-            nextTrimmed.startsWith('-') ||
-            nextTrimmed.startsWith('1.') ||
-            parseListLine(nextLine) !== null ||
-            nextTrimmed.startsWith('>') ||
-            nextTrimmed.startsWith('||') ||
-            nextTrimmed.startsWith('[[') ||
-            nextTrimmed.startsWith('{{') ||
-            nextTrimmed.startsWith(':::') ||
-            nextTrimmed === '---' ||
-            nextTrimmed === '***' ||
-            /^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/.test(nextTrimmed)) {
-          break
-        }
-        
-        paragraphLines.push(nextLine)
-        j++
-      }
-      
-      // 수집된 라인들을 하나의 문단으로 렌더링
-      const paragraphContent = paragraphLines.join('\n')
+      // 문단
+      if (block.type !== 'paragraph') continue
+      const paragraphContent = block.text
       elements.push(
         <p key={i} className="mb-4 leading-relaxed text-gray-300 whitespace-pre-line">
           {parseInlineElements(paragraphContent)}
         </p>
       )
-      
-      // 처리한 라인들만큼 인덱스 이동
-      i = j - 1
     }
     
     // [[목차]] 를 정보 상자 바로 앞에 썼어도 상자가 먼저 오게 바꾼다 — 상자는 오른쪽, 목차는 그 왼쪽

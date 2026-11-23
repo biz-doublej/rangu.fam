@@ -14,8 +14,9 @@ import {
 
 describe('sanitizeWikiText', () => {
   it('keeps the shown text of links', () => {
-    expect(sanitizeWikiText('[[서울|서울특별시]]은 수도다')).toBe('서울특별시 은 수도다')
-    expect(sanitizeWikiText('[[강한울]]의 문서')).toBe('강한울 의 문서')
+    // 화면에 보이는 그대로 — 링크 뒤 조사는 띄우지 않는다 (한 어절)
+    expect(sanitizeWikiText('[[서울|서울특별시]]은 수도다')).toBe('서울특별시은 수도다')
+    expect(sanitizeWikiText('[[강한울]]의 문서')).toBe('강한울의 문서')
   })
 
   it('removes whole templates even with colored text inside', () => {
@@ -58,7 +59,7 @@ describe('sanitizeWikiText', () => {
     expect(sanitizeWikiText('수도는 서울이다.[*] 2026년 기준\n다음 문장이다.', { keepLines: true })).toBe(
       '수도는 서울이다.\n다음 문장이다.\n2026년 기준'
     )
-    expect(sanitizeWikiText('서울[* 대한민국의 수도]은 크다.')).toBe('서울 은 크다. 대한민국의 수도')
+    expect(sanitizeWikiText('서울[* 대한민국의 수도]은 크다.')).toBe('서울은 크다. 대한민국의 수도')
   })
 })
 
@@ -198,5 +199,24 @@ describe('stage-1 syntax in document text', () => {
   it('counts escaped syntax as plain text', () => {
     expect(sanitizeWikiText('\\[[문서]] 는 링크가 아니다')).toBe('[[문서]] 는 링크가 아니다')
     expect(auditLinks('\\[[문서]] [[진짜]] [[각주]] [[:분류:인물]]')).toMatchObject({ internal: 1, categories: 1 })
+  })
+})
+
+describe('reading the page the way the renderer draws it', () => {
+  it('does not count a heading written inside a callout as a section', () => {
+    const sections = splitSections('== 개요 ==\n본문\n:::info\n== 알림 속 글 ==\n:::\n== 여담 ==')
+    expect(sections.map((section) => section.title)).toEqual(['개요', '여담'])
+  })
+
+  it('counts sections inside a fold box, in page order', () => {
+    expect(splitSections('== 가 ==\n>>> 펼치기\n=== 나 ===\n안쪽 글\n<<<\n== 다 ==').map((section) => section.title)).toEqual(['가', '나', '다'])
+  })
+
+  it('keeps the original line numbers for tables inside a fold box', () => {
+    expect(auditTables('글\n>>> 펼치기\n|| a || b ||\n|| c ||\n<<<').map((table) => [table.startLine, table.uneven])).toEqual([[3, true]])
+  })
+
+  it('reads table cells and callouts as text, but not infobox fields', () => {
+    expect(sanitizeWikiText('{{인물정보상자\n|이름 = 강한울\n}}\n|| 칸 글 ||\n:::info 알림 글 :::')).toBe('칸 글 알림 글')
   })
 })

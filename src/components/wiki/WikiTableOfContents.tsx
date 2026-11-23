@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { createHeadingSlugger } from '@/lib/wiki/slug'
-import { parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
+import { revealWikiElement } from '@/lib/wikiHeadings'
+import { documentHeadings } from '@/lib/wiki/parser/document'
 import { List } from 'lucide-react'
 
 interface TocItem {
@@ -22,27 +22,13 @@ function stripInline(text: string): string {
     .trim()
 }
 
+// 본문을 그리는 것과 같은 블록 AST 로 제목을 읽는다 — 앵커가 화면의 제목 id 와 같다
 function extractHeadings(content: string): TocItem[] {
-  const out: TocItem[] = []
-  const lines = (content || '').split('\n')
-  const slugger = createHeadingSlugger()
-  let inFence = false
-  for (const raw of lines) {
-    const trimmed = raw.trim()
-    if (trimmed.startsWith('```')) {
-      inFence = !inFence
-      continue
-    }
-    if (inFence) continue
-
-    const heading = parseHeadingLine(trimmed)
-    const level = heading?.level ?? 0
-    const title = heading?.title ?? ''
-    if (level > 0 && title) {
-      out.push({ level, title: stripInline(title), anchor: slugger(title) })
-    }
-  }
-  return out
+  return documentHeadings(content).map((heading) => ({
+    level: heading.level,
+    title: stripInline(heading.title),
+    anchor: heading.anchor,
+  }))
 }
 
 interface Props {

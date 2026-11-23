@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { eq, and, ne, or } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { wikiPages } from '@/db/schema/wiki'
+import { documentPlainText, documentProse } from '@/lib/wiki/parser/document'
 
 /**
  * 위키 문서 페이지의 동적 메타데이터 + JSON-LD 구조화 데이터.
@@ -10,22 +11,9 @@ import { wikiPages } from '@/db/schema/wiki'
  */
 
 // 본문에서 마크업 제거 → 자연스러운 설명문 추출
+// 공유 미리보기 설명 — 본문을 그리는 것과 같은 블록 AST 로 문단·목록·인용 글만 (정보상자·표·코드는 빼고)
 function cleanWikiContent(content: string): string {
-  return (content || '')
-    .replace(/\{\{[\s\S]*?\}\}/g, '')
-    .replace(/^\s*\|\|.*$/gm, '')
-    .replace(/\[\[(?:목차|탭바|카드그리드|분류|category|TOC)[^\]]*\]\]/gi, '')
-    .replace(/\[\[([^\]]+)\]\]/g, (_m, inner) => String(inner).split('|').pop() || '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\[(?:이미지|파일):[^\]]+\]/g, '')
-    .replace(/^:::(?:info|warn|warning|success|error|danger|note|tip)\s*$/gm, '')
-    .replace(/^:::\s*$/gm, '')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/[#=*_`~]+/g, '')
-    .replace(/!icon:\{[^}]+\}/g, '')
-    .replace(/^분류:.*$/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return documentProse(content, 400)
 }
 
 async function fetchPage(slug: string) {
@@ -117,7 +105,7 @@ async function getStructuredData(slug: string): Promise<object | null> {
     if (!page) return null
 
     const cleanContent = cleanWikiContent(page.content || '')
-    const wordCount = cleanContent.split(/\s+/).filter(Boolean).length
+    const wordCount = documentPlainText(page.content || '').split(/\s+/).filter(Boolean).length
     const url = `https://irang.wiki/wiki/${encodeURIComponent(page.title)}`
 
     // description 같은 fallback 로직 (summary 너무 짧으면 본문 발췌)
