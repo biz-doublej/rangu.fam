@@ -124,7 +124,8 @@ function toPageResponse(p: any) {
     views: p.views,
     uniqueViews: p.uniqueViews,
     edits: p.edits,
-    tableOfContents: p.tableOfContents,
+    // 저장된 목차는 옛 앵커 규칙이거나(관리 도구로 쓴 문서는) 비어 있을 수 있어서, 읽을 때마다 본문에서 다시 만든다
+    tableOfContents: generateTableOfContents(p.content || ''),
     incomingLinks: p.incomingLinks || [],
     outgoingLinks: p.outgoingLinks || [],
     watchers: p.watchers || [],
