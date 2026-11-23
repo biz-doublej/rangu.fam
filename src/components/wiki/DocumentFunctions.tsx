@@ -2,13 +2,25 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import {
+  AlignLeft,
   BarChart3,
   Calculator,
   Clock,
   Hash,
+  Layers,
+  ListChecks,
   Search,
   Sparkles
 } from 'lucide-react'
+import {
+  auditLinks,
+  collectFootnotes,
+  formatDuration,
+  readingTime,
+  sanitizeWikiText,
+  splitSections,
+  splitSentences
+} from './documentText'
 
 /* ────────────────────────────────────────────────────────────
  * Document analysis functions ("문서 함수").
@@ -48,44 +60,44 @@ export type DocumentFunctionDefinition = {
   description: string
   placeholder?: string
   requiresInput?: boolean
+  /** 입력칸은 보이지만 비워 두면 기본값으로 실행 */
+  inputOptional?: boolean
   icon: React.ComponentType<{ className?: string }>
   run: (context: DocumentFunctionContext, input?: string) => DocumentFunctionResult
 }
 
-/** Strip wiki/markup so that word/character counts are reasonable. */
-export function sanitizeWikiText(value: string) {
-  if (!value) return ''
-  return value
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/\{\{[\s\S]*?\}\}/g, ' ')
-    .replace(/\[\[[^\]]+\]\]/g, ' ')
-    .replace(/==+[^=]+==+/g, ' ')
-    .replace(/'''|''/g, ' ')
-    .replace(/\|/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+export { sanitizeWikiText }
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** 결과 목록을 자를 때 "상위 N개" 표시를 붙인다 */
+const MATCH_LIMIT = 8
+function limitNote(total: number) {
+  return total > MATCH_LIMIT ? ` (상위 ${MATCH_LIMIT}개만 표시)` : ''
+}
+
+/** 한국어 기준 읽기 속도 — 공백을 뺀 글자 기준 분당 500자 */
+const CHARS_PER_MINUTE = 500
+const WORDS_PER_MINUTE = 320
+
 export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
   {
     id: 'word-count',
     label: '분량 요약',
-    description: '단어, 문자, 문단 수를 한눈에 확인합니다.',
+    description: '단어(어절), 글자, 문단 수를 한눈에 확인합니다.',
     icon: Calculator,
     run: (ctx) => {
       const charCount = ctx.plainText.replace(/\s+/g, '').length
-      const paragraphCount = ctx.rawContent.split(/\n{2,}/).filter(Boolean).length || 1
+      const paragraphCount = ctx.rawContent.split(/\n{2,}/).filter((part) => part.trim()).length || 0
       return {
-        summary: `${ctx.wordCount.toLocaleString()}개의 단어, ${charCount.toLocaleString()}개의 문자로 이루어져 있습니다.`,
+        summary: `${ctx.wordCount.toLocaleString()}개의 어절, ${charCount.toLocaleString()}자(공백 제외)로 이루어져 있습니다.`,
         metrics: [
-          { label: '단어 수', value: ctx.wordCount.toLocaleString() },
+          { label: '어절 수', value: ctx.wordCount.toLocaleString() },
+          { label: '글자 수 (공백 제외)', value: charCount.toLocaleString() },
           { label: '문단 수', value: paragraphCount.toLocaleString() },
-          { label: '본문 길이', value: `${ctx.rawContent.length.toLocaleString()} chars` }
+          { label: '원문 길이', value: `${ctx.rawContent.length.toLocaleString()}자` }
         ]
       }
     }
@@ -93,23 +105,20 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
   {
     id: 'reading-time',
     label: '예상 읽기 시간',
-    description: '분당 320단어 기준 추정치입니다.',
+    description: '공백을 뺀 글자 기준 분당 500자로 추정합니다.',
     icon: Clock,
     run: (ctx) => {
-      const wordsPerMinute = 320
-      const minutes = ctx.wordCount / wordsPerMinute
-      const minutePart = Math.floor(minutes)
-      const seconds = Math.round((minutes - minutePart) * 60)
-      const display =
-        minutePart > 0
-          ? `${minutePart}분 ${seconds.toString().padStart(2, '0')}초`
-          : `${Math.max(seconds, 15)}초 내외`
+      const charCount = ctx.plainText.replace(/\s+/g, '').length
+      if (charCount === 0) return { summary: '읽을 본문이 없습니다.' }
+      const byChars = readingTime(charCount, CHARS_PER_MINUTE)
+      const byWords = readingTime(ctx.wordCount, WORDS_PER_MINUTE)
+      const display = formatDuration(Math.max(byChars.total, 5))
       return {
         summary: `${display} 정도면 이 문서를 모두 읽을 수 있습니다.`,
         metrics: [
-          { label: '단어 수', value: ctx.wordCount.toLocaleString() },
-          { label: '기준 속도', value: `${wordsPerMinute.toLocaleString()} wpm` },
-          { label: '읽기 시간', value: minutePart > 0 ? `${minutePart}분 ${seconds}초` : `${seconds}초` }
+          { label: '글자 기준 (분당 500자)', value: formatDuration(byChars.total) },
+          { label: '어절 기준 (분당 320어절)', value: formatDuration(byWords.total) },
+          { label: '글자 수', value: charCount.toLocaleString() }
         ]
       }
     }
@@ -128,11 +137,11 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
       const count = ctx.plainText.match(regex)?.length || 0
       const density = ctx.wordCount ? ((count / ctx.wordCount) * 100).toFixed(2) : '0'
       return {
-        summary: `"${term}" 키워드는 ${count.toLocaleString()}회 등장하며 전체 단어 중 ${density}%를 차지합니다.`,
+        summary: `"${term}" 키워드는 ${count.toLocaleString()}회 등장하며 전체 어절 중 ${density}%를 차지합니다.`,
         metrics: [
           { label: '등장 횟수', value: `${count.toLocaleString()}회` },
           { label: '밀도', value: `${density}%` },
-          { label: '전체 단어', value: ctx.wordCount.toLocaleString() }
+          { label: '전체 어절', value: ctx.wordCount.toLocaleString() }
         ]
       }
     }
@@ -152,31 +161,117 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
         return { summary: `"${keyword}"에 해당하는 섹션을 찾을 수 없습니다.` }
       }
       return {
-        summary: `${matches.length}개의 섹션이 검색되었습니다.`,
-        matches: matches.slice(0, 8).map(m => ({ label: m.title, anchor: m.anchor }))
+        summary: `${matches.length}개의 섹션이 검색되었습니다.${limitNote(matches.length)}`,
+        matches: matches.slice(0, MATCH_LIMIT).map(m => ({ label: m.title, anchor: m.anchor }))
       }
     }
   },
   {
     id: 'link-audit',
     label: '링크 점검',
-    description: '내부 링크([[…]])와 외부 링크 개수를 점검합니다.',
+    description: '문서 링크, 분류, 파일, 외부 링크, 각주를 종류별로 셉니다.',
     icon: Hash,
     run: (ctx) => {
-      const internal = ctx.rawContent.match(/\[\[([^\]]+)\]\]/g)?.length || 0
-      const external = ctx.rawContent.match(/https?:\/\/[\w./?#%&=+-]+/g)?.length || 0
-      const refs = ctx.rawContent.match(/\[\*[^\]]*\]/g)?.length || 0
+      const links = auditLinks(ctx.rawContent)
+      const notes = collectFootnotes(ctx.rawContent)
+      const footnotes = notes.numberedRefs.size + notes.autoRefs
       return {
-        summary: `이 문서에는 내부 링크 ${internal.toLocaleString()}개, 외부 링크 ${external.toLocaleString()}개, 각주 ${refs.toLocaleString()}개가 포함되어 있습니다.`,
+        summary: `문서 링크 ${links.internal.toLocaleString()}개(서로 다른 문서 ${links.uniqueInternal.toLocaleString()}개), 외부 링크 ${links.external.toLocaleString()}개, 각주 ${footnotes.toLocaleString()}개가 있습니다.`,
         metrics: [
-          { label: '내부 링크', value: internal.toLocaleString() },
-          { label: '외부 링크', value: external.toLocaleString() },
-          { label: '각주', value: refs.toLocaleString() }
+          { label: '문서 링크 (고유)', value: `${links.internal.toLocaleString()} (${links.uniqueInternal.toLocaleString()})` },
+          { label: '외부 링크 (고유)', value: `${links.external.toLocaleString()} (${links.uniqueExternal.toLocaleString()})` },
+          { label: '분류', value: links.categories.toLocaleString() },
+          { label: '파일·그림', value: links.files.toLocaleString() },
+          { label: '각주', value: footnotes.toLocaleString() }
         ]
+      }
+    }
+  },
+  {
+    id: 'section-balance',
+    label: '섹션 분량',
+    description: '비어 있는 섹션과 유난히 긴 섹션을 찾아 바로 이동합니다.',
+    icon: Layers,
+    run: (ctx) => {
+      const sections = splitSections(ctx.rawContent)
+      if (sections.length === 0) return { summary: '문단 제목이 없는 문서입니다.' }
+      const sizes = sections.map((section, index) => ({
+        title: section.title,
+        anchor: ctx.headings[index]?.anchor,
+        length: sanitizeWikiText(section.body).replace(/\s/g, '').length,
+        hasChildren: section.hasChildren,
+      }))
+      const average = sizes.reduce((sum, section) => sum + section.length, 0) / sizes.length
+      // 하위 문단만 품은 제목(예: == 활동 == 아래 === 2026년 ===)은 비어 있어도 정상이다
+      const flagged = sizes.filter(
+        (section) => (section.length === 0 && !section.hasChildren) || section.length > average * 3
+      )
+      const longest = [...sizes].sort((a, b) => b.length - a.length)[0]
+      return {
+        summary: `${sizes.length}개 섹션, 평균 ${Math.round(average).toLocaleString()}자. 비어 있거나 지나치게 긴 섹션 ${flagged.length}개.${limitNote(flagged.length)}`,
+        metrics: [
+          { label: '가장 긴 섹션', value: `${longest.title} (${longest.length.toLocaleString()}자)` },
+          { label: '빈 섹션', value: sizes.filter((section) => section.length === 0 && !section.hasChildren).length.toLocaleString() }
+        ],
+        matches: flagged.slice(0, MATCH_LIMIT).map((section) => ({
+          label: `${section.title} · ${section.length ? `${section.length.toLocaleString()}자` : '비어 있음'}`,
+          anchor: section.anchor
+        }))
+      }
+    }
+  },
+  {
+    id: 'footnote-integrity',
+    label: '각주 점검',
+    description: '내용이 없는 각주 번호와 쓰이지 않은 각주 내용을 찾습니다.',
+    icon: ListChecks,
+    run: (ctx) => {
+      const notes = collectFootnotes(ctx.rawContent)
+      const missing = [...notes.numberedRefs].filter((key) => !notes.definitions.has(key))
+      const unused = [...notes.definitions].filter((key) => !notes.numberedRefs.has(key))
+      const total = notes.numberedRefs.size + notes.autoRefs
+      if (total === 0 && notes.definitions.size === 0) return { summary: '각주가 없는 문서입니다.' }
+      return {
+        summary:
+          missing.length || unused.length
+            ? `내용 없는 번호 ${missing.length}개, 쓰이지 않은 내용 ${unused.length}개가 있습니다.`
+            : '각주 번호와 내용이 모두 맞습니다.',
+        metrics: [
+          { label: '번호 각주 / 자동 각주', value: `${notes.numberedRefs.size} / ${notes.autoRefs}` },
+          { label: '따로 적은 각주 내용', value: notes.definitions.size.toLocaleString() },
+          { label: '내용 없는 번호', value: missing.map((key) => `[*${key}]`).join(', ') || '-' },
+          { label: '쓰이지 않은 내용', value: unused.map((key) => `[*${key}]`).join(', ') || '-' }
+        ]
+      }
+    }
+  },
+  {
+    id: 'long-sentences',
+    label: '긴 문장',
+    description: '읽기 힘든 긴 문장을 찾습니다. 기준 글자 수를 비워 두면 80자입니다.',
+    icon: AlignLeft,
+    requiresInput: true,
+    inputOptional: true,
+    placeholder: '기준 글자 수 (기본 80)',
+    run: (ctx, input = '') => {
+      const limit = Math.max(20, parseInt(input, 10) || 80)
+      const sentences = splitSentences(ctx.plainText)
+      if (sentences.length === 0) return { summary: '분석할 문장이 없습니다.' }
+      const long = sentences.filter((sentence) => sentence.replace(/\s/g, '').length > limit)
+      const average = Math.round(sentences.reduce((sum, sentence) => sum + sentence.length, 0) / sentences.length)
+      return {
+        summary: `${sentences.length.toLocaleString()}문장 중 ${long.length.toLocaleString()}개가 ${limit}자를 넘습니다 (평균 ${average}자).${limitNote(long.length)}`,
+        metrics: [
+          { label: '긴 문장 비율', value: `${((long.length / sentences.length) * 100).toFixed(1)}%` }
+        ],
+        matches: long.slice(0, MATCH_LIMIT).map((sentence) => ({
+          label: sentence.length > 60 ? `${sentence.slice(0, 60)}…` : sentence
+        }))
       }
     }
   }
 ]
+
 
 interface DocumentFunctionsPanelProps {
   content: string
@@ -222,18 +317,22 @@ export function DocumentFunctionsPanel({
     [selectedId]
   )
 
-  // Auto-run for input-less functions whenever the function or content changes.
+  // 함수를 바꾸면 입력값과 결과를 비운다 (입력형 함수 결과가 다른 함수로 넘어가지 않게)
   useEffect(() => {
-    if (!selected.requiresInput) {
-      try {
-        setResult(selected.run(context))
-      } catch (err) {
-        setResult({
-          summary: err instanceof Error ? err.message : '함수 실행 중 오류가 발생했습니다.'
-        })
-      }
-    } else {
-      setResult(null)
+    setInputValue('')
+    setResult(null)
+  }, [selectedId])
+
+  // 입력이 없는 함수는 고르거나 본문이 바뀔 때 바로 다시 계산한다.
+  // 입력형 함수의 결과는 목차 객체가 새로 만들어져도 지우지 않는다.
+  useEffect(() => {
+    if (selected.requiresInput) return
+    try {
+      setResult(selected.run(context))
+    } catch (err) {
+      setResult({
+        summary: err instanceof Error ? err.message : '함수 실행 중 오류가 발생했습니다.'
+      })
     }
   }, [selected, context])
 
@@ -246,7 +345,7 @@ export function DocumentFunctionsPanel({
   const handleRun = (e?: React.FormEvent) => {
     e?.preventDefault()
     const value = inputValue.trim()
-    if (selected.requiresInput && !value) {
+    if (selected.requiresInput && !selected.inputOptional && !value) {
       setResult({ summary: '필요한 값을 입력해 주세요.' })
       return
     }
@@ -264,7 +363,7 @@ export function DocumentFunctionsPanel({
     const lines = [result.summary]
     if (result.metrics) lines.push(...result.metrics.map(m => `${m.label}: ${m.value}`))
     if (result.matches) {
-      lines.push('섹션 목록:')
+      lines.push('목록:')
       lines.push(...result.matches.map(m => `- ${m.label}`))
     }
     try {
@@ -277,7 +376,9 @@ export function DocumentFunctionsPanel({
 
   const handleMatchClick = (anchor?: string) => {
     if (!anchor) return
-    const target = document.getElementById(anchor) || document.querySelector(`[id='${anchor}']`)
+    const target =
+      document.getElementById(anchor) ||
+      (typeof CSS !== 'undefined' && CSS.escape ? document.querySelector(`#${CSS.escape(anchor)}`) : null)
     if (target instanceof HTMLElement) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
@@ -349,9 +450,9 @@ export function DocumentFunctionsPanel({
             <p className="leading-relaxed">{result.summary}</p>
             {result.metrics && (
               <ul className="mt-2 grid grid-cols-1 gap-1 text-xs">
-                {result.metrics.map(m => (
+                {result.metrics.map((m, i) => (
                   <li
-                    key={m.label}
+                    key={`${i}-${m.label}`}
                     className="flex items-center justify-between rounded-sm bg-[color:var(--wiki-bg-2)] border border-[color:var(--wiki-rule)] px-2 py-1"
                   >
                     <span className="text-[color:var(--wiki-ink-muted)]">{m.label}</span>
@@ -362,16 +463,23 @@ export function DocumentFunctionsPanel({
             )}
             {result.matches && result.matches.length > 0 && (
               <ul className="mt-2 space-y-1">
-                {result.matches.map(m => (
-                  <li key={m.label}>
-                    <button
-                      type="button"
-                      onClick={() => handleMatchClick(m.anchor)}
-                      className="flex w-full items-center justify-between rounded-sm border border-[color:var(--wiki-rule)] bg-[color:var(--wiki-bg-2)] px-2 py-1 text-left text-xs text-[color:var(--wiki-link)] hover:underline"
-                    >
-                      <span>{m.label}</span>
-                      <Search className="w-3 h-3 text-[color:var(--wiki-ink-muted)]" />
-                    </button>
+                {result.matches.map((m, i) => (
+                  <li key={`${i}-${m.anchor || m.label}`}>
+                    {m.anchor ? (
+                      <button
+                        type="button"
+                        onClick={() => handleMatchClick(m.anchor)}
+                        className="flex w-full items-center justify-between rounded-sm border border-[color:var(--wiki-rule)] bg-[color:var(--wiki-bg-2)] px-2 py-1 text-left text-xs text-[color:var(--wiki-link)] hover:underline"
+                      >
+                        <span>{m.label}</span>
+                        <Search className="w-3 h-3 text-[color:var(--wiki-ink-muted)]" />
+                      </button>
+                    ) : (
+                      // 이동할 자리가 없는 결과(긴 문장 등)는 글자로만 보여 준다
+                      <p className="rounded-sm border border-[color:var(--wiki-rule)] bg-[color:var(--wiki-bg-2)] px-2 py-1 text-xs text-[color:var(--wiki-ink-soft)]">
+                        {m.label}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

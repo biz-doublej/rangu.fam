@@ -1,5 +1,6 @@
 import { loadDisplayNames } from '@/lib/wikiDisplayNames'
 import { parseHeadingLine } from '@/lib/wikiHeadings'
+import { createHeadingSlugger } from '@/lib/wiki/slug'
 import { getRequiredEnv } from '@/lib/env'
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, desc, eq, ilike, ne, or, sql } from 'drizzle-orm'
@@ -31,6 +32,8 @@ function toSlug(text: string): string {
 
 function generateTableOfContents(content: string) {
   const headings: Array<{ level: number; title: string; anchor: string }> = []
+  // 목차 앵커는 렌더러와 같은 규칙(문서 주소용 toSlug 와 다름)
+  const slugger = createHeadingSlugger()
   let inFence = false
   for (const rawLine of content.split('\n')) {
     const trimmed = rawLine.trim()
@@ -45,7 +48,7 @@ function generateTableOfContents(content: string) {
     const level = heading?.level ?? 0
     const title = heading?.title ?? ''
     if (level > 0 && title) {
-      headings.push({ level, title, anchor: toSlug(title) })
+      headings.push({ level, title, anchor: slugger(title) })
     }
   }
   return headings

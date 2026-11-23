@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import { isFoldCollapsed, onRevealWikiElement, parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
+import { createHeadingSlugger } from '@/lib/wiki/slug'
 import { FootnoteRef } from '@/components/wiki/FootnoteRef'
 import { WikiBannerBox } from '@/components/wiki/WikiBannerBox'
 import { imageAddress, isBannerBoxStart, readBannerBox, resolveBannerBoxStyle } from '@/lib/bannerBox'
@@ -352,6 +353,8 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   // 문단 접기 — 독자가 기본 상태에서 뒤집은 문단 번호
   const [toggledFolds, setToggledFolds] = useState<Set<number>>(() => new Set())
   const foldCounterRef = React.useRef(0)
+  // 같은 제목이 또 나오면 -2, -3 — 목차와 같은 규칙으로 그릴 때마다 처음부터 센다
+  const headingSluggerRef = React.useRef(createHeadingSlugger())
   const PLACEHOLDER_IMAGE = '/images/default-music-cover.jpg'
 
   const getImageServePathFromSource = (value: string) => {
@@ -495,14 +498,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     }
   }, [])
 
-  function toSlug(text: string): string {
-    return text
-      .toLowerCase()
-      .replace(/[^\w\s가-힣]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   function renderHtml(html: string) {
     return <span dangerouslySetInnerHTML={{ __html: html }} />
@@ -1169,6 +1164,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     const headings: TableOfContentsItem[] = []
     const lines = text.split('\n')
     
+    const slugger = createHeadingSlugger()
     let inFence = false
     for (const line of lines) {
       const trimmed = line.trim()
@@ -1183,7 +1179,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       const title = heading?.title ?? ''
       
       if (level > 0 && title) {
-        const anchor = toSlug(title)
+        const anchor = slugger(title)
         headings.push({ level, title, anchor })
       }
     }
@@ -1971,7 +1967,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       const heading = parseHeadingLine(trimmed)
       if (heading) {
         const { level, title } = heading
-        const anchor = toSlug(title)
+        const anchor = headingSluggerRef.current(title)
         const foldId = foldCounterRef.current++
         const collapsed = isFoldCollapsed(heading.folded, toggledFolds.has(foldId))
         headingMarks.set(elements.length, { level, foldId, collapsed })
@@ -2573,6 +2569,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   footnoteMappingRef.current = {}
   footnoteRefSeenRef.current = new Set()
   foldCounterRef.current = 0
+  headingSluggerRef.current = createHeadingSlugger()
   const renderedContent = parseContent(content);
 
   return (

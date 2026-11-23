@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { createHeadingSlugger } from '@/lib/wiki/slug'
 import { parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
 import { List } from 'lucide-react'
 
@@ -11,14 +12,6 @@ interface TocItem {
 }
 
 // NamuWikiRenderer.toSlug 와 반드시 동일하게 유지할 것 (앵커 매칭).
-function toSlug(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s가-힣]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-}
 
 // 표시용으로 흔한 인라인 마크업만 제거 (앵커 계산에는 사용하지 않음)
 function stripInline(text: string): string {
@@ -32,6 +25,7 @@ function stripInline(text: string): string {
 function extractHeadings(content: string): TocItem[] {
   const out: TocItem[] = []
   const lines = (content || '').split('\n')
+  const slugger = createHeadingSlugger()
   let inFence = false
   for (const raw of lines) {
     const trimmed = raw.trim()
@@ -45,7 +39,7 @@ function extractHeadings(content: string): TocItem[] {
     const level = heading?.level ?? 0
     const title = heading?.title ?? ''
     if (level > 0 && title) {
-      out.push({ level, title: stripInline(title), anchor: toSlug(title) })
+      out.push({ level, title: stripInline(title), anchor: slugger(title) })
     }
   }
   return out

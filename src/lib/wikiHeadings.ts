@@ -20,7 +20,8 @@ export function parseHeadingLine(line: string): WikiHeading | null {
     if (folded) return { level, title: folded[1], folded: true }
     return { level, title: inner, folded: false }
   }
-  const markdown = trimmed.match(/^(#+)\s*(.+)$/)
+  // 마크다운 제목은 # 뒤에 띄어쓰기가 있어야 한다 (`#태그`, `#redirect` 는 제목이 아님)
+  const markdown = trimmed.match(/^(#{1,6})\s+(.+)$/)
   if (markdown) return { level: markdown[1].length, title: markdown[2].trim(), folded: false }
   return null
 }

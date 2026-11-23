@@ -18,6 +18,13 @@ describe('parseHeadingLine', () => {
   it('ignores plain lines', () => {
     expect(parseHeadingLine('그냥 문장')).toBeNull()
   })
+
+  it('needs a space after # for markdown headings', () => {
+    expect(parseHeadingLine('#태그')).toBeNull()
+    expect(parseHeadingLine('#redirect 강한울')).toBeNull()
+    expect(parseHeadingLine('## 개요')).toEqual({ level: 2, title: '개요', folded: false })
+    expect(parseHeadingLine('####### 일곱 개')).toBeNull()
+  })
 })
 
 describe('isFoldCollapsed', () => {

@@ -177,7 +177,6 @@ const NamuComponents = {
           // 나무위키 링크 클릭 처리
           e.preventDefault();
           if (href) {
-            console.log('Wiki link clicked:', href);
             // 필요시 onInternalLinkClick 콜백 호출
           }
         }}
@@ -330,7 +329,6 @@ function parseTemplateParams(content: string): Record<string, string> {
   const params: Record<string, string> = {};
   const lines = content.split('\n');
   
-  console.log('🔍 파싱할 템플릿 내용:', content); // 디버깅용
   
   for (const line of lines) {
     // | 또는 없이 시작하고, = 으로 구분되는 패턴 매칭
@@ -339,13 +337,10 @@ function parseTemplateParams(content: string): Record<string, string> {
       const key = match[1].trim();
       const value = match[2].trim();
       params[key] = value;
-      console.log(`✅ 파라미터 파싱: ${key} = ${value}`); // 디버깅용
     } else if (line.trim()) {
-      console.log(`❌ 파싱 실패한 라인: "${line}"`); // 디버깅용
     }
   }
   
-  console.log('📋 최종 파라미터:', params); // 디버깅용
   return params;
 }
 
@@ -850,13 +845,11 @@ function preprocessNamuWikiSyntax(content: string): string {
 
   // 인물 정보상자 템플릿 처리 (색상 속성 지원)
   processed = processed.replace(/\{\{인물정보상자(<[^>]+>)?\s*([\s\S]*?)\}\}/g, (_match, colorAttribs: string, content: string) => {
-    console.log('🎯 인물정보상자 템플릿 감지됨!', content.substring(0, 100) + '...'); // 디버깅용
     return renderPersonInfobox(content, colorAttribs);
   });
 
   // 그룹정보상자 템플릿 처리 (색상 속성 지원)
   processed = processed.replace(/\{\{그룹정보상자(<[^>]+>)?\s*([\s\S]*?)\}\}/g, (_match, colorAttribs: string, content: string) => {
-    console.log('🎯 그룹정보상자 템플릿 감지됨!', content.substring(0, 100) + '...'); // 디버깅용
     return renderGroupInfobox(content, colorAttribs);
   });
 
