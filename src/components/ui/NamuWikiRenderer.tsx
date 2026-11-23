@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import { isFoldCollapsed, onRevealWikiElement, parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
 import { createHeadingSlugger } from '@/lib/wiki/slug'
+import { isFootnoteDefinitionLine, prepareFootnotes } from '@/lib/wiki/footnotes'
 import { FootnoteRef } from '@/components/wiki/FootnoteRef'
 import { WikiBannerBox } from '@/components/wiki/WikiBannerBox'
 import { imageAddress, isBannerBoxStart, readBannerBox, resolveBannerBoxStyle } from '@/lib/bannerBox'
@@ -345,7 +346,10 @@ const CitationBox = ({
 
 export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false }: NamuWikiRendererProps): JSX.Element {
   const [toc, setToc] = useState<TableOfContentsItem[]>([])
-  const [footnotes, setFootnotes] = useState<{[key: string]: string}>({})
+  // 각주 규칙은 문서 함수(각주 점검)와 같은 함수 하나로 읽는다 — src/lib/wiki/footnotes.ts
+  // 그리기 전에 바로 계산해서 첫 화면(서버 렌더)부터 각주 목록과 미리보기가 채워진다
+  const preparedFootnotes = React.useMemo(() => prepareFootnotes(content), [content])
+  const footnotes = preparedFootnotes.definitions
   const footnoteCounterRef = React.useRef(0)
   const footnoteMappingRef = React.useRef<{[key: string]: number}>({})
   // 본문에서 각주 번호별 첫 등장 여부 — id="fnref-N" 부여
@@ -450,7 +454,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     footnoteCounterRef.current = 0
     footnoteMappingRef.current = {}
     footnoteRefSeenRef.current = new Set()
-    extractFootnotes(content)
     setToggledFolds(new Set())
   }, [content])
 
@@ -466,6 +469,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   // 접힌 문단 안으로 이동할 때(목차, 각주 되돌아가기, 주소의 #앵커) 감싼 문단을 모두 펼친다
   useEffect(() => {
     const reveal = (element: Element) => {
+      // >>> 접기(<details>) 안이면 그것부터 연다
+      for (let details = element.closest('details'); details; details = details.parentElement?.closest('details') ?? null) {
+        details.open = true
+      }
       const closed: number[] = []
       let body = element.closest('[data-fold-body]')
       while (body) {
@@ -751,15 +758,21 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             <sub key={key} className="text-xs text-gray-300">{match[1]}</sub>
           )
         },
-        // 7. 각주 참조 [*숫자] 또는 [*]
+        // 7. 각주 참조 [*숫자], [*] — 그 자리·괄호 각주는 prepareFootnotes 가 [*@n] 으로 바꿔 둔다
         {
-          regex: /\[\*(\d*)\]/g,
+          regex: /\[\*(@\d+|\d*)\]/g,
           render: (match: RegExpMatchArray, key: number) => {
             const footnoteKey = match[1] || 'auto'
             let footnoteNumber: number
-            
-            // 키 정규화 및 매핑 로직 개선
-            if (footnoteKey === 'auto' || footnoteKey === '') {
+
+            if (footnoteKey.startsWith('@')) {
+              // 내용이 있는 자동 각주 — 같은 표시가 두 번 그려져도 번호는 하나
+              if (!footnoteMappingRef.current[footnoteKey]) {
+                footnoteCounterRef.current += 1
+                footnoteMappingRef.current[footnoteKey] = footnoteCounterRef.current
+              }
+              footnoteNumber = footnoteMappingRef.current[footnoteKey]
+            } else if (footnoteKey === 'auto' || footnoteKey === '') {
               // 자동 번호 배정 - 고유 키 생성
               footnoteCounterRef.current += 1
               footnoteNumber = footnoteCounterRef.current
@@ -1191,66 +1204,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     if (generateTableOfContents) {
       generateTOC(content)
     }
-    extractFootnotes(content)
   }, [content, generateTableOfContents, generateTOC])
 
-  const extractFootnotes = (rawText: string) => {
-    const footnoteMap: {[key: string]: string} = {}
-    // 코드 블록 안의 각주 예시는 실제 각주로 세지 않는다
-    const text = (rawText || '').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '')
-
-    // 1. 독립된 라인에서 각주 정의 찾기
-    const lines = text.split('\n')
-    lines.forEach((line, lineIndex) => {
-      const trimmed = line.trim()
-      // 라인 전체가 각주 정의인 경우만 처리
-      const match = trimmed.match(/^\[\*(\d*)\]\s*(.+)$/)
-      if (match) {
-        const key = match[1] || `auto_${lineIndex}` // auto 키에 고유성 부여
-        const content = match[2].trim()
-        
-        // 내용이 실제로 있고, 또 다른 각주 참조가 아닌 경우
-        if (content && content.length > 0 && !content.match(/^\[\*/)) {
-          footnoteMap[key] = content
-        }
-      }
-    })
-    
-    // 2. 인라인 각주 정의 찾기 (문장 중간의 [*1] 각주내용 또는 [*] 각주내용)
-    // 같은 줄 안에서만, 표 칸 경계(|) 앞까지만 본다 — 다음 줄 제목이나 표의 || 를 먹지 않게
-    const inlineFootnoteRegex = /\[\*(\d*)\][ \t]+([^[\n\r|]+)/g
-    let match
-    let autoInlineCounter = 0
-    while ((match = inlineFootnoteRegex.exec(text)) !== null) {
-      const rawKey = match[1]
-      const key = rawKey || `auto_inline_${autoInlineCounter++}` // auto 키에 고유성 부여
-      const content = match[2].trim()
-      
-      // 의미있는 내용이 있는 경우만 각주로 인식
-      if (content && content.length > 0 && !content.match(/^\[\*/)) {
-        footnoteMap[key] = content
-      }
-    }
-    setFootnotes(footnoteMap)
-  }
-
-  // 인라인 각주 정의를 각주 참조로 변환하는 전처리 함수
-  const preprocessInlineFootnotes = (text: string): string => {
-    // [*1] ??????? ?? [*1] (????????? extractFootnotes???? ?????)
-    // [*] ??????? ?? [*] (??? ??? ????)
-    // 줄 맨 앞의 각주 정의([*1] 내용)는 그대로 둔다 — 본문 렌더 단계에서 정의 줄로 건너뛴다
-    // 코드 블록(```)과 인라인 코드(`…`) 안의 예시는 건드리지 않는다
-    return (text || '')
-      .split(/(```[\s\S]*?```|`[^`\n]*`)/g)
-      .map((part, index) =>
-        index % 2 === 1 ? part : part.replace(/(?<!^[ \t]*)\[\*(\d*)\][ \t]+([^[\n\r|]+)/gm, '[*$1]')
-      )
-      .join('')
-  }
-
-  const parseContent = (originalText: string): React.ReactNode => {
-  // 인라인 각주 전처리
-    const text = preprocessInlineFootnotes(originalText)
+  // text 는 prepareFootnotes 를 거친 본문이다 (그 자리 각주 내용은 이미 [*@n] 표시로 바뀌어 있다)
+  const parseContent = (text: string): React.ReactNode => {
     const lines = text.split('\n')
     const elements: React.ReactNode[] = []
     // elements 위치 → 문단 제목 정보. 끝에서 제목 아래 내용을 접을 수 있게 묶는다.
@@ -2299,7 +2256,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // 독립된 각주 정의 라인 건너뛰기 (인라인 각주는 parseInlineElements에서 처리됨)
       // 라인 전체가 각주 정의인 경우만 건너뛰기 (문장 중간의 인라인 각주는 제외)
       const footnoteDefMatch = trimmed.match(/^\[\*(\d+|[a-zA-Z가-힣\d]+)\]\s*(.+)$/)
-      if (footnoteDefMatch && footnoteDefMatch[2].trim().length > 5 && trimmed === line.trim()) {
+      if (isFootnoteDefinitionLine(trimmed) || (footnoteDefMatch && footnoteDefMatch[2].trim().length > 5)) {
         continue
       }
       
@@ -2570,14 +2527,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
   footnoteRefSeenRef.current = new Set()
   foldCounterRef.current = 0
   headingSluggerRef.current = createHeadingSlugger()
-  const renderedContent = parseContent(content);
+  const renderedContent = parseContent(preparedFootnotes.text);
 
   return (
     <div className={`namu-wiki-content text-gray-300 ${isPreview ? 'wiki-preview' : ''}`}>
       <div className="prose prose-lg max-w-none prose-invert">
         {renderedContent}
       </div>
-      {(Object.keys(footnotes).length > 0 || footnoteCounterRef.current > 0) && (
+      {footnoteCounterRef.current > 0 && (
         <section
           aria-label="각주"
           className="mt-14 rounded-lg border border-gray-700 bg-gradient-to-b from-gray-900/80 to-gray-900/40 overflow-hidden"
@@ -2596,20 +2553,19 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
               // 해당 번호에 매핑된 키 찾기
               const footnoteKey = Object.keys(footnoteMappingRef.current).find(key => footnoteMappingRef.current[key] === footnoteNumber)
               
-              // 각주 내용 찾기 - 우선순위: 매핑된 키 > 숫자 키 > auto 키들
+              // 각주 내용 — [*@n] 은 그 자리·괄호 각주, [*1] 은 번호 각주,
+              // 내용 없이 쓴 [*] 는 같은 순번의 번호 각주 내용(예전 동작)을 쓴다
               let footnoteText = `각주 ${footnoteNumber}`
-              
-              if (footnoteKey && footnotes[footnoteKey]) {
+              const inlineText = footnoteKey?.startsWith('@')
+                ? preparedFootnotes.inline[Number(footnoteKey.slice(1))]
+                : undefined
+
+              if (inlineText) {
+                footnoteText = inlineText
+              } else if (footnoteKey && footnotes[footnoteKey]) {
                 footnoteText = footnotes[footnoteKey]
-              } else if (footnotes[footnoteNumber.toString()]) {
+              } else if (footnoteKey?.startsWith('auto_ref_') && footnotes[footnoteNumber.toString()]) {
                 footnoteText = footnotes[footnoteNumber.toString()]
-              } else {
-                // auto 키들 중에서 순서대로 찾기
-                const autoKeys = Object.keys(footnotes).filter(key => key.startsWith('auto'))
-                if (autoKeys.length > 0 && index < autoKeys.length) {
-                  const autoKey = autoKeys[index]
-                  footnoteText = footnotes[autoKey]
-                }
               }
               
               return (

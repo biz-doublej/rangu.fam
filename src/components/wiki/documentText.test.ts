@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   auditLinks,
+  auditTables,
   collectFootnotes,
   formatDuration,
   readingTime,
+  repeatedPhrases,
   sanitizeWikiText,
   splitSections,
   splitSentences,
+  topTerms,
 } from './documentText'
 
 describe('sanitizeWikiText', () => {
@@ -33,6 +36,30 @@ describe('sanitizeWikiText', () => {
   it('keeps markdown link text', () => {
     expect(sanitizeWikiText('[공식 홈](https://example.com) 참고')).toBe('공식 홈 참고')
   })
+
+  it('keeps the rest of the document after an unclosed {{', () => {
+    const text = '앞 문단 {{ 오타\n== 개요 ==\n긴 본문이다. {{틀|값}} 끝'
+    expect(sanitizeWikiText(text)).toBe('앞 문단 오타 개요 긴 본문이다. 끝')
+  })
+
+  it('drops the attribute line of #!wiki boxes but keeps plain {{{text}}}', () => {
+    expect(sanitizeWikiText('{{{#!wiki style="color:red; border:1px"\n안쪽 글}}}')).toBe('안쪽 글')
+    expect(sanitizeWikiText('{{{그냥 글}}}')).toBe('그냥 글')
+  })
+
+  it('removes tags and table directives but keeps comparisons', () => {
+    expect(sanitizeWikiText('3 < 5 이고 7 > 2')).toBe('3 < 5 이고 7 > 2')
+    expect(sanitizeWikiText('체육부 <=> 생활체육부')).toBe('체육부 <=> 생활체육부')
+    expect(sanitizeWikiText('||<-2><bgcolor=#fff> 합친 칸 ||\n||<|2><:> 세로 || 칸 ||')).toBe('합친 칸 세로 칸')
+    expect(sanitizeWikiText('<span style="color:red">빨강</span>')).toBe('빨강')
+  })
+
+  it('moves footnote text out of the sentence, after the body', () => {
+    expect(sanitizeWikiText('수도는 서울이다.[*] 2026년 기준\n다음 문장이다.', { keepLines: true })).toBe(
+      '수도는 서울이다.\n다음 문장이다.\n2026년 기준'
+    )
+    expect(sanitizeWikiText('서울[* 대한민국의 수도]은 크다.')).toBe('서울 은 크다. 대한민국의 수도')
+  })
 })
 
 describe('readingTime', () => {
@@ -56,6 +83,20 @@ describe('collectFootnotes', () => {
     expect([...result.numberedRefs].sort()).toEqual(['1', '2'])
     expect([...result.definitions].sort()).toEqual(['1', '3'])
     expect(result.autoRefs).toBe(1)
+    expect(result.bareRefs).toBe(0)
+  })
+
+  it('reads numbered footnotes written in place the way the page shows them', () => {
+    const result = collectFootnotes('|포지션 = **투수** [*1] 원하는 보직은 마무리 | 키 = 186cm [*2] 2025년 기준')
+    expect([...result.numberedRefs].sort()).toEqual(['1', '2'])
+    expect([...result.definitions].sort()).toEqual(['1', '2'])
+  })
+
+  it('counts bracket footnotes, line-start auto footnotes and bare [*]', () => {
+    const result = collectFootnotes('가[* 괄호 각주] 나[*]\n[*] 줄 맨 앞 각주')
+    expect(result.autoRefs).toBe(3)
+    expect(result.bareRefs).toBe(1)
+    expect(result.definitions.size).toBe(0)
   })
 })
 
@@ -82,11 +123,69 @@ describe('splitSections', () => {
 })
 
 describe('splitSentences', () => {
-  it('splits Korean sentences on endings and punctuation', () => {
-    expect(splitSentences('마술을 시작했다. 그리고 버스킹을 했습니다 지금은 대회를 준비한다')).toEqual([
+  it('splits on punctuation and line breaks', () => {
+    expect(splitSentences('마술을 시작했다. 그리고 버스킹을 했습니다\n지금은 대회를 준비한다')).toEqual([
       '마술을 시작했다.',
       '그리고 버스킹을 했습니다',
       '지금은 대회를 준비한다',
     ])
+  })
+
+  it('does not cut after words that merely end in 다/요/음', () => {
+    expect(splitSentences('바다 위에 떠 있는 배를 보았다. 다음 날 아침이 밝았다.')).toEqual([
+      '바다 위에 떠 있는 배를 보았다.',
+      '다음 날 아침이 밝았다.',
+    ])
+  })
+
+  it('splits after a closing quote', () => {
+    expect(splitSentences('"그만하자." 그가 말했다. 모두 동의했다.')).toEqual(['"그만하자."', '그가 말했다.', '모두 동의했다.'])
+  })
+})
+
+describe('auditTables', () => {
+  it('finds rows with a different number of cells and empty cells', () => {
+    const text = '본문\n|| 이름 || 나이 ||\n|| 강한울 || 20 ||\n|| 이승찬 ||\n\n|| 하나 ||  ||'
+    expect(auditTables(text)).toEqual([
+      { startLine: 2, rows: 3, widths: [2, 2, 1], emptyCells: 0, uneven: true },
+      { startLine: 6, rows: 1, widths: [2], emptyCells: 1, uneven: false },
+    ])
+  })
+
+  it('counts merged cells as the cells they cover', () => {
+    const text = '||<-2> 제목 ||\n||<|2> 세로 || 가 ||\n|| 나 ||'
+    expect(auditTables(text)[0]).toMatchObject({ widths: [2, 2, 2], uneven: false })
+  })
+
+  it('skips tables inside code blocks', () => {
+    expect(auditTables('```\n|| a || b ||\n```')).toEqual([])
+  })
+})
+
+describe('topTerms', () => {
+  it('counts words without their particles and skips filler words', () => {
+    const plain = '강한울은 투수다. 강한울이 던졌다. 강한울의 공은 빠르다. 그리고 투수가 바뀌었다. 투수를 바꿨다. 2025 2025 2025'
+    expect(topTerms(plain, 2)).toEqual([
+      { term: '강한울', count: 3 },
+      { term: '투수', count: 2 },
+    ])
+  })
+})
+
+describe('repeatedPhrases', () => {
+  it('finds passages copied twice', () => {
+    const passage = '이 문단은 실수로 두 번 붙여 넣은 아주 긴 설명 문장입니다'
+    const plain = `처음에는 ${passage} 중간에 ${passage}`
+    const result = repeatedPhrases(plain)
+    expect(result.passages.map((item) => item.count)).toEqual([2])
+    expect(result.passages[0].phrase.startsWith('이 문단은 실수로')).toBe(true)
+    expect(result.truncated).toBe(false)
+  })
+
+  it('does not list the shifted copies of the same run', () => {
+    const plain = Array.from({ length: 3 }, () => '오늘도 즐거운 하루를 보냈다').join(' 그리고 ')
+    const result = repeatedPhrases(plain)
+    expect(result.phrases).toHaveLength(1)
+    expect(result.phrases[0].count).toBe(3)
   })
 })

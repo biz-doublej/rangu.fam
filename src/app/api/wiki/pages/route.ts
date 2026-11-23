@@ -91,7 +91,8 @@ async function getUserFromToken(request: NextRequest) {
 }
 
 // 응답 형태 (GET 호환 유지)
-function toPageResponse(p: any) {
+// withToc — 단건 조회에서만 본문으로 목차를 다시 만든다. 목록은 저장된 목차를 그대로 쓴다 (행마다 본문 전체를 읽지 않게)
+function toPageResponse(p: any, { withToc = true }: { withToc?: boolean } = {}) {
   const derivedCategories =
     p.categories && p.categories.length > 0
       ? p.categories
@@ -125,7 +126,7 @@ function toPageResponse(p: any) {
     uniqueViews: p.uniqueViews,
     edits: p.edits,
     // 저장된 목차는 옛 앵커 규칙이거나(관리 도구로 쓴 문서는) 비어 있을 수 있어서, 읽을 때마다 본문에서 다시 만든다
-    tableOfContents: generateTableOfContents(p.content || ''),
+    tableOfContents: withToc ? generateTableOfContents(p.content || '') : p.tableOfContents || [],
     incomingLinks: p.incomingLinks || [],
     outgoingLinks: p.outgoingLinks || [],
     watchers: p.watchers || [],
@@ -381,7 +382,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      pages: rows.map(toPageResponse),
+      pages: rows.map((row) => toPageResponse(row, { withToc: false })),
       pagination: {
         total,
         skip,

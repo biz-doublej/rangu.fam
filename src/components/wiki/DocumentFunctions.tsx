@@ -9,17 +9,24 @@ import {
   Hash,
   Layers,
   ListChecks,
+  Repeat,
   Search,
-  Sparkles
+  Sparkles,
+  Table,
+  Tags
 } from 'lucide-react'
+import { revealWikiElement } from '@/lib/wikiHeadings'
 import {
   auditLinks,
+  auditTables,
   collectFootnotes,
   formatDuration,
   readingTime,
+  repeatedPhrases,
   sanitizeWikiText,
   splitSections,
-  splitSentences
+  splitSentences,
+  topTerms
 } from './documentText'
 
 /* ────────────────────────────────────────────────────────────
@@ -223,7 +230,7 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
   {
     id: 'footnote-integrity',
     label: '각주 점검',
-    description: '내용이 없는 각주 번호와 쓰이지 않은 각주 내용을 찾습니다.',
+    description: '내용이 없는 각주와 쓰이지 않은 각주 내용을 찾습니다. 본문에 보이는 것과 같은 규칙으로 셉니다.',
     icon: ListChecks,
     run: (ctx) => {
       const notes = collectFootnotes(ctx.rawContent)
@@ -231,16 +238,19 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
       const unused = [...notes.definitions].filter((key) => !notes.numberedRefs.has(key))
       const total = notes.numberedRefs.size + notes.autoRefs
       if (total === 0 && notes.definitions.size === 0) return { summary: '각주가 없는 문서입니다.' }
+      const problems = [
+        missing.length ? `내용 없는 번호 ${missing.length}개` : '',
+        unused.length ? `쓰이지 않은 내용 ${unused.length}개` : '',
+        notes.bareRefs ? `내용 없는 [*] ${notes.bareRefs}개` : ''
+      ].filter(Boolean)
       return {
-        summary:
-          missing.length || unused.length
-            ? `내용 없는 번호 ${missing.length}개, 쓰이지 않은 내용 ${unused.length}개가 있습니다.`
-            : '각주 번호와 내용이 모두 맞습니다.',
+        summary: problems.length ? `${problems.join(', ')}가 있습니다.` : '각주 번호와 내용이 모두 맞습니다.',
         metrics: [
           { label: '번호 각주 / 자동 각주', value: `${notes.numberedRefs.size} / ${notes.autoRefs}` },
-          { label: '따로 적은 각주 내용', value: notes.definitions.size.toLocaleString() },
+          { label: '내용이 있는 번호', value: notes.definitions.size.toLocaleString() },
           { label: '내용 없는 번호', value: missing.map((key) => `[*${key}]`).join(', ') || '-' },
-          { label: '쓰이지 않은 내용', value: unused.map((key) => `[*${key}]`).join(', ') || '-' }
+          { label: '쓰이지 않은 내용', value: unused.map((key) => `[*${key}]`).join(', ') || '-' },
+          { label: '내용 없는 [*]', value: notes.bareRefs ? `${notes.bareRefs}개` : '-' }
         ]
       }
     }
@@ -255,7 +265,8 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
     placeholder: '기준 글자 수 (기본 80)',
     run: (ctx, input = '') => {
       const limit = Math.max(20, parseInt(input, 10) || 80)
-      const sentences = splitSentences(ctx.plainText)
+      // 줄바꿈을 남긴 글로 나눠야 마침표 없이 끝나는 목록·표 줄이 한 문장으로 뭉치지 않는다
+      const sentences = splitSentences(sanitizeWikiText(ctx.rawContent, { keepLines: true }))
       if (sentences.length === 0) return { summary: '분석할 문장이 없습니다.' }
       const long = sentences.filter((sentence) => sentence.replace(/\s/g, '').length > limit)
       const average = Math.round(sentences.reduce((sum, sentence) => sum + sentence.length, 0) / sentences.length)
@@ -267,6 +278,69 @@ export const FUNCTION_DEFINITIONS: DocumentFunctionDefinition[] = [
         matches: long.slice(0, MATCH_LIMIT).map((sentence) => ({
           label: sentence.length > 60 ? `${sentence.slice(0, 60)}…` : sentence
         }))
+      }
+    }
+  },
+  {
+    id: 'top-terms',
+    label: '자주 쓴 낱말',
+    description: '조사를 떼고 가장 많이 쓴 낱말을 셉니다. 키워드 밀도를 보기 전에 쓰기 좋습니다. 개수를 비워 두면 10개입니다.',
+    icon: Tags,
+    requiresInput: true,
+    inputOptional: true,
+    placeholder: '보여 줄 개수 (기본 10, 3~30)',
+    run: (ctx, input = '') => {
+      const count = Math.min(30, Math.max(3, parseInt(input, 10) || 10))
+      const terms = topTerms(ctx.plainText, count)
+      if (terms.length === 0) return { summary: '분석할 낱말이 없습니다.' }
+      return {
+        summary: `가장 많이 쓴 낱말은 "${terms[0].term}"(${terms[0].count.toLocaleString()}회)입니다.`,
+        metrics: terms.map(({ term, count: times }) => ({ label: term, value: `${times.toLocaleString()}회` }))
+      }
+    }
+  },
+  {
+    id: 'table-audit',
+    label: '표 점검',
+    description: '줄마다 칸 수가 다른 표와 빈 칸을 찾습니다. 합친 칸(<-2>, <|2>)은 펼쳐서 셉니다.',
+    icon: Table,
+    run: (ctx) => {
+      const tables = auditTables(ctx.rawContent)
+      if (tables.length === 0) return { summary: '표가 없는 문서입니다.' }
+      const uneven = tables.filter((table) => table.uneven)
+      const widths = (table: (typeof tables)[number]) => [...new Set(table.widths)].join('/')
+      return {
+        summary: uneven.length
+          ? `표 ${tables.length}개 중 ${uneven.length}개가 줄마다 칸 수가 다릅니다.${limitNote(uneven.length)}`
+          : `표 ${tables.length}개 모두 줄마다 칸 수가 같습니다.`,
+        metrics: tables.slice(0, MATCH_LIMIT).map((table, index) => ({
+          label: `표 ${index + 1} (${table.startLine}번째 줄부터)`,
+          value: `${table.rows}줄 · 칸 ${widths(table)} · 빈 칸 ${table.emptyCells}`
+        })),
+        matches: uneven.slice(0, MATCH_LIMIT).map((table) => ({
+          label: `${table.startLine}번째 줄 표 — 칸 수 ${widths(table)} (줄별 ${table.widths.join(', ')})`
+        }))
+      }
+    }
+  },
+  {
+    id: 'repeated-phrases',
+    label: '반복 표현',
+    description: '세 번 넘게 쓴 같은 표현과, 두 번 똑같이 나온 긴 구절(복사해 붙인 문단)을 찾습니다.',
+    icon: Repeat,
+    run: (ctx) => {
+      const { phrases, passages, truncated } = repeatedPhrases(ctx.plainText)
+      const note = truncated ? ' (문서가 길어 앞부분 5만 어절만 봤습니다)' : ''
+      if (phrases.length === 0 && passages.length === 0) {
+        return { summary: `눈에 띄게 반복된 표현이 없습니다.${note}` }
+      }
+      const matches = [
+        ...passages.map((item) => ({ label: `구절 "${item.phrase}…" · ${item.count}번` })),
+        ...phrases.map((item) => ({ label: `"${item.phrase}" · ${item.count}회` }))
+      ]
+      return {
+        summary: `3번 이상 쓴 표현 ${phrases.length}개, 두 번 이상 똑같이 나온 긴 구절 ${passages.length}개.${limitNote(matches.length)}${note}`,
+        matches: matches.slice(0, MATCH_LIMIT)
       }
     }
   }
@@ -380,6 +454,8 @@ export function DocumentFunctionsPanel({
       document.getElementById(anchor) ||
       (typeof CSS !== 'undefined' && CSS.escape ? document.querySelector(`#${CSS.escape(anchor)}`) : null)
     if (target instanceof HTMLElement) {
+      // 접힌 문단(==# 제목 #==)이나 >>> 접기 안의 제목이면 먼저 펼쳐야 화면이 움직인다
+      revealWikiElement(target)
       target.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
