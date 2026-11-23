@@ -189,3 +189,14 @@ describe('repeatedPhrases', () => {
     expect(result.phrases[0].count).toBe(3)
   })
 })
+
+describe('stage-1 syntax in document text', () => {
+  it('leaves out comment lines, the TOC and footnote macros', () => {
+    expect(sanitizeWikiText('본문이다.\n// 메모라서 세지 않는다\n[[목차:접기]]\n[[각주]]\n끝')).toBe('본문이다. 끝')
+  })
+
+  it('counts escaped syntax as plain text', () => {
+    expect(sanitizeWikiText('\\[[문서]] 는 링크가 아니다')).toBe('[[문서]] 는 링크가 아니다')
+    expect(auditLinks('\\[[문서]] [[진짜]] [[각주]] [[:분류:인물]]')).toMatchObject({ internal: 1, categories: 1 })
+  })
+})

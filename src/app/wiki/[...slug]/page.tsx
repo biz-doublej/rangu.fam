@@ -28,7 +28,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { formatDate } from '@/lib/utils'
-import { parseRedirectTarget } from '@/lib/wiki/redirect'
+import { parseRedirectTarget, redirectPath, splitRedirectTarget } from '@/lib/wiki/redirect'
+import { wikiPath } from '@/lib/wiki/links'
+import { useTemplateExpansion } from '@/hooks/useTemplateExpansion'
+import { TEMPLATE_PREFIX } from '@/lib/wiki/templates'
+import { TemplateInfoPanel } from '@/components/wiki/TemplateInfoPanel'
 import { WikiShell, WikiPageHeader, DocumentFunctionsPanel, WikiMeter, WikiTableOfContents } from '@/components/wiki'
 
 type WikiTabType = 'document' | 'edit' | 'history' | 'discussion'
@@ -69,6 +73,8 @@ interface WikiPageData {
   outgoingLinks: string[]
   tableOfContents: any[]
   revisions: any[]
+  /** 본문이 부르는 틀 이름 → 틀 본문 (없는 틀은 null) */
+  templates?: Record<string, string | null>
   createdAt?: string
   updatedAt?: string
 }
@@ -378,15 +384,16 @@ export default function WikiDocumentPage() {
           const redirectTo =
             parseRedirectTarget(d.page.content) ||
             (d.page.isRedirect ? d.page.redirectTarget : null)
+          // #redirect 문서#문단 — 문단은 주소의 # 로 넘겨 그 자리로 내려간다
+          const redirectTitle = redirectTo ? splitRedirectTarget(redirectTo).title : null
           if (
             redirectTo &&
+            redirectTitle &&
             !noRedirect &&
-            redirectTo !== (d.page.title || slug) && // 자기 자신으로 넘겨주기 방지
-            redirectTo !== fromParam // A↔B 왕복 루프 방지
+            redirectTitle !== (d.page.title || slug) && // 자기 자신으로 넘겨주기 방지
+            redirectTitle !== fromParam // A↔B 왕복 루프 방지
           ) {
-            router.replace(
-              `/wiki/${encodeURIComponent(redirectTo)}?from=${encodeURIComponent(d.page.title || slug)}`
-            )
+            router.replace(redirectPath(redirectTo, d.page.title || slug))
             return
           }
           setRedirectedFrom(fromParam)
@@ -696,6 +703,9 @@ export default function WikiDocumentPage() {
       alert('신고 처리 중 오류가 발생했습니다.')
     }
   }
+
+  // 본문의 틀({{이름|키=값}})을 펼친 글 — 문서 응답에 실려 온 틀로 바로 펼친다
+  const expandedContent = useTemplateExpansion(currentPage?.content || '', currentPage?.templates)
 
   /* ── Render ────────────────────────────────────── */
   if (isLoading) {
@@ -1279,24 +1289,23 @@ export default function WikiDocumentPage() {
             <p className="text-sm text-[color:var(--wiki-ink-soft)] mb-3 italic">{currentPage.summary}</p>
           )}
 
+          {currentPage.title.startsWith(TEMPLATE_PREFIX) && (
+            <TemplateInfoPanel name={currentPage.title.slice(TEMPLATE_PREFIX.length)} content={currentPage.content} />
+          )}
+
           <article
             ref={articleRef}
             className={`wiki-content ${scanlinesOn ? 'wiki-scanlines' : ''}`}
           >
             <NamuWikiRenderer
-              content={currentPage.content}
+              content={expandedContent}
+              pageTitle={currentPage.title}
               generateTableOfContents
               onLinkClick={(link) => {
                 const normalized = (link || '').trim()
                 if (!normalized) return
-                if (/^(분류|category):/i.test(normalized)) {
-                  const categoryName = normalized.split(':').slice(1).join(':').trim()
-                  if (categoryName) {
-                    router.push(`/wiki/category/${encodeURIComponent(categoryName)}`)
-                    return
-                  }
-                }
-                router.push(`/wiki/${encodeURIComponent(normalized)}`)
+                // 문서#문단 은 그 문서로 가서 문단으로 내려간다 (분류:… 는 분류 화면)
+                router.push(wikiPath(normalized))
               }}
             />
           </article>

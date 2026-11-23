@@ -201,6 +201,12 @@ export interface WikiCellStyle {
   textColorDark?: string
   /** <nopad> — 칸 안쪽 여백 없애기 */
   noPadding?: boolean
+  /** <위> <아래> <valign:middle> — 칸 안 세로 위치 */
+  verticalAlign?: 'top' | 'middle' | 'bottom'
+  /** <높이:60> <height=60> — 칸 높이 (px) */
+  height?: string
+  /** <단어줄바꿈> <keepall> — 한글 낱말 중간에서 줄을 바꾸지 않음 */
+  keepAll?: boolean
 }
 
 /**
@@ -221,13 +227,39 @@ export interface ParsedCellDirectives {
   cell: WikiCellStyle
   row: WikiCellStyle
   table: WikiCellStyle
-  /** 열 병합 — 나무위키식 `<-N>` */
+  /** 열 — <열배경:#색> <열글자:#색> <colbgcolor=…> 는 이 칸부터 아래로 같은 열 전체 */
+  col: WikiCellStyle
+  /** 열 병합 — `<-N>` 또는 `<가로:N>` */
   colSpan?: number
-  /** 행 병합 — 나무위키식 `<|N>` (다음 행에서는 해당 칸을 생략) */
+  /** 행 병합 — `<|N>` 또는 `<세로:N>` (다음 행에서는 해당 칸을 생략) */
   rowSpan?: number
+  /** <머리글> — 이 줄을 머리글 줄로 (첫 줄은 원래 머리글) */
+  header?: boolean
+  /** <표위치:오른쪽> <tablealign=right> — 표 자체를 놓을 자리 */
+  tablePosition?: 'left' | 'center' | 'right'
+  /** <정렬버튼> <sortable> — 머리글 칸에 정렬 버튼 (표 전체에 한 번) */
+  sortable?: boolean
 }
 
 const ALIGN_VALUES = new Set(['left', 'center', 'right'])
+const VALIGN_VALUES = new Set(['top', 'middle', 'bottom'])
+const KOREAN_SIDE: Record<string, 'left' | 'center' | 'right'> = { 왼쪽: 'left', 가운데: 'center', 오른쪽: 'right' }
+
+/** 높이 값 정제 — 1~4자리 숫자(px)만 */
+export function normalizeHeight(value: string): string | undefined {
+  const m = value.trim().match(/^(\d{1,4})(px)?$/)
+  return m ? `${m[1]}px` : undefined
+}
+
+/**
+ * 한 `<…>` 안에서 지시자 하나를 읽는다 (sticky). 순서대로:
+ *  1~3 영문 지시자 `[table|row|col]이름:값` (`=` 도 됨)
+ *  4~5 한글 값 지시자 `가로:3` `세로:2` `높이:60` `열배경:#색` `열글자:#색` `표위치:오른쪽`
+ *  6~7 병합 `-N` `|N`
+ *  8   값 없는 지시자 `nopad` `keepall` `왼쪽` `가운데` `오른쪽` `위` `아래` `단어줄바꿈` `머리글`
+ */
+const DIRECTIVE =
+  /\s*(?:(table|row|col)?(bgimage|bgcolor|bordercolor|color|border|align|valign|font|width|height)[:=]("[^"]*"|[^\s>]+)|(가로|세로|높이|열배경|열글자|표위치)[:=]([^\s>]+)|(-\d+)|(\|\d+)|(nopad|(?:table|row)?keepall|sortable|왼쪽|가운데|오른쪽|위|아래|단어줄바꿈|머리글|정렬버튼)(?=\s|$))\s*/iy
 
 /**
  * 배경 그림 주소 정제 — 사이트 안 경로(/…) 나 http(s) 주소만, CSS 를 깨는 문자 없이.
@@ -257,41 +289,62 @@ export function sanitizeFontFamily(value: string): string {
  * 알 수 없는 지시자는 건드리지 않으므로 기존 문서와 호환된다.
  */
 export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
-  const result: ParsedCellDirectives = { content: cellContent, cell: {}, row: {}, table: {} }
+  const result: ParsedCellDirectives = { content: cellContent, cell: {}, row: {}, table: {}, col: {} }
 
   // `<...>` 토큰을 훑되, 내부가 "지시자들로만" 빈틈없이 구성될 때만 소비한다.
-  // 그렇지 않으면(`<b>`, `<div ...>` 등 일반 텍스트) 원문 그대로 둠 → 기존 문서 비파괴.
+  // 그렇지 않으면(`<b>`, `<div ...>`, `<위키>` 등 일반 텍스트) 원문 그대로 둠 → 기존 문서 비파괴.
   // sticky(y) 정규식으로 토큰을 연속 매칭 → 백트래킹 폭주 없음 + 따옴표 폰트(공백) 지원.
-  result.content = cellContent
+  // 인라인 코드(`<가운데>` 처럼 문법을 보여 주는 칸) 안의 꺾쇠는 지시자가 아니다 — 잠시 가려 두었다가 되돌린다
+  const code: string[] = []
+  const masked = cellContent.replace(/`[^`\n]*`/g, (span) => {
+    code.push(span)
+    return `\u0000${code.length - 1}\u0000`
+  })
+  result.content = masked
     .replace(/<([^<>]+)>/g, (full, inner: string) => {
       const pairs: Array<{ scope: string; attr: string; value: string }> = []
       const spans: Array<{ kind: 'col' | 'row'; n: number }> = []
-      // key:value(또는 나무위키식 key=value) 지시자, 병합 토큰(-N 열 / |N 행), nopad
-      const pairRe =
-        /\s*(?:(table|row)?(bgimage|bgcolor|bordercolor|color|border|align|font|width)[:=]("[^"]*"|[^\s>]+)|(-\d+)|(\|\d+)|(nopad))\s*/iy
       let idx = 0
       let ok = true
       while (idx < inner.length) {
-        pairRe.lastIndex = idx
-        const m = pairRe.exec(inner)
+        DIRECTIVE.lastIndex = idx
+        const m = DIRECTIVE.exec(inner)
         if (!m || m.index !== idx) {
           ok = false
           break
         }
-        if (m[4]) {
-          spans.push({ kind: 'col', n: parseInt(m[4].slice(1), 10) })
-        } else if (m[5]) {
-          spans.push({ kind: 'row', n: parseInt(m[5].slice(1), 10) })
-        } else if (m[6]) {
-          pairs.push({ scope: '', attr: 'nopad', value: '' })
+        if (m[6]) {
+          spans.push({ kind: 'col', n: parseInt(m[6].slice(1), 10) })
+        } else if (m[7]) {
+          spans.push({ kind: 'row', n: parseInt(m[7].slice(1), 10) })
+        } else if (m[4]) {
+          const value = m[5].trim()
+          switch (m[4]) {
+            case '가로': spans.push({ kind: 'col', n: parseInt(value, 10) }); break
+            case '세로': spans.push({ kind: 'row', n: parseInt(value, 10) }); break
+            case '높이': pairs.push({ scope: '', attr: 'height', value }); break
+            case '열배경': pairs.push({ scope: 'col', attr: 'bgcolor', value }); break
+            case '열글자': pairs.push({ scope: 'col', attr: 'color', value }); break
+            case '표위치': pairs.push({ scope: 'table', attr: 'align', value: KOREAN_SIDE[value] || value }); break
+          }
+        } else if (m[8]) {
+          const flag = m[8].toLowerCase()
+          if (flag === 'nopad') pairs.push({ scope: '', attr: 'nopad', value: '' })
+          else if (flag.endsWith('keepall') || flag === '단어줄바꿈') {
+            pairs.push({ scope: flag.startsWith('table') ? 'table' : flag.startsWith('row') ? 'row' : '', attr: 'keepall', value: '' })
+          } else if (flag in KOREAN_SIDE) pairs.push({ scope: '', attr: 'align', value: KOREAN_SIDE[flag] })
+          else if (flag === '위') pairs.push({ scope: '', attr: 'valign', value: 'top' })
+          else if (flag === '아래') pairs.push({ scope: '', attr: 'valign', value: 'bottom' })
+          else if (flag === '머리글') result.header = true
+          else if (flag === '정렬버튼' || flag === 'sortable') result.sortable = true
         } else {
           let value = m[3].trim()
           if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
           pairs.push({ scope: (m[1] || '').toLowerCase(), attr: m[2].toLowerCase(), value })
         }
-        idx = pairRe.lastIndex
+        idx = DIRECTIVE.lastIndex
       }
-      if (!ok || (pairs.length === 0 && spans.length === 0)) return full // 지시자 블록이 아님 → 보존
+      if (!ok || (pairs.length === 0 && spans.length === 0 && !result.header && !result.sortable)) return full // 지시자 블록이 아님 → 보존
 
       for (const { kind, n } of spans) {
         if (!Number.isInteger(n) || n < 2 || n > 50) continue
@@ -300,7 +353,14 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
       }
 
       for (const { scope, attr, value } of pairs) {
-        const target = scope === 'table' ? result.table : scope === 'row' ? result.row : result.cell
+        // <tablealign:…> / <표위치:…> 는 표 안 글자가 아니라 표 자체의 자리
+        if (scope === 'table' && attr === 'align') {
+          const v = value.toLowerCase()
+          if (ALIGN_VALUES.has(v)) result.tablePosition = v as ParsedCellDirectives['tablePosition']
+          continue
+        }
+        const target =
+          scope === 'table' ? result.table : scope === 'row' ? result.row : scope === 'col' ? result.col : result.cell
         switch (attr) {
           case 'bgcolor': {
             const { light, dark } = normalizeColorPair(value)
@@ -348,10 +408,25 @@ export function parseCellDirectives(cellContent: string): ParsedCellDirectives {
             if (w) target.width = w
             break
           }
+          case 'height': {
+            const h = normalizeHeight(value)
+            if (h) target.height = h
+            break
+          }
+          case 'valign': {
+            const v = value.toLowerCase()
+            if (VALIGN_VALUES.has(v)) target.verticalAlign = v as WikiCellStyle['verticalAlign']
+            break
+          }
+          case 'keepall': {
+            target.keepAll = true
+            break
+          }
         }
       }
       return ''
     })
+    .replace(/\u0000(\d+)\u0000/g, (_, index) => code[Number(index)] ?? '')
     .trim()
 
   return result
@@ -373,6 +448,62 @@ export function assignStyleDefaults(target: WikiCellStyle, source: WikiCellStyle
   if (!target.fontFamily && source.fontFamily) target.fontFamily = source.fontFamily
   if (!target.width && source.width) target.width = source.width
   if (!target.backgroundImage && source.backgroundImage) target.backgroundImage = source.backgroundImage
+  if (!target.verticalAlign && source.verticalAlign) target.verticalAlign = source.verticalAlign
+  if (!target.height && source.height) target.height = source.height
+  if (!target.keepAll && source.keepAll) target.keepAll = true
+}
+
+/**
+ * 정렬용 글자 — 칸 원문에서 위키 문법을 걷어 낸다 (`[[문서|보일 글자]]` → 보일 글자, `1,234` → 1234).
+ */
+export function cellSortKey(content: string): string {
+  return (content || '')
+    .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1')
+    .replace(/\{\{\{(?:[#+-][^\s{}]*\s+)?([^{}]*)\}\}\}/g, '$1')
+    .replace(/\[\*[^\]]*\]/g, '')
+    .replace(/\[br\]/gi, ' ')
+    .replace(/<[^<>]*>/g, '')
+    .replace(/'''|''|~~|__|\*\*/g, '')
+    .replace(/(\d),(?=\d{3}\b)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * 줄 순서 — column 열의 글자로 정렬(숫자는 숫자 크기대로, 한글은 가나다순), 빈 칸은 방향과 관계없이 맨 아래.
+ * 같은 값은 원래 순서를 지킨다.
+ */
+export function sortRowOrder(keys: string[][], column: number, direction: 1 | -1): number[] {
+  const collator = new Intl.Collator('ko', { numeric: true, sensitivity: 'base' })
+  return keys
+    .map((row, index) => ({ index, key: row[column] ?? '' }))
+    .sort((a, b) => {
+      if (!a.key || !b.key) return a.key ? -1 : b.key ? 1 : a.index - b.index
+      return collator.compare(a.key, b.key) * direction || a.index - b.index
+    })
+    .map((row) => row.index)
+}
+
+/**
+ * 칸마다 몇 번째 열에서 시작하는지 — 위 줄의 세로 병합(<|N>)이 차지한 자리를 건너뛰고,
+ * 가로 병합(<-N>)은 그 칸 수만큼 차지한다. 열 색(<열배경:…>)을 같은 열에 이어 칠할 때 쓴다.
+ */
+export function layoutTableColumns(rows: Array<Array<{ colSpan?: number; rowSpan?: number }>>): number[][] {
+  const occupied: Array<Set<number>> = rows.map(() => new Set<number>())
+  return rows.map((cells, rowIndex) => {
+    let column = 0
+    return cells.map((cell) => {
+      while (occupied[rowIndex].has(column)) column++
+      const start = column
+      const colSpan = cell.colSpan || 1
+      const rowSpan = cell.rowSpan || 1
+      for (let r = rowIndex; r < Math.min(rows.length, rowIndex + rowSpan); r++) {
+        for (let c = start; c < start + colSpan; c++) occupied[r].add(c)
+      }
+      column = start + colSpan
+      return start
+    })
+  })
 }
 
 /** 레이어 병합 (뒤 레이어가 우선) → React inline style */
@@ -397,6 +528,9 @@ export function mergeCellStylesToCss(
     if (layer.width) merged.width = layer.width
     if (layer.backgroundImage) merged.backgroundImage = layer.backgroundImage
     if (layer.noPadding) merged.noPadding = true
+    if (layer.verticalAlign) merged.verticalAlign = layer.verticalAlign
+    if (layer.height) merged.height = layer.height
+    if (layer.keepAll) merged.keepAll = true
   }
 
   const css: React.CSSProperties & Record<string, string> = {}
@@ -410,6 +544,9 @@ export function mergeCellStylesToCss(
   if (merged.textAlign) css.textAlign = merged.textAlign
   if (merged.fontFamily) css.fontFamily = merged.fontFamily
   if (merged.width) css.width = merged.width
+  if (merged.verticalAlign) css.verticalAlign = merged.verticalAlign
+  if (merged.height) css.height = merged.height
+  if (merged.keepAll) css.wordBreak = 'keep-all'
   if (merged.backgroundImage) {
     css.backgroundImage = `url("${merged.backgroundImage}")`
     css.backgroundSize = 'cover'

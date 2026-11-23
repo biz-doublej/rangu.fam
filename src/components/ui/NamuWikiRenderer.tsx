@@ -6,7 +6,35 @@ import { flushSync } from 'react-dom'
 import { isFoldCollapsed, onRevealWikiElement, parseHeadingLine, revealWikiElement } from '@/lib/wikiHeadings'
 import { createHeadingSlugger } from '@/lib/wiki/slug'
 import { isFootnoteDefinitionLine, prepareFootnotes } from '@/lib/wiki/footnotes'
+import { resolveWikiLink } from '@/lib/wiki/links'
+import { prepareSource } from '@/lib/wiki/source'
+import {
+  ageOn,
+  ddayLabel,
+  formatDate,
+  kstToday,
+  parseImageOptions,
+  parseIsoDate,
+  parseRuby,
+  parseVimeo,
+  parseYoutube,
+  videoEmbedUrl,
+  type ImageOptions,
+} from '@/lib/wiki/macros'
+
+import {
+  buildListTree,
+  collectFencedBlock,
+  isQuoteLine,
+  parseListLine,
+  parseQuoteBlock,
+  parseStyledBoxOptions,
+  type ListLine,
+  type ListNode,
+  type QuoteNode,
+} from '@/lib/wiki/blocks'
 import { FootnoteRef } from '@/components/wiki/FootnoteRef'
+import { WikiSortableTable, type TableSort } from '@/components/wiki/WikiSortableTable'
 import { WikiBannerBox } from '@/components/wiki/WikiBannerBox'
 import { imageAddress, isBannerBoxStart, readBannerBox, resolveBannerBoxStyle } from '@/lib/bannerBox'
 import dynamic from 'next/dynamic'
@@ -31,10 +59,22 @@ import {
   normalizeColor,
   parseCellDirectives,
   assignStyleDefaults,
+  cellSortKey,
+  layoutTableColumns,
   mergeCellStylesToCss,
   sanitizeFontFamily,
   type WikiCellStyle,
 } from '@/lib/tableColors'
+
+/** 그림 옵션 → 클래스 (테두리, 둥글게, 픽셀, 다크·라이트 한쪽에서만) */
+function imageOptionClasses(options: ImageOptions): string {
+  return [
+    options.border ? ' wiki-img-bordered' : '',
+    options.rounded ? ' wiki-img-rounded' : '',
+    options.pixelated ? ' wiki-img-pixelated' : '',
+    options.theme ? ` wiki-only-${options.theme}` : '',
+  ].join('')
+}
 
 const registerHighlightLanguages = (() => {
   let registered = false
@@ -61,7 +101,10 @@ const registerHighlightLanguages = (() => {
 interface NamuWikiRendererProps {
   content: string
   generateTableOfContents?: boolean
+  /** `문서` 또는 `문서#문단 제목` 을 받는다 — 주소는 wikiPath() 로 만든다 */
   onLinkClick?: (link: string) => void
+  /** 지금 문서 이름 — [[../]] [[/하위]] 같은 상대 링크를 풀 때 쓴다 */
+  pageTitle?: string
   isPreview?: boolean
 }
 
@@ -344,16 +387,19 @@ const CitationBox = ({
   )
 }
 
-export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false }: NamuWikiRendererProps): JSX.Element {
+export default function NamuWikiRenderer({ content, generateTableOfContents = false, onLinkClick, isPreview = false, pageTitle = '' }: NamuWikiRendererProps): JSX.Element {
   const [toc, setToc] = useState<TableOfContentsItem[]>([])
   // 각주 규칙은 문서 함수(각주 점검)와 같은 함수 하나로 읽는다 — src/lib/wiki/footnotes.ts
   // 그리기 전에 바로 계산해서 첫 화면(서버 렌더)부터 각주 목록과 미리보기가 채워진다
-  const preparedFootnotes = React.useMemo(() => prepareFootnotes(content), [content])
+  // 그 전에 // 주석 줄을 빼고 \ 이스케이프를 풀어 둔다 (src/lib/wiki/source.ts)
+  const preparedFootnotes = React.useMemo(() => prepareFootnotes(prepareSource(content)), [content])
   const footnotes = preparedFootnotes.definitions
   const footnoteCounterRef = React.useRef(0)
   const footnoteMappingRef = React.useRef<{[key: string]: number}>({})
   // 본문에서 각주 번호별 첫 등장 여부 — id="fnref-N" 부여
   const footnoteRefSeenRef = React.useRef<Set<number>>(new Set())
+  // [[각주]] 로 이미 본문 중간에 찍은 마지막 각주 번호
+  const footnotesPrintedRef = React.useRef(0)
   // 문단 접기 — 독자가 기본 상태에서 뒤집은 문단 번호
   const [toggledFolds, setToggledFolds] = useState<Set<number>>(() => new Set())
   const foldCounterRef = React.useRef(0)
@@ -492,10 +538,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     const revealHash = () => {
       const id = decodeURIComponent(window.location.hash.slice(1))
       const target = id ? document.getElementById(id) : null
-      if (target && target.closest('[data-fold-body][hidden]')) {
-        reveal(target)
-        target.scrollIntoView({ block: 'start' })
-      }
+      if (!target) return
+      // 다른 문서의 [[문서#문단]] 으로 들어오면 본문이 늦게 그려져 브라우저가 스스로 내려가지 못한다
+      // — 본문이 그려진 이 시점에 접힌 문단을 펼치고 그 자리로 내려간다
+      reveal(target)
+      target.scrollIntoView({ block: 'start' })
     }
     revealHash()
     window.addEventListener('hashchange', revealHash)
@@ -631,6 +678,10 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           regex: /\[(?!br\])([^\]]+)\]\(([^)]+)\)/gi,
           render: (match: RegExpMatchArray, key: number) => {
             const [, linkText, url] = match
+            // javascript:, data: 같은 주소는 링크로 만들지 않는다 (http·https·mailto·사이트 안 경로만)
+            if (/^[a-z][a-z0-9+.-]*:/i.test(url.trim()) && !/^(https?:|mailto:)/i.test(url.trim())) {
+              return <React.Fragment key={key}>{linkText}</React.Fragment>
+            }
             const isExternal = url.startsWith('http') || url.startsWith('//')
             
             // 링크 텍스트에서 아이콘 문법 파싱
@@ -667,22 +718,15 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         {
           regex: /\[\[파일:([^\]|]+)(?:\|([^\]]+))?\]\]/g,
           render: (match: RegExpMatchArray, key: number) => {
-            const options = Object.fromEntries(
-              (match[2] || '')
-                .split('&')
-                .map((pair) => pair.split('=').map((part) => part.trim()))
-                .filter(([name, value]) => name && value)
-            )
-            const width = /^\d+(px|%)?$/.test(options.width || '')
-              ? (/^\d+$/.test(options.width) ? `${options.width}px` : options.width)
-              : undefined
+            // width=30&border=1 (나무위키식) 또는 30px 둥글게 다크 (낱말)
+            const options = parseImageOptions(match[2] || '')
             return (
               <img
                 key={key}
                 src={normalizeWikiImageSrc(match[1].trim())}
                 alt={options.alt || ''}
-                className={`wiki-inline-img inline-block max-w-full h-auto align-middle${options.border === '1' ? ' wiki-img-bordered' : ''}`}
-                style={width ? { width } : undefined}
+                className={`wiki-inline-img inline-block max-w-full h-auto align-middle${imageOptionClasses(options)}`}
+                style={options.width ? { width: options.width } : undefined}
                 data-fallback-attempt="0"
                 onError={handleWikiImageError}
               />
@@ -708,30 +752,116 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           regex: /\[br\]/gi,
           render: (_match: RegExpMatchArray, key: number) => <br key={key} />
         },
+        // 1.7 날짜 매크로 [나이:2005-07-27] [디데이:2026-12-25] [오늘] — 한국 날짜 기준
+        {
+          regex: /\[(나이|디데이):(\d{4}-\d{1,2}-\d{1,2})\]|\[오늘\]/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const today = kstToday()
+            if (!match[1]) {
+              return <span key={key} className="wiki-macro" suppressHydrationWarning>{formatDate(today)}</span>
+            }
+            const date = parseIsoDate(match[2])
+            if (!date) return <React.Fragment key={key}>{match[0]}</React.Fragment>
+            const value = match[1] === '나이' ? String(ageOn(date, today)) : ddayLabel(date, today)
+            return (
+              <span key={key} className="wiki-macro" title={match[2]} suppressHydrationWarning>
+                {value}
+              </span>
+            )
+          }
+        },
+        // 1.8 동영상 [유튜브:id 시작=8] [비메오:id] — 정해진 주소로만 iframe 을 만든다
+        {
+          regex: /\[(유튜브|youtube|비메오|vimeo):([^\]\n]+)\]/gi,
+          render: (match: RegExpMatchArray, key: number) => {
+            const provider = match[1].toLowerCase()
+            const spec = provider === '유튜브' || provider === 'youtube' ? parseYoutube(match[2]) : parseVimeo(match[2])
+            if (!spec) return <React.Fragment key={key}>{match[0]}</React.Fragment>
+            return (
+              <span key={key} className="wiki-video" style={spec.width ? { maxWidth: spec.width } : undefined}>
+                <iframe
+                  src={videoEmbedUrl(spec)}
+                  title={spec.provider === 'youtube' ? '유튜브 동영상' : '비메오 동영상'}
+                  loading="lazy"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </span>
+            )
+          }
+        },
+        // 1.9 루비 [루비:漢字(한자)] — 글자 위에 작은 글자
+        {
+          regex: /\[루비:([^\]\n]+)\]/g,
+          render: (match: RegExpMatchArray, key: number) => {
+            const ruby = parseRuby(match[1])
+            if (!ruby) return <React.Fragment key={key}>{match[0]}</React.Fragment>
+            return (
+              <ruby key={key}>
+                {ruby.base}
+                <rp>(</rp>
+                <rt>{ruby.ruby}</rt>
+                <rp>)</rp>
+              </ruby>
+            )
+          }
+        },
         // 2. 위키 링크 [[페이지|표시텍스트]]
         {
           regex: /\[\[([^\]]+)\]\]/g,
           render: (match: RegExpMatchArray, key: number) => {
             const linkContent = match[1]
             const [page, display] = linkContent.split('|')
-            const displayText = display?.trim() || page.trim()
-            
+            // [[:파일:…]] [[:분류:…]] 의 앞 : 는 "링크만" 표시라 보이는 글자에서 뺀다
+            const displayText = display?.trim() || page.trim().replace(/^:(?=(파일|분류|file|category):)/i, '')
+            const target = resolveWikiLink(page, pageTitle)
+
             // 표시 텍스트에서 아이콘 문법 파싱
             const parsedDisplayContent = parseIconSyntax(displayText)
             const hasIcons = parsedDisplayContent.some(part => typeof part !== 'string')
-            
+
             // 아이콘만 있는 경우
             const isIconOnly = displayText.trim().startsWith('!icon:') && parsedDisplayContent.length === 1 && typeof parsedDisplayContent[0] !== 'string'
-            
+
+            // 바깥 주소·파일 링크는 새 창, 문단 링크는 이 문서 안에서 이동, 나머지는 문서 이동
+            const opensOutside = target.kind === 'external' || target.kind === 'file'
+            const href =
+              target.kind === 'external'
+                ? target.url
+                : target.kind === 'file'
+                  ? normalizeWikiImageSrc(target.src)
+                  : target.kind === 'section'
+                    ? `#${target.anchor}`
+                    : `#${page.trim()}`
+
             return (
-              <a 
-                key={key} 
-                href={`#${page.trim()}`} 
+              <a
+                key={key}
+                href={href}
+                target={opensOutside ? '_blank' : undefined}
+                rel={opensOutside ? 'noopener noreferrer' : undefined}
                 className={`text-blue-400 hover:text-blue-300 ${isIconOnly ? '' : 'underline'} inline-flex items-center gap-1 whitespace-nowrap`}
                 style={{ display: 'inline-flex', alignItems: 'center' }}
                 onClick={(e) => {
+                  if (opensOutside) return
                   e.preventDefault()
-                  onLinkClick?.(page.trim())
+                  if (target.kind === 'section') {
+                    const element = document.getElementById(target.anchor)
+                    revealWikiElement(element)
+                    element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    try {
+                      history.replaceState(null, '', `#${encodeURIComponent(target.anchor)}`)
+                    } catch {}
+                    return
+                  }
+                  if (target.kind === 'category') {
+                    onLinkClick?.(`분류:${target.name}`)
+                    return
+                  }
+                  if (target.kind === 'page') {
+                    onLinkClick?.(target.section ? `${target.title}#${target.section}` : target.title)
+                  }
                 }}
               >
                 {hasIcons ? parsedDisplayContent.map((part, idx) => (
@@ -740,6 +870,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                   // [[문서|'''굵게''']] [[문서|{{{#fff 색}}}]] 처럼 표시 글자에 서식이 있으면 서식대로 그린다
                   ? parseInlineElements(displayText)
                   : displayText}
+                {target.kind === 'external' && !isIconOnly && <ExternalLink size={12} />}
               </a>
             )
           }
@@ -1202,9 +1333,64 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
 
   useEffect(() => {
     if (generateTableOfContents) {
-      generateTOC(content)
+      // 본문과 같은 원문으로 목차를 만든다 — // 주석 줄과 \ 로 막은 제목은 목차에 넣지 않는다
+      generateTOC(prepareSource(content))
     }
   }, [content, generateTableOfContents, generateTOC])
+
+  const LIST_STYLE_TYPE: Record<ListNode['style'], string> = {
+    disc: '',
+    '1': 'decimal',
+    a: 'lower-alpha',
+    A: 'upper-alpha',
+    i: 'lower-roman',
+    I: 'upper-roman',
+  }
+
+  const renderListNode = (node: ListNode, key: string): React.ReactElement => {
+    const ordered = node.style !== 'disc'
+    const Tag = ordered ? 'ol' : 'ul'
+    return (
+      <Tag
+        key={key}
+        className={`wiki-list${ordered ? ' wiki-list--ordered' : ''}`}
+        start={ordered && node.start !== undefined && node.start !== 1 ? node.start : undefined}
+        style={ordered ? { listStyleType: LIST_STYLE_TYPE[node.style] } : undefined}
+      >
+        {node.items.map((item, index) => (
+          <li key={index} className="mb-1 text-gray-300">
+            {parseInlineElements(item.content)}
+            {item.children.map((child, childIndex) => renderListNode(child, `${key}-${index}-${childIndex}`))}
+          </li>
+        ))}
+      </Tag>
+    )
+  }
+
+  // 한 줄짜리 인용은 예전과 같은 모양 — 여러 줄이면 줄바꿈을 살리고, 안쪽 인용은 한 단계 들여 그린다
+  const renderQuoteNode = (node: QuoteNode, key: string, outermost: boolean): React.ReactElement => (
+    <blockquote
+      key={key}
+      className={
+        outermost
+          ? 'border-l-4 border-gray-600 pl-4 py-2 my-4 bg-gray-800 italic text-gray-400'
+          : 'wiki-quote-nested border-l-4 border-gray-600 pl-3 py-1 my-2 not-italic'
+      }
+    >
+      {outermost && <Quote className="w-4 h-4 inline mr-2 text-gray-500" />}
+      {node.parts.map((part, index) =>
+        part.kind === 'quote' ? (
+          renderQuoteNode(part.node, `${key}-${index}`, false)
+        ) : part.lines.length === 1 && node.parts.length === 1 ? (
+          <React.Fragment key={index}>{parseInlineElements(part.lines[0])}</React.Fragment>
+        ) : (
+          <span key={index} className="block whitespace-pre-line">
+            {parseInlineElements(part.lines.join('\n'))}
+          </span>
+        )
+      )}
+    </blockquote>
+  )
 
   // text 는 prepareFootnotes 를 거친 본문이다 (그 자리 각주 내용은 이미 [*@n] 표시로 바뀌어 있다)
   const parseContent = (text: string): React.ReactNode => {
@@ -1222,7 +1408,6 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       }
       floatBoxIndexes.add(elements.length)
     }
-    let listStack: Array<{ type: 'ul' | 'ol', level: number }> = []
 
     const parseMarkdownTableRow = (row: string) => {
       const parts = row.split('|')
@@ -1599,6 +1784,31 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         // 선택지 부족 등 파싱 실패 시 원문 유지
       }
 
+      // 꾸민 상자 :::상자 배경=#색 글자=#색 테두리=#색 정렬=가운데 위치=가운데 너비=80% 둥글게 … :::
+      // 허용한 키·검사한 값만 쓴다 (나무위키 {{{#!wiki style="…"}}} 대신)
+      const styledBox = trimmed.match(/^:::상자(?:\s+(.*))?$/)
+      if (styledBox) {
+        const options = parseStyledBoxOptions(styledBox[1] || '')
+        const { body, end } = collectFencedBlock(lines, i)
+        const placement =
+          options.position === 'center'
+            ? { marginLeft: 'auto', marginRight: 'auto' }
+            : options.position === 'right'
+              ? { marginLeft: 'auto' }
+              : {}
+        elements.push(
+          <div
+            key={i}
+            className={`wiki-styled-box${options.rounded ? ' wiki-styled-box--rounded' : ''}${options.style.textColor ? ' wiki-box-colored' : ''}`}
+            style={{ ...mergeCellStylesToCss(options.style), ...placement }}
+          >
+            {parseContent(body.join('\n'))}
+          </div>
+        )
+        i = end
+        continue
+      }
+
       // 콜아웃 박스: :::info|warn|success|error|note|tip 첫 줄 + 다음 줄들 + ::: 닫는 줄
       // 예) :::info
       //     본문
@@ -1739,6 +1949,54 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       // [clearfix] — 앞의 오른쪽 상자 아래로 내린다 (목차를 상자 아래에 두고 싶을 때)
       if (/^\[clearfix\]$/i.test(trimmed)) {
         elements.push(<div key={i} className="wiki-clearfix" aria-hidden="true" />)
+        continue
+      }
+
+      // [[각주]] — 여기까지 나온 각주를 이 자리에 모아 보여 준다 (나머지는 문서 끝)
+      if (trimmed === '[[각주]]') {
+        const from = footnotesPrintedRef.current + 1
+        const to = footnoteCounterRef.current
+        if (to >= from) {
+          elements.push(renderFootnoteSection(from, to, 'inline', `footnotes-${i}`))
+          footnotesPrintedRef.current = to
+        }
+        continue
+      }
+
+      // [[목차:접기]] — 처음엔 접힌 목차 (제목 '목차' 를 누르면 펼침)
+      if (trimmed === '[[목차:접기]]') {
+        tocIndexes.add(elements.length)
+        elements.push(
+          <div key={i} className="wiki-toc-inline my-6 p-4 bg-gray-800 border border-gray-600 rounded-lg">
+            <details className="wiki-toc-folded">
+              <summary className="cursor-pointer select-none text-lg font-semibold text-gray-200">목차</summary>
+              {generateTableOfContents && toc.length > 0 ? (
+                <nav className="space-y-1 mt-3 border-t border-gray-600 pt-3">
+                  {toc.map((item, tocIndex) => (
+                    <div key={tocIndex} className="flex items-center">
+                      <div className="flex-shrink-0 w-6 text-xs text-gray-500">{tocIndex + 1}.</div>
+                      <a
+                        href={`#${item.anchor}`}
+                        className="text-blue-400 hover:text-blue-300 hover:underline block py-1 transition-colors"
+                        style={{ paddingLeft: `${(item.level - 1) * 16}px` }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          const element = document.getElementById(item.anchor)
+                          revealWikiElement(element)
+                          element?.scrollIntoView({ behavior: 'smooth' })
+                        }}
+                      >
+                        {item.title}
+                      </a>
+                    </div>
+                  ))}
+                </nav>
+              ) : (
+                <p className="mt-2 text-gray-400 text-sm">문서에 제목이 없어 목차를 생성할 수 없습니다.</p>
+              )}
+            </details>
+          </div>
+        )
         continue
       }
 
@@ -1909,10 +2167,14 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
       const fileMatch = trimmed.match(fileRegex)
       if (fileMatch) {
         const path = normalizeWikiImageSrc(fileMatch[1].trim())
-        const caption = (fileMatch[2] || '').trim()
+        // | 뒤가 옵션 낱말(300px 가운데 둥글게 …)이면 옵션, 아니면 예전처럼 그림 설명
+        const options = parseImageOptions(fileMatch[2] || '')
+        const caption = options.alt || ''
+        const alignClass = options.align === 'left' ? 'text-left' : options.align === 'right' ? 'text-right' : 'text-center'
         elements.push(
-          <div key={i} className="my-4 text-center">
-            <img src={path} alt={caption} className="max-w-full h-auto rounded border border-gray-700 inline-block"
+          <div key={i} className={`my-4 ${alignClass}${options.theme ? ` wiki-only-${options.theme}` : ''}`}>
+            <img src={path} alt={caption} className={`max-w-full h-auto rounded border border-gray-700 inline-block${imageOptionClasses({ ...options, theme: undefined })}`}
+                 style={options.width ? { width: options.width } : undefined}
                  data-fallback-attempt="0"
                  onError={handleWikiImageError} />
             {caption && <div className="text-xs text-gray-400 mt-1">{caption}</div>}
@@ -1982,38 +2244,31 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
         continue
       }
       
-      const listMatch = trimmed.match(/^(\s*)([*-]|\d+\.)\s+(.+)$/)
-      if (listMatch) {
-        const indent = listMatch[1].length
-        const marker = listMatch[2]
-        const content = listMatch[3]
-        const level = Math.floor(indent / 2)
-        const isOrdered = /\d+\./.test(marker)
-        
-        while (listStack.length > level + 1) {
-          listStack.pop()
+      // 리스트 — 원래 줄의 앞 공백(2칸 = 한 단계)으로 깊이를 재고, 연속된 줄을 중첩 <ul>/<ol> 로 묶는다
+      if (parseListLine(line)) {
+        const listLines: ListLine[] = []
+        let j = i
+        while (j < lines.length) {
+          const parsed = parseListLine(lines[j])
+          if (!parsed) break
+          listLines.push(parsed)
+          j++
         }
-        
-        if (listStack.length === level) {
-          listStack.push({ type: isOrdered ? 'ol' : 'ul', level })
-        }
-        
-        elements.push(
-          <li key={i} className="mb-1 text-gray-300" style={{ marginLeft: `${level * 20}px` }}>
-            {parseInlineElements(content)}
-          </li>
-        )
+        buildListTree(listLines).forEach((node, index) => elements.push(renderListNode(node, `list-${i}-${index}`)))
+        i = j - 1
         continue
       }
-      
-      if (trimmed.startsWith('>')) {
-        const quoteContent = trimmed.substring(1).trim()
-        elements.push(
-          <blockquote key={i} className="border-l-4 border-gray-600 pl-4 py-2 my-4 bg-gray-800 italic text-gray-400">
-            <Quote className="w-4 h-4 inline mr-2 text-gray-500" />
-            {parseInlineElements(quoteContent)}
-          </blockquote>
-        )
+
+      // 인용 — 연속된 > 줄은 한 인용, > > 는 안쪽 인용
+      if (isQuoteLine(trimmed)) {
+        const quoteLines: string[] = []
+        let j = i
+        while (j < lines.length && isQuoteLine(lines[j].trim())) {
+          quoteLines.push(lines[j])
+          j++
+        }
+        elements.push(renderQuoteNode(parseQuoteBlock(quoteLines), `quote-${i}`, true))
+        i = j - 1
         continue
       }
       
@@ -2172,8 +2427,11 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
           // 1차 파싱 — 셀별 지시자 추출 + 행(<row…>)/표(<table…>) 단위 스타일 수집.
           // 행/표 지시자는 보통 첫 셀에 한 번만 적지만, 어느 셀에 있어도 인식한다.
           const tableStyle: WikiCellStyle = {}
+          let tablePosition: 'left' | 'center' | 'right' | undefined
+          let sortable = false
           const parsedRows = tableRows.map((row) => {
             const rowStyle: WikiCellStyle = {}
+            let header = false
             const cells = row
               .split('||')
               // 줄 양끝 || 바깥만 버리고 가운데 빈 칸(|| ||)은 빈 칸으로 그대로 둔다 (나무위키와 같게)
@@ -2182,68 +2440,144 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
                 const parsed = parseCellDirectives(cell.trim())
                 assignStyleDefaults(rowStyle, parsed.row)
                 assignStyleDefaults(tableStyle, parsed.table)
+                if (parsed.header) header = true
+                if (!tablePosition && parsed.tablePosition) tablePosition = parsed.tablePosition
+                if (parsed.sortable) sortable = true
                 return parsed
               })
-            return { cells, rowStyle }
+            return { cells, rowStyle, header }
           })
 
-          // 표 생성 — 우선순위: 셀 > 행 > 표 > 기본값 (기존 문서는 그대로 렌더)
+          // 칸마다 시작 열 — 세로 병합이 차지한 자리를 건너뛴다. 열 색은 지정한 줄부터 아래로 같은 열에 이어진다
+          const cellColumns = layoutTableColumns(parsedRows.map(({ cells }) => cells))
+          const columnStyles: WikiCellStyle[] = []
+          const rowColumnStyles = parsedRows.map(({ cells }, rowIndex) => {
+            cells.forEach((parsed, cellIndex) => {
+              if (Object.keys(parsed.col).length === 0) return
+              const start = cellColumns[rowIndex][cellIndex]
+              for (let c = start; c < start + (parsed.colSpan || 1); c++) columnStyles[c] = { ...parsed.col }
+            })
+            return cells.map((_, cellIndex) => columnStyles[cellColumns[rowIndex][cellIndex]])
+          })
+
+          // 표 자리 — <표위치:…> 가 없으면 지금처럼 가운데
+          const tableJustify =
+            tablePosition === 'left' ? 'justify-start' : tablePosition === 'right' ? 'justify-end' : 'justify-center'
+          const tableMargin = tablePosition === 'left' ? 'mr-auto' : tablePosition === 'right' ? 'ml-auto' : 'mx-auto'
+
+          // 칸 내용은 지금(문서 순서대로) 그려 둔다 — 정렬 표에서도 각주 번호가 본문 순서를 따르게
+          const cellNodes = parsedRows.map(({ cells }) => cells.map((parsed) => parseInlineElements(parsed.content)))
+
+          // 표 생성 — 우선순위: 셀 > 행 > 열 > 표 > 기본값 (기존 문서는 그대로 렌더)
+          // sortControl 이 있으면(정렬 표의 첫 줄) 칸마다 정렬 버튼을 붙인다
+          const renderRow = (
+            rowIndex: number,
+            sortControl?: { sort: TableSort; onSort: (column: number) => void }
+          ): React.ReactElement => {
+            const { cells, rowStyle, header } = parsedRows[rowIndex]
+            // 첫 줄은 원래 머리글, 다른 줄은 <머리글> 을 적으면 머리글
+            const isHeaderRow = rowIndex === 0 || header
+            // 표 전체에 배경 그림을 깔았으면 칸 기본 바탕은 비워서 그림이 보이게 한다
+            const defaultStyle: WikiCellStyle = tableStyle.backgroundImage
+              ? {}
+              : isHeaderRow
+                ? { backgroundColor: 'var(--wiki-table-head, #374151)' }
+                : { backgroundColor: 'var(--wiki-table-cell, #1f2937)' }
+
+            return (
+              <tr key={rowIndex} className="border-b border-gray-600">
+                {cells.map((parsed, cellIndex) => {
+                  const CellTag = isHeaderRow ? 'th' : 'td'
+                  // 표·행 너비는 표 자체에만 쓰고 칸에는 물려주지 않는다
+                  const cellStyles = mergeCellStylesToCss(
+                    defaultStyle,
+                    { ...tableStyle, width: undefined, backgroundImage: undefined },
+                    rowColumnStyles[rowIndex][cellIndex],
+                    { ...rowStyle, width: undefined },
+                    parsed.cell
+                  )
+                  const columnStyle = rowColumnStyles[rowIndex][cellIndex]
+                  const column = cellColumns[rowIndex][cellIndex]
+                  const sortedHere = sortControl?.sort?.column === column ? sortControl.sort : null
+
+                  return (
+                    <CellTag
+                      key={cellIndex}
+                      colSpan={parsed.colSpan}
+                      rowSpan={parsed.rowSpan}
+                      className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
+                        isHeaderRow ? 'font-semibold' : ''
+                      } ${
+                        // 칸·행에 직접 글자색을 준 경우만 안의 링크가 그 색을 따른다 (표 전체 글자색은 링크색 유지 — 나무위키와 같게)
+                        parsed.cell.textColor || rowStyle.textColor || columnStyle?.textColor ? 'wiki-cell-colored' : ''
+                      } ${cellStyles.backgroundImage ? 'wiki-cell-bgimage' : ''}`}
+                      style={cellStyles}
+                      aria-sort={sortedHere ? (sortedHere.direction === 1 ? 'ascending' : 'descending') : undefined}
+                    >
+                      {cellNodes[rowIndex][cellIndex]}
+                      {sortControl && (
+                        <button
+                          type="button"
+                          className="wiki-sort-btn"
+                          onClick={() => sortControl.onSort(column)}
+                          aria-label="이 열로 정렬"
+                          title="이 열로 정렬"
+                        >
+                          {sortedHere ? (sortedHere.direction === 1 ? '▲' : '▼') : '↕'}
+                        </button>
+                      )}
+                    </CellTag>
+                  )
+                })}
+              </tr>
+            )
+          }
+
+          const tableClassName = `border-collapse border border-gray-600 bg-gray-900 text-gray-200 ${tableMargin}${tableStyle.width ? ' wiki-table-fill' : ''}`
+          const tableCss: React.CSSProperties = {
+            ...(tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : {}),
+            ...(tableStyle.width ? { width: tableStyle.width } : {}),
+            ...(tableStyle.backgroundImage
+              ? { backgroundImage: `url("${tableStyle.backgroundImage}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+              : {}),
+          }
+
+          // <정렬버튼> — 첫 줄(과 바로 이어지는 <머리글> 줄)은 그대로, 그 아래 줄들을 고른 열로 정렬한다.
+          // 아래 줄에 세로로 합친 칸이 있으면 줄을 옮길 수 없어 정렬하지 않는다
+          let headCount = 1
+          while (headCount < parsedRows.length && parsedRows[headCount].header) headCount++
+          const canSort =
+            sortable &&
+            parsedRows.length - headCount >= 2 &&
+            parsedRows.slice(headCount).every(({ cells }) => cells.every((cell) => !cell.rowSpan || cell.rowSpan < 2))
+          const sortKeys = canSort
+            ? parsedRows.slice(headCount).map(({ cells }, k) => {
+                const keys: string[] = []
+                cells.forEach((cell, cellIndex) => {
+                  const start = cellColumns[headCount + k][cellIndex]
+                  for (let c = start; c < start + (cell.colSpan || 1); c++) keys[c] = cellSortKey(cell.content)
+                })
+                return keys
+              })
+            : []
+
           const tableElement = (
-            <div key={i} className="my-4 overflow-x-auto flex justify-center wiki-table-wrap">
-              <table
-                className={`border-collapse border border-gray-600 bg-gray-900 text-gray-200 mx-auto${tableStyle.width ? ' wiki-table-fill' : ''}`}
-                style={{
-                  ...(tableStyle.borderColor ? { borderColor: tableStyle.borderColor } : {}),
-                  ...(tableStyle.width ? { width: tableStyle.width } : {}),
-                  ...(tableStyle.backgroundImage
-                    ? { backgroundImage: `url("${tableStyle.backgroundImage}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
-                    : {}),
-                }}
-              >
-                <tbody>
-                  {parsedRows.map(({ cells, rowStyle }, rowIndex) => {
-                    const isHeaderRow = rowIndex === 0
-                    // 표 전체에 배경 그림을 깔았으면 칸 기본 바탕은 비워서 그림이 보이게 한다
-                    const defaultStyle: WikiCellStyle = tableStyle.backgroundImage
-                      ? {}
-                      : isHeaderRow
-                        ? { backgroundColor: 'var(--wiki-table-head, #374151)' }
-                        : { backgroundColor: 'var(--wiki-table-cell, #1f2937)' }
-
-                    return (
-                      <tr key={rowIndex} className="border-b border-gray-600">
-                        {cells.map((parsed, cellIndex) => {
-                          const CellTag = isHeaderRow ? 'th' : 'td'
-                          // 표·행 너비는 표 자체에만 쓰고 칸에는 물려주지 않는다
-                          const cellStyles = mergeCellStylesToCss(
-                            defaultStyle,
-                            { ...tableStyle, width: undefined, backgroundImage: undefined },
-                            { ...rowStyle, width: undefined },
-                            parsed.cell
-                          )
-
-                          return (
-                            <CellTag
-                              key={cellIndex}
-                              colSpan={parsed.colSpan}
-                              rowSpan={parsed.rowSpan}
-                              className={`border border-gray-600 px-3 py-2 text-sm whitespace-pre-line ${
-                                isHeaderRow ? 'font-semibold' : ''
-                              } ${
-                                // 칸·행에 직접 글자색을 준 경우만 안의 링크가 그 색을 따른다 (표 전체 글자색은 링크색 유지 — 나무위키와 같게)
-                                parsed.cell.textColor || rowStyle.textColor ? 'wiki-cell-colored' : ''
-                              } ${cellStyles.backgroundImage ? 'wiki-cell-bgimage' : ''}`}
-                              style={cellStyles}
-                            >
-                              {parseInlineElements(parsed.content)}
-                            </CellTag>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div key={i} className={`my-4 overflow-x-auto flex ${tableJustify} wiki-table-wrap`}>
+              {canSort ? (
+                <WikiSortableTable
+                  className={tableClassName}
+                  style={tableCss}
+                  renderHead={(sort, onSort) =>
+                    parsedRows.slice(0, headCount).map((_, rowIndex) => renderRow(rowIndex, rowIndex === 0 ? { sort, onSort } : undefined))
+                  }
+                  bodyRows={parsedRows.slice(headCount).map((_, k) => renderRow(headCount + k))}
+                  sortKeys={sortKeys}
+                />
+              ) : (
+                <table className={tableClassName} style={tableCss}>
+                  <tbody>{parsedRows.map((_, rowIndex) => renderRow(rowIndex))}</tbody>
+                </table>
+              )}
             </div>
           )
 
@@ -2323,6 +2657,7 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             nextTrimmed.startsWith('*') || 
             nextTrimmed.startsWith('-') ||
             nextTrimmed.startsWith('1.') ||
+            parseListLine(nextLine) !== null ||
             nextTrimmed.startsWith('>') ||
             nextTrimmed.startsWith('||') ||
             nextTrimmed.startsWith('[[') ||
@@ -2520,35 +2855,23 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
     }
   }
 
-  // 각주 번호와 본문 위치(fnref) 표시는 그릴 때마다 처음부터 센다.
-  // 다시 그려질 때 번호가 밀리거나 fnref id 가 사라지는 것을 막는다.
-  footnoteCounterRef.current = 0
-  footnoteMappingRef.current = {}
-  footnoteRefSeenRef.current = new Set()
-  foldCounterRef.current = 0
-  headingSluggerRef.current = createHeadingSlugger()
-  const renderedContent = parseContent(preparedFootnotes.text);
-
-  return (
-    <div className={`namu-wiki-content text-gray-300 ${isPreview ? 'wiki-preview' : ''}`}>
-      <div className="prose prose-lg max-w-none prose-invert">
-        {renderedContent}
-      </div>
-      {footnoteCounterRef.current > 0 && (
+  // 각주 목록 — from~to 번. [[각주]] 자리에서는 그때까지 나온 각주를, 문서 끝에서는 나머지를 그린다
+  const renderFootnoteSection = (from: number, to: number, placement: 'inline' | 'end', key?: string): React.ReactElement => (
         <section
+          key={key}
           aria-label="각주"
-          className="mt-14 rounded-lg border border-gray-700 bg-gradient-to-b from-gray-900/80 to-gray-900/40 overflow-hidden"
+          className={`${placement === 'end' ? 'mt-14' : 'my-6 not-prose'} rounded-lg border border-gray-700 bg-gradient-to-b from-gray-900/80 to-gray-900/40 overflow-hidden`}
         >
           <div className="px-5 py-3 border-b border-gray-700 bg-gray-800/40 flex items-center gap-2">
             <span className="inline-block w-1 h-4 bg-amber-500 rounded-sm" aria-hidden="true" />
             <h3 className="font-bold text-base text-gray-100 tracking-wide">각주</h3>
             <span className="ml-auto text-[11px] text-gray-500 tabular-nums">
-              {footnoteCounterRef.current}개
+              {to - from + 1}개
             </span>
           </div>
           <div className="px-3 py-2 space-y-0.5">
-            {Array.from({ length: footnoteCounterRef.current }, (_, index) => {
-              const footnoteNumber = index + 1
+            {Array.from({ length: to - from + 1 }, (_, index) => {
+              const footnoteNumber = from + index
               
               // 해당 번호에 매핑된 키 찾기
               const footnoteKey = Object.keys(footnoteMappingRef.current).find(key => footnoteMappingRef.current[key] === footnoteNumber)
@@ -2596,7 +2919,25 @@ export default function NamuWikiRenderer({ content, generateTableOfContents = fa
             })}
           </div>
         </section>
-      )}
+  )
+
+  // 각주 번호와 본문 위치(fnref) 표시는 그릴 때마다 처음부터 센다.
+  // 다시 그려질 때 번호가 밀리거나 fnref id 가 사라지는 것을 막는다.
+  footnoteCounterRef.current = 0
+  footnoteMappingRef.current = {}
+  footnoteRefSeenRef.current = new Set()
+  footnotesPrintedRef.current = 0
+  foldCounterRef.current = 0
+  headingSluggerRef.current = createHeadingSlugger()
+  const renderedContent = parseContent(preparedFootnotes.text);
+
+  return (
+    <div className={`namu-wiki-content text-gray-300 ${isPreview ? 'wiki-preview' : ''}`}>
+      <div className="prose prose-lg max-w-none prose-invert">
+        {renderedContent}
+      </div>
+      {footnoteCounterRef.current > footnotesPrintedRef.current &&
+        renderFootnoteSection(footnotesPrintedRef.current + 1, footnoteCounterRef.current, 'end')}
     </div>
   )
 }

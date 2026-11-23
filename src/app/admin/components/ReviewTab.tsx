@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { CheckCircle2, ChevronDown, ChevronUp, Pause, RefreshCw, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { wikiPath } from '@/lib/wiki/links'
+import { useTemplateExpansion } from '@/hooks/useTemplateExpansion'
 import {
   BUTTON_CLASS,
   DANGER_BUTTON_CLASS,
@@ -54,6 +56,8 @@ function SubmissionItem({ submission, onDone }: { submission: Submission; onDone
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const actionable = submission.status === 'pending' || submission.status === 'onhold'
+  // 펼쳐 볼 때만 틀을 불러와 펼친다
+  const previewContent = useTemplateExpansion(open ? submission.content : '')
 
   const act = async (action: 'approve' | 'reject' | 'hold') => {
     if (action !== 'approve' && !reason.trim()) {
@@ -117,9 +121,10 @@ function SubmissionItem({ submission, onDone }: { submission: Submission; onDone
             // 위키 화면과 같은 색으로 보이도록 위키 구역으로 감싼다
             <div data-section="wiki" className="wiki-review-preview max-h-[32rem] overflow-auto rounded border border-adm-rule px-5 py-4">
               <NamuWikiRenderer
-                content={submission.content}
+                content={previewContent}
+                pageTitle={submission.targetTitle}
                 isPreview
-                onLinkClick={(link) => window.open(`/wiki/${encodeURIComponent(link)}`, '_blank', 'noopener')}
+                onLinkClick={(link) => window.open(wikiPath(link), '_blank', 'noopener')}
               />
             </div>
           ) : (

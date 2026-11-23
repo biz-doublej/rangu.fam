@@ -3111,6 +3111,52 @@ video:hover {
 /* 배경 그림을 깐 표 칸 — 그림 위 글자가 읽히도록 */
 .wiki-cell-bgimage { text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
 
+/* 리스트 — Tailwind 기본값이 기호를 지우므로 직접 그린다. 들여쓰기 한 단계마다 기호 모양을 바꾼다 */
+.namu-wiki-content .wiki-list { list-style-type: disc; padding-left: 1.4em; margin: .25rem 0 1rem; }
+.namu-wiki-content .wiki-list .wiki-list { margin: .25rem 0 .25rem; }
+.namu-wiki-content ul.wiki-list ul.wiki-list { list-style-type: circle; }
+.namu-wiki-content ul.wiki-list ul.wiki-list ul.wiki-list { list-style-type: square; }
+.namu-wiki-content .wiki-list > li::marker { color: var(--wiki-ink-muted, #9ca3af); }
+.namu-wiki-content .wiki-quote-nested { background: transparent; }
+
+/* 동영상 [유튜브:id] [비메오:id] — 폭에 맞춰 16:9 */
+.namu-wiki-content .wiki-video { display: block; width: 100%; max-width: 640px; margin: .75rem 0; }
+.namu-wiki-content .wiki-video iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 6px; background: #000; }
+
+/* 그림 옵션 — 둥글게, 픽셀, 다크·라이트 화면 한쪽에서만 */
+.wiki-img-rounded { border-radius: 8px; }
+.wiki-img-pixelated { image-rendering: pixelated; }
+:root:not([data-wiki-color='dark']) .wiki-only-dark { display: none !important; }
+:root[data-wiki-color='dark'] .wiki-only-light { display: none !important; }
+
+/* 꾸민 상자 :::상자 … ::: — 색을 정하지 않으면 테두리만 */
+.namu-wiki-content .wiki-styled-box {
+  margin: 1rem 0;
+  padding: .75rem 1rem;
+  border: 1px solid var(--wiki-rule, #4b5563);
+  border-radius: 4px;
+}
+.namu-wiki-content .wiki-styled-box--rounded { border-radius: 12px; }
+.namu-wiki-content .wiki-styled-box > :first-child { margin-top: 0; }
+.namu-wiki-content .wiki-styled-box > :last-child { margin-bottom: 0; }
+.wiki-box-colored p, .wiki-box-colored li, .wiki-box-colored strong, .wiki-box-colored em { color: inherit; }
+
+/* <정렬버튼> 표 — 머리글 칸 오른쪽의 작은 정렬 단추 */
+.wiki-sort-btn {
+  margin-left: .35rem;
+  padding: 0 .2rem;
+  font-size: .75em;
+  line-height: 1;
+  opacity: .55;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.wiki-sort-btn:hover, .wiki-sort-btn:focus-visible { opacity: 1; background: rgba(127, 127, 127, .2); }
+th[aria-sort] .wiki-sort-btn { opacity: 1; }
+
+/* 루비 [루비:漢字(한자)] */
+.namu-wiki-content ruby rt { font-size: .6em; opacity: .85; }
+
 
 /* 나무위키식 첫 화면 — 오른쪽 정보 상자 왼쪽에 목차를 나란히, 문단은 그 아래부터 */
 .wiki-toc-inline {

@@ -3,6 +3,7 @@
  */
 import { parseHeadingLine } from '@/lib/wikiHeadings'
 import { prepareFootnotes } from '@/lib/wiki/footnotes'
+import { prepareSource, stripEscapeJoiners } from '@/lib/wiki/source'
 
 /**
  * `{{ … }}` 틀을 중괄호 깊이를 세어 통째로 지운다 (안에 `}}` 가 있어도 끝까지).
@@ -59,7 +60,8 @@ const TAGS = /<\/?[a-zA-Z][^<>\n]{0,120}>|<(?:[-|^v]*\d+|[:()]|#[^<>\s]{1,30})>/
  */
 export function sanitizeWikiText(value: string, options: { keepLines?: boolean } = {}): string {
   if (!value) return ''
-  const notes = prepareFootnotes(value)
+  // 렌더러와 같은 순서: // 주석 줄과 \ 이스케이프 → 각주
+  const notes = prepareFootnotes(prepareSource(value))
   const placedNotes = Object.entries(notes.definitions)
     .filter(([key]) => !notes.definedOnOwnLine.has(key))
     .map(([, body]) => body)
@@ -77,7 +79,8 @@ export function sanitizeWikiText(value: string, options: { keepLines?: boolean }
   }
 
   text = stripTemplates(text)
-    .replace(/\[\[(?:파일|분류|file|category):[^\]]*\]\]/gi, ' ')
+    .replace(/\[\[(?:목차(?::접기)?|각주)\]\]/g, ' ')
+    .replace(/\[\[:?(?:파일|분류|file|category):[^\]]*\]\]/gi, ' ')
     .replace(/\[\[(?:[^\]|]*\|)?([^\]]+)\]\]/g, ' $1 ')
     .replace(/\[이미지:[^\]]*\]/g, ' ')
     .replace(/\[([^\]]+)\]\((?:https?:\/\/|\/)[^)]*\)/g, ' $1 ')
@@ -104,13 +107,13 @@ export function sanitizeWikiText(value: string, options: { keepLines?: boolean }
     .replace(/\|/g, ' ')
 
   if (options.keepLines) {
-    return cleaned
+    return stripEscapeJoiners(cleaned)
       .split('\n')
       .map((line) => line.replace(/\s+/g, ' ').trim())
       .filter(Boolean)
       .join('\n')
   }
-  return cleaned.replace(/\s+/g, ' ').trim()
+  return stripEscapeJoiners(cleaned).replace(/\s+/g, ' ').trim()
 }
 
 /** 읽기 시간 — 초를 먼저 구해서 "1분 60초" 같은 반올림 오류가 없게 한다. */
@@ -133,7 +136,7 @@ export function formatDuration(totalSeconds: number): string {
  * hasChildren — 바로 다음 제목이 더 깊은 단계라서 하위 문단을 품은 제목인지.
  */
 export function splitSections(raw: string): Array<{ title: string; level: number; body: string; hasChildren: boolean }> {
-  const lines = (raw || '').split('\n')
+  const lines = prepareSource(raw || '').split('\n')
   const sections: Array<{ title: string; level: number; body: string[] }> = []
   let inFence = false
   for (const line of lines) {
@@ -167,7 +170,7 @@ export function collectFootnotes(raw: string): {
   autoRefs: number
   bareRefs: number
 } {
-  const notes = prepareFootnotes(raw)
+  const notes = prepareFootnotes(prepareSource(raw))
   return {
     numberedRefs: notes.numberedRefs,
     definitions: new Set(Object.keys(notes.definitions)),
@@ -185,16 +188,16 @@ export function auditLinks(raw: string): {
   external: number
   uniqueExternal: number
 } {
-  const text = (raw || '').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '')
+  const text = prepareSource(raw || '').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '')
   const targets: string[] = []
   let categories = 0
   let files = 0
   for (const match of text.matchAll(/\[\[([^\]]+)\]\]/g)) {
     const target = match[1].split('|')[0].trim()
     // [[목차]], [[인포박스: …]] 같은 위키 기능은 링크가 아니다
-    if (/^(목차|인포박스:|카드그리드:|탭바:)/.test(target)) continue
-    if (/^(분류|category):/i.test(target)) categories++
-    else if (/^(파일|file):/i.test(target)) files++
+    if (/^(목차|각주$|인포박스:|카드그리드:|탭바:)/.test(target)) continue
+    if (/^:?(분류|category):/i.test(target)) categories++
+    else if (/^:?(파일|file):/i.test(target)) files++
     else targets.push(target.split('#')[0].trim())
   }
   const urls = text.match(/https?:\/\/[^\s\]|<>"')]+/g) || []

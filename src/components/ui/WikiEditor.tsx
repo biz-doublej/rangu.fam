@@ -13,6 +13,7 @@ import { useWikiAuth } from '@/contexts/WikiAuthContext'
 import { COLOR_PICKER_PALETTE, normalizeColor, isValidHexColor } from '@/lib/tableColors'
 import { BLANK_PATTERN, EDITOR_TEMPLATE_GROUPS, type EditorTemplate } from '@/components/wiki/editor/templates'
 import { SyntaxHelp } from '@/components/wiki/editor/SyntaxHelp'
+import { useTemplateExpansion } from '@/hooks/useTemplateExpansion'
 
 type EditorMode = 'write' | 'split' | 'preview'
 
@@ -638,11 +639,14 @@ export default function WikiEditor({
     </div>
   )
 
+  // 미리보기에서도 틀({{이름|키=값}})을 펼쳐 보인다 — 저장 전 본문이라 틀은 따로 불러온다
+  const previewContent = useTemplateExpansion(content)
+
   const previewPane = (
     <div className="wiki-editor__preview" aria-label="미리보기">
       <div className="image-render-stable wiki-content">
         {content.trim() ? (
-          <NamuWikiRenderer content={content} generateTableOfContents isPreview />
+          <NamuWikiRenderer content={previewContent} generateTableOfContents isPreview />
         ) : (
           <p className="text-sm text-[color:var(--wiki-ink-faint)]">왼쪽에 내용을 입력하면 여기에 미리보기가 표시됩니다.</p>
         )}

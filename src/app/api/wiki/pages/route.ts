@@ -9,6 +9,8 @@ import { getDb } from '@/db/client'
 import { wikiPages, wikiRevisions, wikiSubmissions, wikiUsers } from '@/db/schema/wiki'
 import { extractCategoriesFromContent } from '@/lib/wikiCategories'
 import { parseRedirectTarget } from '@/lib/wiki/redirect'
+import { loadTemplatesFor } from '@/lib/wiki/templateStore'
+import { TEMPLATE_PREFIX } from '@/lib/wiki/templates'
 import { canEditPage, isModeratorOrAbove, isRateLimited } from '@/app/api/wiki/_utils/policy'
 import { appendAuditLog } from '@/app/api/wiki/_utils/audit'
 import { createCaptchaChallenge, hasValidCaptchaPass } from '@/app/api/wiki/_utils/captcha'
@@ -284,11 +286,14 @@ export async function GET(request: NextRequest) {
       } catch {}
 
       const editorNames = await loadDisplayNames([page.lastEditorId]).catch(() => new Map<string, string>())
+      // 본문이 부르는 틀({{이름|…}})을 함께 실어 보내 화면이 한 번에 펼치게 한다 (실패해도 문서는 그대로 보낸다)
+      const templates = await loadTemplatesFor(page.content || '').catch(() => ({}))
       return NextResponse.json({
         success: true,
         page: {
           ...toPageResponse(page),
           lastEditorDisplayName: (page.lastEditorId && editorNames.get(page.lastEditorId)) || page.lastEditor,
+          templates,
         },
       })
     }
@@ -421,7 +426,7 @@ export async function POST(request: NextRequest) {
       title,
       content,
       summary,
-      namespace = 'main',
+      namespace: requestedNamespace = 'main',
       categories = [],
       tags = [],
       isRedirect = false,
@@ -429,6 +434,11 @@ export async function POST(request: NextRequest) {
       editSummary,
       isMinorEdit,
     } = await request.json()
+
+    // `틀:` 로 시작하는 문서는 틀 이름공간 — 여러 문서에 함께 보이므로 만들기는 운영 권한(아래 가드),
+    // 새로 만든 틀은 반보호(자동 확정 사용자 이상 편집)로 시작한다
+    const isTemplatePage = typeof title === 'string' && title.startsWith(TEMPLATE_PREFIX)
+    const namespace = isTemplatePage ? 'template' : requestedNamespace
 
     if (!title || !content) {
       return NextResponse.json(
@@ -547,6 +557,16 @@ export async function POST(request: NextRequest) {
         watchers: [user.id],
         outgoingLinks: extractLinks(content),
         tableOfContents,
+        ...(isTemplatePage
+          ? {
+              protection: {
+                level: 'semi' as const,
+                reason: '틀 문서 기본 보호 — 여러 문서에 함께 보입니다',
+                protectedBy: user.username,
+                allowedRoles: [],
+              },
+            }
+          : {}),
       })
       .returning()
 
