@@ -7,6 +7,7 @@ import {
   BookOpen,
   FileText,
   Flag,
+  Gamepad2,
   Image as ImageIcon,
   Inbox,
   Link2,
@@ -20,6 +21,7 @@ import toast from 'react-hot-toast'
 
 import { AccountLinkTab } from './components/AccountLinkTab'
 import { AdManagement } from './components/AdManagement'
+import { GamecenterTab } from './components/GamecenterTab'
 import { NamuImportTab } from './components/NamuImportTab'
 import { NoticesTab } from './components/NoticesTab'
 import { OverviewTab, type DashboardData } from './components/OverviewTab'
@@ -37,7 +39,7 @@ interface StaffMe {
   role: 'admin' | 'moderator'
 }
 
-type TabKey = 'overview' | 'review' | 'reports' | 'users' | 'accounts' | 'documents' | 'import' | 'ads' | 'notices' | 'system'
+type TabKey = 'overview' | 'review' | 'reports' | 'users' | 'accounts' | 'documents' | 'import' | 'ads' | 'notices' | 'gamecenter' | 'system'
 
 const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly: boolean; group: string }> = [
   { key: 'overview', label: '오늘', icon: BarChart3, adminOnly: true, group: '할 일' },
@@ -49,6 +51,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ clas
   { key: 'import', label: '나무위키 가져오기', icon: Wand2, adminOnly: false, group: '위키' },
   { key: 'ads', label: '광고', icon: ImageIcon, adminOnly: true, group: '위키' },
   { key: 'notices', label: '공지', icon: Megaphone, adminOnly: true, group: '위키' },
+  { key: 'gamecenter', label: '게임센터', icon: Gamepad2, adminOnly: true, group: '게임센터' },
   { key: 'system', label: '서버와 DB', icon: Activity, adminOnly: true, group: '서버' },
 ]
 
@@ -260,6 +263,7 @@ export default function AdminDashboard() {
           {activeTab === 'import' && <NamuImportTab />}
           {activeTab === 'ads' && <div className="p-5 sm:p-6"><AdManagement /></div>}
           {activeTab === 'notices' && <NoticesTab />}
+          {activeTab === 'gamecenter' && <GamecenterTab />}
           {activeTab === 'system' && <SystemTab data={dashboard} onRefresh={loadDashboard} />}
         </div>
       </main>
