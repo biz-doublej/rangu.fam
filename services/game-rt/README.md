@@ -1,10 +1,12 @@
 # rangu-game-rt
 
-이랑게임센터 실시간 서버. 파티·보드 게임의 방을 관리한다 (지금은 오목).
+이랑게임센터 실시간 서버. 파티·보드 게임의 방을 관리한다 (오목, 라이어 게임, 퀴즈 배틀).
 
 - Node 20 + TypeScript + Socket.IO. 방 상태는 메모리에만 있다 (Cloud Run 최대 인스턴스 1).
 - **DB 에 붙지 않는다.** 판이 끝나면 결과를 `rangu-fam` 의 `/api/gamecenter/internal/match-result` 로
   보내고 (`X-GC-Signature` = HMAC-SHA256(본문, `GC_INTERNAL_SECRET`)), 포인트는 본 서버만 움직인다.
+- 퀴즈처럼 시작 전에 자료가 필요한 게임은 `/api/gamecenter/internal/game-data` 에서 받아 온다 (같은 서명).
+  정답은 이 서버의 메모리에만 있고, 공개 단계 전에는 브라우저로 보내지 않는다.
 - 게임 규칙은 저장소 루트의 `src/games/*` 를 그대로 쓴다 (화면과 같은 코드).
 
 ## 환경 변수
@@ -46,7 +48,7 @@ npm run build   # dist/server.js
 | `room:create { game }` | 방 만들기 → `{ ok, code }` |
 | `room:join { code }` | 코드로 입장 (끊겼다 돌아올 때도 같다) |
 | `room:start` | 방장이 판 시작 (끝난 뒤 다시 누르면 한 판 더) |
-| `room:action <동작>` | 게임별 동작. 오목: `{ type: 'place', x, y }`, `{ type: 'resign' }` |
+| `room:action <동작>` | 게임별 동작. 오목: `place`·`resign` / 라이어: `describe`·`vote`·`guess` / 퀴즈: `answer`·`predict`·`usePass`·`acceptPenalty` |
 | `room:chat { text }` | 한 줄 채팅 (100자) |
 | `room:leave` | 나가기 (진행 중이면 기권) |
 

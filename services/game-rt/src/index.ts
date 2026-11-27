@@ -1,5 +1,5 @@
 import { loadConfig } from './config'
-import { createReporter } from './report'
+import { createGameDataFetcher, createReporter } from './report'
 import { createRtServer } from './server'
 
 const config = loadConfig()
@@ -7,6 +7,7 @@ const server = createRtServer({
   jwtSecret: config.jwtSecret,
   allowedOrigins: config.allowedOrigins,
   report: createReporter({ ranguFamUrl: config.ranguFamUrl, internalSecret: config.internalSecret }),
+  gameData: createGameDataFetcher({ ranguFamUrl: config.ranguFamUrl, internalSecret: config.internalSecret }),
 })
 
 server.http.listen(config.port, () => {

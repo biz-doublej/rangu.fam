@@ -7,8 +7,11 @@ import { Copy, Crown, Flag, LogOut, Send, WifiOff } from 'lucide-react'
 import { GamecenterFrame } from '@/components/gamecenter/GamecenterFrame'
 import { useGamecenterMe } from '@/components/gamecenter/useGamecenterMe'
 import { useRoom, type RoomAck } from '@/components/gamecenter/useRoom'
+import { LiarPanel, type LiarViewState } from '@/games/liar/LiarPanel'
 import { OmokBoard, useTurnSeconds } from '@/games/omok/OmokBoard'
 import type { OmokState } from '@/games/omok/rules'
+import { QuizPanel } from '@/games/quiz/QuizPanel'
+import type { QuizView } from '@/games/quiz/rules'
 import { CHAT_MAX_LENGTH, normalizeRoomCode, type RoomSnapshot } from '@/games/rooms/base'
 
 const BUTTON =
@@ -192,7 +195,7 @@ function RoomView({
           <div className="wiki-panel text-center">
             <p className="text-sm text-[color:var(--wiki-ink-soft)]">
               {present < room.minPlayers
-                ? `상대를 기다리는 중입니다 (${present}/${room.maxPlayers}명). 방 코드나 초대 링크를 보내 주세요.`
+                ? `${room.minPlayers}명부터 시작할 수 있습니다 (지금 ${present}명, 최대 ${room.maxPlayers}명). 방 코드나 초대 링크를 보내 주세요.`
                 : isHost
                   ? '모두 모였습니다. 시작해 주세요.'
                   : '방장이 시작하기를 기다리는 중입니다.'}
@@ -207,6 +210,15 @@ function RoomView({
 
         {room.phase !== 'lobby' && room.game === 'omok' && room.state != null && (
           <OmokPanel room={room} state={room.state as OmokState} userId={userId} clockOffset={clockOffset} isHost={isHost} present={present} act={act} nameOf={nameOf} />
+        )}
+        {room.phase !== 'lobby' && room.game === 'liar' && room.state != null && (
+          <LiarPanel state={room.state as LiarViewState} userId={userId} clockOffset={clockOffset} act={act} />
+        )}
+        {room.phase !== 'lobby' && room.game === 'quiz' && room.state != null && (
+          <QuizPanel state={room.state as QuizView} userId={userId} clockOffset={clockOffset} act={act} />
+        )}
+        {room.phase === 'finished' && room.game !== 'omok' && (
+          <FinishedBar room={room} userId={userId} isHost={isHost} present={present} act={act} />
         )}
       </div>
 
@@ -331,6 +343,37 @@ function OmokPanel({
             <p className="mt-2 text-sm text-[color:var(--wiki-ink-muted)]">방장이 다시 시작하면 한 판 더 둡니다.</p>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+/** 라이어·퀴즈가 끝난 뒤: 받은 보상과 한 판 더 */
+function FinishedBar({
+  room,
+  userId,
+  isHost,
+  present,
+  act,
+}: {
+  room: RoomSnapshot
+  userId: string | null
+  isHost: boolean
+  present: number
+  act: (event: string, payload?: unknown) => Promise<RoomAck>
+}) {
+  const myReward = userId && room.lastRewards ? room.lastRewards[userId] : undefined
+  return (
+    <div className="wiki-panel text-center">
+      <p className="text-sm text-[color:var(--wiki-ink-soft)]">
+        {!room.lastRewards ? '결과를 저장하는 중입니다.' : myReward ? `이번 판 보상 +${myReward}P` : '이번 판은 보상이 없습니다.'}
+      </p>
+      {isHost ? (
+        <button type="button" className={`${PRIMARY} mt-3`} disabled={present < room.minPlayers} onClick={() => act('room:start')}>
+          한 판 더
+        </button>
+      ) : (
+        <p className="mt-2 text-sm text-[color:var(--wiki-ink-muted)]">방장이 다시 시작하면 한 판 더 합니다.</p>
       )}
     </div>
   )

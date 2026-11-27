@@ -11,7 +11,8 @@ import { after, before, test } from 'node:test'
 import jwt from 'jsonwebtoken'
 import { io as connect, type Socket } from 'socket.io-client'
 import type { RoomSnapshot } from '../../../src/games/rooms/base'
-import { createReporter } from '../src/report'
+import { QUIZ_PROMPTS } from '../../../src/games/quiz/prompts'
+import { createGameDataFetcher, createReporter } from '../src/report'
 import { createRtServer, type RtServer } from '../src/server'
 
 const JWT_SECRET = 'test-rt-secret'
@@ -26,6 +27,8 @@ let fam: HttpServer
 let clock = Date.now()
 /** 본 서버 흉내가 받은 결과 (서명 검증 포함) */
 const reports: Array<{ body: any; signatureOk: boolean }> = []
+const dataRequests: Array<{ body: any; signatureOk: boolean }> = []
+let quizDataAvailable = true
 const open: Socket[] = []
 
 before(async () => {
@@ -35,18 +38,33 @@ before(async () => {
     request.on('end', () => {
       const expected = createHmac('sha256', INTERNAL_SECRET).update(raw).digest('hex')
       const body = JSON.parse(raw)
+      if (request.url === '/api/gamecenter/internal/game-data') {
+        dataRequests.push({ body, signatureOk: request.headers['x-gc-signature'] === expected })
+        // 모든 참가자가 모든 질문에 답해 둔 것으로 한다 (사람·질문마다 다른 답)
+        const answers: Record<string, Record<string, number>> = {}
+        body.userIds.forEach((userId: string, u: number) => {
+          answers[userId] = Object.fromEntries(
+            QUIZ_PROMPTS.map((prompt, p) => [prompt.id, prompt.type === 'number' ? prompt.min + ((u + p) % (prompt.max - prompt.min + 1)) : (u + p) % (prompt.type === 'ox' ? 2 : 4)])
+          )
+        })
+        response.writeHead(quizDataAvailable ? 200 : 503, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ success: true, data: { answers, passes: { [USER_C.userId]: 1 } } }))
+        return
+      }
       reports.push({ body, signatureOk: request.headers['x-gc-signature'] === expected && request.url === '/api/gamecenter/internal/match-result' })
       response.writeHead(200, { 'content-type': 'application/json' })
-      const winner = body.players.find((player: any) => player.rank === 1).userId
-      const loser = body.players.find((player: any) => player.userId !== winner).userId
+      const winner = body.players.find((player: any) => player.rank === 1)?.userId
+      const loser = body.players.find((player: any) => player.userId !== winner)?.userId
       response.end(JSON.stringify({ success: true, duplicate: false, rewards: { [winner]: 20, [loser]: 5 } }))
     })
   })
   await new Promise<void>((resolve) => fam.listen(0, resolve))
+  const famUrl = `http://127.0.0.1:${(fam.address() as AddressInfo).port}`
   rt = createRtServer({
     jwtSecret: JWT_SECRET,
     allowedOrigins: ['*'],
-    report: createReporter({ ranguFamUrl: `http://127.0.0.1:${(fam.address() as AddressInfo).port}`, internalSecret: INTERNAL_SECRET, retryDelays: [] }),
+    report: createReporter({ ranguFamUrl: famUrl, internalSecret: INTERNAL_SECRET, retryDelays: [] }),
+    gameData: createGameDataFetcher({ ranguFamUrl: famUrl, internalSecret: INTERNAL_SECRET }),
     now: () => clock,
   })
   await new Promise<void>((resolve) => rt.http.listen(0, resolve))
@@ -250,4 +268,118 @@ test('진행 중인 판이 있으면 다른 방으로 옮길 수 없다', async 
   await b.emit('room:leave')
   await c.emit('room:leave')
   assert.equal(rt.rooms.size, 0)
+})
+
+test('라이어 게임: 라이어에게는 제시어가 가지 않고, 설명 → 투표 → 결과 보고까지 간다', async () => {
+  const before = reports.length
+  const clients = [await client(USER_A), await client(USER_B), await client(USER_C)]
+  const [a, b, c] = clients
+  const { code } = await a.emit('room:create', { game: 'liar' })
+  assert.deepEqual(await a.emit('room:start'), { ok: false, error: '인원이 모자랍니다.' })
+  await b.emit('room:join', { code })
+  await c.emit('room:join', { code })
+  assert.equal((await a.emit('room:start')).ok, true)
+  for (const each of clients) await each.until((s) => s?.phase === 'playing')
+
+  const views = clients.map((each) => each.state()!.state as any)
+  const liars = views.filter((view) => view.iAmLiar)
+  assert.equal(liars.length, 1)
+  assert.equal(liars[0].word, null)
+  const word = views.find((view) => !view.iAmLiar).word
+  assert.equal(typeof word, 'string')
+  for (const view of views) assert.equal(view.liar, null)
+
+  // 차례대로 한 줄씩 (3명이면 두 바퀴)
+  const byId = new Map([[USER_A.userId, a], [USER_B.userId, b], [USER_C.userId, c]])
+  for (let i = 0; i < 6; i++) {
+    const state = (await a.until((s) => (s?.state as any)?.descriptions.length === i))!.state as any
+    assert.equal((await byId.get(state.speaker)!.emit('room:action', { type: 'describe', text: `단서 ${i}` })).ok, true)
+  }
+  await a.until((s) => (s?.state as any)?.phase === 'vote')
+
+  // 모두 라이어가 아닌 한 사람을 지목 → 라이어 승
+  const liarId = [...byId.entries()].find(([, each]) => (each.state()!.state as any).iAmLiar)![0]
+  const scapegoat = [...byId.keys()].find((id) => id !== liarId)!
+  for (const [id, each] of byId) {
+    const target = id === scapegoat ? [...byId.keys()].find((other) => other !== id && other !== liarId) ?? liarId : scapegoat
+    await each.emit('room:action', { type: 'vote', target: id === scapegoat ? liarId : target })
+  }
+  const done = await a.until((s) => s?.phase === 'finished')
+  const final = done!.state as any
+  assert.equal(final.liar, liarId)
+  assert.equal(final.word, word)
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.equal(reports.length, before + 1)
+  const report = reports.at(-1)!
+  assert.equal(report.signatureOk, true)
+  assert.equal(report.body.game, 'liar')
+  assert.equal(report.body.players.find((player: any) => player.role === 'liar').userId, liarId)
+  for (const each of clients) await each.emit('room:leave')
+})
+
+test('퀴즈 배틀: 시작할 때 본 서버에서 자기 답을 받아 오고, 정답은 공개 전까지 오지 않는다', async () => {
+  const before = reports.length
+  const clients = [await client(USER_A), await client(USER_B), await client(USER_C)]
+  const [a, b, c] = clients
+  const byId = new Map([[USER_A.userId, a], [USER_B.userId, b], [USER_C.userId, c]])
+  const { code } = await a.emit('room:create', { game: 'quiz' })
+  await b.emit('room:join', { code })
+  await c.emit('room:join', { code })
+
+  // 본 서버가 자료를 못 주면 시작하지 않는다
+  quizDataAvailable = false
+  const failed = await a.emit('room:start')
+  assert.equal(failed.ok, false)
+  assert.match(failed.error!, /자료를 불러오지 못했습니다/)
+  quizDataAvailable = true
+
+  dataRequests.length = 0
+  assert.equal((await a.emit('room:start')).ok, true)
+  assert.equal(dataRequests.length, 1)
+  assert.equal(dataRequests[0].signatureOk, true)
+  assert.equal(dataRequests[0].body.need, 'quiz')
+  assert.deepEqual([...dataRequests[0].body.userIds].sort(), [...byId.keys()].sort())
+
+  for (let index = 0; index < 9; index++) {
+    const snapshot = await a.until((s) => (s?.state as any)?.phase === 'question' && (s!.state as any).index === index)
+    const view = snapshot!.state as any
+    assert.equal(view.total, 9)
+    assert.equal(view.reveal, null)
+    assert.equal('truth' in view.question, false)
+    assert.equal(JSON.stringify(snapshot).includes('"truth"'), false)
+
+    assert.equal((await byId.get(view.question.subject)!.emit('room:action', { type: 'predict', value: 0 })).ok, true)
+    for (const [id, each] of byId) {
+      if (id === view.question.subject) {
+        assert.equal((await each.emit('room:action', { type: 'answer', value: 0 })).ok, false)
+        continue
+      }
+      const value = view.question.kind === 'number' ? view.question.min : 0
+      assert.equal((await each.emit('room:action', { type: 'answer', value })).ok, true)
+    }
+    const revealed = await a.until((s) => (s?.state as any)?.phase === 'reveal')
+    assert.equal(typeof (revealed!.state as any).reveal.truth, 'number')
+    clock += 6_000
+    rt.tick()
+  }
+
+  const penalty = (await a.until((s) => (s?.state as any)?.phase === 'penalty'))!.state as any
+  assert.equal(typeof penalty.penalty, 'string')
+  // 면제권은 다(USER_C)만 한 장 있다
+  const loser = byId.get(penalty.loser)!
+  const usePass = await loser.emit('room:action', { type: 'usePass' })
+  assert.equal(usePass.ok, penalty.loser === USER_C.userId)
+  if (!usePass.ok) assert.equal((await loser.emit('room:action', { type: 'acceptPenalty' })).ok, true)
+
+  await a.until((s) => s?.phase === 'finished')
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.equal(reports.length, before + 1)
+  const report = reports.at(-1)!.body
+  assert.equal(report.game, 'quiz')
+  assert.equal(report.summary.completed, true)
+  assert.equal(report.summary.questions, 9)
+  assert.equal(report.summary.passUsedBy, penalty.loser === USER_C.userId ? USER_C.userId : null)
+  assert.equal(report.players.length, 3)
+  for (const player of report.players) assert.equal(player.stats.asSubject, 3)
+  for (const each of clients) await each.emit('room:leave')
 })

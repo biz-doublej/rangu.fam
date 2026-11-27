@@ -134,6 +134,13 @@ export const REASONS = {
   omokWin: 'omok.win',
   omokLose: 'omok.lose',
   omokDraw: 'omok.draw',
+  quizPlay: 'quiz.play',
+  quizCorrect: 'quiz.correct',
+  quizRank: 'quiz.rank',
+  quizPredict: 'quiz.predict',
+  quizUsed: 'quiz.used',
+  liarPlay: 'liar.play',
+  liarWin: 'liar.win',
 } as const
 
 /**

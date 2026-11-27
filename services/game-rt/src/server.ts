@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import { Server, type Socket } from 'socket.io'
 import { Room, generateRoomCode, normalizeRoomCode, type RoomUser } from '../../../src/games/rooms/base'
 import { findRoomGame } from '../../../src/games/rooms/registry'
-import type { Reporter } from './report'
+import type { GameDataFetcher, Reporter } from './report'
 
 /**
  * 실시간 서버 본체.
@@ -24,6 +24,8 @@ export interface RtServerOptions {
   jwtSecret: string
   allowedOrigins: string[]
   report: Reporter
+  /** 시작 전에 자료가 필요한 게임(퀴즈)을 위해 본 서버에서 받아 오는 함수 */
+  gameData?: GameDataFetcher
   /** 테스트에서 시간을 바꿔 끼울 때 */
   now?: () => number
 }
@@ -44,6 +46,8 @@ export function createRtServer(opts: RtServerOptions): RtServer {
   const roomOf = new Map<string, string>()
   /** userId → 현재 소켓 (같은 사용자의 새 접속이 오면 이전 소켓을 끊는다) */
   const sockets = new Map<string, Socket>()
+  /** 자료를 받아 오는 중인 방 (시작 버튼을 여러 번 눌러도 한 번만 시작되게) */
+  const starting = new Set<string>()
 
   const http = createServer((request, response) => {
     if (request.url === '/' || request.url === '/healthz') {
@@ -180,10 +184,25 @@ export function createRtServer(opts: RtServerOptions): RtServer {
       ack({ ok: true })
     })
 
-    socket.on('room:start', (_payload: unknown, ack: Ack = noop) => {
+    socket.on('room:start', async (_payload: unknown, ack: Ack = noop) => {
       const room = current()
       if (!room) return ack({ ok: false, error: '방에 들어가 있지 않습니다.' })
-      const outcome = room.start(user.userId, now(), { seed: randomInt(0, 2 ** 32), matchId: randomUUID() })
+      const allowed = room.canStart(user.userId)
+      if (!allowed.ok) return ack(allowed)
+
+      let data: unknown
+      if (room.game.needs) {
+        if (starting.has(room.code)) return ack({ ok: false, error: '시작하는 중입니다.' })
+        starting.add(room.code)
+        try {
+          const userIds = room.players.filter((player) => player.connected).map((player) => player.userId)
+          data = (await opts.gameData?.(room.game.needs, userIds)) ?? null
+        } finally {
+          starting.delete(room.code)
+        }
+        if (data === null) return ack({ ok: false, error: '게임 자료를 불러오지 못했습니다. 잠시 뒤에 다시 시도해 주세요.' })
+      }
+      const outcome = room.start(user.userId, now(), { seed: randomInt(0, 2 ** 32), matchId: randomUUID(), data })
       ack(outcome)
       if (outcome.ok) afterChange(room)
     })

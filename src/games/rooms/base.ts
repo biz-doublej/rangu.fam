@@ -36,6 +36,8 @@ export interface MatchPlayerResult {
   rank: number
   score: number
   role?: string
+  /** 게임별 집계 (정답 수 등) — 본 서버가 보상을 계산할 때 쓴다 */
+  stats?: Record<string, number>
 }
 
 export interface MatchResult {
@@ -60,7 +62,14 @@ export interface RoomGame<S = any, A = any> {
   minPlayers: number
   maxPlayers: number
   /** 판을 시작한다. round 는 이 방에서 몇 번째 판인지 (0부터) — 선공을 번갈아 줄 때 쓴다. */
-  init(players: RoomUser[], opts: { now: number; seed: number; round: number }): S
+  init(players: RoomUser[], opts: { now: number; seed: number; round: number; data?: unknown }): S
+  /**
+   * 시작 전에 본 서버에서 받아와야 하는 자료가 있으면 그 이름 (예: 퀴즈의 자기 답).
+   * 실시간 서버가 내부 API 로 받아 init 의 data 로 넘긴다.
+   */
+  needs?: string
+  /** 시작할 수 있는지 확인한다. 안 되면 이유(문장)를 돌려준다. */
+  validate?(players: RoomUser[], data: unknown): string | null
   /** 동작을 적용한다. 받아들일 수 없으면 이유를 돌려준다. 상태는 직접 고친다. */
   apply(state: S, userId: string, action: A, now: number): { ok: true } | { ok: false; error: string }
   /** 시간이 흘러서 바뀌는 일(턴 시간 초과 등)을 처리한다. 바뀌었으면 true. */
@@ -211,18 +220,27 @@ export class Room<S = any, A = any> {
     if (this.players.every((player) => !player.connected)) this.emptySince = this.emptySince ?? now
   }
 
-  start(userId: string, now: number, opts: { seed: number; matchId: string }): Outcome {
+  /** 시작해도 되는 사람·상태인지 (자료를 받아오기 전에 먼저 확인한다) */
+  canStart(userId: string): Outcome {
+    if (!this.has(userId)) return fail('not_in_room')
+    if (userId !== this.hostId) return fail('not_host')
+    if (this.phase === 'playing') return fail('already_started')
+    if (this.players.filter((player) => player.connected).length < this.game.minPlayers) return fail('not_enough_players')
+    return { ok: true }
+  }
+
+  start(userId: string, now: number, opts: { seed: number; matchId: string; data?: unknown }): Outcome {
     if (!this.has(userId)) return fail('not_in_room')
     if (userId !== this.hostId) return fail('not_host')
     if (this.phase === 'playing') return fail('already_started')
     const present = this.players.filter((player) => player.connected)
     if (present.length < this.game.minPlayers) return fail('not_enough_players')
+    const users = present.map(({ userId: id, name }) => ({ userId: id, name }))
+    const problem = this.game.validate?.(users, opts.data)
+    if (problem) return { ok: false, error: problem }
     // 끊긴 채로 남아 있는 사람은 새 판에 넣지 않는다
     this.players = present
-    this.state = this.game.init(
-      this.players.map(({ userId: id, name }) => ({ userId: id, name })),
-      { now, seed: opts.seed, round: this.round }
-    )
+    this.state = this.game.init(users, { now, seed: opts.seed, round: this.round, data: opts.data })
     this.matchId = opts.matchId
     this.phase = 'playing'
     this.lastResult = null
