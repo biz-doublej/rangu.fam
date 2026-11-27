@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이랑게임존 · 인형뽑기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<style>
+  :root{
+    --wall:#24123a;
+    --wall-tile:#2e1849;
+    --cabinet:#ff4f9a;
+    --cabinet-dark:#c92d73;
+    --trim:#ffe7f2;
+    --bulb:#ffd23f;
+    --panel:#1d1330;
+    --red:#ff3b3b;
+    --blue:#3d7bff;
+    --ink:#fff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    min-height:100vh;
+    background:
+      linear-gradient(90deg,transparent 47px,rgba(255,255,255,.035) 48px) 0 0/48px 48px,
+      linear-gradient(0deg,transparent 47px,rgba(255,255,255,.035) 48px) 0 0/48px 48px,
+      radial-gradient(ellipse at 50% 30%,#3b1d5c 0%,var(--wall) 70%);
+    color:var(--ink);
+    font-family:'Gaegu',system-ui,sans-serif;
+    display:flex;justify-content:center;align-items:flex-start;
+    padding:24px 16px 48px;
+  }
+  .stage{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1000px;width:100%}
+
+  /* ── cabinet ───────────────────────── */
+  .cabinet{
+    width:min(460px,100%);
+    background:linear-gradient(180deg,var(--cabinet) 0%,#ff6fb0 50%,var(--cabinet) 100%);
+    border-radius:34px 34px 18px 18px;
+    padding:14px 18px 20px;
+    box-shadow:
+      inset 0 0 0 5px var(--cabinet-dark),
+      inset 0 10px 0 5px rgba(255,255,255,.25),
+      0 30px 60px rgba(0,0,0,.55),
+      0 0 80px rgba(255,79,154,.25);
+    position:relative;
+  }
+  .marquee{
+    position:relative;
+    background:#2a0f2c;
+    border-radius:22px;
+    padding:14px 10px 12px;
+    text-align:center;
+    box-shadow:inset 0 0 0 4px var(--trim);
+    overflow:hidden;
+  }
+  .marquee h1{
+    margin:0;
+    font-family:'Black Han Sans',sans-serif;
+    font-weight:400;
+    font-size:clamp(34px,9vw,46px);
+    letter-spacing:.02em;
+    color:#fff6c9;
+    text-shadow:0 0 6px #ffd23f,0 0 18px #ff8a00,0 3px 0 #b3005a;
+    line-height:1.05;
+  }
+  .marquee p{margin:4px 0 0;font-size:19px;color:#ffc7e1}
+  .bulbs{position:absolute;inset:6px;pointer-events:none}
+  .bulbs i{
+    position:absolute;width:7px;height:7px;border-radius:50%;
+    background:var(--bulb);box-shadow:0 0 6px var(--bulb);
+    animation:blink 1.2s steps(1) infinite;
+  }
+  .bulbs i:nth-child(odd){animation-delay:.6s}
+  @keyframes blink{50%{background:#6b4a10;box-shadow:none}}
+
+  .window{
+    margin-top:14px;
+    border-radius:16px;
+    padding:8px;
+    background:var(--trim);
+    box-shadow:inset 0 0 0 3px #fff, 0 4px 0 var(--cabinet-dark);
+  }
+  canvas#game{
+    display:block;width:100%;height:auto;
+    border-radius:10px;
+    background:#ffe3f0;
+    touch-action:none;
+  }
+
+  .panel{
+    margin-top:16px;
+    background:var(--panel);
+    border-radius:18px;
+    padding:14px 16px 16px;
+    box-shadow:inset 0 3px 0 rgba(255,255,255,.08), 0 5px 0 #0e0818;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"readout grab" "sticks grab" "status status" "coin coin";
+    gap:12px 16px;
+    align-items:center;
+  }
+  .readout{grid-area:readout}
+  .sticks{grid-area:sticks;display:flex;gap:12px}
+  .grab{grid-area:grab}
+  .status{grid-area:status}
+  .coin{grid-area:coin}
+  .readout{display:flex;gap:10px}
+  .lcd{
+    background:#0b1f12;border-radius:8px;padding:6px 10px;
+    font-family:'Black Han Sans',sans-serif;color:#7dff9a;
+    text-shadow:0 0 6px rgba(125,255,154,.7);
+    min-width:76px;
+  }
+  .lcd small{display:block;font-family:'Gaegu',sans-serif;font-size:14px;color:#5fbf75;text-shadow:none;line-height:1}
+  .lcd b{font-weight:400;font-size:24px;line-height:1.1}
+  .status{font-size:20px;min-height:26px;color:#ffd8ea}
+
+  .stick{
+    width:58px;height:58px;border-radius:50%;
+    border:none;cursor:pointer;
+    background:radial-gradient(circle at 35% 30%,#7aa5ff,var(--blue) 60%,#2448a8);
+    box-shadow:0 5px 0 #1a327a, inset 0 -3px 0 rgba(0,0,0,.2);
+    color:#fff;font-family:'Black Han Sans',sans-serif;font-size:24px;
+    touch-action:none;user-select:none;-webkit-user-select:none;
+  }
+  .stick:active,.stick.held{transform:translateY(4px);box-shadow:0 1px 0 #1a327a}
+  .grab{
+    width:96px;height:96px;margin-right:6px;border-radius:50%;border:none;cursor:pointer;
+    background:radial-gradient(circle at 35% 30%,#ff8f8f,var(--red) 58%,#b31212);
+    box-shadow:0 7px 0 #7d0b0b, 0 0 0 6px #2b1d40, inset 0 -4px 0 rgba(0,0,0,.2);
+    color:#fff;font-family:'Black Han Sans',sans-serif;font-size:24px;
+  }
+  .grab:active{transform:translateY(5px);box-shadow:0 2px 0 #7d0b0b,0 0 0 6px #2b1d40}
+  .coin{
+    border:none;cursor:pointer;border-radius:12px;padding:10px 14px;
+    background:var(--bulb);color:#3a2200;
+    font-family:'Black Han Sans',sans-serif;font-size:19px;
+    box-shadow:0 4px 0 #b88a00;
+  }
+  .coin:active{transform:translateY(3px);box-shadow:0 1px 0 #b88a00}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+
+  /* ── prize shelf ───────────────────── */
+  .shelf{
+    width:min(380px,100%);
+    background:rgba(255,255,255,.06);
+    border:2px solid rgba(255,255,255,.12);
+    border-radius:20px;
+    padding:18px;
+  }
+  .shelf h2{margin:0 0 4px;font-family:'Black Han Sans',sans-serif;font-weight:400;font-size:26px;color:#fff6c9}
+  .shelf .sub{margin:0 0 14px;font-size:18px;color:#d9c2ea}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .slot{
+    background:rgba(0,0,0,.25);border-radius:14px;padding:8px 6px 6px;text-align:center;
+    border:2px dashed rgba(255,255,255,.15);
+  }
+  .slot.got{border:2px solid rgba(255,210,63,.6);background:rgba(255,210,63,.08)}
+  .slot canvas{width:56px;height:56px;display:block;margin:0 auto}
+  .slot .nm{font-size:16px;line-height:1.1;margin-top:2px}
+  .slot .ct{font-size:15px;color:#ffd23f}
+  .slot:not(.got) canvas{filter:brightness(0) opacity(.35)}
+  .odds{margin:16px 0 0;font-size:16px;color:#bfa6d4;line-height:1.35}
+  .keys{margin:6px 0 0;font-size:16px;color:#bfa6d4}
+
+  .toast{
+    position:fixed;left:50%;top:22%;transform:translate(-50%,-50%) scale(.6);
+    background:#fff6c9;color:#5a1d3d;border-radius:24px;padding:18px 26px;text-align:center;
+    box-shadow:0 0 0 6px var(--cabinet),0 20px 60px rgba(0,0,0,.5);
+    opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.2,1.6,.4,1),opacity .2s;
+    z-index:10;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .toast b{display:block;font-family:'Black Han Sans',sans-serif;font-weight:400;font-size:34px;color:var(--cabinet-dark)}
+  .toast canvas{width:90px;height:90px;display:block;margin:6px auto 0}
+  .toast span{font-size:20px}
+
+  @media (prefers-reduced-motion: reduce){
+    .bulbs i{animation:none}
+    .toast{transition:none}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <section class="cabinet" aria-label="인형뽑기 기계">
+    <div class="marquee">
+      <div class="bulbs" id="bulbs"></div>
+      <h1>이랑게임존</h1>
+      <p>랑구 인형뽑기</p>
+    </div>
+    <div class="window">
+      <canvas id="game" width="400" height="520" aria-label="인형뽑기 기계 내부"></canvas>
+    </div>
+    <div class="panel">
+      <div class="readout">
+        <div class="lcd"><small>코인</small><b id="coins">10</b></div>
+        <div class="lcd"><small>남은 시간</small><b id="timer">--</b></div>
+      </div>
+      <div class="sticks">
+        <button class="stick" id="left" aria-label="왼쪽으로 이동">◀</button>
+        <button class="stick" id="right" aria-label="오른쪽으로 이동">▶</button>
+      </div>
+      <button class="grab" id="grab" aria-label="집게 내리기">뽑기</button>
+      <div class="status" id="status" aria-live="polite">코인을 넣고 시작하세요.</div>
+      <button class="coin" id="coin">코인 넣기 (1코인)</button>
+    </div>
+  </section>
+
+  <aside class="shelf" aria-label="내가 뽑은 인형">
+    <h2>내 인형 선반</h2>
+    <p class="sub" id="summary">아직 뽑은 인형이 없어요.</p>
+    <div class="grid" id="grid"></div>
+    <p class="odds">집게 가운데에 인형이 올수록 잘 잡혀요. 연속으로 놓치면 집게 힘이 조금씩 세져요. 황금 랑구는 잘 미끄러져요.</p>
+    <p class="keys">키보드: ← → 이동, 스페이스 뽑기, Enter 코인 넣기</p>
+  </aside>
+</div>
+
+<div class="toast" id="toast" role="status"><b>획득!</b><canvas id="toastCanvas" width="180" height="180"></canvas><span id="toastName"></span></div>
+
+<script>
+(() => {
+  const { Engine, Bodies, Body, Composite, Constraint, Query } = Matter;
+
+  // ── constants ──────────────────────────────
+  const W = 400, H = 520;
+  const CHUTE_W = 96;
+  const FLOOR_Y = H - 20;
+  const PART_H = 150;
+  const TOP_Y = 58;
+  const HOME_X = CHUTE_W / 2;
+  const MAX_X = W - 34;
+  const ARM_L = 46;
+  const OPEN = 0.68, CLOSED = 0.14;
+  const PLAY_SECONDS = 15;
+  const CAT_ARM = 0x0002, CAT_PLUSH = 0x0004, CAT_WORLD = 0x0001;
+
+  const TYPES = [
+    { key:'bear',    name:'곰돌 랑구', color:'#c98b5b', dark:'#8a5631', weight:5 },
+    { key:'rabbit',  name:'토끼 랑구', color:'#f7c3d8', dark:'#c7799b', weight:5 },
+    { key:'cat',     name:'냥 랑구',   color:'#ffb347', dark:'#c97a12', weight:5 },
+    { key:'frog',    name:'개굴 랑구', color:'#8fd16a', dark:'#4f9130', weight:4 },
+    { key:'penguin', name:'펭 랑구',   color:'#3d4b73', dark:'#232c47', weight:4 },
+    { key:'gold',    name:'황금 랑구', color:'#ffd23f', dark:'#c99400', weight:1, rare:true },
+  ];
+
+  // ── DOM ────────────────────────────────────
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const coinsEl = $('coins'), timerEl = $('timer'), statusEl = $('status');
+  const btnL = $('left'), btnR = $('right'), btnGrab = $('grab'), btnCoin = $('coin');
+
+  // crisp canvas
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  // marquee bulbs
+  (() => {
+    const b = $('bulbs'); const n = 18;
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('i');
+      const t = i / n;
+      // around the rounded rectangle perimeter (approximate)
+      if (t < .5) { el.style.left = `${(t / .5) * 100}%`; el.style.top = '0'; }
+      else { el.style.left = `${(1 - (t - .5) / .5) * 100}%`; el.style.bottom = '0'; }
+      el.style.transform = 'translate(-50%, 0)';
+      b.appendChild(el);
+    }
+  })();
+
+  // ── sound ──────────────────────────────────
+  let actx = null;
+  function beep(freq, dur = .08, type = 'square', vol = .05, when = 0) {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.value = freq;
+      const t = actx.currentTime + when;
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(g).connect(actx.destination);
+      o.start(t); o.stop(t + dur + .02);
+    } catch (e) {}
+  }
+  const jingle = () => [523, 659, 784, 1046].forEach((f, i) => beep(f, .16, 'triangle', .07, i * .1));
+
+  // ── physics world ──────────────────────────
+  const engine = Engine.create({ gravity: { y: 1 } });
+  engine.positionIterations = 10; engine.velocityIterations = 8;
+  const world = engine.world;
+  const wallOpts = { isStatic: true, friction: .6, collisionFilter: { category: CAT_WORLD } };
+  Composite.add(world, [
+    Bodies.rectangle((CHUTE_W + W) / 2, FLOOR_Y + 10, W - CHUTE_W, 20, wallOpts),       // floor (not under chute)
+    Bodies.rectangle(CHUTE_W, FLOOR_Y - PART_H / 2, 8, PART_H, wallOpts),               // acrylic partition
+    Bodies.rectangle(-10, H / 2, 20, H * 2, wallOpts),                                   // left wall
+    Bodies.rectangle(W + 10, H / 2, 20, H * 2, wallOpts),                                // right wall
+  ]);
+
+  // claw arms (static, moved by hand every frame)
+  const armOpts = { isStatic: true, friction: .9, collisionFilter: { category: CAT_ARM, mask: CAT_PLUSH } };
+  const armL = Bodies.rectangle(0, 0, 7, ARM_L, armOpts);
+  const armR = Bodies.rectangle(0, 0, 7, ARM_L, armOpts);
+  Composite.add(world, [armL, armR]);
+
+  const plushes = [];
+  function pickType() {
+    const total = TYPES.reduce((s, t) => s + t.weight, 0);
+    let r = Math.random() * total;
+    for (const t of TYPES) { if ((r -= t.weight) < 0) return t; }
+    return TYPES[0];
+  }
+  function spawnPlush(x, y) {
+    const type = pickType();
+    const r = type.rare ? 21 : 22 + Math.random() * 4;
+    const b = Bodies.circle(x, y, r, {
+      friction: .9, frictionStatic: 1.2, restitution: .05, density: .0016,
+      collisionFilter: { category: CAT_PLUSH, mask: CAT_WORLD | CAT_PLUSH | CAT_ARM },
+    });
+    b.plush = { type, r };
+    b.angle = (Math.random() - .5) * .8;
+    plushes.push(b); Composite.add(world, b);
+    return b;
+  }
+  // stack the starting pile in loose rows on the right of the partition
+  { const cols = 5, x0 = CHUTE_W + 40, gap = (W - 30 - x0) / (cols - 1);
+    for (let i = 0; i < 24; i++) spawnPlush(x0 + (i % cols) * gap + (Math.random() - .5) * 8, FLOOR_Y - 30 - Math.floor(i / cols) * 52); }
+  // let the pile settle before the first frame; anything that tumbles into the chute goes back on the pile
+  for (let i = 0; i < 300; i++) {
+    Engine.update(engine, 1000 / 60);
+    for (const b of plushes) if (b.position.x < CHUTE_W + 6) { Body.setPosition(b, { x: W - 60, y: 120 }); Body.setVelocity(b, { x: 0, y: 0 }); }
+  }
+
+  // ── game state ─────────────────────────────
+  const claw = { x: HOME_X, y: TOP_Y, theta: OPEN };
+  let state = 'idle';           // idle | ready | descend | close | lift | carry | release | done
+  let stateT = 0;
+  let coins = 10;
+  let playEnds = 0;
+  let held = null, grip = null, keepRoll = 1, carryDropAt = null;
+  let misses = 0;
+  let moveDir = 0;
+  const collection = Object.fromEntries(TYPES.map(t => [t.key, 0]));
+
+  function setState(s) { state = s; stateT = performance.now(); syncUI(); }
+  function say(msg) { statusEl.textContent = msg; }
+
+  function syncUI() {
+    coinsEl.textContent = coins;
+    const playing = state === 'ready';
+    btnL.disabled = btnR.disabled = btnGrab.disabled = !playing;
+    btnCoin.disabled = state !== 'idle';
+    btnCoin.textContent = coins > 0 ? '코인 넣기 (1코인)' : '코인 받기 (데모: +5)';
+    if (!playing) timerEl.textContent = '--';
+  }
+
+  function insertCoin() {
+    if (state !== 'idle') return;
+    if (coins <= 0) { coins += 5; say('데모 코인 5개를 받았어요.'); syncUI(); return; }
+    coins--; beep(988, .07); beep(1318, .12, 'square', .05, .07);
+    claw.x = HOME_X; claw.y = TOP_Y; claw.theta = OPEN;
+    playEnds = performance.now() + PLAY_SECONDS * 1000;
+    say(misses >= 3 ? '집게 힘이 세졌어요. 위치를 잡고 뽑기를 누르세요.' : '◀ ▶로 위치를 잡고 뽑기를 누르세요.');
+    setState('ready');
+  }
+
+  function drop() {
+    if (state !== 'ready') return;
+    moveDir = 0; btnL.classList.remove('held'); btnR.classList.remove('held');
+    beep(330, .1, 'sawtooth', .04);
+    say('집게가 내려가요…');
+    setState('descend');
+  }
+
+  function attach(b) {
+    held = b;
+    b.collisionFilter.mask = CAT_WORLD | CAT_PLUSH;  // ignore the arms while held
+    grip = Constraint.create({
+      pointA: { x: claw.x, y: claw.y + 38 }, bodyB: b, pointB: { x: 0, y: 0 },
+      stiffness: .06, damping: .12, length: 0,
+    });
+    Composite.add(world, grip);
+  }
+  function letGo() {
+    if (grip) { Composite.remove(world, grip); grip = null; }
+    if (held) { held.collisionFilter.mask = CAT_WORLD | CAT_PLUSH | CAT_ARM; held = null; }
+  }
+
+  function won(b) {
+    const t = b.plush.type;
+    collection[t.key]++;
+    misses = 0;
+    renderShelf();
+    jingle();
+    showToast(t);
+    say(`${t.name} 획득! 출구로 떨어졌어요.`);
+    setTimeout(() => spawnPlush(CHUTE_W + 40 + Math.random() * (W - CHUTE_W - 80), -30), 900);
+  }
+
+  // ── per-frame logic ────────────────────────
+  function step(now) {
+    const dt = now - stateT;
+
+    if (state === 'ready') {
+      const left = Math.max(0, Math.ceil((playEnds - now) / 1000));
+      timerEl.textContent = left;
+      if (moveDir) claw.x = Math.min(MAX_X, Math.max(HOME_X, claw.x + moveDir * 2.4));
+      if (now >= playEnds) { say('시간 끝! 집게가 자동으로 내려가요.'); drop(); }
+    }
+
+    if (state === 'descend') {
+      claw.y += 2.3;
+      const tipY = claw.y + 10 + ARM_L * Math.cos(claw.theta);
+      const under = Query.region(plushes, { min: { x: claw.x - 13, y: claw.y + 12 }, max: { x: claw.x + 13, y: claw.y + 26 } });
+      if (under.length || tipY >= FLOOR_Y - 4) setState('close');
+    }
+
+    if (state === 'close') {
+      claw.theta = OPEN - (OPEN - CLOSED) * Math.min(1, dt / 450);
+      if (dt > 520) {
+        // whatever sits between the jaws gets gripped
+        let best = null, bestD = 1e9;
+        for (const b of plushes) {
+          const dx = b.position.x - claw.x, dy = b.position.y - claw.y;
+          if (Math.abs(dx) < 34 && dy > 4 && dy < 80) {
+            const d = Math.abs(dx) + Math.abs(dy - 40) * .5;
+            if (d < bestD) { bestD = d; best = b; }
+          }
+        }
+        if (best) {
+          const s = Math.max(0, 1 - Math.abs(best.position.x - claw.x) / 34);
+          const pity = Math.min(misses * .08, .4);
+          const rare = best.plush.type.rare ? .22 : 0;
+          keepRoll = .16 + .45 * s + pity - rare;
+          attach(best);
+        }
+        beep(220, .12, 'square', .04);
+        setState('lift');
+      }
+    }
+
+    if (state === 'lift') {
+      claw.y = Math.max(TOP_Y, claw.y - 1.8);
+      if (claw.y <= TOP_Y + .5) {
+        if (held && Math.random() > keepRoll) {
+          letGo(); claw.theta = .32; misses++;
+          say('아깝다! 위에서 미끄러졌어요.'); beep(196, .25, 'sawtooth', .05);
+        } else if (!held) {
+          misses++; say('아무것도 못 잡았어요.');
+        }
+        carryDropAt = held && Math.random() > (.86 + Math.min(misses * .03, .12)) ? HOME_X + 40 + Math.random() * (claw.x - HOME_X - 40) : null;
+        setState('carry');
+      }
+    }
+
+    if (state === 'carry') {
+      claw.x = Math.max(HOME_X, claw.x - 2.2);
+      if (held && carryDropAt !== null && claw.x <= carryDropAt) {
+        letGo(); claw.theta = .32; misses++; carryDropAt = null;
+        say('으악, 옮기다가 떨어졌어요!'); beep(196, .25, 'sawtooth', .05);
+      }
+      if (claw.x <= HOME_X + .5) setState('release');
+    }
+
+    if (state === 'release') {
+      claw.theta = Math.min(OPEN, claw.theta + .03);
+      if (dt > 150 && held) letGo();
+      if (dt > 1100) {
+        setState('idle');
+        if (!statusEl.textContent.includes('획득')) say(coins > 0 ? '다시 도전하려면 코인을 넣으세요.' : '코인이 없어요. 데모 코인을 받으세요.');
+      }
+    }
+
+    // move arms to follow the claw
+    const pivotY = claw.y + 10;
+    const half = ARM_L / 2;
+    Body.setPosition(armL, { x: claw.x - 12 - Math.sin(claw.theta) * half, y: pivotY + Math.cos(claw.theta) * half });
+    Body.setAngle(armL, claw.theta);
+    Body.setPosition(armR, { x: claw.x + 12 + Math.sin(claw.theta) * half, y: pivotY + Math.cos(claw.theta) * half });
+    Body.setAngle(armR, -claw.theta);
+    if (grip) grip.pointA = { x: claw.x, y: claw.y + 38 };
+
+    Engine.update(engine, 1000 / 60);
+
+    // anything that falls down the chute is a win
+    for (let i = plushes.length - 1; i >= 0; i--) {
+      const b = plushes[i];
+      if (b.position.y > H + 40) {
+        if (b === held) letGo();
+        Composite.remove(world, b); plushes.splice(i, 1);
+        won(b);
+      }
+    }
+  }
+
+  // ── drawing ────────────────────────────────
+  function drawPlush(c, type, r) {
+    const { key, color, dark } = type;
+    c.lineWidth = 2.4; c.strokeStyle = dark; c.fillStyle = color;
+    const ear = (x, y, rx, ry, rot = 0) => { c.beginPath(); c.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); c.fill(); c.stroke(); };
+    if (key === 'bear' || key === 'gold') { ear(-r * .62, -r * .7, r * .3, r * .3); ear(r * .62, -r * .7, r * .3, r * .3); }
+    if (key === 'rabbit') { ear(-r * .38, -r * 1.05, r * .2, r * .55, -.15); ear(r * .38, -r * 1.05, r * .2, r * .55, .15); }
+    if (key === 'cat') {
+      c.beginPath(); c.moveTo(-r * .85, -r * .25); c.lineTo(-r * .62, -r * 1.05); c.lineTo(-r * .15, -r * .8); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(r * .85, -r * .25); c.lineTo(r * .62, -r * 1.05); c.lineTo(r * .15, -r * .8); c.closePath(); c.fill(); c.stroke();
+    }
+    if (key === 'frog') { ear(-r * .45, -r * .78, r * .32, r * .3); ear(r * .45, -r * .78, r * .32, r * .3); }
+    // body
+    c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill(); c.stroke();
+    if (key === 'penguin') { c.fillStyle = '#fff'; c.beginPath(); c.ellipse(0, r * .15, r * .68, r * .72, 0, 0, Math.PI * 2); c.fill(); }
+    if (key === 'bear' || key === 'gold') { c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.ellipse(0, r * .32, r * .42, r * .3, 0, 0, Math.PI * 2); c.fill(); }
+    // eyes
+    c.fillStyle = '#2a1a22';
+    if (key === 'frog') {
+      for (const s of [-1, 1]) { c.fillStyle = '#fff'; c.beginPath(); c.arc(s * r * .45, -r * .8, r * .17, 0, 7); c.fill(); c.fillStyle = '#2a1a22'; c.beginPath(); c.arc(s * r * .45, -r * .78, r * .09, 0, 7); c.fill(); }
+    } else {
+      for (const s of [-1, 1]) { c.beginPath(); c.arc(s * r * .33, -r * .08, r * .1, 0, 7); c.fill(); }
+      c.fillStyle = '#fff'; for (const s of [-1, 1]) { c.beginPath(); c.arc(s * r * .33 - r * .03, -r * .12, r * .035, 0, 7); c.fill(); }
+    }
+    // blush
+    c.fillStyle = 'rgba(255,90,130,.45)';
+    for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * r * .58, r * .18, r * .14, r * .09, 0, 0, 7); c.fill(); }
+    // mouth / beak
+    if (key === 'penguin') { c.fillStyle = '#ffb02e'; c.beginPath(); c.moveTo(-r * .12, r * .1); c.lineTo(r * .12, r * .1); c.lineTo(0, r * .26); c.closePath(); c.fill(); }
+    else { c.strokeStyle = '#2a1a22'; c.lineWidth = 1.8; c.beginPath(); c.arc(-r * .08, r * .18, r * .08, 0, Math.PI); c.arc(r * .08, r * .18, r * .08, 0, Math.PI); c.stroke(); }
+    if (type.rare) {
+      c.fillStyle = 'rgba(255,255,255,.8)'; c.beginPath(); c.ellipse(-r * .4, -r * .45, r * .18, r * .1, -.6, 0, 7); c.fill();
+    }
+  }
+
+  function roundRect(c, x, y, w, h, r) { c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); }
+
+  function draw(now) {
+    // back wall
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#ffd6ea'); g.addColorStop(1, '#ffeef6');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // star wallpaper
+    ctx.fillStyle = 'rgba(255,79,154,.14)';
+    for (let y = 30; y < H; y += 46) for (let x = (y / 46 % 2) * 23 + 12; x < W; x += 46) {
+      ctx.beginPath(); for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5 - Math.PI / 2, rr = k % 2 ? 3 : 7; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } ctx.fill();
+    }
+    // LED strip
+    for (let x = 10; x < W; x += 20) {
+      const on = Math.floor(now / 250 + x / 20) % 3 === 0;
+      ctx.fillStyle = on ? '#fff3a6' : '#ffc0dc'; ctx.beginPath(); ctx.arc(x, 8, 3, 0, 7); ctx.fill();
+    }
+    // chute
+    ctx.fillStyle = '#3a1d4f'; ctx.fillRect(0, FLOOR_Y - 4, CHUTE_W, H);
+    ctx.fillStyle = 'rgba(58,29,79,.18)'; ctx.fillRect(0, FLOOR_Y - PART_H, CHUTE_W, PART_H);
+    ctx.fillStyle = '#ffd23f'; ctx.font = '22px "Black Han Sans", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('출구', CHUTE_W / 2, FLOOR_Y + 14);
+    // floor
+    ctx.fillStyle = '#ff9fc8'; ctx.fillRect(CHUTE_W, FLOOR_Y, W - CHUTE_W, 20);
+
+    // plushes
+    for (const b of plushes) {
+      ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+      drawPlush(ctx, b.plush.type, b.plush.r);
+      ctx.restore();
+    }
+
+    // acrylic partition
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(CHUTE_W - 4, FLOOR_Y - PART_H, 8, PART_H);
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.5; ctx.strokeRect(CHUTE_W - 4, FLOOR_Y - PART_H, 8, PART_H);
+
+    // gantry rail + cable
+    ctx.fillStyle = '#5a3a73'; roundRect(ctx, 6, 18, W - 12, 10, 5); ctx.fill();
+    ctx.strokeStyle = '#6c6c7a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(claw.x, 26); ctx.lineTo(claw.x, claw.y - 10); ctx.stroke();
+    // trolley
+    ctx.fillStyle = '#9aa0b4'; roundRect(ctx, claw.x - 14, 14, 28, 16, 4); ctx.fill();
+
+    // arms
+    for (const [arm, side] of [[armL, -1], [armR, 1]]) {
+      ctx.save(); ctx.translate(arm.position.x, arm.position.y); ctx.rotate(arm.angle);
+      const metal = ctx.createLinearGradient(-4, 0, 4, 0);
+      metal.addColorStop(0, '#8d93a8'); metal.addColorStop(.5, '#e8ebf5'); metal.addColorStop(1, '#8d93a8');
+      ctx.fillStyle = metal; roundRect(ctx, -3.5, -ARM_L / 2, 7, ARM_L, 3); ctx.fill();
+      // hooked tip
+      ctx.beginPath(); ctx.moveTo(-3.5, ARM_L / 2 - 4); ctx.lineTo(-side * 9, ARM_L / 2 + 4); ctx.lineTo(3.5, ARM_L / 2); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    // head
+    const hg = ctx.createLinearGradient(0, claw.y - 10, 0, claw.y + 14);
+    hg.addColorStop(0, '#c8ccdb'); hg.addColorStop(1, '#7d8399');
+    ctx.fillStyle = hg; roundRect(ctx, claw.x - 19, claw.y - 10, 38, 24, 8); ctx.fill();
+    ctx.fillStyle = state === 'ready' ? '#7dff9a' : '#ff5f8f';
+    ctx.beginPath(); ctx.arc(claw.x, claw.y + 2, 4, 0, 7); ctx.fill();
+
+    // glass reflections
+    ctx.fillStyle = 'rgba(255,255,255,.16)';
+    ctx.beginPath(); ctx.moveTo(W * .55, 0); ctx.lineTo(W * .7, 0); ctx.lineTo(W * .35, H); ctx.lineTo(W * .2, H); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.09)';
+    ctx.beginPath(); ctx.moveTo(W * .78, 0); ctx.lineTo(W * .83, 0); ctx.lineTo(W * .48, H); ctx.lineTo(W * .43, H); ctx.fill();
+  }
+
+  function loop(now) { step(now); draw(now); requestAnimationFrame(loop); }
+
+  // ── shelf & toast ──────────────────────────
+  const grid = $('grid');
+  function renderShelf() {
+    grid.innerHTML = '';
+    let total = 0, kinds = 0;
+    for (const t of TYPES) {
+      const n = collection[t.key]; total += n; if (n) kinds++;
+      const slot = document.createElement('div');
+      slot.className = 'slot' + (n ? ' got' : '');
+      const cv = document.createElement('canvas'); cv.width = 112; cv.height = 112;
+      const c = cv.getContext('2d'); c.scale(2, 2); c.translate(28, 31); drawPlush(c, t, 17);
+      slot.append(cv);
+      slot.insertAdjacentHTML('beforeend', `<div class="nm">${n ? t.name : '???'}</div><div class="ct">${n ? '× ' + n : (t.rare ? '희귀' : '')}</div>`);
+      grid.append(slot);
+    }
+    $('summary').textContent = total ? `${total}개 뽑음 · 도감 ${kinds}/${TYPES.length}` : '아직 뽑은 인형이 없어요.';
+  }
+  let toastTimer = null;
+  function showToast(t) {
+    const tc = $('toastCanvas').getContext('2d');
+    tc.setTransform(1, 0, 0, 1, 0, 0); tc.clearRect(0, 0, 180, 180); tc.translate(90, 100); drawPlush(tc, t, 52);
+    $('toastName').textContent = t.name + (t.rare ? ' (희귀!)' : '');
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2200);
+  }
+
+  // ── input ──────────────────────────────────
+  function hold(btn, dir) {
+    const start = e => { e.preventDefault(); if (state !== 'ready') return; moveDir = dir; btn.classList.add('held'); beep(dir < 0 ? 440 : 494, .04, 'square', .03); };
+    const end = () => { if (moveDir === dir) moveDir = 0; btn.classList.remove('held'); };
+    btn.addEventListener('pointerdown', start);
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, end));
+  }
+  hold(btnL, -1); hold(btnR, 1);
+  btnGrab.addEventListener('click', drop);
+  btnCoin.addEventListener('click', insertCoin);
+  window.addEventListener('keydown', e => {
+    if (e.repeat && (e.key === ' ' || e.key === 'Enter')) return;
+    if (e.key === 'ArrowLeft' && state === 'ready') { moveDir = -1; e.preventDefault(); }
+    if (e.key === 'ArrowRight' && state === 'ready') { moveDir = 1; e.preventDefault(); }
+    if (e.key === ' ') { e.preventDefault(); drop(); }
+    if (e.key === 'Enter' && state === 'idle') { e.preventDefault(); insertCoin(); }
+  });
+  window.addEventListener('keyup', e => {
+    if ((e.key === 'ArrowLeft' && moveDir === -1) || (e.key === 'ArrowRight' && moveDir === 1)) moveDir = 0;
+  });
+
+  renderShelf(); syncUI();
+  stateT = performance.now();
+  requestAnimationFrame(loop);
+
+  // test hook
+  window.__claw = { get state() { return state; }, claw, plushes, collection, insertCoin, drop, setDir: d => { moveDir = d; } };
+})();
+</script>
+</body>
+</html>
