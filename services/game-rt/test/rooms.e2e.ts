@@ -383,3 +383,114 @@ test('퀴즈 배틀: 시작할 때 본 서버에서 자기 답을 받아 오고,
   for (const player of report.players) assert.equal(player.stats.asSubject, 3)
   for (const each of clients) await each.emit('room:leave')
 })
+
+test('캐치마인드: 출제자의 획만 다른 사람에게 전달되고, 늦게 접속한 사람은 지금까지의 그림을 받는다', async () => {
+  const before = reports.length
+  const a = await client(USER_A)
+  const b = await client(USER_B)
+  const c = await client(USER_C)
+  const { code } = await a.emit('room:create', { game: 'catchmind' })
+  await b.emit('room:join', { code })
+  await c.emit('room:join', { code })
+  assert.equal((await a.emit('room:start')).ok, true)
+  await c.until((s) => s?.phase === 'playing')
+
+  // 제시어는 출제자(가)에게만
+  const word = (a.state()!.state as any).word
+  assert.equal(typeof word, 'string')
+  assert.equal((b.state()!.state as any).word, null)
+  assert.equal(JSON.stringify(b.state()).includes(word), false)
+
+  const received: Record<string, any[]> = { a: [], b: [], c: [] }
+  a.socket.on('room:stream', (payload) => received.a.push(payload))
+  b.socket.on('room:stream', (payload) => received.b.push(payload))
+  c.socket.on('room:stream', (payload) => received.c.push(payload))
+
+  assert.equal((await a.emit('room:stream', { t: 'stroke', id: 1, c: 2, w: 6, p: [10, 10, 20, 20] })).ok, true)
+  assert.equal((await a.emit('room:stream', { t: 'stroke', id: 1, c: 2, w: 6, p: [30, 30] })).ok, true)
+  // 출제자가 아닌 사람, 형식이 틀린 획은 받지 않는다
+  assert.equal((await b.emit('room:stream', { t: 'stroke', id: 9, c: 0, w: 6, p: [1, 1, 2, 2] })).ok, false)
+  assert.equal((await a.emit('room:stream', { t: 'stroke', id: 2, c: 0, w: 6, p: [1.5, 1, 2, 2] })).ok, false)
+  await new Promise((resolve) => setTimeout(resolve, 80))
+  assert.deepEqual(received.b, [
+    { t: 'stroke', id: 1, c: 2, w: 6, p: [10, 10, 20, 20] },
+    { t: 'stroke', id: 1, c: 2, w: 6, p: [30, 30] },
+  ])
+  assert.deepEqual(received.c, received.b)
+  assert.deepEqual(received.a, []) // 보낸 사람에게는 되돌려 보내지 않는다
+
+  // 다시 접속한 사람에게는 지금까지의 그림 전체가 간다
+  c.socket.close()
+  const snapshots: any[] = []
+  const socket = connect(rtUrl, { auth: { token: token(USER_C) }, transports: ['websocket'], reconnection: false })
+  open.push(socket)
+  socket.on('room:stream', (payload) => snapshots.push(payload))
+  await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.deepEqual(snapshots, [{ t: 'full', round: 0, strokes: [{ id: 1, c: 2, w: 6, p: [10, 10, 20, 20, 30, 30] }] }])
+
+  // 공백·대소문자를 무시하고 맞힌다. 맞힌 답은 다른 사람에게 가지 않는다.
+  assert.equal((await b.emit('room:action', { type: 'guess', text: ` ${Array.from(word).join(' ')} ` })).ok, true)
+  const seen = (await a.until((s) => (s?.state as any)?.correct.length === 1))!.state as any
+  assert.deepEqual(seen.log.at(-1), { id: 1, userId: USER_B.userId, text: null, correct: true })
+
+  // 끝까지 진행 (3명 → 6라운드)
+  for (let i = 0; i < 12; i++) {
+    clock += 80_000
+    rt.tick()
+    await new Promise((resolve) => setTimeout(resolve, 15))
+  }
+  await a.until((s) => s?.phase === 'finished')
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.equal(reports.length, before + 1)
+  const report = reports.at(-1)!.body
+  assert.equal(report.game, 'catchmind')
+  assert.equal(report.summary.rounds, 6)
+  assert.equal(report.players.find((player: any) => player.userId === USER_B.userId).stats.correct, 1)
+  assert.equal(report.players.find((player: any) => player.userId === USER_A.userId).stats.drawnGuessed, 1)
+  await a.emit('room:leave')
+  await b.emit('room:leave')
+  socket.close()
+})
+
+test('윷놀이: 서버가 윷을 던지고, 시작 옵션(팀전)이 전달되며, 시드는 화면에 가지 않는다', async () => {
+  const before = reports.length
+  const extra = { userId: '44444444-4444-4444-8444-444444444444', name: '라' }
+  const clients = [await client(USER_A), await client(USER_B), await client(USER_C), await client(extra)]
+  const [a] = clients
+  const byId = new Map([USER_A, USER_B, USER_C, extra].map((user, index) => [user.userId, clients[index]]))
+  const { code } = await a.emit('room:create', { game: 'yut' })
+  for (const each of clients.slice(1)) await each.emit('room:join', { code })
+  assert.equal((await a.emit('room:start', { options: { team: true } })).ok, true)
+
+  let view = (await a.until((s) => s?.phase === 'playing'))!.state as any
+  assert.equal(view.team, true)
+  assert.deepEqual(view.sides.map((side: any) => side.members), [
+    [USER_A.userId, USER_C.userId],
+    [USER_B.userId, extra.userId],
+  ])
+  assert.equal('seed' in view, false)
+  assert.equal((await byId.get(USER_B.userId)!.emit('room:action', { type: 'throw' })).ok, false) // 차례가 아님
+
+  // 끝까지: 차례인 사람이 던지고, 둘 수 있는 첫 수를 둔다
+  for (let guard = 0; guard < 3000; guard++) {
+    const snapshot = a.state()!
+    if (snapshot.phase === 'finished') break
+    view = snapshot.state as any
+    const me = byId.get(view.thrower)!
+    const mine = me.state()!.state as any
+    if (mine.phase === 'throw' && mine.thrower === view.thrower) await me.emit('room:action', { type: 'throw' })
+    else if (mine.phase === 'move' && mine.moves.length) await me.emit('room:action', { type: 'move', pending: mine.moves[0].pending, piece: mine.moves[0].piece })
+    await new Promise((resolve) => setTimeout(resolve, 2))
+  }
+  const done = (await a.until((s) => s?.phase === 'finished'))!.state as any
+  assert.equal(done.sides[done.winner].pieces.every((piece: any) => piece.pos === 99), true)
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.equal(reports.length, before + 1)
+  const report = reports.at(-1)!.body
+  assert.equal(report.game, 'yut')
+  assert.equal(report.summary.team, true)
+  assert.equal(report.players.filter((player: any) => player.rank === 1).length, 2) // 이긴 팀 두 명
+  assert.ok(report.summary.throws >= 20)
+  for (const each of clients) await each.emit('room:leave')
+})

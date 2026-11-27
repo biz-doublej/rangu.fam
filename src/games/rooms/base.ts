@@ -62,7 +62,7 @@ export interface RoomGame<S = any, A = any> {
   minPlayers: number
   maxPlayers: number
   /** 판을 시작한다. round 는 이 방에서 몇 번째 판인지 (0부터) — 선공을 번갈아 줄 때 쓴다. */
-  init(players: RoomUser[], opts: { now: number; seed: number; round: number; data?: unknown }): S
+  init(players: RoomUser[], opts: { now: number; seed: number; round: number; data?: unknown; options?: Record<string, unknown> }): S
   /**
    * 시작 전에 본 서버에서 받아와야 하는 자료가 있으면 그 이름 (예: 퀴즈의 자기 답).
    * 실시간 서버가 내부 API 로 받아 init 의 data 로 넘긴다.
@@ -80,6 +80,13 @@ export interface RoomGame<S = any, A = any> {
   result(state: S): Omit<MatchResult, 'matchId' | 'game'> | null
   /** 그 사람에게 보여 줄 상태 (숨길 정보가 있는 게임은 여기서 가린다) */
   view(state: S, userId: string): unknown
+  /**
+   * 그림 획처럼 자주, 많이 오가는 자료. 방 상태 전체를 다시 보내지 않고 다른 참가자에게 그대로 흘려보낸다.
+   * 받아들이면 relay(남들에게 보낼 내용)를 돌려준다.
+   */
+  stream?(state: S, userId: string, payload: unknown, now: number): { ok: true; relay: unknown } | { ok: false; error: string }
+  /** 늦게 들어오거나 다시 접속한 사람에게 보낼, 지금까지 흘려보낸 자료 전체 */
+  streamSnapshot?(state: S): unknown
 }
 
 export interface RoomSnapshot {
@@ -229,7 +236,7 @@ export class Room<S = any, A = any> {
     return { ok: true }
   }
 
-  start(userId: string, now: number, opts: { seed: number; matchId: string; data?: unknown }): Outcome {
+  start(userId: string, now: number, opts: { seed: number; matchId: string; data?: unknown; options?: Record<string, unknown> }): Outcome {
     if (!this.has(userId)) return fail('not_in_room')
     if (userId !== this.hostId) return fail('not_host')
     if (this.phase === 'playing') return fail('already_started')
@@ -240,7 +247,7 @@ export class Room<S = any, A = any> {
     if (problem) return { ok: false, error: problem }
     // 끊긴 채로 남아 있는 사람은 새 판에 넣지 않는다
     this.players = present
-    this.state = this.game.init(users, { now, seed: opts.seed, round: this.round, data: opts.data })
+    this.state = this.game.init(users, { now, seed: opts.seed, round: this.round, data: opts.data, options: opts.options })
     this.matchId = opts.matchId
     this.phase = 'playing'
     this.lastResult = null
@@ -254,6 +261,19 @@ export class Room<S = any, A = any> {
     const outcome = this.game.apply(this.state, userId, action, now)
     if (outcome.ok) this.finishIfOver()
     return outcome
+  }
+
+  /** 그림 획 같은 흐름 자료를 받는다. 받아들였으면 남들에게 보낼 내용을 돌려준다. */
+  stream(userId: string, payload: unknown, now: number): { ok: true; relay: unknown } | { ok: false; error: string } {
+    if (!this.has(userId)) return fail('not_in_room') as { ok: false; error: string }
+    if (this.phase !== 'playing' || !this.state || !this.game.stream) return fail('not_playing') as { ok: false; error: string }
+    return this.game.stream(this.state, userId, payload, now)
+  }
+
+  /** 지금까지의 흐름 자료 전체 (없으면 null) */
+  streamSnapshot(): unknown {
+    if (!this.state || !this.game.streamSnapshot) return null
+    return this.game.streamSnapshot(this.state)
   }
 
   say(userId: string, raw: unknown, now: number): Outcome {

@@ -90,6 +90,8 @@ export const GAME_REWARDS = {
   yut: {
     participate: 10,
     win: 30,
+    /** 이보다 적게 던지고 끝난 판(바로 나가기 등)은 보상이 없다 — 말 4개를 내려면 최소 수십 번은 던진다 */
+    minThrowsForReward: 20,
   },
   /** 도구라 보상 없음 */
   ladder: {},
@@ -141,6 +143,12 @@ export const REASONS = {
   quizUsed: 'quiz.used',
   liarPlay: 'liar.play',
   liarWin: 'liar.win',
+  catchmindPlay: 'catchmind.play',
+  catchmindCorrect: 'catchmind.correct',
+  catchmindFirst: 'catchmind.first',
+  catchmindDrawn: 'catchmind.drawn',
+  yutPlay: 'yut.play',
+  yutWin: 'yut.win',
 } as const
 
 /**

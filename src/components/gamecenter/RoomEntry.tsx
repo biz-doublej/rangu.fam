@@ -10,6 +10,8 @@ const ROOM_KINDS = [
   { game: 'omok', label: '오목' },
   { game: 'liar', label: '라이어' },
   { game: 'quiz', label: '퀴즈' },
+  { game: 'catchmind', label: '캐치마인드' },
+  { game: 'yut', label: '윷놀이' },
 ]
 
 /** 로비의 ‘방 만들기 / 코드로 입장’. 실제 접속은 방 화면에서 한다. */

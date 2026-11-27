@@ -7,11 +7,15 @@ import { Copy, Crown, Flag, LogOut, Send, WifiOff } from 'lucide-react'
 import { GamecenterFrame } from '@/components/gamecenter/GamecenterFrame'
 import { useGamecenterMe } from '@/components/gamecenter/useGamecenterMe'
 import { useRoom, type RoomAck } from '@/components/gamecenter/useRoom'
+import { CatchmindPanel } from '@/games/catchmind/CatchmindPanel'
+import type { CatchmindView } from '@/games/catchmind/rules'
 import { LiarPanel, type LiarViewState } from '@/games/liar/LiarPanel'
 import { OmokBoard, useTurnSeconds } from '@/games/omok/OmokBoard'
 import type { OmokState } from '@/games/omok/rules'
 import { QuizPanel } from '@/games/quiz/QuizPanel'
 import type { QuizView } from '@/games/quiz/rules'
+import { YutPanel } from '@/games/yut/YutPanel'
+import type { YutView } from '@/games/yut/rules'
 import { CHAT_MAX_LENGTH, normalizeRoomCode, type RoomSnapshot } from '@/games/rooms/base'
 
 const BUTTON =
@@ -48,8 +52,25 @@ function RoomScreen() {
   const [joinError, setJoinError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  // 그림 획처럼 방 상태와 따로 흐르는 자료: 화면(그림판)이 뜨기 전에 온 ‘지금까지의 그림’은 잠시 들고 있다가 넘겨준다
+  const streamListeners = useRef(new Set<(payload: unknown) => void>())
+  const lastFull = useRef<unknown>(null)
+  const subscribeStream = useCallback((listener: (payload: unknown) => void) => {
+    streamListeners.current.add(listener)
+    if (lastFull.current) listener(lastFull.current)
+    return () => {
+      streamListeners.current.delete(listener)
+    }
+  }, [])
+
   // 연결될 때마다(재접속 포함): 새 방이면 만들고, 아니면 그 코드로 들어간다
-  const { status, room, userId, error: rtError, send, clockOffset } = useRoom({
+  const { status, room, userId, error: rtError, send, stream, clockOffset } = useRoom({
+    onStream: (payload) => {
+      const kind = (payload as { t?: string } | null)?.t
+      // 전체 그림은 기억해 두고, 그 뒤의 획·지우기가 오면 더는 최신이 아니므로 버린다
+      lastFull.current = kind === 'full' ? payload : null
+      streamListeners.current.forEach((listener) => listener(payload))
+    },
     onConnect: async (emit) => {
       if (creating) {
         const made = await emit('room:create', { game })
@@ -135,7 +156,7 @@ function RoomScreen() {
               <p className="py-10 text-center text-sm text-[color:var(--wiki-ink-muted)]">{creating ? '방을 만드는 중입니다.' : '방에 들어가는 중입니다.'}</p>
             )
           ) : (
-            <RoomView room={inRoom} userId={userId} clockOffset={clockOffset} act={act} onLeave={leave} />
+            <RoomView room={inRoom} userId={userId} clockOffset={clockOffset} act={act} onLeave={leave} stream={stream} subscribeStream={subscribeStream} />
           )}
         </div>
       )}
@@ -149,17 +170,25 @@ function RoomView({
   clockOffset,
   act,
   onLeave,
+  stream,
+  subscribeStream,
 }: {
   room: RoomSnapshot
   userId: string | null
   clockOffset: number
   act: (event: string, payload?: unknown) => Promise<RoomAck>
   onLeave: () => void
+  stream: (payload: unknown) => void
+  subscribeStream: (listener: (payload: unknown) => void) => () => void
 }) {
   const [copied, setCopied] = useState(false)
+  /** 윷놀이 4명일 때 방장이 고르는 팀전 여부 */
+  const [teamMode, setTeamMode] = useState(false)
   const isHost = room.hostId === userId
   const present = room.players.filter((player) => player.connected).length
   const nameOf = (id: string) => room.players.find((player) => player.userId === id)?.name ?? '나간 사람'
+  const canTeam = room.game === 'yut' && present === 4
+  const startPayload = { options: { team: canTeam && teamMode } }
 
   const copyLink = async () => {
     try {
@@ -200,8 +229,14 @@ function RoomView({
                   ? '모두 모였습니다. 시작해 주세요.'
                   : '방장이 시작하기를 기다리는 중입니다.'}
             </p>
+            {isHost && canTeam && (
+              <label className="mt-3 flex items-center justify-center gap-2 text-sm text-[color:var(--wiki-ink-soft)]">
+                <input type="checkbox" checked={teamMode} onChange={(event) => setTeamMode(event.target.checked)} />
+                2팀으로 하기 (들어온 순서 1·3번 대 2·4번)
+              </label>
+            )}
             {isHost && (
-              <button type="button" className={`${PRIMARY} mt-3`} disabled={present < room.minPlayers} onClick={() => act('room:start')}>
+              <button type="button" className={`${PRIMARY} mt-3`} disabled={present < room.minPlayers} onClick={() => act('room:start', startPayload)}>
                 시작
               </button>
             )}
@@ -217,8 +252,14 @@ function RoomView({
         {room.phase !== 'lobby' && room.game === 'quiz' && room.state != null && (
           <QuizPanel state={room.state as QuizView} userId={userId} clockOffset={clockOffset} act={act} />
         )}
+        {room.phase !== 'lobby' && room.game === 'catchmind' && room.state != null && (
+          <CatchmindPanel state={room.state as CatchmindView} userId={userId} clockOffset={clockOffset} act={act} stream={stream} subscribeStream={subscribeStream} />
+        )}
+        {room.phase !== 'lobby' && room.game === 'yut' && room.state != null && (
+          <YutPanel state={room.state as unknown as YutView} userId={userId} clockOffset={clockOffset} act={act} />
+        )}
         {room.phase === 'finished' && room.game !== 'omok' && (
-          <FinishedBar room={room} userId={userId} isHost={isHost} present={present} act={act} />
+          <FinishedBar room={room} userId={userId} isHost={isHost} present={present} act={act} startPayload={startPayload} />
         )}
       </div>
 
@@ -355,12 +396,14 @@ function FinishedBar({
   isHost,
   present,
   act,
+  startPayload,
 }: {
   room: RoomSnapshot
   userId: string | null
   isHost: boolean
   present: number
   act: (event: string, payload?: unknown) => Promise<RoomAck>
+  startPayload: unknown
 }) {
   const myReward = userId && room.lastRewards ? room.lastRewards[userId] : undefined
   return (
@@ -369,7 +412,7 @@ function FinishedBar({
         {!room.lastRewards ? '결과를 저장하는 중입니다.' : myReward ? `이번 판 보상 +${myReward}P` : '이번 판은 보상이 없습니다.'}
       </p>
       {isHost ? (
-        <button type="button" className={`${PRIMARY} mt-3`} disabled={present < room.minPlayers} onClick={() => act('room:start')}>
+        <button type="button" className={`${PRIMARY} mt-3`} disabled={present < room.minPlayers} onClick={() => act('room:start', startPayload)}>
           한 판 더
         </button>
       ) : (

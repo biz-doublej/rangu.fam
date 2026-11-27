@@ -61,8 +61,8 @@ export function createRtServer(opts: RtServerOptions): RtServer {
 
   const io = new Server(http, {
     cors: { origin: opts.allowedOrigins, methods: ['GET', 'POST'] },
-    // 한 줄 채팅과 좌표만 오간다 — 큰 메시지는 받지 않는다
-    maxHttpBufferSize: 16 * 1024,
+    // 한 줄 채팅, 좌표, 50ms 치 그림 획만 오간다 — 큰 메시지는 받지 않는다
+    maxHttpBufferSize: 32 * 1024,
   })
 
   io.use((socket, next) => {
@@ -83,6 +83,12 @@ export function createRtServer(opts: RtServerOptions): RtServer {
     for (const player of room.players) {
       sockets.get(player.userId)?.emit('room:state', room.snapshot(player.userId, at))
     }
+  }
+
+  /** 그림처럼 따로 흐르는 자료의 지금까지 전체를 한 사람에게 보낸다 (늦게 들어왔거나 다시 접속했을 때). */
+  function sendStreamSnapshot(room: Room, socket: Socket) {
+    const snapshot = room.streamSnapshot()
+    if (snapshot !== null) socket.emit('room:stream', snapshot)
   }
 
   /** 끝난 판이 있으면 본 서버에 보고하고, 받은 보상을 방에 알려 준다. */
@@ -141,6 +147,7 @@ export function createRtServer(opts: RtServerOptions): RtServer {
     if (existing?.has(user.userId)) {
       existing.join(user, now())
       broadcast(existing)
+      sendStreamSnapshot(existing, socket)
     }
 
     const current = () => rooms.get(roomOf.get(user.userId) ?? '')
@@ -171,6 +178,7 @@ export function createRtServer(opts: RtServerOptions): RtServer {
       roomOf.set(user.userId, code)
       ack({ ok: true, code })
       broadcast(room)
+      sendStreamSnapshot(room, socket)
     })
 
     socket.on('room:leave', (_payload: unknown, ack: Ack = noop) => {
@@ -184,7 +192,7 @@ export function createRtServer(opts: RtServerOptions): RtServer {
       ack({ ok: true })
     })
 
-    socket.on('room:start', async (_payload: unknown, ack: Ack = noop) => {
+    socket.on('room:start', async (payload: { options?: unknown } | undefined, ack: Ack = noop) => {
       const room = current()
       if (!room) return ack({ ok: false, error: '방에 들어가 있지 않습니다.' })
       const allowed = room.canStart(user.userId)
@@ -202,7 +210,8 @@ export function createRtServer(opts: RtServerOptions): RtServer {
         }
         if (data === null) return ack({ ok: false, error: '게임 자료를 불러오지 못했습니다. 잠시 뒤에 다시 시도해 주세요.' })
       }
-      const outcome = room.start(user.userId, now(), { seed: randomInt(0, 2 ** 32), matchId: randomUUID(), data })
+      const options = payload?.options && typeof payload.options === 'object' && !Array.isArray(payload.options) ? (payload.options as Record<string, unknown>) : undefined
+      const outcome = room.start(user.userId, now(), { seed: randomInt(0, 2 ** 32), matchId: randomUUID(), data, options })
       ack(outcome)
       if (outcome.ok) afterChange(room)
     })
@@ -213,6 +222,18 @@ export function createRtServer(opts: RtServerOptions): RtServer {
       const outcome = room.action(user.userId, action, now())
       ack(outcome)
       if (outcome.ok) afterChange(room)
+    })
+
+    // 그림 획: 방 상태 전체를 다시 보내지 않고 다른 참가자에게 그대로 전달한다
+    socket.on('room:stream', (payload: unknown, ack: Ack = noop) => {
+      const room = current()
+      if (!room) return ack({ ok: false, error: '방에 들어가 있지 않습니다.' })
+      const outcome = room.stream(user.userId, payload, now())
+      if (!outcome.ok) return ack(outcome)
+      ack({ ok: true })
+      for (const player of room.players) {
+        if (player.userId !== user.userId) sockets.get(player.userId)?.emit('room:stream', outcome.relay)
+      }
     })
 
     socket.on('room:chat', (payload: { text?: unknown }, ack: Ack = noop) => {

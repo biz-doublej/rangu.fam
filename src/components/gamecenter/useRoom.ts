@@ -24,10 +24,18 @@ export interface RoomAck {
  * 접속할 때마다(재접속 포함) /api/gamecenter/rt-token 에서 5분짜리 토큰을 새로 받는다.
  * 연결이 끊기면 자동으로 다시 붙고, 서버가 2분간 자리를 지켜 주므로 같은 판으로 돌아온다.
  */
-export function useRoom(opts: { onConnect?: (send: (event: string, payload?: unknown) => Promise<RoomAck>) => void } = {}) {
+export function useRoom(
+  opts: {
+    onConnect?: (send: (event: string, payload?: unknown) => Promise<RoomAck>) => void
+    /** 그림 획처럼 방 상태와 따로 흐르는 자료 */
+    onStream?: (payload: unknown) => void
+  } = {}
+) {
   const socketRef = useRef<Socket | null>(null)
   const onConnectRef = useRef(opts.onConnect)
   onConnectRef.current = opts.onConnect
+  const onStreamRef = useRef(opts.onStream)
+  onStreamRef.current = opts.onStream
 
   const [status, setStatus] = useState<RoomStatus>('connecting')
   const [room, setRoom] = useState<RoomSnapshot | null>(null)
@@ -90,6 +98,7 @@ export function useRoom(opts: { onConnect?: (send: (event: string, payload?: unk
         setRoom(snapshot)
         if (snapshot) setClockOffset(snapshot.serverNow - Date.now())
       })
+      socket.on('room:stream', (payload: unknown) => onStreamRef.current?.(payload))
       socket.on('session:replaced', () => {
         setStatus('replaced')
         socket?.disconnect()
@@ -112,5 +121,10 @@ export function useRoom(opts: { onConnect?: (send: (event: string, payload?: unk
     }
   }, [send])
 
-  return { status, room, userId, error, send, clockOffset }
+  /** 응답을 기다리지 않고 흘려보낸다 (그림 획) */
+  const stream = useCallback((payload: unknown) => {
+    socketRef.current?.emit('room:stream', payload)
+  }, [])
+
+  return { status, room, userId, error, send, stream, clockOffset }
 }

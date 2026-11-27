@@ -158,6 +158,82 @@ describe.skipIf(!TEST_DATABASE_URL)('라이어·퀴즈 결과와 자기 답 (Pos
     })
   })
 
+  describe('캐치마인드 보상', () => {
+    const report = (ids: string[], extra: { summary?: object } = {}) => ({
+      matchId: randomUUID(),
+      game: 'catchmind',
+      players: [
+        { userId: ids[0], rank: 1, score: 600, stats: { correct: 3, first: 2, drawnGuessed: 2, stayed: 1 } },
+        { userId: ids[1], rank: 2, score: 400, stats: { correct: 2, first: 1, drawnGuessed: 3, stayed: 1 } },
+        { userId: ids[2], rank: 3, score: 200, stats: { correct: 1, first: 0, drawnGuessed: 1, stayed: 1 } },
+        { userId: ids[3], rank: 4, score: 0, stats: { correct: 0, first: 0, drawnGuessed: 0, stayed: 0 } },
+      ],
+      summary: { completed: true, rounds: 4, playerCount: 4, ...extra.summary },
+    })
+
+    it('참가 +10, 정답 +5씩, 가장 먼저 맞히면 +3 추가, 내 그림을 맞힌 사람 1명당 +3', async () => {
+      const ids = await people(4)
+      const result = await recordMatch(report(ids), NOW, t.db)
+      // 1위: 10 + 3×5 + 2×3 + 2×3 = 37
+      expect(result.rewards).toEqual({ [ids[0]]: 37, [ids[1]]: 32, [ids[2]]: 18 })
+      expect(await ledgerOf(ids[0])).toEqual([
+        { amount: 10, reason: 'catchmind.play' },
+        { amount: 15, reason: 'catchmind.correct' },
+        { amount: 6, reason: 'catchmind.first' },
+        { amount: 6, reason: 'catchmind.drawn' },
+      ])
+      // 도중에 나간 사람은 보상이 없다
+      expect(await ledgerOf(ids[3])).toEqual([])
+    })
+
+    it('보고된 숫자는 라운드 수 안에서만 인정하고, 승부 없이 끝난 판은 보상이 없다', async () => {
+      const ids = await people(4)
+      const inflated = report(ids)
+      inflated.players[0].stats = { correct: 999, first: 999, drawnGuessed: 999, stayed: 1 }
+      // 10 + 4×5 + 4×3 + (4라운드 × 3명)×3 = 78
+      expect((await recordMatch(inflated, NOW, t.db)).rewards[ids[0]]).toBe(78)
+      expect(await recordMatch(report(ids, { summary: { completed: false } }), NOW, t.db)).toEqual({
+        duplicate: false,
+        rewards: {},
+        noRewardReason: 'not_completed',
+      })
+    })
+  })
+
+  describe('윷놀이 보상', () => {
+    const report = (winners: string[], losers: string[], extra: { summary?: object } = {}) => ({
+      matchId: randomUUID(),
+      game: 'yut',
+      players: [
+        ...winners.map((userId) => ({ userId, rank: 1, score: 1, stats: { won: 1, stayed: 1 } })),
+        ...losers.map((userId) => ({ userId, rank: 2, score: 0, stats: { won: 0, stayed: 1 } })),
+      ],
+      summary: { completed: true, reason: 'finish', throws: 64, team: winners.length > 1, ...extra.summary },
+    })
+
+    it('참가 +10P, 승리 +30P (2명도 가능)', async () => {
+      const [a, b] = await people(2)
+      expect((await recordMatch(report([a], [b]), NOW, t.db)).rewards).toEqual({ [a]: 40, [b]: 10 })
+      expect(await ledgerOf(a)).toEqual([
+        { amount: 10, reason: 'yut.play' },
+        { amount: 30, reason: 'yut.win' },
+      ])
+    })
+
+    it('팀전은 이긴 편 두 사람 모두 승리 보상', async () => {
+      const ids = await people(4)
+      const result = await recordMatch(report([ids[0], ids[2]], [ids[1], ids[3]]), NOW, t.db)
+      expect(result.rewards).toEqual({ [ids[0]]: 40, [ids[2]]: 40, [ids[1]]: 10, [ids[3]]: 10 })
+    })
+
+    it('20번도 안 던지고 끝난 판(바로 나가기)은 보상이 없다', async () => {
+      const [a, b] = await people(2)
+      const quick = await recordMatch(report([a], [b], { summary: { reason: 'abandon', throws: 3 } }), NOW, t.db)
+      expect(quick).toEqual({ duplicate: false, rewards: {}, noRewardReason: 'too_short' })
+      expect(await ledgerOf(a)).toEqual([])
+    })
+  })
+
   describe('자기 답 은행', () => {
     it('유형에 맞는 답만 저장하고, 다시 저장하면 덮는다', async () => {
       const user = await t.createUser()

@@ -28,7 +28,7 @@ export interface MatchRecord {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const REWARDED_GAMES = ['omok', 'liar', 'quiz']
+const REWARDED_GAMES = ['omok', 'liar', 'quiz', 'catchmind', 'yut']
 /** 퀴즈 벌칙 면제권의 보유품 키 (상점 상품 quiz-penalty-pass 가 지급한다) */
 export const QUIZ_PASS_KEY = 'quiz-penalty-pass'
 
@@ -163,6 +163,44 @@ async function rewardQuiz(tx: GcTx, report: MatchReport, now: Date): Promise<Pic
   return { rewards: await payParts(tx, report, parts, now) }
 }
 
+async function rewardCatchmind(tx: GcTx, report: MatchReport, now: Date): Promise<Pick<MatchRecord, 'rewards' | 'noRewardReason'>> {
+  const rule = GAME_REWARDS.catchmind
+  if (!completedWith(report, rule.minPlayers)) return { rewards: {}, noRewardReason: 'not_completed' }
+  const rounds = Math.min(32, Math.max(0, Number(report.summary?.rounds) || 0))
+  const others = report.players.length - 1
+  const parts: Part[] = []
+  for (const player of report.players) {
+    const stats = player.stats ?? {}
+    if (!stats.stayed) continue
+    const correct = Math.min(stats.correct ?? 0, rounds)
+    parts.push({ userId: player.userId, amount: rule.participate, reason: REASONS.catchmindPlay, part: 'play' })
+    parts.push({ userId: player.userId, amount: correct * rule.correct, reason: REASONS.catchmindCorrect, part: 'correct' })
+    // 가장 먼저 맞힌 라운드마다 추가
+    parts.push({ userId: player.userId, amount: Math.min(stats.first ?? 0, correct) * rule.earlyBonus, reason: REASONS.catchmindFirst, part: 'first' })
+    // 내 그림을 맞힌 사람 1명당
+    parts.push({
+      userId: player.userId,
+      amount: Math.min(stats.drawnGuessed ?? 0, rounds * others) * rule.drawingGuessedPerPlayer,
+      reason: REASONS.catchmindDrawn,
+      part: 'drawn',
+    })
+  }
+  return { rewards: await payParts(tx, report, parts, now) }
+}
+
+async function rewardYut(tx: GcTx, report: MatchReport, now: Date): Promise<Pick<MatchRecord, 'rewards' | 'noRewardReason'>> {
+  const rule = GAME_REWARDS.yut
+  if (!completedWith(report, 2)) return { rewards: {}, noRewardReason: 'not_completed' }
+  if (Number(report.summary?.throws ?? 0) < rule.minThrowsForReward) return { rewards: {}, noRewardReason: 'too_short' }
+  const parts: Part[] = []
+  for (const player of report.players) {
+    if (!player.stats?.stayed) continue
+    parts.push({ userId: player.userId, amount: rule.participate, reason: REASONS.yutPlay, part: 'play' })
+    if (player.stats.won) parts.push({ userId: player.userId, amount: rule.win, reason: REASONS.yutWin, part: 'win' })
+  }
+  return { rewards: await payParts(tx, report, parts, now) }
+}
+
 async function rewardOmok(tx: GcTx, report: MatchReport, now: Date): Promise<Pick<MatchRecord, 'rewards' | 'noRewardReason'>> {
   const rule = GAME_REWARDS.omok
   const [a, b] = report.players
@@ -211,7 +249,11 @@ export async function recordMatch(raw: unknown, now: Date = new Date(), db: DB =
         ? await rewardOmok(tx, report, now)
         : report.game === 'liar'
           ? await rewardLiar(tx, report, now)
-          : await rewardQuiz(tx, report, now)
+          : report.game === 'quiz'
+            ? await rewardQuiz(tx, report, now)
+            : report.game === 'catchmind'
+              ? await rewardCatchmind(tx, report, now)
+              : await rewardYut(tx, report, now)
 
     const inserted = await tx
       .insert(gcMatches)
