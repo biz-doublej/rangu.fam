@@ -91,6 +91,7 @@ export const gcRuns = pgTable(
   },
   (t) => ({
     gameScoreIdx: index('gc_runs_game_score_idx').on(t.game, t.score.desc()),
+    gameFinishedIdx: index('gc_runs_game_finished_at_idx').on(t.game, t.finishedAt),
   })
 )
 
@@ -194,6 +195,16 @@ export const gcQuizSelfAnswers = pgTable(
     pk: primaryKey({ columns: [t.userId, t.promptId] }),
   })
 )
+
+/** 랑구 등반 표지판: 구역당 1개, 그 구역에 올라가 본 사람이 한마디(20자)를 남긴다 */
+export const gcClimbSigns = pgTable('gc_climb_signs', {
+  zone: integer('zone').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => wikiUsers.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 export type GcWallet = typeof gcWallets.$inferSelect
 export type GcLedgerRow = typeof gcPointLedger.$inferSelect

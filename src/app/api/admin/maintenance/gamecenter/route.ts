@@ -7,7 +7,7 @@ import { GC_DDL_STATEMENTS, GC_TABLES, SHOP_SEED, shopSeedStatements } from '@/l
 export const dynamic = 'force-dynamic'
 
 /**
- * 이랑게임센터 DDL — gc_* 표 8개 생성 + 상점 초기 상품.
+ * 이랑게임센터 DDL — gc_* 표 생성 + 상점 초기 상품.
  * Cloud SQL은 소켓 전용이라 로컬에서 DDL을 못 쳐서 앱 경유로 적용한다.
  * CREATE TABLE IF NOT EXISTS / ON CONFLICT DO NOTHING — 멱등. 관리자 전용.
  *

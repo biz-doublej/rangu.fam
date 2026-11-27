@@ -2,12 +2,13 @@
 
 import React from 'react'
 import { useRouter } from 'next/navigation'
-import { Coins, Gamepad2, ShoppingBag, UserRound } from 'lucide-react'
+import { Coins, Gamepad2, ShoppingBag, Trophy, UserRound } from 'lucide-react'
 import { WikiShell, WikiPageHeader } from '@/components/wiki'
 import type { GamecenterMe } from './useGamecenterMe'
 
 const TABS = [
   { key: 'lobby', label: '로비', icon: Gamepad2, href: '/wiki/game' },
+  { key: 'ranking', label: '랭킹', icon: Trophy, href: '/wiki/game/ranking' },
   { key: 'shop', label: '상점', icon: ShoppingBag, href: '/wiki/game/shop' },
   { key: 'me', label: '내 정보', icon: UserRound, href: '/wiki/game/me' },
 ]
@@ -16,7 +17,7 @@ export function formatPoints(value: number): string {
   return `${value.toLocaleString('ko-KR')}P`
 }
 
-/** 게임센터 화면 공통 틀: 제목, 탭(로비·상점·내 정보), 내 포인트 */
+/** 게임센터 화면 공통 틀: 제목, 탭(로비·랭킹·상점·내 정보), 내 포인트 */
 export function GamecenterFrame({
   active,
   subtitle,
@@ -25,7 +26,7 @@ export function GamecenterFrame({
   error,
   children,
 }: {
-  active: 'lobby' | 'shop' | 'me'
+  active: 'lobby' | 'ranking' | 'shop' | 'me'
   subtitle: string
   me: GamecenterMe | null
   loading: boolean

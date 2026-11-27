@@ -5,6 +5,7 @@ import { gcPointLedger, gcWallets } from '@/db/schema/gamecenter'
 import { gamecenterErrorResponse, requireGamecenterUser } from '@/lib/gamecenter/auth'
 import { addDays, kstDay } from '@/lib/gamecenter/kst'
 import { earnedTowardCap } from '@/lib/gamecenter/points'
+import { settleLastWeekQuietly } from '@/lib/gamecenter/ranking'
 import { DAILY_GAME_CAP } from '@/lib/gamecenter/rewards'
 import { PLUSHES, plushItemKey } from '@/games/claw/plushes'
 import { grantOf, listInventory, listShopItems } from '@/lib/gamecenter/shop'
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
     const auth = await requireGamecenterUser(request)
     if (!auth.ok) return auth.response
     const { user } = auth
+
+    // 월요일 이후 첫 요청 때 지난주 랭킹 정산 (이미 했으면 바로 넘어간다)
+    await settleLastWeekQuietly()
 
     const db = getDb()
     const today = kstDay()

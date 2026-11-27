@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, kstDay, kstDayStart, kstMonthStartDay, kstWeekStartDay, periodStart } from './kst'
+import { addDays, isoWeekId, kstDay, kstDayStart, kstMonthStartDay, kstWeekStartDay, periodStart } from './kst'
 
 describe('kst', () => {
   it('UTC 15시가 지나면 KST 날짜가 넘어간다', () => {
@@ -34,5 +34,14 @@ describe('kst', () => {
     expect(periodStart('week', now)?.toISOString()).toBe('2026-11-22T15:00:00.000Z')
     expect(periodStart('month', now)?.toISOString()).toBe('2026-10-31T15:00:00.000Z')
     expect(periodStart('once', now)).toBeNull()
+  })
+
+  it('ISO 주 번호: 월요일에 시작하고 목요일이 속한 해를 따른다', () => {
+    expect(isoWeekId('2026-11-23')).toBe('2026-W48')
+    expect(isoWeekId('2026-11-29')).toBe('2026-W48')
+    expect(isoWeekId('2026-11-30')).toBe('2026-W49')
+    expect(isoWeekId('2027-01-01')).toBe('2026-W53') // 금요일 — 아직 2026년의 마지막 주
+    expect(isoWeekId('2027-01-04')).toBe('2027-W01')
+    expect(isoWeekId('2024-12-30')).toBe('2025-W01')
   })
 })

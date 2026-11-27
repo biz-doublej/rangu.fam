@@ -119,6 +119,16 @@ export const REASONS = {
   clawPlay: 'claw.play',
   clawNewPlush: 'claw.dex',
   clawGold: 'claw.gold',
+  tetrisClear: 'tetris.clear',
+  tetrisScore: 'tetris.score',
+  tetrisTetris: 'tetris.tetris',
+  tetrisBest: 'tetris.best',
+  climbPlay: 'climb.play',
+  climbZone: 'climb.zone',
+  climbSummit: 'climb.summit',
+  climbFaster: 'climb.faster',
+  weeklyRank: 'weekly.rank',
+  weeklyFall: 'weekly.fall',
 } as const
 
 /**
@@ -133,4 +143,21 @@ export function clampToDailyCap(amount: number, earnedToday: number, cap: number
 /** 연속 출석이 7일째(14일째, 21일째 …)인지 */
 export function isStreakBonusDay(streakDays: number): boolean {
   return streakDays > 0 && streakDays % COMMON_REWARDS.streakLength === 0
+}
+
+/** 테트리스 한 판의 점수·4줄 보상 (판당 상한 적용). 완료·최고 기록 보상은 하루 횟수 제한이 있어 서버가 따로 본다. */
+export function tetrisRunBonuses(result: { score: number; tetrises: number; frames: number }) {
+  const rule = GAME_REWARDS.tetris
+  return {
+    /** 한 판 완료 보상을 받을 만큼 오래 했는지 (1분 이상) */
+    longEnough: result.frames >= rule.clearMinSeconds * 60,
+    score: Math.min(rule.per10kScoreMaxPerRun, Math.floor(result.score / 10_000) * rule.per10kScore),
+    tetris: Math.min(rule.tetrisMaxPerRun, result.tetrises * rule.tetris),
+  }
+}
+
+/** 랑구 등반 랭킹 점수: 완주한 판은 빠를수록, 아니면 높이 올라갈수록 높다. */
+export const CLIMB_COMPLETED_BASE = 1_000_000_000
+export function climbRankScore(result: { maxHeight: number; completedAt: number | null }): number {
+  return result.completedAt !== null ? CLIMB_COMPLETED_BASE - result.completedAt : result.maxHeight
 }

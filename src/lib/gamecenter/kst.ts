@@ -46,3 +46,15 @@ export function periodStart(period: LimitPeriod, now: Date = new Date()): Date |
   if (period === 'month') return kstDayStart(kstMonthStartDay(today))
   return null
 }
+
+/**
+ * 그 날짜가 속한 주의 ISO 주 번호 표기 (예: '2026-W48').
+ * 주는 월요일에 시작하고, 그 주의 목요일이 속한 해를 그 주의 해로 본다.
+ */
+export function isoWeekId(day: string): string {
+  const thursday = addDays(kstWeekStartDay(day), 3)
+  const year = Number(thursday.slice(0, 4))
+  const jan1 = Date.parse(`${year}-01-01T00:00:00Z`)
+  const dayOfYear = Math.floor((Date.parse(`${thursday}T00:00:00Z`) - jan1) / DAY_MS)
+  return `${year}-W${String(Math.floor(dayOfYear / 7) + 1).padStart(2, '0')}`
+}

@@ -14,6 +14,7 @@ export const GC_TABLES = [
   'gc_orders',
   'gc_inventory',
   'gc_quiz_self_answers',
+  'gc_climb_signs',
 ] as const
 
 export const GC_DDL_STATEMENTS: string[] = [
@@ -103,6 +104,15 @@ export const GC_DDL_STATEMENTS: string[] = [
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, prompt_id)
   )`,
+  // 랑구 등반 표지판 (2단계에서 추가 — 기획안 데이터 모델에는 없던 표)
+  `CREATE TABLE IF NOT EXISTS gc_climb_signs (
+    zone integer PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES wiki_users(id) ON DELETE CASCADE,
+    text text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  // 주간 랭킹 조회용
+  `CREATE INDEX IF NOT EXISTS gc_runs_game_finished_at_idx ON gc_runs (game, finished_at)`,
 ]
 
 export interface ShopSeedItem {

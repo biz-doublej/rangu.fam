@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CLIMB_COMPLETED_BASE, climbRankScore, tetrisRunBonuses } from './rewards'
 import { COMMON_REWARDS, DAILY_GAME_CAP, GAME_IDS, GAME_REWARDS, clampToDailyCap, isStreakBonusDay } from './rewards'
 
 describe('보상 규칙 표 — 기획안 ‘포인트 획득 규칙’과 같은지', () => {
@@ -73,5 +74,36 @@ describe('isStreakBonusDay', () => {
   it('7일째마다', () => {
     expect([1, 6, 7, 8, 14, 21].map(isStreakBonusDay)).toEqual([false, false, true, false, true, true])
     expect(isStreakBonusDay(0)).toBe(false)
+  })
+})
+
+describe('tetrisRunBonuses', () => {
+  it('1만 점마다 +5P, 판당 최대 +40P', () => {
+    expect(tetrisRunBonuses({ score: 9_999, tetrises: 0, frames: 0 }).score).toBe(0)
+    expect(tetrisRunBonuses({ score: 10_000, tetrises: 0, frames: 0 }).score).toBe(5)
+    expect(tetrisRunBonuses({ score: 34_500, tetrises: 0, frames: 0 }).score).toBe(15)
+    expect(tetrisRunBonuses({ score: 999_999, tetrises: 0, frames: 0 }).score).toBe(40)
+  })
+
+  it('4줄 제거마다 +3P, 판당 최대 +30P', () => {
+    expect(tetrisRunBonuses({ score: 0, tetrises: 4, frames: 0 }).tetris).toBe(12)
+    expect(tetrisRunBonuses({ score: 0, tetrises: 50, frames: 0 }).tetris).toBe(30)
+  })
+
+  it('한 판 완료는 1분(3600프레임) 이상', () => {
+    expect(tetrisRunBonuses({ score: 0, tetrises: 0, frames: 3599 }).longEnough).toBe(false)
+    expect(tetrisRunBonuses({ score: 0, tetrises: 0, frames: 3600 }).longEnough).toBe(true)
+  })
+})
+
+describe('climbRankScore', () => {
+  it('완주한 판은 언제나 미완주보다 위, 빠를수록 위', () => {
+    const fast = climbRankScore({ maxHeight: 9600, completedAt: 40_000 })
+    const slow = climbRankScore({ maxHeight: 9600, completedAt: 90_000 })
+    const high = climbRankScore({ maxHeight: 9500, completedAt: null })
+    expect(fast).toBeGreaterThan(slow)
+    expect(slow).toBeGreaterThan(high)
+    expect(high).toBe(9500)
+    expect(fast).toBe(CLIMB_COMPLETED_BASE - 40_000)
   })
 })

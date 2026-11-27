@@ -13,8 +13,8 @@ export interface GameInfo {
 
 export const GAMES: GameInfo[] = [
   { id: 'claw', name: '인형뽑기', category: '아케이드', description: '포인트를 넣고 랑구 인형 뽑기, 도감 수집', players: '1명', href: '/wiki/game/claw' },
-  { id: 'tetris', name: '테트리스', category: '아케이드', description: '혼자 하는 랭킹전', players: '1명', href: null },
-  { id: 'climb', name: '랑구 등반', category: '아케이드', description: '힘을 모아 점프하는 수직 등반, 체크포인트 없음', players: '1명', href: null },
+  { id: 'tetris', name: '테트리스', category: '아케이드', description: '혼자 하는 랭킹전', players: '1명', href: '/wiki/game/tetris' },
+  { id: 'climb', name: '랑구 등반', category: '아케이드', description: '힘을 모아 점프하는 수직 등반, 체크포인트 없음', players: '1명', href: '/wiki/game/climb' },
   { id: 'quiz', name: '퀴즈 배틀', category: '파티', description: '친구에 대한 퀴즈, 누가 그랬을까', players: '3~8명', href: null },
   { id: 'liar', name: '라이어 게임', category: '파티', description: '제시어를 모르는 한 명 찾기', players: '3~8명', href: null },
   { id: 'catchmind', name: '캐치마인드', category: '파티', description: '그림 그리고 맞히기', players: '3~8명', href: null },
@@ -33,6 +33,16 @@ const REASON_LABELS: Record<string, string> = {
   'claw.play': '1회 플레이',
   'claw.dex': '도감 첫 등록',
   'claw.gold': '황금 랑구 획득',
+  'tetris.clear': '한 판 완료',
+  'tetris.score': '점수 보너스',
+  'tetris.tetris': '4줄 제거 보너스',
+  'tetris.best': '개인 최고 기록',
+  'climb.play': '5분 이상 플레이',
+  'climb.zone': '새 구역 도달',
+  'climb.summit': '정상 첫 도달',
+  'climb.faster': '완주 기록 단축',
+  'weekly.rank': '주간 랭킹 보상',
+  'weekly.fall': '이번 주 가장 크게 떨어진 사람',
 }
 
 export function reasonLabel(reason: string): string {
