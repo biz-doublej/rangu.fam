@@ -11,8 +11,8 @@
 #      DB 에는 붙지 않는다 (Cloud SQL 연결 없음) — 결과는 rangu-fam 내부 API 로만 보낸다.
 #   4. rangu-fam 서비스에 같은 비밀값 두 개와 GAME_RT_URL 을 연결한다.
 #
-# 주의: deploy/03-deploy.ps1 은 --set-env-vars / --set-secrets 로 값을 통째로 바꾼다.
-#       03 을 다시 돌린 뒤에는 이 스크립트를 -WireOnly 로 한 번 더 돌려 4번을 다시 적용할 것.
+# deploy/03-deploy.ps1 도 이 서비스가 있으면 같은 값 세 개를 넣으므로, 03 을 다시 돌려도 연결이 유지된다.
+# 4번만 다시 하고 싶으면:
 #
 #   pwsh ./deploy/05-game-rt.ps1 -Project <PROJECT_ID> -WireOnly
 
