@@ -1,0 +1,27 @@
+# 실시간 서버 이미지 빌드. 저장소 루트에서 실행한다 (deploy/05-game-rt.ps1 이 부른다).
+#
+#   gcloud builds submit --config services/game-rt/cloudbuild.yaml \
+#     --substitutions=_REGION=asia-northeast1,_REPO=rangu
+
+substitutions:
+  _SERVICE: rangu-game-rt
+  _REGION: asia-northeast1
+  _REPO: rangu
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 900s
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - services/game-rt/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:$BUILD_ID
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest

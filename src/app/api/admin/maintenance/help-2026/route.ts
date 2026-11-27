@@ -3,6 +3,7 @@ import { and, eq, ne, or } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { wikiPages, wikiRevisions } from '@/db/schema/wiki'
 import { checkAdminAuth } from '@/lib/adminAuth'
+import { GAMECENTER_DOC, GAMECENTER_DOC_TITLE } from '@/lib/gamecenter/helpDoc'
 import { GUIDE_DOC, GUIDE_DOC_TITLE, SYNTAX_DOC, SYNTAX_DOC_TITLE } from '@/lib/helpDocs'
 import { PLAYER_TEMPLATE, PLAYER_TEMPLATE_TITLE, REFERENCE_DOC, REFERENCE_DOC_TITLE } from '@/lib/referenceDoc'
 import { documentCategories, documentPageLinks } from '@/lib/wiki/parser/document'
@@ -504,6 +505,12 @@ const HELP_PAGES: HelpPageSpec[] = [
     content: REFERENCE_DOC,
     summary: '기존 기능과 2026-11 새 기능을 실제 모습과 원문으로 모은 레퍼런스',
     pageSummary: '이랑위키 기능을 실제로 보이는 모습으로 — 글자·링크·목록·표·그림·상자·틀·나무위키 변환',
+  },
+  {
+    title: GAMECENTER_DOC_TITLE,
+    content: GAMECENTER_DOC,
+    summary: '이랑게임센터 안내 — 게임 9종, 포인트 규칙, 방 게임, 랭킹, 상점',
+    pageSummary: '이랑게임센터 안내 — 게임별 하는 법과 포인트, 방 만들기, 랭킹, 상점',
   },
 ]
 

@@ -31,13 +31,22 @@ $image = "$Region-docker.pkg.dev/$Project/$Repo/${Service}:latest"
 # left the wiki dead after the 2026-06-05 restore.
 $cloudSqlInstance = "${Project}:${Region}:rangu-pg"
 
-$envVars = @(
+# 이랑게임센터 실시간 서버(rangu-game-rt)가 배포돼 있으면 그 주소와 비밀값 두 개를 함께 넣는다.
+# 아래 --set-env-vars / --set-secrets 는 값을 통째로 바꾸므로, 여기서 빠지면 방 게임(오목·퀴즈 등)이 멈춘다.
+# 실시간 서버가 아직 없으면(05-game-rt.ps1 을 돌리기 전) 건너뛴다 — 비밀값도 그 스크립트가 만든다.
+$gameRtService = 'rangu-game-rt'
+$gameRtUrl = gcloud run services describe $gameRtService --region=$Region --project=$Project --format='value(status.url)' 2>$null
+if ($LASTEXITCODE -ne 0) { $gameRtUrl = $null }
+
+$envVarList = @(
   'NODE_ENV=production',
   'AUTH_MODE=sso',
   'DISCORD_REDIRECT_BASE_URL=https://rangu-fam.com'
-) -join ','
+)
+if ($gameRtUrl) { $envVarList += "GAME_RT_URL=$gameRtUrl" }
+$envVars = $envVarList -join ','
 
-$secrets = @(
+$secretList = @(
   'JWT_SECRET=rangu-jwt-secret:latest',
   'NEXTAUTH_SECRET=rangu-nextauth-secret:latest',
   # Code reads DATABASE_URL (src/db/client.ts). POSTGRES_BRIDGE_URI is FerretDB-era leftover.
@@ -49,7 +58,15 @@ $secrets = @(
   'DISCORD_CLIENT_ID=rangu-discord-client-id:latest',
   'DISCORD_CLIENT_SECRET=rangu-discord-client-secret:latest',
   'DISCORD_WEBHOOK_URL=rangu-discord-webhook-url:latest'
-) -join ','
+)
+if ($gameRtUrl) {
+  $secretList += 'RT_JWT_SECRET=rangu-rt-jwt-secret:latest'
+  $secretList += 'GC_INTERNAL_SECRET=rangu-gc-internal-secret:latest'
+  Write-Host "==> Game center realtime server: $gameRtUrl" -ForegroundColor DarkGray
+} else {
+  Write-Host "==> $gameRtService not deployed yet - skipping GAME_RT_URL and realtime secrets (run deploy/05-game-rt.ps1)" -ForegroundColor DarkYellow
+}
+$secrets = $secretList -join ','
 
 Write-Host ""
 Write-Host "==> Deploying $Service to Cloud Run ($Region)" -ForegroundColor Cyan

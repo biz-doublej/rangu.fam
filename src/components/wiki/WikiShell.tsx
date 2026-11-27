@@ -21,6 +21,7 @@ import {
   Layers,
   Shuffle,
   HelpCircle,
+  Gamepad2,
   FileText,
   Edit,
   Trophy,
@@ -89,6 +90,12 @@ const HELP_LINKS = [
 ]
 
 const TOOL_LINKS = [{ label: '기여자', href: '/wiki/contributors', icon: Trophy }]
+
+/** 이랑게임센터 (irang.wiki/game) */
+const GAME_LINKS = [
+  { label: '게임센터', href: '/wiki/game' },
+  { label: '게임센터 안내', href: '/wiki/이랑위키:게임센터' },
+]
 
 /* 사이트 전체(랑구팸) 셀렉 메뉴 — 위키 토프바 아래에 노출. 랑구팸 본 사이트의
  * 메뉴와 동일한 6 항목을 그대로 가져옵니다. 현재 위치는 "이랑위키"이므로
@@ -629,6 +636,16 @@ export function WikiShellLayoutFrame({ children }: { children: React.ReactNode }
                   <span>편집 검수</span>
                 </button>
               )}
+            </nav>
+
+            <nav className="flex flex-col">
+              <h4>게임</h4>
+              {GAME_LINKS.map(item => (
+                <button key={item.href} onClick={() => router.push(item.href)}>
+                  <Gamepad2 className="w-4 h-4 opacity-70" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
             </nav>
 
             <nav className="flex flex-col">

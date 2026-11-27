@@ -1,0 +1,28 @@
+{
+  "name": "rangu-game-rt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "이랑게임센터 실시간 서버 (Socket.IO) — 파티·보드 게임 방",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --packages=external --outfile=dist/server.js",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/rooms.e2e.ts"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "esbuild": "^0.24.0",
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5"
+  }
+}

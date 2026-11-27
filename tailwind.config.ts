@@ -23,6 +23,7 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/games/**/*.{ts,tsx}', // 이랑게임센터 게임 화면 컴포넌트
     './packages/*/src/**/*.{js,ts,jsx,tsx}', // @rangu/ui 등 워크스페이스 컴포넌트 클래스 스캔
   ],
   theme: {
