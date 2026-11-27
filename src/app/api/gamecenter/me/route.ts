@@ -6,6 +6,7 @@ import { gamecenterErrorResponse, requireGamecenterUser } from '@/lib/gamecenter
 import { addDays, kstDay } from '@/lib/gamecenter/kst'
 import { earnedTowardCap } from '@/lib/gamecenter/points'
 import { DAILY_GAME_CAP } from '@/lib/gamecenter/rewards'
+import { PLUSHES, plushItemKey } from '@/games/claw/plushes'
 import { grantOf, listInventory, listShopItems } from '@/lib/gamecenter/shop'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic'
 /** 상점 상품에 없는 보유품 이름 */
 const STATIC_ITEM_LABELS: Record<string, string> = {
   'claw-ticket': '인형뽑기 무료권',
+  ...Object.fromEntries(PLUSHES.map((plush) => [plushItemKey(plush.key), `인형 · ${plush.name}`])),
 }
 
 /**

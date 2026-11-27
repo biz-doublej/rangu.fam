@@ -116,6 +116,9 @@ export const REASONS = {
   shopPurchase: 'shop.purchase',
   shopRefund: 'shop.refund',
   adminAdjust: 'admin.adjust',
+  clawPlay: 'claw.play',
+  clawNewPlush: 'claw.dex',
+  clawGold: 'claw.gold',
 } as const
 
 /**
