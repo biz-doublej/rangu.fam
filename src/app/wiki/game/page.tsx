@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { CalendarCheck, Flame } from 'lucide-react'
 import { GamecenterFrame, formatPoints } from '@/components/gamecenter/GamecenterFrame'
+import { RoomEntry } from '@/components/gamecenter/RoomEntry'
 import { gcPost, useGamecenterMe } from '@/components/gamecenter/useGamecenterMe'
 import { GAMES } from '@/lib/gamecenter/games'
 
@@ -100,6 +101,8 @@ export default function GamecenterLobbyPage() {
               </button>
             </div>
           </section>
+
+          <RoomEntry />
 
           {CATEGORIES.map((category) => (
             <section key={category} aria-labelledby={`gc-${category}`}>

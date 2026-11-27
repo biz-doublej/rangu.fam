@@ -84,6 +84,8 @@ export const GAME_REWARDS = {
     lose: 5,
     /** 같은 상대와는 하루 3판까지 보상 */
     rewardedGamesPerOpponentPerDay: 3,
+    /** 이보다 적게 두고 끝난 판(바로 기권 등)은 보상이 없다 — 다섯 알을 놓으려면 최소 9수 */
+    minMovesForReward: 9,
   },
   yut: {
     participate: 10,
@@ -129,6 +131,9 @@ export const REASONS = {
   climbFaster: 'climb.faster',
   weeklyRank: 'weekly.rank',
   weeklyFall: 'weekly.fall',
+  omokWin: 'omok.win',
+  omokLose: 'omok.lose',
+  omokDraw: 'omok.draw',
 } as const
 
 /**

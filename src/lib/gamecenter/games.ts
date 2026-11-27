@@ -19,7 +19,7 @@ export const GAMES: GameInfo[] = [
   { id: 'liar', name: '라이어 게임', category: '파티', description: '제시어를 모르는 한 명 찾기', players: '3~8명', href: null },
   { id: 'catchmind', name: '캐치마인드', category: '파티', description: '그림 그리고 맞히기', players: '3~8명', href: null },
   { id: 'ladder', name: '사다리 타기', category: '보드', description: '계산·벌칙 정하기 (보상 없음)', players: '2~10명', href: '/wiki/game/ladder' },
-  { id: 'omok', name: '오목', category: '보드', description: '1대1 턴제', players: '2명', href: null },
+  { id: 'omok', name: '오목', category: '보드', description: '1대1 턴제 (방을 만들어 친구와)', players: '2명', href: '#rooms' },
   { id: 'yut', name: '윷놀이', category: '보드', description: '팀전, 말이 친구 캐릭터', players: '2~4명', href: null },
 ]
 
@@ -43,6 +43,9 @@ const REASON_LABELS: Record<string, string> = {
   'climb.faster': '완주 기록 단축',
   'weekly.rank': '주간 랭킹 보상',
   'weekly.fall': '이번 주 가장 크게 떨어진 사람',
+  'omok.win': '승리',
+  'omok.lose': '패배',
+  'omok.draw': '무승부',
 }
 
 export function reasonLabel(reason: string): string {

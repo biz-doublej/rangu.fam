@@ -25,3 +25,5 @@ HELP.md
 deploy
 Dockerfile
 .dockerignore
+services/game-rt/node_modules
+services/game-rt/dist
